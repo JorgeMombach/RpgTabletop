@@ -41,6 +41,8 @@ export interface AppOptions {
   gmLoopback?: boolean;
   /** Endereços de convite fixos (ex.: Docker). */
   publicUrls?: string[];
+  /** Listar os IPs desta máquina como convite (padrão: sim; no Docker, não). */
+  detectAddresses?: boolean;
 }
 
 function validRuler(raw: unknown): Ruler | null {
@@ -64,7 +66,8 @@ export function createApp(opts: AppOptions) {
     gmKey: opts.gmKey ?? randomBytes(12).toString("base64url"),
     gmLoopback: opts.gmLoopback ?? true,
   };
-  let host = hostInfo(opts.port, rules.gmKey, opts.publicUrls);
+  const detect = opts.detectAddresses ?? true;
+  let host = hostInfo(opts.port, rules.gmKey, opts.publicUrls, detect);
   const startedAt = Date.now();
 
   // Healthcheck (Docker) e diagnóstico rápido.
@@ -207,7 +210,7 @@ export function createApp(opts: AppOptions) {
     },
     /** Atualiza a porta real (após o fallback de porta ocupada) nos endereços de convite. */
     setPort(port: number) {
-      host = hostInfo(port, rules.gmKey, opts.publicUrls);
+      host = hostInfo(port, rules.gmKey, opts.publicUrls, detect);
     },
     broadcast,
     close: () => new Promise<void>((resolve) => io.close(() => resolve())),

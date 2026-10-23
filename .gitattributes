@@ -1,0 +1,8 @@
+# LF em todos os arquivos de texto, em qualquer sistema (Windows, Linux, container).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary

@@ -1,0 +1,76 @@
+# Constrói a imagem Docker e valida a definição de pronto do E9 (SPEC §13).
+# O build da imagem já roda typecheck e testes (ver Dockerfile).
+name: Docker
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  image:
+    name: Build e teste de fumaça
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: simulador-encontros:ci
+      GM_KEY: chave-de-ci-1234
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build da imagem (typecheck + testes + build)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tamanho < 200 MB
+        run: |
+          size=$(docker image inspect "$IMAGE" --format '{{.Size}}')
+          mb=$((size / 1024 / 1024))
+          echo "Tamanho da imagem: ${mb} MB" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$mb" -lt 200
+
+      - name: Roda como usuário sem privilégios
+        run: |
+          uid=$(docker run --rm --entrypoint id "$IMAGE" -u)
+          echo "uid: $uid"
+          test "$uid" != "0"
+
+      - name: Sobe o container e espera ficar healthy
+        run: |
+          docker run -d --name sim -p 3000:3000 \
+            -e GM_KEY="$GM_KEY" -e PUBLIC_URLS=http://localhost:3000 "$IMAGE"
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' sim)
+            echo "health: $status"
+            [ "$status" = healthy ] && break
+            sleep 2
+          done
+          docker logs sim
+          test "$(docker inspect -f '{{.State.Health.Status}}' sim)" = healthy
+
+      - name: Responde HTTP, Socket.IO e mostra o link do mestre
+        run: |
+          curl -fsS http://localhost:3000/healthz
+          echo
+          curl -fsS http://localhost:3000/ | grep -q '<div id="root">'
+          curl -fsS "http://localhost:3000/socket.io/?EIO=4&transport=polling" | grep -q '"sid"'
+          docker logs sim | grep -q "gm=$GM_KEY"
+
+      - name: Encerra limpo com docker stop em < 5 s
+        run: |
+          start=$(date +%s)
+          docker stop sim
+          elapsed=$(( $(date +%s) - start ))
+          code=$(docker inspect -f '{{.State.ExitCode}}' sim)
+          echo "docker stop: ${elapsed}s, exit code: ${code}" | tee -a "$GITHUB_STEP_SUMMARY"
+          docker logs sim | tail -2
+          test "$elapsed" -lt 5
+          test "$code" = 0

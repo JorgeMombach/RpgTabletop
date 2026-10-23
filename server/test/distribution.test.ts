@@ -147,6 +147,17 @@ describe("endereços de convite", () => {
     assert.deepEqual(h.addresses, [{ label: "Configurado", url: "http://100.64.0.5:3000" }]);
   });
 
+  it("no modo container (sem detecção) e sem PUBLIC_URLS, não inventa endereços", () => {
+    assert.deepEqual(hostInfo(3000, KEY, [], false).addresses, []);
+    assert.equal(hostInfo(3000, KEY, ["http://10.0.0.5:8080"], false).addresses.length, 1, "PUBLIC_URLS continua valendo");
+  });
+
+  it("DETECT_ADDRESSES=0 / --no-detect-addresses desligam a detecção", () => {
+    assert.equal(parseConfig([], {}).detectAddresses, true);
+    assert.equal(parseConfig([], { DETECT_ADDRESSES: "0" }).detectAddresses, false);
+    assert.equal(parseConfig(["--no-detect-addresses"], {}).detectAddresses, false);
+  });
+
   it("sem PUBLIC_URLS, usa as interfaces de rede com a porta real", () => {
     const h = hostInfo(3007, KEY);
     assert.ok(h.addresses.every((a) => a.url.endsWith(":3007")));

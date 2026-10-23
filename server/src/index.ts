@@ -52,6 +52,7 @@ async function main() {
     gmKey: config.gmKey,
     gmLoopback: config.gmLoopback,
     publicUrls: config.publicUrls,
+    detectAddresses: config.detectAddresses,
   });
 
   let port: number;
@@ -64,14 +65,18 @@ async function main() {
   app.setPort(port);
 
   const local = config.dev ? "http://localhost:5173" : `http://localhost:${port}`;
-  const gmLink = `${local}/?gm=${config.gmKey}`;
+  // No Docker o "localhost" do container não é o do mestre: prefere um endereço público configurado.
+  const gmBase = config.gmLoopback || !config.publicUrls.length ? local : config.publicUrls[0];
+  const gmLink = `${gmBase}/?gm=${config.gmKey}`;
   const { addresses } = app.host;
   const lines = [
     "",
     `  Simulador de Encontros v${APP_VERSION}`,
     "",
     ...(port !== config.port ? [`  A porta ${config.port} estava ocupada; usando a ${port}.`, ""] : []),
-    config.gmLoopback ? `  Mestre (esta máquina):  ${local}` : "  Mestre: use o link com a chave abaixo",
+    config.gmLoopback
+      ? `  Mestre (esta máquina):  ${local}`
+      : "  Mestre: use o link com a chave abaixo (troque host/porta pelo endereço publicado, se for outro)",
     `  Link de mestre (outro dispositivo, não compartilhe): ${gmLink}`,
     "",
     "  Jogadores:",

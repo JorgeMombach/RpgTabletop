@@ -46,6 +46,7 @@ Opções (variável de ambiente ou argumento; o argumento vence). Exemplo: `node
 | `GM_KEY` | `--gm-key` | gerada | Chave de mestre fixa (mín. 8 caracteres) |
 | `GM_LOOPBACK=0` | `--no-gm-loopback` | ligado | localhost deixa de ser mestre; só a chave vale (Docker) |
 | `PUBLIC_URLS` | `--public-urls` | detectados | Endereços de convite, separados por vírgula |
+| `DETECT_ADDRESSES=0` | `--no-detect-addresses` | ligado | Não lista os IPs da máquina como convite (Docker) |
 
 `node dist/server.cjs --help` lista tudo. Há também `GET /healthz`, que responde `{"ok":true,"version":…}` (usado no healthcheck do Docker).
 
@@ -55,6 +56,39 @@ Na primeira execução o Windows pergunta se o Node pode aceitar conexões: perm
 ```powershell
 New-NetFirewallRule -DisplayName "Simulador de Encontros" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow
 ```
+
+## Alternativa: rodar com Docker
+
+Para quem já usa Docker (ou tem um servidor em casa). Quem for só mestrar no próprio PC pode ignorar esta seção.
+
+No container o mestre **não** é reconhecido por `localhost` (as conexões chegam pela rede interna do Docker): ele entra pelo **link com a chave**, mostrado nos logs. Os endereços de convite também não são detectados lá dentro: informe-os em `PUBLIC_URLS`.
+
+**Com o `docker-compose.yml` do repositório** (edite `GM_KEY` e `PUBLIC_URLS` antes):
+
+```bash
+docker compose up -d --build
+```
+
+```bash
+docker compose logs
+```
+
+O log mostra o *Link de mestre* e os endereços dos jogadores. Para encerrar: `docker compose down`.
+
+**Só com `docker`:**
+
+```bash
+docker build -t simulador-encontros .
+```
+
+```bash
+docker run -d --name simulador -p 3000:3000 -e GM_KEY=uma-chave-sua -e PUBLIC_URLS=http://192.168.0.10:3000 simulador-encontros
+```
+
+- `GM_KEY`: fixe uma chave (mín. 8 caracteres) para o link do mestre não mudar a cada reinício; sem ela, uma nova é gerada e aparece em `docker logs simulador`.
+- `PUBLIC_URLS`: o(s) endereço(s) pelos quais os jogadores chegam nesta máquina (IP da LAN e/ou do Tailscale), separados por vírgula. Se publicar em outra porta (`-p 8080:3000`), use essa porta nos endereços.
+- A imagem roda como usuário sem privilégios, tem healthcheck em `/healthz` e encerra limpo com `docker stop`.
+- O build da imagem roda typecheck e testes: se algo quebrar, a imagem não é gerada.
 
 ## Jogadores: conectando
 
@@ -127,6 +161,6 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E6 — Magias | ✅ |
 | E7 — Ciclo da batalha e acabamento | ✅ |
 | E8 — Preparação para distribuição | ✅ |
-| E9 — Imagem Docker | ⏳ |
+| E9 — Imagem Docker | 🟡 arquivos prontos, falta validar o build da imagem |
 | E10 — Executável | ⏳ |
 | E11 — CI/CD e releases | ⏳ |
