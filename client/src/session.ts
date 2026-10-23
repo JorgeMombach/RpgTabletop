@@ -3,6 +3,7 @@ import { toast, useApp } from "./store";
 
 const TOKEN_KEY = "rpg.sessionToken";
 const NAME_KEY = "rpg.name";
+const GM_KEY = "rpg.gmKey";
 
 function read(key: string): string | null {
   try {
@@ -20,6 +21,26 @@ function write(key: string, value: string) {
   }
 }
 
+/**
+ * Link de mestre (`/?gm=<chave>`, ADR-12): guarda a chave para reconectar
+ * e tira da barra de endereço para não ir junto num print ou link copiado.
+ */
+function captureGmKey() {
+  const params = new URLSearchParams(location.search);
+  const key = params.get("gm");
+  if (!key) return;
+  write(GM_KEY, key);
+  params.delete("gm");
+  const query = params.toString();
+  history.replaceState(null, "", location.pathname + (query ? `?${query}` : "") + location.hash);
+}
+
+captureGmKey();
+
+function gmKey(): string | undefined {
+  return read(GM_KEY) ?? undefined;
+}
+
 export function savedName(): string {
   return read(NAME_KEY) ?? "";
 }
@@ -29,7 +50,7 @@ export async function join(name: string) {
   try {
     const res = await socket
       .timeout(5000)
-      .emitWithAck("session:join", { name, sessionToken: read(TOKEN_KEY) ?? undefined });
+      .emitWithAck("session:join", { name, sessionToken: read(TOKEN_KEY) ?? undefined, gmKey: gmKey() });
     if (res.ok) {
       write(TOKEN_KEY, res.sessionToken);
       write(NAME_KEY, res.self.name);
@@ -45,7 +66,7 @@ export async function join(name: string) {
 
 socket.on("connect", async () => {
   useApp.setState({ connected: true });
-  const { role } = await socket.emitWithAck("session:probe");
+  const { role } = await socket.emitWithAck("session:probe", { gmKey: gmKey() });
   useApp.setState({ probedRole: role });
 
   // Recarregou a página ou a conexão caiu: volta com a mesma identidade.

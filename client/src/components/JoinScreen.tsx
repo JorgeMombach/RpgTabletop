@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { NAME_MAX_LENGTH, type JoinError } from "@rpg/shared";
+import { APP_VERSION, NAME_MAX_LENGTH, type JoinError } from "@rpg/shared";
 import { join, savedName } from "../session";
 import { useApp } from "../store";
 
@@ -52,6 +52,7 @@ export function JoinScreen() {
         <button className="btn primary" disabled={!connected || joining || !name.trim()}>
           {joining ? "Entrando…" : "Entrar"}
         </button>
+        <p className="muted small">v{APP_VERSION}</p>
       </form>
     </main>
   );

@@ -4,6 +4,8 @@ import type { ClientState, GridPos, MapConfig, PublicPlayer, Role, RollMode } fr
 export interface JoinPayload {
   name: string;
   sessionToken?: string;
+  /** Chave de mestre recebida pelo link `?gm=` (ADR-12). */
+  gmKey?: string;
 }
 
 export type JoinError = "invalid_name" | "room_full";
@@ -110,7 +112,7 @@ type ActionEvents = {
 
 export type ClientToServerEvents = ActionEvents & {
   /** Pergunta qual papel esta conexão receberia (loopback = mestre). */
-  "session:probe": (ack: (res: { role: Role }) => void) => void;
+  "session:probe": (payload: { gmKey?: string }, ack: (res: { role: Role }) => void) => void;
   "session:join": (payload: JoinPayload, ack: (res: JoinResult) => void) => void;
   /** Efêmero: repassado aos outros, não fica no estado. */
   "ruler:update": (ruler: Ruler | null) => void;

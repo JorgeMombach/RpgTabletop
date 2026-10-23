@@ -10,7 +10,7 @@ import type {
   JoinResult,
   ServerToClientEvents,
 } from "@rpg/shared";
-import { createApp } from "../src/app";
+import { createApp, type AppOptions } from "../src/app";
 import { Store } from "../src/store";
 
 export type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -18,7 +18,7 @@ export type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 export const MAX = 6;
 
 /** Sobe um servidor por arquivo de teste e zera o estado antes de cada teste. */
-export function useServer() {
+export function useServer(options: Partial<AppOptions> = {}) {
   const ctx = {} as { server: ReturnType<typeof createApp>; url: string };
   const clients: Client[] = [];
 
@@ -28,7 +28,7 @@ export function useServer() {
   }
 
   before(async () => {
-    ctx.server = createApp({ port: 0, maxPlayers: MAX });
+    ctx.server = createApp({ port: 0, maxPlayers: MAX, ...options });
     await new Promise<void>((resolve) => ctx.server.httpServer.listen(0, resolve));
     ctx.url = `http://localhost:${(ctx.server.httpServer.address() as AddressInfo).port}`;
   });
@@ -58,11 +58,11 @@ export function useServer() {
     });
   }
 
-  return { ctx, client };
+  return { ctx, client, url: () => ctx.url };
 }
 
-export function join(socket: Client, name: string, sessionToken?: string): Promise<JoinResult> {
-  return socket.timeout(2000).emitWithAck("session:join", { name, sessionToken });
+export function join(socket: Client, name: string, sessionToken?: string, gmKey?: string): Promise<JoinResult> {
+  return socket.timeout(2000).emitWithAck("session:join", { name, sessionToken, gmKey });
 }
 
 export function nextState(socket: Client): Promise<ClientState> {

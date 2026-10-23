@@ -1388,3 +1388,37 @@ input[type="range"] {
     font-size: 13px;
   }
 }
+
+/* E8: versão e link de mestre */
+
+.version {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.gm-link {
+  display: grid;
+  gap: 6px;
+}
+
+.gm-link summary {
+  cursor: pointer;
+}
+
+.gm-link[open] {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.invite-row code {
+  word-break: break-all;
+}

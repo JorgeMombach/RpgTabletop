@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ClientState, Combatant } from "@rpg/shared";
+import { APP_VERSION, type ClientState, type Combatant } from "@rpg/shared";
 import { BattleMap } from "../map/BattleMap";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
@@ -41,7 +41,9 @@ export function Shell({ state }: { state: ClientState }) {
   return (
     <div className="shell">
       <header className="topbar">
-        <span className="brand">🎲 Simulador de Encontros</span>
+        <span className="brand">
+          🎲 Simulador de Encontros <span className="version">v{APP_VERSION}</span>
+        </span>
         <TurnStatus state={state} />
         <div className="topbar-right">
           {!connected && <span className="badge warn">Reconectando…</span>}

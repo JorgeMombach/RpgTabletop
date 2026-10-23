@@ -10,8 +10,8 @@ describe("papéis", () => {
     const gm = await client();
     const pl = await client("192.168.0.10");
 
-    assert.deepEqual(await gm.emitWithAck("session:probe"), { role: "gm" });
-    assert.deepEqual(await pl.emitWithAck("session:probe"), { role: "player" });
+    assert.deepEqual(await gm.emitWithAck("session:probe", {}), { role: "gm" });
+    assert.deepEqual(await pl.emitWithAck("session:probe", {}), { role: "player" });
 
     const g = await join(gm, "Mestre");
     const p = await join(pl, "Ana");

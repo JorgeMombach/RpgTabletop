@@ -1,4 +1,5 @@
 import express from "express";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
@@ -13,10 +14,11 @@ import {
   type JoinResult,
   type Ruler,
   type ServerToClientEvents,
+  APP_VERSION,
 } from "@rpg/shared";
 import { handlers } from "./actions";
 import type { Handler } from "./actions/types";
-import { hostInfo, roleOf } from "./net";
+import { hostInfo, roleOf, type RoleRules } from "./net";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { ActionError, cleanName } from "./validate";
 import { viewFor } from "./view";
@@ -33,6 +35,12 @@ export interface AppOptions {
   maxPlayers: number;
   /** Pasta com o build do client; se não existir, só o socket fica disponível. */
   clientDist?: string;
+  /** Chave de mestre (ADR-12); sem ela, uma aleatória é gerada. */
+  gmKey?: string;
+  /** localhost vira mestre (padrão: sim). */
+  gmLoopback?: boolean;
+  /** Endereços de convite fixos (ex.: Docker). */
+  publicUrls?: string[];
 }
 
 function validRuler(raw: unknown): Ruler | null {
@@ -48,9 +56,26 @@ export function createApp(opts: AppOptions) {
   const io: AppServer = new Server(httpServer, {
     // Imagens de mapa e avatares viajam pelo socket.
     maxHttpBufferSize: 10e6,
+    // O client do Socket.IO já vai no bundle do front; não servimos o arquivo avulso.
+    serveClient: false,
   });
   const store = new Store(opts.maxPlayers);
-  const host = hostInfo(opts.port);
+  const rules: RoleRules = {
+    gmKey: opts.gmKey ?? randomBytes(12).toString("base64url"),
+    gmLoopback: opts.gmLoopback ?? true,
+  };
+  let host = hostInfo(opts.port, rules.gmKey, opts.publicUrls);
+  const startedAt = Date.now();
+
+  // Healthcheck (Docker) e diagnóstico rápido.
+  app.get("/healthz", (_req, res) => {
+    res.json({
+      ok: true,
+      version: APP_VERSION,
+      uptimeSec: Math.round((Date.now() - startedAt) / 1000),
+      players: store.connectedPlayerCount(),
+    });
+  });
 
   if (opts.clientDist && fs.existsSync(path.join(opts.clientDist, "index.html"))) {
     app.use(express.static(opts.clientDist));
@@ -91,7 +116,7 @@ export function createApp(opts: AppOptions) {
     const name = cleanName(payload?.name);
     if (!name) return { ok: false, error: "invalid_name" };
 
-    const role = roleOf(socket);
+    const role = roleOf(socket, rules, payload?.gmKey);
     detach(socket);
 
     let player: ServerPlayer | undefined;
@@ -135,8 +160,8 @@ export function createApp(opts: AppOptions) {
   }
 
   io.on("connection", (socket: AppSocket) => {
-    socket.on("session:probe", (ack) => {
-      if (typeof ack === "function") ack({ role: roleOf(socket) });
+    socket.on("session:probe", (payload, ack) => {
+      if (typeof ack === "function") ack({ role: roleOf(socket, rules, payload?.gmKey) });
     });
 
     socket.on("session:join", (payload, ack) => {
@@ -176,7 +201,14 @@ export function createApp(opts: AppOptions) {
     httpServer,
     io,
     store,
-    host,
+    rules,
+    get host() {
+      return host;
+    },
+    /** Atualiza a porta real (após o fallback de porta ocupada) nos endereços de convite. */
+    setPort(port: number) {
+      host = hostInfo(port, rules.gmKey, opts.publicUrls);
+    },
     broadcast,
     close: () => new Promise<void>((resolve) => io.close(() => resolve())),
   };

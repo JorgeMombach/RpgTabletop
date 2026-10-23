@@ -1,5 +1,6 @@
 {
   "name": "rpg-tabletop",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -9,13 +10,14 @@
   ],
   "scripts": {
     "dev": "concurrently -k -n server,client -c yellow,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
-    "build": "npm run build -w client",
-    "start": "npm start -w server",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/server.cjs",
     "typecheck": "tsc -p shared && tsc -p server && tsc -p client",
     "test": "npm test -w server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
+    "esbuild": "^0.28.2",
     "typescript": "^5.8.3"
   }
 }

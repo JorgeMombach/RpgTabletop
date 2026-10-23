@@ -4,6 +4,7 @@ import { Panel } from "./Panel";
 
 export function InvitePanel({ host }: { host: HostInfo }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const gmLink = `${location.origin}/?gm=${host.gmKey}`;
 
   async function copy(url: string) {
     try {
@@ -34,6 +35,16 @@ export function InvitePanel({ host }: { host: HostInfo }) {
           ))}
         </ul>
       )}
+      <details className="gm-link">
+        <summary className="muted small">Abrir como mestre em outro dispositivo</summary>
+        <p className="muted small">Quem abrir este link entra como mestre. Não compartilhe com os jogadores.</p>
+        <div className="invite-row">
+          <code>{gmLink}</code>
+          <button className="btn small" onClick={() => copy(gmLink)}>
+            {copied === gmLink ? "Copiado" : "Copiar"}
+          </button>
+        </div>
+      </details>
     </Panel>
   );
 }
