@@ -1,0 +1,175 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import type { ActionResult, MapImagePayload, RulerBroadcast } from "@rpg/shared";
+import { act, join, stateWhere, useServer, type Client } from "./helpers";
+
+const { ctx, client } = useServer();
+
+// PNG 1×1 válido.
+const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+function idsOf(res: ActionResult): string[] {
+  assert.ok(res.ok, res.ok ? "" : res.error);
+  return res.ids ?? [];
+}
+
+async function gm(): Promise<Client> {
+  const s = await client();
+  await join(s, "Mestre");
+  return s;
+}
+
+let ipSeq = 1;
+async function player(name: string): Promise<Client> {
+  const s = await client(`10.3.0.${ipSeq++}`);
+  await join(s, name);
+  return s;
+}
+
+function nextImage(s: Client): Promise<MapImagePayload> {
+  return new Promise((resolve) => s.once("map:image", resolve));
+}
+
+const map = () => ctx.server.store.game.battle.map;
+
+describe("imagem do mapa", () => {
+  it("mestre sobe o mapa e todos recebem; quem entra depois também", async () => {
+    const g = await gm();
+    const p = await player("Ana");
+
+    const got = nextImage(p);
+    assert.ok((await act(g, "battle:setMap", { image: PNG })).ok);
+    assert.equal((await got).image, PNG);
+
+    const late = await client("10.3.9.9");
+    const lateGot = nextImage(late);
+    await join(late, "Bia");
+    assert.equal((await lateGot).image, PNG);
+  });
+
+  it("a imagem não vai no estado, só a flag", async () => {
+    const g = await gm();
+    const next = stateWhere(g, (st) => st.battle.map.hasImage);
+    await act(g, "battle:setMap", { image: PNG });
+    const s = await next;
+    assert.ok(!JSON.stringify(s).includes("base64"));
+  });
+
+  it("jogador não troca o mapa; formatos inválidos são recusados", async () => {
+    const g = await gm();
+    const p = await player("Ana");
+    assert.equal((await act(p, "battle:setMap", { image: PNG })).ok, false);
+    for (const bad of ["oi", "data:image/svg+xml;base64,PHN2Zz4=", "javascript:alert(1)"]) {
+      assert.equal((await act(g, "battle:setMap", { image: bad })).ok, false, bad);
+    }
+    assert.equal(map().image, null);
+  });
+
+  it("remover o mapa avisa todos", async () => {
+    const g = await gm();
+    await act(g, "battle:setMap", { image: PNG });
+    const got = nextImage(g);
+    await act(g, "battle:setMap", { image: null });
+    assert.equal((await got).image, null);
+  });
+});
+
+describe("grid", () => {
+  it("mestre calibra tamanho e deslocamento; offset fica dentro de um quadrado", async () => {
+    const g = await gm();
+    assert.ok((await act(g, "battle:grid", { cellPx: 70.5, offsetX: 150, offsetY: -10, showGrid: false })).ok);
+    assert.equal(map().cellPx, 70.5);
+    assert.equal(map().offsetX, 9);
+    assert.equal(map().offsetY, 60.5);
+    assert.equal(map().showGrid, false);
+  });
+
+  it("recusa valores fora do limite e jogador não mexe", async () => {
+    const g = await gm();
+    const p = await player("Ana");
+    assert.equal((await act(g, "battle:grid", { cellPx: 2 })).ok, false);
+    assert.equal((await act(p, "battle:grid", { cellPx: 60 })).ok, false);
+    assert.equal(map().cellPx, 50);
+  });
+});
+
+describe("tokens", () => {
+  it("jogador move só o próprio token; mestre move qualquer um", async () => {
+    const g = await gm();
+    const ana = await player("Ana");
+    const bia = await player("Bia");
+    const [anaId] = idsOf(await act(ana, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1 }));
+    const [biaId] = idsOf(await act(bia, "ally:create", { name: "Lyra", hpMax: 20, dexMod: 3 }));
+    const [mobId] = idsOf(await act(g, "mob:add", { name: "Goblin", hpMax: 7, dexMod: 2 }));
+
+    assert.ok((await act(ana, "token:move", { id: anaId, pos: { col: 3, row: 4 } })).ok);
+    assert.equal((await act(ana, "token:move", { id: biaId, pos: { col: 0, row: 0 } })).ok, false);
+    assert.equal((await act(ana, "token:move", { id: mobId, pos: { col: 0, row: 0 } })).ok, false);
+    assert.ok((await act(g, "token:move", { id: biaId, pos: { col: 9, row: 9 } })).ok);
+    assert.ok((await act(g, "token:move", { id: mobId, pos: { col: 5, row: 5 } })).ok);
+
+    const s = await stateWhere(bia, (st) => st.battle.mobs[0]?.pos?.col === 5);
+    assert.deepEqual(s.allies.map((a) => a.pos), [{ col: 3, row: 4 }, { col: 9, row: 9 }]);
+
+    assert.ok((await act(ana, "token:move", { id: anaId, pos: null })).ok, "tirar do mapa");
+  });
+
+  it("movimento é livre (sem limite de distância), mas a coordenada é validada", async () => {
+    const p = await player("Ana");
+    const [id] = idsOf(await act(p, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1 }));
+    assert.ok((await act(p, "token:move", { id, pos: { col: 0, row: 0 } })).ok);
+    assert.ok((await act(p, "token:move", { id, pos: { col: 500, row: 500 } })).ok);
+    assert.equal((await act(p, "token:move", { id, pos: { col: 1.5, row: 0 } })).ok, false);
+    assert.equal((await act(p, "token:move", { id, pos: { col: 1e9, row: 0 } })).ok, false);
+  });
+});
+
+describe("avatar", () => {
+  it("aceita imagem pequena, remove com null e recusa formato inválido", async () => {
+    const p = await player("Ana");
+    const [id] = idsOf(await act(p, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1, avatar: PNG }));
+    const ally = () => ctx.server.store.game.allies.find((a) => a.id === id)!;
+    assert.equal(ally().avatar, PNG);
+
+    assert.equal((await act(p, "combatant:update", { id, avatar: "data:text/html;base64,PGI+" })).ok, false);
+    assert.equal(ally().avatar, PNG);
+
+    assert.ok((await act(p, "combatant:update", { id, avatar: null })).ok);
+    assert.equal(ally().avatar, undefined);
+  });
+
+  it("mobs herdam o avatar do template", async () => {
+    const g = await gm();
+    const [tid] = idsOf(await act(g, "template:upsert", { name: "Goblin", hpMax: 7, dexMod: 2, avatar: PNG }));
+    const [mid] = idsOf(await act(g, "mob:addFromTemplate", { templateId: tid, qty: 1 }));
+    assert.equal(ctx.server.store.game.battle.mobs.find((m) => m.id === mid)?.avatar, PNG);
+  });
+});
+
+describe("régua", () => {
+  it("é repassada aos outros (não a quem mede) e some quando a pessoa sai", async () => {
+    const g = await gm();
+    const p = await player("Ana");
+    const ownEcho: RulerBroadcast[] = [];
+    p.on("ruler", (r) => ownEcho.push(r));
+
+    const seen = new Promise<RulerBroadcast>((resolve) => g.once("ruler", resolve));
+    p.emit("ruler:update", { from: { col: 0, row: 0 }, to: { col: 6, row: 0 } });
+    const r = await seen;
+    assert.equal(r.name, "Ana");
+    assert.deepEqual(r.ruler, { from: { col: 0, row: 0 }, to: { col: 6, row: 0 } });
+
+    const cleared = new Promise<RulerBroadcast>((resolve) => g.once("ruler", resolve));
+    p.disconnect();
+    assert.equal((await cleared).ruler, null);
+    assert.equal(ownEcho.length, 0);
+  });
+
+  it("régua malformada vira null", async () => {
+    const g = await gm();
+    const p = await player("Ana");
+    const seen = new Promise<RulerBroadcast>((resolve) => g.once("ruler", resolve));
+    p.emit("ruler:update", { from: { col: "x", row: 0 }, to: { col: 1, row: 1 } } as never);
+    assert.equal((await seen).ruler, null);
+  });
+});

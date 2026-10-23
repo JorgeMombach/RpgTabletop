@@ -1,0 +1,42 @@
+import type { ClientState, Combatant, CombatantView, HostInfo } from "@rpg/shared";
+import { toPublic, type ServerPlayer, type Store } from "./store";
+
+function hideHp({ hp: _hp, hpMax: _hpMax, ...rest }: Combatant): CombatantView {
+  return rest;
+}
+
+/** A lista de magias é referência pessoal: só o dono e o mestre veem (SPEC E6). */
+function allyFor(player: ServerPlayer, c: Combatant): Combatant {
+  if (player.role === "gm" || c.ownerId === player.id || !c.spells) return c;
+  const { spells: _spells, ...rest } = c;
+  return rest;
+}
+
+/**
+ * Estado filtrado por papel (ADR-05): jogadores nunca recebem a vida dos mobs
+ * nem a lista de magias de outros jogadores.
+ */
+export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): ClientState {
+  const { game } = store;
+  const gm = player.role === "gm";
+  const { image, ...map } = game.battle.map;
+
+  const players = [...store.players.values()]
+    .map(toPublic)
+    .sort((a, b) => Number(b.role === "gm") - Number(a.role === "gm") || a.name.localeCompare(b.name));
+
+  return {
+    self: toPublic(player),
+    players,
+    maxPlayers: store.maxPlayers,
+    templates: gm ? game.templates : [],
+    allies: game.allies.map((a) => allyFor(player, a)),
+    battle: {
+      map: { ...map, hasImage: image !== null },
+      mobs: gm ? game.battle.mobs : game.battle.mobs.map(hideHp),
+      combat: game.battle.combat,
+    },
+    log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
+    host: gm ? host : undefined,
+  };
+}

@@ -1,0 +1,14 @@
+import type { HandlerMap } from "./types";
+import { combatantHandlers } from "./combatants";
+import { diceHandlers } from "./dice";
+import { initiativeHandlers } from "./initiative";
+import { magicHandlers } from "./magic";
+import { mapHandlers } from "./map";
+
+export const handlers: HandlerMap = {
+  ...combatantHandlers,
+  ...diceHandlers,
+  ...mapHandlers,
+  ...initiativeHandlers,
+  ...magicHandlers,
+};
