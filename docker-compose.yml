@@ -1,0 +1,18 @@
+# Exemplo para rodar o Simulador de Encontros com Docker.
+#   docker compose up -d        sobe em segundo plano
+#   docker compose logs -f      mostra o link do mestre e os endereços
+#   docker compose down         encerra a sessão
+services:
+  simulador:
+    # Imagem publicada pela CI (E11). Sem ela, `build: .` compila localmente.
+    image: ghcr.io/jorgemombach/rpgtabletop:latest
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # Chave fixa: o link do mestre não muda entre reinícios. Troque por uma sua (mín. 8 caracteres).
+      GM_KEY: troque-esta-chave
+      # Endereço(s) que os jogadores usam para chegar nesta máquina (LAN e/ou Tailscale).
+      PUBLIC_URLS: http://192.168.0.10:3000,http://100.64.0.5:3000
+      MAX_PLAYERS: "6"
+    restart: unless-stopped

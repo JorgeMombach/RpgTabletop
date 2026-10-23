@@ -4,7 +4,8 @@ import { Panel } from "./Panel";
 
 export function InvitePanel({ host }: { host: HostInfo }) {
   const [copied, setCopied] = useState<string | null>(null);
-  const gmLink = `${location.origin}/?gm=${host.gmKey}`;
+  // Outro dispositivo não alcança o "localhost" daqui: usa o primeiro endereço de convite.
+  const gmLink = `${host.addresses[0]?.url ?? location.origin}/?gm=${host.gmKey}`;
 
   async function copy(url: string) {
     try {
@@ -19,7 +20,10 @@ export function InvitePanel({ host }: { host: HostInfo }) {
   return (
     <Panel title="Convidar jogadores">
       {host.addresses.length === 0 ? (
-        <p className="muted small">Nenhuma interface de rede encontrada.</p>
+        <p className="muted small">
+          Nenhum endereço detectado. No Docker, defina <code>PUBLIC_URLS</code> com o endereço que os jogadores usam
+          (ex.: <code>http://192.168.0.10:3000</code>).
+        </p>
       ) : (
         <ul className="invite">
           {host.addresses.map((a) => (

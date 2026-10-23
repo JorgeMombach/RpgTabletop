@@ -51,11 +51,12 @@ function isTailscale(ip: string): boolean {
 }
 
 /** Endereços de convite: os fixos de `PUBLIC_URLS` ou os detectados nas interfaces de rede. */
-export function hostInfo(port: number, gmKey: string, publicUrls: string[] = []): HostInfo {
+export function hostInfo(port: number, gmKey: string, publicUrls: string[] = [], detect = true): HostInfo {
   if (publicUrls.length) {
     return { port, gmKey, addresses: publicUrls.map((url) => ({ label: "Configurado", url })) };
   }
   const addresses: HostInfo["addresses"] = [];
+  if (!detect) return { port, gmKey, addresses };
   for (const [ifName, infos] of Object.entries(os.networkInterfaces())) {
     for (const info of infos ?? []) {
       if (info.family !== "IPv4" || info.internal) continue;

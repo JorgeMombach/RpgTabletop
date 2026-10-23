@@ -13,6 +13,8 @@ export interface Config {
   gmLoopback: boolean;
   /** Endereços de convite fixos (ex.: dentro do Docker), no lugar dos detectados. */
   publicUrls: string[];
+  /** Detectar endereços pelas interfaces de rede. No Docker só se vê o IP interno do container. */
+  detectAddresses: boolean;
   help: boolean;
 }
 
@@ -29,6 +31,7 @@ Uso: simulador-encontros [opções]
   --gm-key <chave>     Chave de mestre fixa (padrão: gerada a cada execução)  [GM_KEY]
   --no-gm-loopback     localhost não vira mestre; só a chave vale            [GM_LOOPBACK=0]
   --public-urls <a,b>  Endereços de convite para os jogadores                [PUBLIC_URLS]
+  --no-detect-addresses  Não lista os IPs desta máquina como convite         [DETECT_ADDRESSES=0]
   --help               Mostra esta ajuda
 `;
 
@@ -71,6 +74,7 @@ export function parseConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
       .split(",")
       .map((u) => u.trim().replace(/\/+$/, ""))
       .filter(Boolean),
+    detectAddresses: !has("no-detect-addresses") && !off(env.DETECT_ADDRESSES),
     help: has("help") || has("h"),
   };
 }
