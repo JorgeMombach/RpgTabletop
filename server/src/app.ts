@@ -1,8 +1,6 @@
 import express from "express";
 import { randomBytes } from "node:crypto";
-import fs from "node:fs";
 import { createServer } from "node:http";
-import path from "node:path";
 import { Server, type Socket } from "socket.io";
 import {
   LIMITS,
@@ -21,6 +19,7 @@ import type { Handler } from "./actions/types";
 import { hostInfo, roleOf, type RoleRules } from "./net";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { ActionError, cleanName } from "./validate";
+import { serveClient } from "./static";
 import { viewFor } from "./view";
 
 interface SocketData {
@@ -80,10 +79,7 @@ export function createApp(opts: AppOptions) {
     });
   });
 
-  if (opts.clientDist && fs.existsSync(path.join(opts.clientDist, "index.html"))) {
-    app.use(express.static(opts.clientDist));
-    app.use((_req, res) => res.sendFile(path.join(opts.clientDist!, "index.html")));
-  }
+  serveClient(app, opts.clientDist);
 
   /** Sala com todos os sockets que já entraram na sessão. */
   const SESSION_ROOM = "session";
