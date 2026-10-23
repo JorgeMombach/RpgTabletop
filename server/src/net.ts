@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import os from "node:os";
 import type { Socket } from "socket.io";
 import type { HostInfo, Role } from "@rpg/shared";
@@ -24,9 +25,24 @@ export function clientAddress(socket: Socket): string | undefined {
   return direct;
 }
 
-/** Mestre = quem acessa pela própria máquina do servidor (ADR-09). */
-export function roleOf(socket: Socket): Role {
-  return isLoopback(clientAddress(socket)) ? "gm" : "player";
+export interface RoleRules {
+  /** Chave de mestre (ADR-12). */
+  gmKey: string;
+  /** localhost vira mestre (ADR-09). Desligado no Docker. */
+  gmLoopback: boolean;
+}
+
+function sameKey(given: unknown, expected: string): boolean {
+  if (typeof given !== "string" || !given) return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Mestre = quem acessa pela máquina do servidor (ADR-09) ou traz a chave de mestre (ADR-12). */
+export function roleOf(socket: Socket, rules: RoleRules, gmKey?: unknown): Role {
+  if (sameKey(gmKey, rules.gmKey)) return "gm";
+  return rules.gmLoopback && isLoopback(clientAddress(socket)) ? "gm" : "player";
 }
 
 function isTailscale(ip: string): boolean {
@@ -34,7 +50,11 @@ function isTailscale(ip: string): boolean {
   return a === 100 && b >= 64 && b <= 127;
 }
 
-export function hostInfo(port: number): HostInfo {
+/** Endereços de convite: os fixos de `PUBLIC_URLS` ou os detectados nas interfaces de rede. */
+export function hostInfo(port: number, gmKey: string, publicUrls: string[] = []): HostInfo {
+  if (publicUrls.length) {
+    return { port, gmKey, addresses: publicUrls.map((url) => ({ label: "Configurado", url })) };
+  }
   const addresses: HostInfo["addresses"] = [];
   for (const [ifName, infos] of Object.entries(os.networkInterfaces())) {
     for (const info of infos ?? []) {
@@ -45,5 +65,5 @@ export function hostInfo(port: number): HostInfo {
   }
   // VPN primeiro: é o endereço mais usado quando a mesa é remota.
   addresses.sort((a, b) => Number(b.label.startsWith("Tailscale")) - Number(a.label.startsWith("Tailscale")));
-  return { port, addresses };
+  return { port, gmKey, addresses };
 }

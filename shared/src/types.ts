@@ -131,6 +131,8 @@ export interface GameState {
 export interface HostInfo {
   port: number;
   addresses: { label: string; url: string }[];
+  /** Chave de mestre: só vai para o mestre, para abrir o app como mestre em outro dispositivo. */
+  gmKey: string;
 }
 
 /** Estado já filtrado para um cliente específico. */

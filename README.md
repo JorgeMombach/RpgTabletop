@@ -28,17 +28,26 @@ npm run build
 npm start
 ```
 
-O navegador abre em `http://localhost:3000`: quem acessa por **localhost** é sempre o mestre. O console e o painel **Convidar jogadores** mostram os endereços para passar à mesa. Para encerrar a sessão, `Ctrl+C` no terminal.
+O `npm run build` gera `dist/server.cjs` (o servidor inteiro num arquivo) e `dist/public/` (o front). O `npm start` roda `node dist/server.cjs`: dá para copiar a pasta `dist/` para outra máquina com Node e rodar sem `npm install`.
 
-> O mestre precisa acessar por `localhost`. Se abrir pelo IP da rede/VPN na própria máquina, entra como jogador.
+O navegador abre em `http://localhost:3000`: quem acessa por **localhost** é o mestre. O console e o painel **Convidar jogadores** mostram os endereços para passar à mesa. Se a porta 3000 estiver ocupada, o app usa a próxima livre (3001, 3002…) e avisa. Para encerrar a sessão, `Ctrl+C` no terminal.
 
-Variáveis opcionais:
+**Link de mestre:** o console também mostra `http://localhost:3000/?gm=<chave>`. Quem abre esse link entra como mestre de qualquer dispositivo (útil para mestrar pelo notebook enquanto o servidor roda em outro PC, ou no Docker). A chave muda a cada execução, a menos que você fixe uma com `GM_KEY`. **Não compartilhe esse link com os jogadores.** Ele também fica no painel *Convidar jogadores → Abrir como mestre em outro dispositivo*.
 
-| Variável | Padrão | Uso |
-|---|---|---|
-| `PORT` | `3000` | Porta do servidor |
-| `MAX_PLAYERS` | `6` | Limite de jogadores conectados (além do mestre) |
-| `OPEN_BROWSER` | `1` | `0` para não abrir o navegador ao iniciar |
+> Sem o link, o mestre precisa acessar por `localhost`: se abrir pelo IP da rede/VPN na própria máquina, entra como jogador.
+
+Opções (variável de ambiente ou argumento; o argumento vence). Exemplo: `node dist/server.cjs --port 4000 --no-open`.
+
+| Variável | Argumento | Padrão | Uso |
+|---|---|---|---|
+| `PORT` | `--port` | `3000` | Porta inicial (se ocupada, tenta as seguintes) |
+| `MAX_PLAYERS` | `--max-players` | `6` | Limite de jogadores conectados (além do mestre) |
+| `OPEN_BROWSER=0` | `--no-open` | abre | Não abre o navegador ao iniciar |
+| `GM_KEY` | `--gm-key` | gerada | Chave de mestre fixa (mín. 8 caracteres) |
+| `GM_LOOPBACK=0` | `--no-gm-loopback` | ligado | localhost deixa de ser mestre; só a chave vale (Docker) |
+| `PUBLIC_URLS` | `--public-urls` | detectados | Endereços de convite, separados por vírgula |
+
+`node dist/server.cjs --help` lista tudo. Há também `GET /healthz`, que responde `{"ok":true,"version":…}` (usado no healthcheck do Docker).
 
 ### Firewall do Windows
 Na primeira execução o Windows pergunta se o Node pode aceitar conexões: permita em **redes privadas**. Se os jogadores não conseguirem conectar, libere a porta (PowerShell como administrador):
@@ -78,12 +87,12 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 | Sintoma | O que fazer |
 |---|---|
-| `A porta 3000 já está em uso` | Outro servidor está aberto. Feche-o ou rode com outra porta (`$env:PORT=3001; npm start` no PowerShell). |
+| App subiu em outra porta (3001…) | A 3000 estava ocupada (outro servidor aberto?). Use o endereço que o console mostrar, ou feche o outro servidor. |
 | Jogador não conecta pela LAN | Libere o firewall (acima) e confira se estão na mesma rede. |
 | Jogador não conecta pela internet | Todos precisam estar logados na mesma rede do Tailscale; use o endereço `100.x.x.x`. |
-| Mestre entrou como "Jogador" | Abra `http://localhost:3000` na máquina do servidor. |
+| Mestre entrou como "Jogador" | Abra `http://localhost:3000` na máquina do servidor, ou use o link de mestre (`?gm=`) mostrado no console. |
 | "Sala cheia" | Limite de 6 jogadores; aumente com `MAX_PLAYERS`. |
-| `Cannot GET /` no navegador | Rode `npm run build` antes do `npm start` (o servidor serve o client compilado). |
+| `Cannot find module …dist/server.cjs` ou `Cannot GET /` | Rode `npm run build` antes do `npm start`. |
 
 ## Desenvolvimento
 
@@ -98,10 +107,13 @@ Em dev o mestre usa `http://localhost:5173` e os jogadores `http://<ip>:5173`; o
 ### Estrutura
 
 ```
-shared/  tipos do estado, contrato dos eventos Socket.IO, limites e regra de distância
-server/  Express + Socket.IO; estado em memória, ações (src/actions), permissões e filtro por papel
-client/  Vite + React + Zustand; mapa com react-konva (src/map)
+shared/   tipos do estado, contrato dos eventos Socket.IO, limites, regra de distância e versão
+server/   Express + Socket.IO; estado em memória, ações (src/actions), permissões e filtro por papel
+client/   Vite + React + Zustand; mapa com react-konva (src/map)
+scripts/  build de produção (client + servidor num arquivo via esbuild → dist/)
 ```
+
+A versão do app é o campo `version` do `package.json` raiz: aparece na interface, no console e no `/healthz`.
 
 ## Status
 
@@ -114,3 +126,7 @@ client/  Vite + React + Zustand; mapa com react-konva (src/map)
 | E5 — Iniciativa e turnos | ✅ |
 | E6 — Magias | ✅ |
 | E7 — Ciclo da batalha e acabamento | ✅ |
+| E8 — Preparação para distribuição | ✅ |
+| E9 — Imagem Docker | ⏳ |
+| E10 — Executável | ⏳ |
+| E11 — CI/CD e releases | ⏳ |
