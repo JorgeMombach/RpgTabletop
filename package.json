@@ -13,11 +13,15 @@
     "build": "node scripts/build.mjs",
     "start": "node dist/server.cjs",
     "typecheck": "tsc -p shared && tsc -p server && tsc -p client",
-    "test": "npm test -w server"
+    "test": "npm test -w server",
+    "package": "node scripts/package.mjs",
+    "icon": "node scripts/make-icon.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
+    "resedit": "^2.0.3",
     "typescript": "^5.8.3"
   }
 }

@@ -4,7 +4,22 @@ Simulador de combates de RPG de mesa (base D&D 5e) para rodar localmente. Quem h
 
 Especificação, ADRs e entregáveis em [SPEC.md](SPEC.md).
 
-## Mestre: do zero até a sessão no ar
+## Para quem vai mestrar (executável)
+
+Não precisa instalar nada além do executável.
+
+1. Baixe o arquivo do seu sistema (ex.: `simulador-encontros-1.0.0-win-x64.exe`).
+2. **Dois cliques** nele. Abre uma janela preta com os endereços e o navegador abre sozinho já como mestre.
+   - **Windows — "O Windows protegeu o computador"** (SmartScreen): o executável não tem assinatura digital paga. Clique em **Mais informações → Executar assim mesmo**. Só acontece na primeira vez.
+   - **Windows — "Permitir acesso à rede?"** (Firewall): marque **Redes privadas** e clique em **Permitir**. Sem isso os jogadores não conseguem entrar.
+   - **macOS**: se aparecer "não pode ser aberto porque é de um desenvolvedor não identificado", clique com o botão direito no arquivo → **Abrir** → **Abrir**.
+   - **Linux**: `chmod +x simulador-encontros-*-linux-x64` e execute.
+3. Passe para os jogadores o endereço que aparece em **Jogadores** na janela (ou no painel *Convidar jogadores*). Se forem jogar pela internet, todos precisam estar no mesmo Tailscale (ver *Jogadores: conectando*).
+4. **Deixe a janela aberta** durante o jogo. Fechar a janela encerra a sessão (e apaga tudo — não há salvamento).
+
+As opções da tabela abaixo também valem para o executável: `simulador-encontros-1.0.0-win-x64.exe --port 4000`.
+
+## Mestre: do zero até a sessão no ar (pelo código)
 
 ### 1. Instalar o Node.js (só na máquina do mestre)
 Node.js 20 ou mais novo (testado no 24 LTS). No Windows:
@@ -138,13 +153,22 @@ npm test           # testes de integração do servidor
 
 Em dev o mestre usa `http://localhost:5173` e os jogadores `http://<ip>:5173`; o Vite faz proxy do Socket.IO e repassa o IP real do cliente para o servidor decidir quem é mestre.
 
+### Gerar o executável
+
+```bash
+npm run package
+```
+
+Gera `release/simulador-encontros-<versão>-<sistema>-<arquitetura>[.exe]` para o **sistema em que o comando roda** (o Node SEA usa o binário do Node da própria máquina; ver ADR-11). O executável leva o Node, o servidor e o client embutidos (~90 MB). No Windows, também grava o ícone (`assets/icon.ico`, gerado por `npm run icon`) e nome/versão nas propriedades do arquivo. Para Linux e macOS, rode o mesmo comando nesses sistemas — a CI do E11 faz isso automaticamente.
+
 ### Estrutura
 
 ```
 shared/   tipos do estado, contrato dos eventos Socket.IO, limites, regra de distância e versão
 server/   Express + Socket.IO; estado em memória, ações (src/actions), permissões e filtro por papel
 client/   Vite + React + Zustand; mapa com react-konva (src/map)
-scripts/  build de produção (client + servidor num arquivo via esbuild → dist/)
+scripts/  build (dist/), executável (release/, Node SEA) e geração do ícone
+assets/   ícone do executável
 ```
 
 A versão do app é o campo `version` do `package.json` raiz: aparece na interface, no console e no `/healthz`.
@@ -161,6 +185,6 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E6 — Magias | ✅ |
 | E7 — Ciclo da batalha e acabamento | ✅ |
 | E8 — Preparação para distribuição | ✅ |
-| E9 — Imagem Docker | 🟡 arquivos prontos, falta validar o build da imagem |
-| E10 — Executável | ⏳ |
+| E9 — Imagem Docker | ✅ |
+| E10 — Executável | ✅ (Windows validado; Linux/macOS na CI do E11) |
 | E11 — CI/CD e releases | ⏳ |
