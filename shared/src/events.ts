@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { ClientState, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode } from "./types";
+import type { ClientState, EffectPreset, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -134,6 +134,21 @@ export interface ActionPayloads {
   "condition:add": { id: string; name: string; rounds?: number | null };
   "condition:remove": { id: string; conditionId: string };
   /**
+   * Fixa uma área como efeito no mapa (E19). Jogador: `casterId` tem que ser um personagem dele.
+   * `concentration` exige conjurador e dá a ele a condição *Concentração*, se ainda não tiver.
+   */
+  "effect:add": {
+    name: string;
+    preset: EffectPreset;
+    color?: string;
+    area: Area;
+    casterId?: string | null;
+    rounds?: number | null;
+    concentration?: boolean;
+  };
+  "effect:toggle": { id: string; active: boolean };
+  "effect:remove": { id: string };
+  /**
    * Limpa o campo para a próxima batalha: tira mapa, mobs, NPCs, iniciativa e posições.
    * Mantém jogadores, aliados (vida/slots/magias), grid e log; templates se `keepTemplates`.
    */
@@ -188,6 +203,9 @@ export const LIMITS = {
   conditions: 12,
   conditionRounds: { min: 1, max: 100 },
   rollLabel: 32,
+  effectName: 32,
+  /** Efeitos no mapa ao mesmo tempo. */
+  effects: 40,
   dice: {
     exprLength: 100,
     terms: 20,

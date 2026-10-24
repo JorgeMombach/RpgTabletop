@@ -132,7 +132,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       onDragEnd={handleDragEnd}
     >
       {(selected || active) &&
-        RingShape(ring * 1.3, {
+        RingShape(ring * 2, {
           stroke: active ? "#d4a24c" : "#e6e8ee",
           strokeWidth: ring,
           dash: selected && !active ? undefined : [ring * 2, ring],
@@ -162,6 +162,8 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       )}
 
       {Shape({ stroke: c.color, strokeWidth: ring, listening: false })}
+      {/* Contorno escuro por fora do anel: o token se destaca sobre efeitos (fogo, graxa…) e mapas de qualquer cor. */}
+      {RingShape(ring * 0.9, { stroke: "#0b0c10", strokeWidth: ring * 0.8, opacity: 0.9, listening: false })}
 
       {down && isMob && (
         <>
@@ -171,7 +173,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       )}
 
       {c.hp !== undefined && c.hpMax !== undefined && (
-        <Group y={r + ring * 1.2} listening={false}>
+        <Group y={r + ring * 1.7} listening={false}>
           <Rect x={-r} width={size} height={Math.max(3, size * 0.09)} fill="#00000099" cornerRadius={2} />
           <Rect
             x={-r}

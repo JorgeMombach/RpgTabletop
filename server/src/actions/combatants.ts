@@ -11,6 +11,7 @@ import {
   type MobTemplate,
 } from "@rpg/shared";
 import { byId, placeInOrder, removeFromOrder } from "../combat";
+import { endConcentration } from "./effects";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireImage, requireInt, requireName, requireString } from "../validate";
 import type { HandlerMap } from "./types";
@@ -162,6 +163,8 @@ export const combatantHandlers: HandlerMap = {
     const index = battle[list].findIndex((m) => m.id === id);
     if (index < 0) fail("Mob ou NPC não encontrado.");
     const [mob] = battle[list].splice(index, 1);
+    // Saiu da batalha: perde a concentração (os efeitos dele não voltam com o "Desfazer").
+    endConcentration(store, id);
     const orderIndex = removeFromOrder(store, id);
     store.removedMobs.set(id, { mob, list, index, orderIndex, at: Date.now() });
   },
@@ -221,6 +224,7 @@ export const combatantHandlers: HandlerMap = {
     if (ally.type !== "ally") fail("Use a remoção de mob.");
     store.game.allies = store.game.allies.filter((a) => a.id !== ally.id);
     removeFromOrder(store, ally.id);
+    endConcentration(store, ally.id);
   },
 
   "combatant:update": (store, player, payload) => {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ActionResult, Area, AreaBroadcast, MapImagePayload, RulerBroadcast } from "@rpg/shared";
-import { validArea } from "../src/app";
+import { validArea } from "../src/validate";
 import { act, join, stateWhere, useServer, type Client } from "./helpers";
 
 const { ctx, client } = useServer();

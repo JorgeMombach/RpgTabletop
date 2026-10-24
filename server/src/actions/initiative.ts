@@ -5,6 +5,7 @@ import type { Store } from "../store";
 import { fail, requireInt } from "../validate";
 import { editable, requireGm } from "./combatants";
 import { startTurn } from "./conditions";
+import { tickRoundEffects } from "./effects";
 import { logRoll } from "./dice";
 import type { HandlerMap } from "./types";
 
@@ -102,6 +103,7 @@ export const initiativeHandlers: HandlerMap = {
     if (combat.turnIndex >= combat.order.length) {
       combat.turnIndex = 0;
       combat.round++;
+      tickRoundEffects(store);
     }
     newTurn(store);
     startTurn(store);

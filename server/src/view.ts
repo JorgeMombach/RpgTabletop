@@ -37,6 +37,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       npcs: gm ? game.battle.npcs : game.battle.npcs.map(hideHp),
       combat: game.battle.combat,
       rolls: game.battle.rolls,
+      // Efeito desligado fica guardado só para o mestre (E19).
+      effects: gm ? game.battle.effects : game.battle.effects.filter((e) => e.active),
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
     host: gm ? host : undefined,
