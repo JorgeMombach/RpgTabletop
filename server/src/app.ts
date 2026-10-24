@@ -17,6 +17,7 @@ import {
 import { handlers } from "./actions";
 import type { Handler } from "./actions/types";
 import { hostInfo, roleOf, type RoleRules } from "./net";
+import { exportSession, importSession } from "./session-file";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
@@ -56,8 +57,8 @@ export function createApp(opts: AppOptions) {
   const app = express();
   const httpServer = createServer(app);
   const io: AppServer = new Server(httpServer, {
-    // Imagens de mapa e avatares viajam pelo socket.
-    maxHttpBufferSize: 10e6,
+    // Imagens de mapa e avatares viajam pelo socket; o arquivo de sessão (E18) leva tudo junto.
+    maxHttpBufferSize: 50e6,
     // O client do Socket.IO já vai no bundle do front; não servimos o arquivo avulso.
     serveClient: false,
   });
@@ -130,7 +131,9 @@ export function createApp(opts: AppOptions) {
       if (!alreadyOnline && store.connectedPlayerCount() >= store.maxPlayers) {
         return { ok: false, error: "room_full" };
       }
-      player ??= store.createPlayer(name, "player");
+      // Sessão carregada de arquivo: entrar com o nome do personagem salvo reassume ele (E18).
+      player ??= store.findClaimable(name) ?? store.createPlayer(name, "player");
+      player.claimByName = undefined;
     }
 
     player.name = name;
@@ -191,6 +194,29 @@ export function createApp(opts: AppOptions) {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (!player) return;
       socket.to(SESSION_ROOM).emit("area", { playerId: player.id, name: player.name, area: validArea(area) });
+    });
+
+    // Salvar e carregar sessão (E18): só o mestre.
+    socket.on("session:export", (ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Só o mestre salva a sessão." });
+      ack({ ok: true, file: exportSession(store) });
+    });
+
+    socket.on("session:import", (file, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Só o mestre carrega uma sessão." });
+      try {
+        importSession(store, player, file);
+      } catch (err) {
+        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        console.error("[session:import]", err);
+        return ack({ ok: false, error: "Arquivo inválido." });
+      }
+      broadcast();
+      ack({ ok: true });
     });
 
     socket.on("session:leave", () => {

@@ -16,6 +16,7 @@ import { InvitePanel } from "./InvitePanel";
 import { MapPanel } from "./MapPanel";
 import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
+import { SessionPanel } from "./SessionPanel";
 import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
@@ -102,6 +103,7 @@ export function Shell({ state }: { state: ClientState }) {
         {gm && <MapPanel map={state.battle.map} />}
         {gm && <BestiaryPanel templates={state.templates} />}
         <PlayersPanel state={state} />
+        {gm && <SessionPanel />}
         {gm && state.host && <InvitePanel host={state.host} />}
       </aside>
       <ColumnResizer side="left" width={widths.left} max={max.left} onResize={(w) => set("left", w)} onReset={() => reset("left")} />
