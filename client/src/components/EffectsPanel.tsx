@@ -1,4 +1,5 @@
 import { ActionIcon, Badge, Group, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import { IconTrash } from "@tabler/icons-react";
 import type { ClientState } from "@rpg/shared";
 import { act } from "../actions";
 import { allCombatants } from "../format";
@@ -22,7 +23,7 @@ export function EffectsPanel({ state }: { state: ClientState }) {
     >
       {effects.length === 0 ? (
         <Text size="xs" c="dimmed">
-          Nenhum efeito. No mapa, use ✦ Área e depois “Fixar como efeito”.
+          Nenhum efeito. No mapa, use a ferramenta Área e depois “Fixar como efeito”.
         </Text>
       ) : (
         <Stack gap={6}>
@@ -54,7 +55,7 @@ export function EffectsPanel({ state }: { state: ClientState }) {
                 {canEdit && (
                   <Tooltip label="Remover efeito">
                     <ActionIcon size="sm" aria-label={`Remover ${e.name}`} onClick={() => act("effect:remove", { id: e.id })}>
-                      🗑
+                      <IconTrash size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}

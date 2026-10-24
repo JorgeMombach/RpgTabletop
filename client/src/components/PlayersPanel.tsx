@@ -20,7 +20,7 @@ export function PlayersPanel({ state }: { state: ClientState }) {
             <Box
               w={8}
               h={8}
-              bg={p.connected ? "teal.5" : "dark.3"}
+              bg={p.connected ? "copper.4" : "dark.3"}
               style={{ borderRadius: "50%", flex: "none" }}
               aria-label={p.connected ? "online" : "offline"}
             />

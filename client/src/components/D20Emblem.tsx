@@ -1,4 +1,4 @@
-/** Emblema do app: um d20 dourado em vetor (tela de entrada). */
+/** Emblema do app: um d20 em bronze em vetor (tela de entrada). */
 export function D20Emblem({ size = 112 }: { size?: number }) {
   // Hexágono externo e triângulo central da vista frontal de um icosaedro.
   const top = [100, 10];
@@ -17,20 +17,20 @@ export function D20Emblem({ size = 112 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 200 200" role="img" aria-label="Dado de 20 lados">
       <defs>
         <linearGradient id="d20-face" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ead29c" />
-          <stop offset="0.55" stopColor="#d4a24c" />
-          <stop offset="1" stopColor="#856024" />
+          <stop offset="0" stopColor="#e8d4ab" />
+          <stop offset="0.55" stopColor="#b9905a" />
+          <stop offset="1" stopColor="#6e5331" />
         </linearGradient>
         <radialGradient id="d20-glow" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0" stopColor="#d4a24c" stopOpacity="0.35" />
-          <stop offset="1" stopColor="#d4a24c" stopOpacity="0" />
+          <stop offset="0" stopColor="#a9844f" stopOpacity="0.35" />
+          <stop offset="1" stopColor="#a9844f" stopOpacity="0" />
         </radialGradient>
       </defs>
       <circle cx="100" cy="100" r="100" fill="url(#d20-glow)" />
-      <polygon points={p(top, ur, lr, bottom, ll, ul)} fill="url(#d20-face)" stroke="#6a4b19" strokeWidth="3" strokeLinejoin="round" />
+      <polygon points={p(top, ur, lr, bottom, ll, ul)} fill="url(#d20-face)" stroke="#523d24" strokeWidth="3" strokeLinejoin="round" />
       {/* Triângulo central um pouco mais claro: a face voltada para quem olha. */}
       <polygon points={p(t1, t2, t3)} fill="#f3e5c4" fillOpacity="0.35" />
-      <g stroke="#6a4b19" strokeWidth="2.5" strokeLinecap="round">
+      <g stroke="#523d24" strokeWidth="2.5" strokeLinecap="round">
         {line(top, t1)}
         {line(t1, ul)}
         {line(t1, ur)}

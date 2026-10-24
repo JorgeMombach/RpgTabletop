@@ -58,7 +58,7 @@ function Entry({ e, selfId }: { e: LogEntry; selfId: string }) {
   return (
     <Paper p="xs" bg="dark.7" style={e.hidden ? { borderStyle: "dashed" } : undefined}>
       <Group gap={6} wrap="nowrap" mb={4}>
-        <Text size="xs" fw={600} c={e.system ? "dimmed" : e.authorId === selfId ? "gold.4" : undefined} truncate title={author}>
+        <Text size="xs" fw={600} c={e.system ? "dimmed" : e.authorId === selfId ? "bronze.4" : undefined} truncate title={author}>
           {author}
         </Text>
         {e.hidden && (
@@ -86,7 +86,7 @@ function RollBody({ entry }: { entry: LogEntry }) {
   const r = entry.roll!;
   const nat = naturalD20(r.terms);
   const critHit = entry.kind === "attack" && nat === 20;
-  const totalColor = nat === 20 ? "teal.4" : nat === 1 ? "red.4" : entry.crit ? "gold.4" : undefined;
+  const totalColor = nat === 20 ? "copper.4" : nat === 1 ? "red.4" : entry.crit ? "bronze.4" : undefined;
 
   return (
     <Group gap="sm" wrap="nowrap" align="center">
@@ -111,7 +111,7 @@ function RollBody({ entry }: { entry: LogEntry }) {
                 {t.sign < 0 && <Text size="xs">−</Text>}
                 {t.rolls.map((v, j) => {
                   const dropped = t.keptIndex !== undefined && t.keptIndex !== j;
-                  const color = t.faces === 20 && v === 20 ? "teal" : t.faces === 20 && v === 1 ? "red" : "gray";
+                  const color = t.faces === 20 && v === 20 ? "copper" : t.faces === 20 && v === 1 ? "red" : "gray";
                   return (
                     <Tooltip key={j} label={`d${t.faces}${dropped ? " (descartado)" : ""}`}>
                       <Badge
@@ -142,11 +142,11 @@ function RollBody({ entry }: { entry: LogEntry }) {
           {r.total}
         </Text>
         {critHit ? (
-          <Text size="xs" fw={700} c="teal.4">
+          <Text size="xs" fw={700} c="copper.4">
             Crítico!
           </Text>
         ) : nat === 20 ? (
-          <Text size="xs" c="teal.4">
+          <Text size="xs" c="copper.4">
             20 natural
           </Text>
         ) : null}

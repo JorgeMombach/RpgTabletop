@@ -43,7 +43,7 @@ export function JoinScreen() {
             <D20Emblem />
           </Center>
           <Stack gap={4} align="center">
-            <Title order={1} ta="center" c="gold.3">
+            <Title order={1} ta="center" c="bronze.3">
               Jamal's Tabletop
             </Title>
             <Text size="sm" c="dimmed" ta="center">
@@ -59,7 +59,7 @@ export function JoinScreen() {
             ) : (
               <Text size="sm">
                 Você vai entrar como{" "}
-                <Badge color={gm ? "gold" : "player"} variant="light">
+                <Badge color={gm ? "bronze" : "player"} variant="light">
                   {gm ? "Mestre (host)" : "Jogador"}
                 </Badge>
               </Text>

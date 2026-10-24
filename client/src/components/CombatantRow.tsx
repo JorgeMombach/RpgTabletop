@@ -1,4 +1,5 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
+import { IconSkull } from "@tabler/icons-react";
 import type { Combatant } from "@rpg/shared";
 import type { ReactNode } from "react";
 import { DRAG_MIME } from "../map/BattleMap";
@@ -37,7 +38,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
         <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
           <Group gap={6} wrap="nowrap" justify="space-between">
             <Text size="sm" truncate title={c.name} style={{ minWidth: 0 }}>
-              {down && c.type === "mob" && "✕ "}
+              {down && c.type === "mob" && <IconSkull size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Abatido" />}
               {c.name}
               {suffix && (
                 <Text span size="xs" c="dimmed">

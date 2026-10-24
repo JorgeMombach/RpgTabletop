@@ -15,7 +15,7 @@ export function toast({ kind, text, action }: ToastInput, ttlMs = 6000) {
   const id = `toast-${++seq}`;
   notifications.show({
     id,
-    color: kind === "error" ? "red" : "gold",
+    color: kind === "error" ? "red" : "bronze",
     autoClose: ttlMs,
     withBorder: true,
     message: action ? (

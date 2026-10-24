@@ -154,7 +154,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
         calibRect && calibRect.width > 4 ? (
           <CalibrateForm rect={calibRect} cellPx={map.cellPx} />
         ) : (
-          <Text size="xs" c="gold.4">
+          <Text size="xs" c="bronze.4">
             Arraste um retângulo no mapa cobrindo um ou mais quadrados inteiros.
           </Text>
         )

@@ -1,4 +1,5 @@
 import { ActionIcon, Button, Group, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { LIMITS, MOB_COLORS, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -120,12 +121,12 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
           </div>
           <Tooltip label="Editar template">
             <ActionIcon size="sm" onClick={onEdit} aria-label={`Editar ${t.name}`}>
-              ✎
+              <IconPencil size={16} />
             </ActionIcon>
           </Tooltip>
           <Tooltip label="Excluir template">
             <ActionIcon size="sm" onClick={() => void remove()} aria-label={`Excluir ${t.name}`}>
-              🗑
+              <IconTrash size={16} />
             </ActionIcon>
           </Tooltip>
         </Group>

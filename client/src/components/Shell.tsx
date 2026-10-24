@@ -1,4 +1,5 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
+import { IconBrush, IconLogout } from "@tabler/icons-react";
 import { APP_VERSION, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
@@ -8,6 +9,7 @@ import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
 import { BestiaryPanel } from "./BestiaryPanel";
 import { ClearBattleDialog } from "./ClearBattleDialog";
+import { D20Emblem } from "./D20Emblem";
 import { ColumnResizer, LAYOUT, useColumnWidths } from "./ColumnResizer";
 import { DicePanel } from "./DicePanel";
 import { EffectsPanel } from "./EffectsPanel";
@@ -31,7 +33,7 @@ function TurnStatus({ state }: { state: ClientState }) {
       {who && (
         <>
           {" · vez de "}
-          <Text component="strong" size="sm" c="gold.4" fw={600}>
+          <Text component="strong" size="sm" c="bronze.4" fw={600}>
             {who.name}
           </Text>
         </>
@@ -57,8 +59,9 @@ export function Shell({ state }: { state: ClientState }) {
     >
       <Group component="header" className="topbar" justify="space-between" wrap="nowrap" gap="md" px="md">
         <Group gap={6} wrap="nowrap">
-          <Text fw={600} ff="heading" c="gold.3" size="md">
-            🎲 Jamal's Tabletop
+          <D20Emblem size={24} />
+          <Text fw={700} ff="heading" c="bronze.4" fz={18}>
+            Jamal's Tabletop
           </Text>
           <Text size="xs" c="dimmed">
             v{APP_VERSION}
@@ -73,8 +76,8 @@ export function Shell({ state }: { state: ClientState }) {
           )}
           {gm && (
             <Tooltip label="Prepara o campo para a próxima batalha">
-              <Button variant="default" onClick={() => setClearing(true)}>
-                🧹 Limpar campo
+              <Button variant="default" leftSection={<IconBrush size={14} />} onClick={() => setClearing(true)}>
+                Limpar campo
               </Button>
             </Tooltip>
           )}
@@ -82,12 +85,12 @@ export function Shell({ state }: { state: ClientState }) {
             <Text size="sm" truncate maw={180}>
               {state.self.name}
             </Text>
-            <Badge color={gm ? "gold" : "player"} variant="light" size="sm">
+            <Badge color={gm ? "bronze" : "player"} variant="light" size="sm">
               {gm ? "Mestre" : "Jogador"}
             </Badge>
           </Group>
           <Tooltip label="Sair da sessão ou trocar de nome. Ao voltar, você reencontra o seu personagem.">
-            <Button variant="default" onClick={leave}>
+            <Button variant="default" leftSection={<IconLogout size={14} />} onClick={leave}>
               Sair
             </Button>
           </Tooltip>

@@ -1,4 +1,5 @@
 import { ActionIcon, Button, Divider, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { IconPencil, IconX } from "@tabler/icons-react";
 import { ALLY_COLORS, MOB_COLORS, NPC_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -39,7 +40,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const close = (
     <Tooltip label="Fechar">
       <ActionIcon size="sm" onClick={() => select(null)} aria-label="Fechar">
-        ✕
+        <IconX size={16} />
       </ActionIcon>
     </Tooltip>
   );
@@ -98,8 +99,8 @@ export function SelectedPanel({ state }: { state: ClientState }) {
         </div>
         {canEdit && !editing && (
           <Tooltip label="Mudar nome, vida máxima, mod. DES, cor e avatar">
-            <Button variant="default" onClick={() => setEditingId(c.id)}>
-              ✎ Editar
+            <Button variant="default" leftSection={<IconPencil size={14} />} onClick={() => setEditingId(c.id)}>
+              Editar
             </Button>
           </Tooltip>
         )}
