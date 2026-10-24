@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { Button, ColorInput, Group, NumberInput, Paper, Stack, Textarea, TextInput } from "@mantine/core";
 import { LIMITS, NAME_MAX_LENGTH, type CombatantInput } from "@rpg/shared";
+import { useState, type FormEvent } from "react";
 import { Abbr } from "./Abbr";
 import { AvatarPicker } from "./AvatarPicker";
 
@@ -16,11 +17,11 @@ interface Props {
   onCancel?: () => void;
 }
 
-/** Formulário de nome, vida máxima, mod. de Destreza e cor (mob, template ou aliado). */
+/** Formulário de nome, vida máxima, mod. de Destreza, cor e avatar (mob, template ou aliado). */
 export function CombatantForm({ initial, palette, submitLabel, withNotes, onSubmit, onCancel }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
-  const [hpMax, setHpMax] = useState(String(initial?.hpMax ?? ""));
-  const [dexMod, setDexMod] = useState(String(initial?.dexMod ?? 0));
+  const [hpMax, setHpMax] = useState<string | number>(initial?.hpMax ?? "");
+  const [dexMod, setDexMod] = useState<string | number>(initial?.dexMod ?? 0);
   const [color, setColor] = useState(initial?.color ?? palette[0]);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null);
@@ -43,7 +44,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, onSubm
     if (ok && !initial) {
       setName("");
       setHpMax("");
-      setDexMod("0");
+      setDexMod(0);
       setNotes("");
       setAvatar(null);
       setAvatarChanged(false);
@@ -51,57 +52,45 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, onSubm
   }
 
   return (
-    <form className="cform" onSubmit={submit}>
-      <label className="field">
-        <span>Nome</span>
-        <input autoFocus value={name} maxLength={NAME_MAX_LENGTH} onChange={(e) => setName(e.target.value)} required />
-      </label>
-      <div className="cform-row">
-        <label className="field">
-          <span>
-            <Abbr title="Vida máxima (pontos de vida)">Vida máx.</Abbr>
-          </span>
-          <input
-            type="number"
+    <Paper component="form" onSubmit={submit} p="sm" bg="dark.7">
+      <Stack gap="sm">
+        <TextInput
+          label="Nome"
+          autoFocus
+          required
+          value={name}
+          maxLength={NAME_MAX_LENGTH}
+          onChange={(e) => setName(e.currentTarget.value)}
+        />
+        <Group grow gap="sm" align="flex-start">
+          <NumberInput
+            label={<Abbr title="Vida máxima (pontos de vida)">Vida máx.</Abbr>}
+            required
             min={LIMITS.hpMax.min}
             max={LIMITS.hpMax.max}
+            allowDecimal={false}
             value={hpMax}
-            onChange={(e) => setHpMax(e.target.value)}
-            required
+            onChange={setHpMax}
           />
-        </label>
-        <label className="field">
-          <span>
-            <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">Mod. DES</Abbr>
-          </span>
-          <input
-            type="number"
+          <NumberInput
+            label={<Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">Mod. DES</Abbr>}
+            required
             min={LIMITS.dexMod.min}
             max={LIMITS.dexMod.max}
+            allowDecimal={false}
             value={dexMod}
-            onChange={(e) => setDexMod(e.target.value)}
-            required
+            onChange={setDexMod}
           />
-        </label>
-      </div>
-      <div className="field">
-        <span>Cor</span>
-        <div className="swatches">
-          {palette.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={`swatch ${c === color ? "on" : ""}`}
-              style={{ background: c }}
-              onClick={() => setColor(c)}
-              aria-label={`Cor ${c}`}
-            />
-          ))}
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="Outra cor" />
-        </div>
-      </div>
-      <div className="field">
-        <span>Avatar no mapa (opcional)</span>
+        </Group>
+        <ColorInput
+          label="Cor"
+          format="hex"
+          value={color}
+          onChange={setColor}
+          swatches={palette}
+          swatchesPerRow={palette.length}
+          withEyeDropper={false}
+        />
         <AvatarPicker
           value={avatar}
           color={color}
@@ -110,23 +99,25 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, onSubm
             setAvatarChanged(true);
           }}
         />
-      </div>
-      {withNotes && (
-        <label className="field">
-          <span>Notas (opcional)</span>
-          <textarea rows={2} maxLength={LIMITS.notes} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
-      )}
-      <div className="cform-actions">
-        {onCancel && (
-          <button type="button" className="btn" onClick={onCancel}>
-            Cancelar
-          </button>
+        {withNotes && (
+          <Textarea
+            label="Notas (opcional)"
+            maxLength={LIMITS.notes}
+            value={notes}
+            onChange={(e) => setNotes(e.currentTarget.value)}
+          />
         )}
-        <button className="btn primary" disabled={busy}>
-          {submitLabel}
-        </button>
-      </div>
-    </form>
+        <Group justify="flex-end" gap="xs">
+          {onCancel && (
+            <Button variant="default" onClick={onCancel}>
+              Cancelar
+            </Button>
+          )}
+          <Button type="submit" loading={busy}>
+            {submitLabel}
+          </Button>
+        </Group>
+      </Stack>
+    </Paper>
   );
 }

@@ -1,19 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { Button, Checkbox, Group, List, Modal, SimpleGrid, Stack, Text } from "@mantine/core";
+import { useState } from "react";
 import { act } from "../actions";
-import { select, setTool, toast } from "../store";
+import { toast } from "../notify";
+import { select, setTool } from "../store";
 
 /** Confirmação do "Limpar campo de batalha" (SPEC F7). */
 export function ClearBattleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
   const [keepTemplates, setKeepTemplates] = useState(true);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const d = ref.current;
-    if (!d) return;
-    if (open && !d.open) d.showModal();
-    if (!open && d.open) d.close();
-  }, [open]);
 
   async function confirm() {
     setBusy(true);
@@ -27,40 +21,47 @@ export function ClearBattleDialog({ open, onClose }: { open: boolean; onClose: (
   }
 
   return (
-    <dialog ref={ref} className="dialog" onClose={onClose} onCancel={onClose}>
-      <h2>Limpar campo de batalha?</h2>
-      <div className="dialog-cols">
-        <div>
-          <div className="section-title">Sai</div>
-          <ul>
-            <li>Imagem do mapa</li>
-            <li>Todos os mobs</li>
-            <li>Iniciativa e rounds</li>
-            <li>Posições dos tokens</li>
-          </ul>
-        </div>
-        <div>
-          <div className="section-title">Fica</div>
-          <ul>
-            <li>Jogadores conectados</li>
-            <li>Personagens com vida, slots e magias</li>
-            <li>Configuração do grid</li>
-            <li>Log de dados</li>
-          </ul>
-        </div>
-      </div>
-      <label className="check">
-        <input type="checkbox" checked={keepTemplates} onChange={(e) => setKeepTemplates(e.target.checked)} />
-        Manter bestiário (templates) para a próxima luta
-      </label>
-      <div className="cform-actions">
-        <button className="btn" onClick={onClose}>
-          Cancelar
-        </button>
-        <button className="btn danger" disabled={busy} onClick={confirm}>
-          Limpar campo
-        </button>
-      </div>
-    </dialog>
+    <Modal opened={open} onClose={onClose} title="Limpar campo de batalha?" size="md">
+      <Stack gap="md">
+        <SimpleGrid cols={2} spacing="md">
+          <div>
+            <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb={4}>
+              Sai
+            </Text>
+            <List size="sm" spacing={2}>
+              <List.Item>Imagem do mapa</List.Item>
+              <List.Item>Todos os mobs</List.Item>
+              <List.Item>Iniciativa e rounds</List.Item>
+              <List.Item>Posições dos tokens</List.Item>
+            </List>
+          </div>
+          <div>
+            <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb={4}>
+              Fica
+            </Text>
+            <List size="sm" spacing={2}>
+              <List.Item>Jogadores conectados</List.Item>
+              <List.Item>Personagens com vida, slots e magias</List.Item>
+              <List.Item>Configuração do grid</List.Item>
+              <List.Item>Log de dados</List.Item>
+            </List>
+          </div>
+        </SimpleGrid>
+        <Checkbox
+          size="sm"
+          checked={keepTemplates}
+          onChange={(e) => setKeepTemplates(e.currentTarget.checked)}
+          label="Manter bestiário (templates) para a próxima luta"
+        />
+        <Group justify="flex-end" gap="sm">
+          <Button size="sm" variant="default" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button size="sm" color="red" loading={busy} onClick={confirm}>
+            Limpar campo
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }

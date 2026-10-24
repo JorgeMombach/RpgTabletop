@@ -1,9 +1,18 @@
+import { Progress } from "@mantine/core";
 import { hpLevel, hpRatio } from "../format";
+
+const COLORS = { full: "teal", mid: "yellow", low: "red", zero: "red" } as const;
 
 export function HpBar({ hp, hpMax, thick = false }: { hp: number; hpMax: number; thick?: boolean }) {
   return (
-    <div className={`hpbar ${thick ? "thick" : ""}`} role="meter" aria-valuemin={0} aria-valuemax={hpMax} aria-valuenow={hp}>
-      <div className={`hpbar-fill ${hpLevel(hp, hpMax)}`} style={{ width: `${hpRatio(hp, hpMax) * 100}%` }} />
-    </div>
+    <Progress
+      value={hpRatio(hp, hpMax) * 100}
+      color={COLORS[hpLevel(hp, hpMax)]}
+      size={thick ? "md" : "xs"}
+      radius="xl"
+      bg="dark.5"
+      transitionDuration={200}
+      aria-label={`Vida ${hp} de ${hpMax}`}
+    />
   );
 }

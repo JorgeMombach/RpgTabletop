@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { Button, Text } from "@mantine/core";
 import { ALLY_COLORS, type ClientState } from "@rpg/shared";
+import { useState } from "react";
 import { act } from "../actions";
-import { DRAG_MIME } from "../map/BattleMap";
 import { select, useApp } from "../store";
 import { CombatantForm } from "./CombatantForm";
-import { HpBar } from "./HpBar";
+import { CombatantRow } from "./CombatantRow";
 import { Panel } from "./Panel";
 
 export function AlliesPanel({ state }: { state: ClientState }) {
@@ -21,9 +21,9 @@ export function AlliesPanel({ state }: { state: ClientState }) {
         // Jogador tem um personagem só (o servidor também recusa um segundo).
         !creating &&
         (gm || !hasOwn) && (
-          <button className="btn small" onClick={() => setCreating(true)}>
+          <Button variant="default" onClick={() => setCreating(true)}>
             {gm ? "+ Aliado (NPC)" : "+ Criar personagem"}
-          </button>
+          </Button>
         )
       }
     >
@@ -44,39 +44,28 @@ export function AlliesPanel({ state }: { state: ClientState }) {
       )}
 
       {state.allies.length === 0 && !creating && (
-        <p className="muted small">
+        <Text size="xs" c="dimmed">
           {gm ? "Os jogadores criam os próprios personagens." : "Crie seu personagem para controlar a vida."}
-        </p>
+        </Text>
       )}
 
-      <ul className="list">
-        {state.allies.map((a) => (
-          <li
-            key={a.id}
-            className={`crow ${a.id === selectedId ? "selected" : ""} ${a.hp <= 0 ? "down" : ""}`}
-            onClick={() => select(a.id)}
-            draggable={gm || a.ownerId === state.self.id}
-            onDragStart={(e) => e.dataTransfer.setData(DRAG_MIME, a.id)}
-            title={!a.pos && (gm || a.ownerId === state.self.id) ? "Fora do mapa: arraste para posicionar" : undefined}
-          >
-            <span className="dot" style={{ background: a.color }} aria-hidden />
-            <div className="grow">
-              <div className="crow-head">
-                <span className="ellipsis" title={a.name}>
-                  {a.name}
-                  {a.ownerId === state.self.id ? (
-                    <span className="muted small"> (seu)</span>
-                  ) : (
-                    ownerName(a.ownerId) && <span className="muted small"> · {ownerName(a.ownerId)}</span>
-                  )}
-                </span>
-                <span className="muted small">{a.hp <= 0 ? "Caído" : `${a.hp}/${a.hpMax}`}</span>
-              </div>
-              <HpBar hp={a.hp} hpMax={a.hpMax} />
-            </div>
-          </li>
-        ))}
-      </ul>
+      {state.allies.length > 0 && (
+        <ul className="list">
+          {state.allies.map((a) => {
+            const mine = a.ownerId === state.self.id;
+            const owner = ownerName(a.ownerId);
+            return (
+              <CombatantRow
+                key={a.id}
+                c={a}
+                selected={a.id === selectedId}
+                suffix={mine ? "(seu)" : owner ? `· ${owner}` : undefined}
+                draggable={gm || mine}
+              />
+            );
+          })}
+        </ul>
+      )}
     </Panel>
   );
 }

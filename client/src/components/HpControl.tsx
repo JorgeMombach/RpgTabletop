@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from "react";
+import { Badge, Button, Group, NumberInput, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import type { Combatant } from "@rpg/shared";
+import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { HpBar } from "./HpBar";
 
 /** Vida de um combatente: o sistema só soma/subtrai o que a pessoa informar (ADR-06). */
 export function HpControl({ c }: { c: Combatant }) {
-  const [amount, setAmount] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
+  const [amount, setAmount] = useState<string | number>("");
+  const [editing, setEditing] = useState<string | number | null>(null);
   const down = c.hp <= 0;
 
   function apply(sign: 1 | -1) {
@@ -18,63 +19,80 @@ export function HpControl({ c }: { c: Combatant }) {
 
   function commitEdit(e?: FormEvent) {
     e?.preventDefault();
-    if (editing !== null && editing.trim() !== "") void act("hp:set", { id: c.id, value: Number(editing) });
+    if (editing !== null && String(editing).trim() !== "") void act("hp:set", { id: c.id, value: Number(editing) });
     setEditing(null);
   }
 
   return (
-    <div className="hp-control">
-      <div className="hp-readout">
+    <Stack gap="xs">
+      <Group gap={6} align="baseline" wrap="nowrap">
         {editing === null ? (
-          <button className="hp-value" title="Clique para editar" onClick={() => setEditing(String(c.hp))}>
-            {c.hp}
-          </button>
+          <Tooltip label="Clique para digitar a vida atual">
+            <UnstyledButton className="hp-value" onClick={() => setEditing(c.hp)}>
+              <Text fz={24} fw={700} lh={1.1}>
+                {c.hp}
+              </Text>
+            </UnstyledButton>
+          </Tooltip>
         ) : (
           <form onSubmit={commitEdit}>
-            <input
-              className="hp-edit"
-              type="number"
+            <NumberInput
+              size="sm"
+              w={90}
               autoFocus
               min={0}
               max={c.hpMax}
+              allowDecimal={false}
               value={editing}
-              onChange={(e) => setEditing(e.target.value)}
+              onChange={setEditing}
               onBlur={() => commitEdit()}
               onKeyDown={(e) => e.key === "Escape" && setEditing(null)}
+              aria-label="Vida atual"
             />
           </form>
         )}
-        <span className="muted">/ {c.hpMax}</span>
-        {down && <span className="status-tag">{c.type === "mob" ? "Abatido" : "Caído"}</span>}
-      </div>
+        <Text size="lg" c="dimmed">
+          / {c.hpMax}
+        </Text>
+        {down && (
+          <Badge color="red" variant="light" ml="auto">
+            {c.type === "mob" ? "Abatido" : "Caído"}
+          </Badge>
+        )}
+      </Group>
 
       <HpBar hp={c.hp} hpMax={c.hpMax} thick />
 
-      <div className="hp-actions">
-        <input
-          type="number"
+      <Group gap="xs" wrap="nowrap">
+        <NumberInput
+          flex={1}
+          miw={56}
           min={1}
+          allowDecimal={false}
+          allowNegative={false}
           placeholder="Valor"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={setAmount}
           onKeyDown={(e) => {
             if (e.key === "Enter") apply(e.shiftKey ? 1 : -1);
           }}
           aria-label="Valor de dano ou cura"
         />
-        <button className="btn danger" onClick={() => apply(-1)} disabled={!amount}>
+        <Button color="red" variant="light" onClick={() => apply(-1)} disabled={!amount}>
           − Dano
-        </button>
-        <button className="btn heal" onClick={() => apply(1)} disabled={!amount}>
+        </Button>
+        <Button color="teal" variant="light" onClick={() => apply(1)} disabled={!amount}>
           + Cura
-        </button>
-      </div>
-      <div className="hp-footer">
-        <span className="muted small">Enter = dano · Shift+Enter = cura</span>
-        <button className="btn small" onClick={() => act("hp:full", { id: c.id })} disabled={c.hp === c.hpMax}>
+        </Button>
+      </Group>
+      <Group justify="space-between" gap="xs" wrap="wrap">
+        <Text size="xs" c="dimmed">
+          Enter = dano · Shift+Enter = cura
+        </Text>
+        <Button variant="default" onClick={() => act("hp:full", { id: c.id })} disabled={c.hp === c.hpMax}>
           Vida cheia
-        </button>
-      </div>
-    </div>
+        </Button>
+      </Group>
+    </Stack>
   );
 }

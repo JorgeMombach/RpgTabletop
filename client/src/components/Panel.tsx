@@ -1,11 +1,12 @@
+import { Collapse, Group, Paper, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useState, type ReactNode } from "react";
 
 interface PanelProps {
   title: string;
-  /** Entregável em que o painel será implementado. */
-  soon?: string;
   aside?: ReactNode;
   className?: string;
+  /** Destaque do painel (ex.: "Sua vez!" na iniciativa). */
+  highlighted?: boolean;
   children?: ReactNode;
 }
 
@@ -28,7 +29,7 @@ function writeCollapsed(titles: string[]) {
   }
 }
 
-export function Panel({ title, soon, aside, className, children }: PanelProps) {
+export function Panel({ title, aside, className, highlighted, children }: PanelProps) {
   const [collapsed, setCollapsed] = useState(() => readCollapsed().includes(title));
 
   function toggle() {
@@ -39,17 +40,28 @@ export function Panel({ title, soon, aside, className, children }: PanelProps) {
   }
 
   return (
-    <section className={`panel ${collapsed ? "collapsed" : ""} ${className ?? ""}`}>
-      <header className="panel-head">
-        <button className="panel-toggle" onClick={toggle} aria-expanded={!collapsed}>
-          <span className="chevron" aria-hidden>
-            ▾
-          </span>
-          <h2>{title}</h2>
-        </button>
+    <Paper
+      component="section"
+      className={className}
+      p="md"
+      style={highlighted ? { borderColor: "var(--mantine-primary-color-filled)", boxShadow: "0 0 0 1px var(--mantine-primary-color-filled)" } : undefined}
+    >
+      <Group justify="space-between" wrap="wrap" gap="xs" mb={collapsed ? 0 : "sm"}>
+        <UnstyledButton onClick={toggle} aria-expanded={!collapsed} className="panel-toggle">
+          <Group gap={6} wrap="nowrap">
+            <Text component="span" size="xs" c="dimmed" className={`chevron ${collapsed ? "collapsed" : ""}`} aria-hidden>
+              ▾
+            </Text>
+            <Text component="h2" size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.06em" }}>
+              {title}
+            </Text>
+          </Group>
+        </UnstyledButton>
         {!collapsed && aside}
-      </header>
-      {!collapsed && (soon ? <p className="muted small">Em breve ({soon}).</p> : children)}
-    </section>
+      </Group>
+      <Collapse expanded={!collapsed}>
+        <Stack gap="sm">{children}</Stack>
+      </Collapse>
+    </Paper>
   );
 }

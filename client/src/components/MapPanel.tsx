@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, Slider, Stack, Text } from "@mantine/core";
 import { LIMITS, type GridInput, type MapConfig } from "@rpg/shared";
+import { useEffect, useRef, useState } from "react";
 import { act } from "../actions";
+import { confirmAction } from "../confirm";
 import { mapImageFromFile } from "../images";
-import { setTool, toast, useApp } from "../store";
-import { Panel } from "./Panel";
+import { toast } from "../notify";
+import { setTool, useApp } from "../store";
 import { Abbr } from "./Abbr";
+import { Panel } from "./Panel";
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
 function useThrottledGrid() {
@@ -24,7 +27,6 @@ function useThrottledGrid() {
 }
 
 export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const { tool, calibRect } = useApp();
   const sendGrid = useThrottledGrid();
@@ -42,7 +44,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
     sendGrid(patch);
   }
 
-  async function upload(file: File | undefined) {
+  async function upload(file: File | null) {
     if (!file) return;
     setUploading(true);
     try {
@@ -53,95 +55,72 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
       toast({ kind: "error", text: (err as Error).message });
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  async function removeImage() {
+    const ok = await confirmAction({ title: "Remover a imagem do mapa?", message: "Os tokens e o grid continuam.", confirmLabel: "Remover", danger: true });
+    if (ok) void act("battle:setMap", { image: null });
   }
 
   return (
     <Panel title="Mapa">
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        hidden
-        onChange={(e) => void upload(e.target.files?.[0])}
-      />
-      <div className="row-gap">
-        <button className="btn small primary" disabled={uploading} onClick={() => fileRef.current?.click()}>
-          {uploading ? "Enviando…" : map.hasImage ? "Trocar imagem" : "Enviar imagem"}
-        </button>
+      <Group gap="xs">
+        <FileButton onChange={upload} accept="image/png,image/jpeg,image/webp">
+          {(props) => (
+            <Button {...props} loading={uploading}>
+              {map.hasImage ? "Trocar imagem" : "Enviar imagem"}
+            </Button>
+          )}
+        </FileButton>
         {map.hasImage && (
-          <button
-            className="btn small"
-            onClick={() => confirm("Remover a imagem do mapa?") && void act("battle:setMap", { image: null })}
-          >
+          <Button variant="default" onClick={() => void removeImage()}>
             Remover
-          </button>
+          </Button>
         )}
-      </div>
+      </Group>
 
-      <label className="check">
-        <input type="checkbox" checked={map.showGrid} onChange={(e) => void act("battle:grid", { showGrid: e.target.checked })} />
-        Mostrar grid (1 quadrado = {map.feetPerCell} <Abbr title="pés (1 ft ≈ 30 cm; 5 ft = 1,5 m)">ft</Abbr>)
-      </label>
+      <Checkbox
+        checked={map.showGrid}
+        onChange={(e) => void act("battle:grid", { showGrid: e.currentTarget.checked })}
+        label={
+          <>
+            Mostrar grid (1 quadrado = {map.feetPerCell} <Abbr title="pés (1 ft ≈ 30 cm; 5 ft = 1,5 m)">ft</Abbr>)
+          </>
+        }
+      />
 
-      <label className="field">
-        <span>Tamanho do quadrado: {local.cellPx.toFixed(1)} px</span>
-        <input
-          type="range"
-          min={LIMITS.cellPx.min}
-          max={200}
-          step={0.5}
-          value={Math.min(local.cellPx, 200)}
-          onChange={(e) => change({ cellPx: Number(e.target.value) })}
-        />
-      </label>
-      <div className="cform-row">
-        <label className="field">
-          <span>
-            <Abbr title="Deslocamento horizontal do grid sobre a imagem">Desloc. X</Abbr>
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={offsetMax}
-            step={0.5}
-            value={local.offsetX}
-            onChange={(e) => change({ offsetX: Number(e.target.value) })}
-          />
-        </label>
-        <label className="field">
-          <span>
-            <Abbr title="Deslocamento vertical do grid sobre a imagem">Desloc. Y</Abbr>
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={offsetMax}
-            step={0.5}
-            value={local.offsetY}
-            onChange={(e) => change({ offsetY: Number(e.target.value) })}
-          />
-        </label>
-      </div>
+      <Input.Wrapper label={`Tamanho do quadrado: ${local.cellPx.toFixed(1)} px`}>
+        <Slider mt={6} min={LIMITS.cellPx.min} max={200} step={0.5} value={Math.min(local.cellPx, 200)} onChange={(v) => change({ cellPx: v })} />
+      </Input.Wrapper>
+      <Group grow gap="md">
+        <Input.Wrapper label={<Abbr title="Deslocamento horizontal do grid sobre a imagem">Desloc. X</Abbr>}>
+          <Slider mt={6} min={0} max={offsetMax} step={0.5} value={Math.min(local.offsetX, offsetMax)} onChange={(v) => change({ offsetX: v })} />
+        </Input.Wrapper>
+        <Input.Wrapper label={<Abbr title="Deslocamento vertical do grid sobre a imagem">Desloc. Y</Abbr>}>
+          <Slider mt={6} min={0} max={offsetMax} step={0.5} value={Math.min(local.offsetY, offsetMax)} onChange={(v) => change({ offsetY: v })} />
+        </Input.Wrapper>
+      </Group>
 
       {tool === "calibrate" ? (
         calibRect && calibRect.width > 4 ? (
           <CalibrateForm rect={calibRect} cellPx={map.cellPx} />
         ) : (
-          <p className="muted small">Arraste um retângulo no mapa cobrindo um ou mais quadrados inteiros.</p>
+          <Text size="xs" c="gold.4">
+            Arraste um retângulo no mapa cobrindo um ou mais quadrados inteiros.
+          </Text>
         )
       ) : (
-        <button className="btn small" onClick={() => setTool("calibrate")}>
+        <Button variant="default" onClick={() => setTool("calibrate")}>
           Calibrar pelo mapa
-        </button>
+        </Button>
       )}
     </Panel>
   );
 }
 
 function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: number }; cellPx: number }) {
-  const [cells, setCells] = useState(String(Math.max(1, Math.round(rect.width / cellPx))));
+  const [cells, setCells] = useState<string | number>(Math.max(1, Math.round(rect.width / cellPx)));
   const n = Math.max(1, Math.trunc(Number(cells)) || 1);
   const size = rect.width / n;
 
@@ -152,22 +131,28 @@ function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: 
   }
 
   return (
-    <div className="calib">
-      <label className="field">
-        <span>Quantos quadrados cabem na largura da seleção?</span>
-        <input type="number" min={1} value={cells} onChange={(e) => setCells(e.target.value)} />
-      </label>
-      <p className="muted small">
-        {Math.round(rect.width)} px ÷ {n} = {size.toFixed(1)} px por quadrado
-      </p>
-      <div className="cform-actions">
-        <button className="btn small" onClick={() => setTool("move")}>
-          Cancelar
-        </button>
-        <button className="btn small primary" disabled={size < LIMITS.cellPx.min} onClick={apply}>
-          Aplicar
-        </button>
-      </div>
-    </div>
+    <Paper p="sm" bg="dark.7" style={{ borderColor: "var(--mantine-primary-color-filled)" }}>
+      <Stack gap="xs">
+        <NumberInput
+          label="Quantos quadrados cabem na largura da seleção?"
+          min={1}
+          allowDecimal={false}
+          allowNegative={false}
+          value={cells}
+          onChange={setCells}
+        />
+        <Text size="xs" c="dimmed">
+          {Math.round(rect.width)} px ÷ {n} = {size.toFixed(1)} px por quadrado
+        </Text>
+        <Group justify="flex-end" gap="xs">
+          <Button variant="default" onClick={() => setTool("move")}>
+            Cancelar
+          </Button>
+          <Button disabled={size < LIMITS.cellPx.min} onClick={apply}>
+            Aplicar
+          </Button>
+        </Group>
+      </Stack>
+    </Paper>
   );
 }

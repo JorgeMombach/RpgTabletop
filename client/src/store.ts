@@ -1,13 +1,6 @@
 import { create } from "zustand";
 import type { ClientState, JoinError, MapImagePayload, Role, Ruler } from "@rpg/shared";
 
-export interface ToastItem {
-  id: number;
-  kind: "info" | "error";
-  text: string;
-  action?: { label: string; run: () => void };
-}
-
 export type MapTool = "move" | "ruler" | "calibrate";
 
 export interface Rect {
@@ -38,7 +31,6 @@ interface AppStore {
   calibRect: Rect | null;
   /** Centro da visão atual do mapa, em pixels do mapa. */
   viewCenter: { x: number; y: number };
-  toasts: ToastItem[];
 }
 
 export const useApp = create<AppStore>(() => ({
@@ -54,7 +46,6 @@ export const useApp = create<AppStore>(() => ({
   tool: "move",
   calibRect: null,
   viewCenter: { x: 0, y: 0 },
-  toasts: [],
 }));
 
 export function select(id: string | null) {
@@ -63,16 +54,4 @@ export function select(id: string | null) {
 
 export function setTool(tool: MapTool) {
   useApp.setState({ tool, calibRect: null });
-}
-
-let toastSeq = 0;
-
-export function toast(item: Omit<ToastItem, "id">, ttlMs = 6000) {
-  const id = ++toastSeq;
-  useApp.setState((s) => ({ toasts: [...s.toasts, { ...item, id }] }));
-  setTimeout(() => dismissToast(id), ttlMs);
-}
-
-export function dismissToast(id: number) {
-  useApp.setState((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
 }

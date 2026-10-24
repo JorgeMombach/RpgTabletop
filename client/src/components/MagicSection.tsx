@@ -1,10 +1,22 @@
-import { useState, type FormEvent } from "react";
+import { ActionIcon, Button, Divider, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import { LIMITS, SPELL_LEVELS, type Combatant, type SpellLevel, type SpellSlot } from "@rpg/shared";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { Abbr } from "./Abbr";
 
 const ORDINAL = ["Truque", "1º", "2º", "3º", "4º", "5º", "6º", "7º", "8º", "9º"];
 const EMPTY: SpellSlot = { max: 0, used: 0 };
+
+function SectionTitle({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+  return (
+    <Group justify="space-between" gap="xs" wrap="nowrap">
+      <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>
+        {children}
+      </Text>
+      {aside}
+    </Group>
+  );
+}
 
 /** Slots e magias de um aliado. O dono gerencia tudo livremente (SPEC F3). */
 export function MagicSection({ c, editable }: { c: Combatant; editable: boolean }) {
@@ -14,101 +26,103 @@ export function MagicSection({ c, editable }: { c: Combatant; editable: boolean 
   const anyUsed = levels.some((l) => slot(l).used > 0);
 
   return (
-    <div className="magic">
-      <div className="magic-head">
-        <span className="section-title">Slots de magia</span>
-        {editable && (
-          <button className="btn small" onClick={() => setEditingSlots((v) => !v)}>
-            {editingSlots ? "Pronto" : "Ajustar"}
-          </button>
-        )}
-      </div>
+    <Stack gap="sm">
+      <Divider />
+      <SectionTitle
+        aside={
+          editable && (
+            <Button variant={editingSlots ? "filled" : "default"} onClick={() => setEditingSlots((v) => !v)}>
+              {editingSlots ? "Pronto" : "Ajustar"}
+            </Button>
+          )
+        }
+      >
+        Slots de magia
+      </SectionTitle>
 
       {editingSlots ? (
-        <div className="slot-editor">
+        <SimpleGrid cols={3} spacing="xs" verticalSpacing="xs">
           {SPELL_LEVELS.map((l) => (
-            <label key={l} className="slot-max">
-              <span>{ORDINAL[l]}</span>
-              <input
-                type="number"
-                min={0}
-                max={LIMITS.slotMax}
-                value={slot(l).max}
-                onChange={(e) => {
-                  const max = Math.max(0, Math.min(LIMITS.slotMax, Math.trunc(Number(e.target.value)) || 0));
-                  void act("slot:set", { id: c.id, level: l, max });
-                }}
-              />
-            </label>
+            <NumberInput
+              key={l}
+              leftSection={<Text size="xs">{ORDINAL[l]}</Text>}
+              min={0}
+              max={LIMITS.slotMax}
+              allowDecimal={false}
+              allowNegative={false}
+              clampBehavior="strict"
+              value={slot(l).max}
+              onChange={(v) => void act("slot:set", { id: c.id, level: l, max: Number(v) || 0 })}
+              aria-label={`Slots de ${l}º nível`}
+            />
           ))}
-        </div>
+        </SimpleGrid>
       ) : levels.length === 0 ? (
-        <p className="muted small">{editable ? "Sem slots. Use “Ajustar” para definir quantos tem por nível." : "Sem slots."}</p>
+        <Text size="xs" c="dimmed">
+          {editable ? "Sem slots. Use “Ajustar” para definir quantos tem por nível." : "Sem slots."}
+        </Text>
       ) : (
-        <div className="slot-rows">
+        <Stack gap={6}>
           {levels.map((l) => {
             const { max, used } = slot(l);
             return (
-              <div key={l} className="slot-row">
-                <span className="slot-level">
+              <Group key={l} gap="sm" wrap="nowrap">
+                <Text size="xs" fw={600} c="dimmed" w={34}>
                   <Abbr title={`Slots de magia de ${l}º nível`}>{ORDINAL[l]}</Abbr>
-                </span>
-                <div className="pips">
+                </Text>
+                <Group gap={6} style={{ flex: 1 }}>
                   {Array.from({ length: max }, (_, i) => {
                     // Disponíveis primeiro, gastos depois: clicar gasta ou recupera um slot.
                     const spent = i >= max - used;
                     return (
-                      <button
+                      <UnstyledButton
                         key={i}
                         className={`pip ${spent ? "spent" : ""}`}
                         disabled={!editable}
-                        title={spent ? "Recuperar slot" : "Gastar slot"}
+                        title={editable ? (spent ? "Recuperar slot" : "Gastar slot") : undefined}
                         aria-label={`${ORDINAL[l]} nível: slot ${i + 1} ${spent ? "gasto" : "disponível"}`}
                         onClick={() => act("slot:set", { id: c.id, level: l, used: spent ? used - 1 : used + 1 })}
                       />
                     );
                   })}
-                </div>
-                <span className="muted small">
+                </Group>
+                <Text size="xs" c="dimmed">
                   {max - used}/{max}
-                </span>
-              </div>
+                </Text>
+              </Group>
             );
           })}
-        </div>
+        </Stack>
       )}
 
       {editable && (
-        <div className="row-gap">
-          <button className="btn small grow" disabled={!anyUsed} onClick={() => act("slots:restore", { id: c.id })}>
+        <Group gap="xs" wrap="wrap">
+          <Button variant="default" style={{ flex: "1 1 auto" }} disabled={!anyUsed} onClick={() => act("slots:restore", { id: c.id })}>
             Recuperar slots
-          </button>
-          <button
-            className="btn small grow"
-            disabled={!anyUsed && c.hp === c.hpMax}
-            title="Vida cheia + todos os slots"
-            onClick={() => act("ally:restoreAll", { id: c.id })}
-          >
-            Restaurar tudo
-          </button>
-        </div>
+          </Button>
+          <Tooltip label="Vida cheia + todos os slots">
+            <Button variant="default" style={{ flex: "1 1 auto" }} disabled={!anyUsed && c.hp === c.hpMax} onClick={() => act("ally:restoreAll", { id: c.id })}>
+              Restaurar tudo
+            </Button>
+          </Tooltip>
+        </Group>
       )}
 
       {c.spells !== undefined || editable ? <SpellList c={c} editable={editable} /> : null}
-    </div>
+    </Stack>
   );
 }
 
 function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
   const [name, setName] = useState("");
-  const [level, setLevel] = useState("1");
+  const [level, setLevel] = useState<string | null>("1");
   const [note, setNote] = useState("");
   const [adding, setAdding] = useState(false);
   const spells = c.spells ?? [];
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    const res = await act("spell:add", { id: c.id, name, level: Number(level), note: note || undefined });
+    const res = await act("spell:add", { id: c.id, name, level: Number(level ?? 0), note: note || undefined });
     if (res.ok) {
       setName("");
       setNote("");
@@ -116,75 +130,90 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
   }
 
   return (
-    <div className="spells">
-      <div className="magic-head">
-        <span className="section-title">Magias (referência)</span>
-        {editable && !adding && (
-          <button className="btn small" onClick={() => setAdding(true)}>
-            + Magia
-          </button>
-        )}
-      </div>
+    <Stack gap="sm">
+      <Divider />
+      <SectionTitle
+        aside={
+          editable &&
+          !adding && (
+            <Button variant="default" onClick={() => setAdding(true)}>
+              + Magia
+            </Button>
+          )
+        }
+      >
+        Magias (referência)
+      </SectionTitle>
 
       {adding && (
-        <form className="spell-form" onSubmit={add}>
-          <input
-            autoFocus
-            placeholder="Nome da magia"
-            maxLength={LIMITS.spellName}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <select value={level} onChange={(e) => setLevel(e.target.value)} aria-label="Nível">
-            {ORDINAL.map((label, l) => (
-              <option key={l} value={l}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <input
-            className="spell-note"
-            placeholder="Nota (opcional): dano, alcance…"
-            maxLength={LIMITS.spellNote}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <div className="cform-actions">
-            <button type="button" className="btn small" onClick={() => setAdding(false)}>
-              Fechar
-            </button>
-            <button className="btn small primary">Adicionar</button>
-          </div>
-        </form>
+        <Paper component="form" onSubmit={add} p="sm" bg="dark.7">
+          <Stack gap="xs">
+            <Group gap="xs" wrap="nowrap" align="flex-end">
+              <TextInput
+                style={{ flex: 1 }}
+                autoFocus
+                required
+                placeholder="Nome da magia"
+                maxLength={LIMITS.spellName}
+                value={name}
+                onChange={(e) => setName(e.currentTarget.value)}
+                aria-label="Nome da magia"
+              />
+              <Select
+                w={92}
+                data={ORDINAL.map((label, l) => ({ value: String(l), label }))}
+                value={level}
+                onChange={setLevel}
+                aria-label="Nível"
+              />
+            </Group>
+            <TextInput
+              placeholder="Nota (opcional): dano, alcance…"
+              maxLength={LIMITS.spellNote}
+              value={note}
+              onChange={(e) => setNote(e.currentTarget.value)}
+              aria-label="Nota"
+            />
+            <Group justify="flex-end" gap="xs">
+              <Button variant="default" onClick={() => setAdding(false)}>
+                Fechar
+              </Button>
+              <Button type="submit">Adicionar</Button>
+            </Group>
+          </Stack>
+        </Paper>
       )}
 
-      {spells.length === 0 ? (
-        !adding && <p className="muted small">Nenhuma magia anotada.</p>
-      ) : (
-        <ul className="spell-list">
-          {spells.map((s) => (
-            <li key={s.id}>
-              <span className="spell-level">
+      {spells.length === 0
+        ? !adding && (
+            <Text size="xs" c="dimmed">
+              Nenhuma magia anotada.
+            </Text>
+          )
+        : spells.map((s) => (
+            <Group key={s.id} gap="sm" wrap="nowrap" align="flex-start">
+              <Text size="xs" fw={600} c="dimmed" w={44} pt={2}>
                 {s.level === 0 ? (
                   <Abbr title="Truque: magia de nível 0, não gasta slot">Truque</Abbr>
                 ) : (
                   <Abbr title={`Magia de ${s.level}º nível`}>{ORDINAL[s.level] ?? s.level}</Abbr>
                 )}
-              </span>
-              <div className="grow">
-                <div>{s.name}</div>
-                {s.note && <div className="muted small">{s.note}</div>}
+              </Text>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Text size="sm">{s.name}</Text>
+                {s.note && (
+                  <Text size="xs" c="dimmed">
+                    {s.note}
+                  </Text>
+                )}
               </div>
               {editable && (
-                <button className="icon-btn" title="Remover magia" onClick={() => act("spell:remove", { id: c.id, spellId: s.id })}>
+                <ActionIcon size="sm" aria-label={`Remover ${s.name}`} onClick={() => act("spell:remove", { id: c.id, spellId: s.id })}>
                   ✕
-                </button>
+                </ActionIcon>
               )}
-            </li>
+            </Group>
           ))}
-        </ul>
-      )}
-    </div>
+    </Stack>
   );
 }
