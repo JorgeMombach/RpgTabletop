@@ -172,4 +172,10 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E9 — Imagem Docker | ✅ v1.1.0 |
 | E10 — Executável | ✅ v1.1.0 |
 | E11 — CI/CD e releases | ✅ v1.1.0 |
-| E12 — Launcher com janela própria | Opcional, a decidir após sessões reais |
+| E13 — Correções e identidade (Jamal's Tabletop) | ⏳ |
+| E14 — Base de UX (Mantine) | ⏳ |
+| E15 — NPCs neutros e condições | ⏳ |
+| E16 — Dados no combate | ⏳ |
+| E17 — Mapa: rotação, escala e áreas de magia | ⏳ |
+| E18 — Salvar e carregar sessão | ⏳ |
+| E12 — Launcher com janela própria | ⏳ depois do E18 |
