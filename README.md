@@ -2,13 +2,15 @@
 
 Simulador de combates de RPG de mesa (base D&D 5e) para rodar localmente. Quem hospeda é o **mestre**; os jogadores entram pelo navegador. O app é um registro compartilhado (vida, iniciativa, slots, mapa e tokens): todo cálculo de dano, movimento e alcance fica com a mesa e as fichas. Nada é salvo: desligou o servidor, a sessão some.
 
+**⬇️ Baixar:** [última versão](https://github.com/JorgeMombach/RpgTabletop/releases/latest) (executáveis para Windows, Linux e macOS) · [Changelog](CHANGELOG.md)
+
 Especificação, ADRs e entregáveis em [SPEC.md](SPEC.md).
 
 ## Para quem vai mestrar (executável)
 
 Não precisa instalar nada além do executável.
 
-1. Baixe o arquivo do seu sistema (ex.: `simulador-encontros-1.0.0-win-x64.exe`).
+1. Baixe o arquivo do seu sistema na [página de releases](https://github.com/JorgeMombach/RpgTabletop/releases/latest), em **Assets** (ex.: `simulador-encontros-1.1.0-win-x64.exe`).
 2. **Dois cliques** nele. Abre uma janela preta com os endereços e o navegador abre sozinho já como mestre.
    - **Windows — "O Windows protegeu o computador"** (SmartScreen): o executável não tem assinatura digital paga. Clique em **Mais informações → Executar assim mesmo**. Só acontece na primeira vez.
    - **Windows — "Permitir acesso à rede?"** (Firewall): marque **Redes privadas** e clique em **Permitir**. Sem isso os jogadores não conseguem entrar.
@@ -17,7 +19,7 @@ Não precisa instalar nada além do executável.
 3. Passe para os jogadores o endereço que aparece em **Jogadores** na janela (ou no painel *Convidar jogadores*). Se forem jogar pela internet, todos precisam estar no mesmo Tailscale (ver *Jogadores: conectando*).
 4. **Deixe a janela aberta** durante o jogo. Fechar a janela encerra a sessão (e apaga tudo — não há salvamento).
 
-As opções da tabela abaixo também valem para o executável: `simulador-encontros-1.0.0-win-x64.exe --port 4000`.
+As opções da tabela abaixo também valem para o executável: `simulador-encontros-1.1.0-win-x64.exe --port 4000`.
 
 ## Mestre: do zero até a sessão no ar (pelo código)
 
@@ -161,13 +163,38 @@ npm run package
 
 Gera `release/simulador-encontros-<versão>-<sistema>-<arquitetura>[.exe]` para o **sistema em que o comando roda** (o Node SEA usa o binário do Node da própria máquina; ver ADR-11). O executável leva o Node, o servidor e o client embutidos (~90 MB). No Windows, também grava o ícone (`assets/icon.ico`, gerado por `npm run icon`) e nome/versão nas propriedades do arquivo. Para Linux e macOS, rode o mesmo comando nesses sistemas — a CI do E11 faz isso automaticamente.
 
+### Fluxo de trabalho e CI
+
+- A `master` é sempre jogável. Cada mudança vai numa branch (`feat/…`, `fix/…`) e entra por Pull Request.
+- Todo PR roda (aba **Checks**):
+  - **CI / Testes** no Linux e no Windows: typecheck, testes e build.
+  - **CI / Executáveis**: gera e testa o executável de Windows, Linux e macOS. Os arquivos ficam disponíveis por 7 dias na página da execução (**Artifacts**), bom para testar antes do merge.
+  - **Docker / Build e teste de fumaça**: constrói e testa a imagem.
+
+### Publicar uma versão
+
+1. Numa branch, atualize `version` no `package.json` (SemVer: correção → `1.1.1`, novidade → `1.2.0`) e mova as notas de *Não lançado* para `## [X.Y.Z] - data` no [CHANGELOG.md](CHANGELOG.md). Merge na `master`.
+2. Crie e envie a tag na `master` atualizada:
+
+   ```bash
+   git tag v1.2.0
+   ```
+
+   ```bash
+   git push origin v1.2.0
+   ```
+
+3. O workflow **Release** confere se a tag bate com o `package.json` e se o CHANGELOG tem a seção, gera os 3 executáveis, publica a imagem `ghcr.io/jorgemombach/rpgtabletop` (tags `X.Y.Z`, `X.Y` e `latest`) e cria a GitHub Release com as notas, os executáveis e o `SHA256SUMS.txt`. Nenhum passo manual.
+
+Se a tag não bater com a versão, a release falha antes de publicar qualquer coisa: apague a tag (`git push --delete origin vX.Y.Z` e `git tag -d vX.Y.Z`), corrija e crie de novo.
+
 ### Estrutura
 
 ```
 shared/   tipos do estado, contrato dos eventos Socket.IO, limites, regra de distância e versão
 server/   Express + Socket.IO; estado em memória, ações (src/actions), permissões e filtro por papel
 client/   Vite + React + Zustand; mapa com react-konva (src/map)
-scripts/  build (dist/), executável (release/, Node SEA) e geração do ícone
+scripts/  build (dist/), executável (release/, Node SEA), ícone e notas de release
 assets/   ícone do executável
 ```
 
@@ -186,5 +213,5 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E7 — Ciclo da batalha e acabamento | ✅ |
 | E8 — Preparação para distribuição | ✅ |
 | E9 — Imagem Docker | ✅ |
-| E10 — Executável | ✅ (Windows validado; Linux/macOS na CI do E11) |
-| E11 — CI/CD e releases | ⏳ |
+| E10 — Executável | ✅ |
+| E11 — CI/CD e releases | 🟡 workflows prontos; falta a primeira release (tag `v1.1.0`) |

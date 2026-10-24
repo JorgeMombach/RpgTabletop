@@ -371,7 +371,7 @@ Ajustes no código que o Docker e o executável precisam.
 - Numa máquina Windows **sem Node instalado**, dois cliques no `.exe` sobem a sessão e o navegador abre como mestre.
 - Jogadores em outra máquina (LAN e Tailscale) conectam normalmente.
 - Fechar a janela encerra o servidor.
-- Executável ≤ 120 MB.
+- Executável ≤ 150 MB. (Revisto no E11: o Windows fica em ~93 MB, mas o executável Linux deu 123 MB — ~120 MB são o próprio binário do Node para Linux; o app soma só ~3 MB.)
 
 ### E11 — CI/CD e releases  *(~1 dia)*
 - Workflow de **PR**: `npm ci`, typecheck, testes, build.
