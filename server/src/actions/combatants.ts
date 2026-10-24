@@ -3,6 +3,7 @@ import {
   ALLY_COLORS,
   LIMITS,
   MOB_COLORS,
+  NAME_MAX_LENGTH,
   isColor,
   type Combatant,
   type CombatantInput,
@@ -132,7 +133,10 @@ export const combatantHandlers: HandlerMap = {
     const ids: string[] = [];
     for (let i = 0; i < qty; i++) {
       n++;
-      const mob = newCombatant("mob", { name: `${t.name} ${n}`, hpMax: t.hpMax, dexMod: t.dexMod }, t.color);
+      // O número diferencia os mobs: se o nome passar do limite, encurta o nome base, nunca o número.
+      const suffix = ` ${n}`;
+      const base = t.name.slice(0, NAME_MAX_LENGTH - suffix.length).trimEnd();
+      const mob = newCombatant("mob", { name: base + suffix, hpMax: t.hpMax, dexMod: t.dexMod }, t.color);
       mob.templateId = t.id;
       if (t.avatar) mob.avatar = t.avatar;
       store.game.battle.mobs.push(mob);
@@ -180,6 +184,10 @@ export const combatantHandlers: HandlerMap = {
 
   "ally:create": (store, player, input) => {
     const { allies } = store.game;
+    // Jogador tem um personagem só; o mestre cria quantos aliados (NPC) quiser.
+    if (player.role === "player" && allies.some((a) => a.ownerId === player.id)) {
+      fail("Você já tem um personagem. Para mudar nome, vida ou mod. DES, use Editar no painel Selecionado.");
+    }
     const ally = newCombatant("ally", input, colorOf(input?.color, ALLY_COLORS, allies.length));
     ally.ownerId = player.id;
     allies.push(ally);

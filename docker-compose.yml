@@ -1,4 +1,4 @@
-# Exemplo para rodar o Simulador de Encontros com Docker.
+# Exemplo para rodar o Jamal's Tabletop com Docker.
 #   docker compose up -d        sobe em segundo plano
 #   docker compose logs -f      mostra o link do mestre e os endereços
 #   docker compose down         encerra a sessão

@@ -116,6 +116,8 @@ export type ClientToServerEvents = ActionEvents & {
   "session:join": (payload: JoinPayload, ack: (res: JoinResult) => void) => void;
   /** Efêmero: repassado aos outros, não fica no estado. */
   "ruler:update": (ruler: Ruler | null) => void;
+  /** Sai da sessão (fica offline). A identidade continua: voltar com o mesmo token recupera o personagem. */
+  "session:leave": () => void;
 };
 
 export interface ServerToClientEvents {

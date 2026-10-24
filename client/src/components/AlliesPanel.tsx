@@ -18,9 +18,11 @@ export function AlliesPanel({ state }: { state: ClientState }) {
     <Panel
       title="Aliados"
       aside={
-        !creating && (
+        // Jogador tem um personagem só (o servidor também recusa um segundo).
+        !creating &&
+        (gm || !hasOwn) && (
           <button className="btn small" onClick={() => setCreating(true)}>
-            {gm ? "+ Aliado (NPC)" : hasOwn ? "+ Personagem" : "+ Criar personagem"}
+            {gm ? "+ Aliado (NPC)" : "+ Criar personagem"}
           </button>
         )
       }
@@ -60,7 +62,7 @@ export function AlliesPanel({ state }: { state: ClientState }) {
             <span className="dot" style={{ background: a.color }} aria-hidden />
             <div className="grow">
               <div className="crow-head">
-                <span className="ellipsis">
+                <span className="ellipsis" title={a.name}>
                   {a.name}
                   {a.ownerId === state.self.id ? (
                     <span className="muted small"> (seu)</span>

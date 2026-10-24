@@ -44,6 +44,18 @@ describe("mobs", () => {
     assert.equal(mob(next).name, "Goblin 5", "não reaproveita o nome de um mob removido");
   });
 
+  it("nome de template no limite: o número do mob nunca é cortado", async () => {
+    const g = await gm();
+    const long = "Goblin Arqueiro da Floresta Negr"; // 32 caracteres, o máximo
+    const [tid] = idsOf(await act(g, "template:upsert", { name: long, hpMax: 7, dexMod: 2 }));
+    const ids = idsOf(await act(g, "mob:addFromTemplate", { templateId: tid, qty: 12 }));
+    const names = ids.map((id) => mob(id).name);
+    assert.equal(new Set(names).size, 12, "nomes distintos");
+    assert.ok(names.every((n) => n.length <= 32));
+    assert.equal(names[0], "Goblin Arqueiro da Floresta Ne 1");
+    assert.equal(names[11], "Goblin Arqueiro da Floresta N 12");
+  });
+
   it("vida soma/subtrai o valor informado, entre 0 e o máximo; com 0 o mob continua", async () => {
     const g = await gm();
     const [id] = idsOf(await act(g, "mob:add", { name: "Ogro", hpMax: 59, dexMod: -1 }));
@@ -187,7 +199,31 @@ describe("aliados", () => {
     assert.equal(res.ok, false);
     assert.equal(ally(id).name, "Thorin", "não aplica edição pela metade");
 
-    assert.equal((await act(p, "ally:create", { name: "", hpMax: 10, dexMod: 0 })).ok, false);
-    assert.equal((await act(p, "ally:create", { name: "X", hpMax: 10, dexMod: 99 })).ok, false);
+    // Jogador novo, sem personagem: a recusa vem da validação, não do limite de 1 personagem.
+    const q = await player("Bia");
+    assert.equal((await act(q, "ally:create", { name: "", hpMax: 10, dexMod: 0 })).ok, false);
+    assert.equal((await act(q, "ally:create", { name: "X", hpMax: 10, dexMod: 99 })).ok, false);
+    assert.ok((await act(q, "ally:create", { name: "Lyra", hpMax: 10, dexMod: 2 })).ok);
+  });
+
+  it("jogador cria só um personagem; o mestre cria quantos aliados quiser", async () => {
+    const p = await player("Ana");
+    assert.ok((await act(p, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1 })).ok);
+    const second = await act(p, "ally:create", { name: "Outro", hpMax: 10, dexMod: 0 });
+    assert.equal(second.ok, false);
+    assert.match(second.ok ? "" : second.error, /já tem um personagem/);
+
+    const g = await gm();
+    for (const name of ["Guarda", "Ferreiro", "Taverneiro"]) {
+      assert.ok((await act(g, "ally:create", { name, hpMax: 8, dexMod: 0 })).ok);
+    }
+    assert.equal(ctx.server.store.game.allies.length, 4);
+  });
+
+  it("jogador que removeu o personagem pode criar outro", async () => {
+    const p = await player("Ana");
+    const [id] = idsOf(await act(p, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1 }));
+    assert.ok((await act(p, "ally:remove", { id })).ok);
+    assert.ok((await act(p, "ally:create", { name: "Thorin II", hpMax: 30, dexMod: 1 })).ok);
   });
 });

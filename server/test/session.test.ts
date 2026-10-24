@@ -88,6 +88,26 @@ describe("reconexão", () => {
   });
 });
 
+describe("sair da sessão", () => {
+  it("quem sai fica offline e, voltando com o token, é a mesma pessoa (pode trocar o nome)", async () => {
+    const gm = await client();
+    await join(gm, "Mestre");
+    const p = await client("10.0.5.1");
+    const res = await join(p, "Ana");
+    assert.ok(res.ok);
+    const ana = (s: ClientState) => s.players.find((x) => x.id === res.self.id);
+
+    const offline = stateWhere(gm, (s) => ana(s)?.connected === false);
+    p.emit("session:leave");
+    await offline;
+
+    const back = stateWhere(gm, (s) => ana(s)?.name === "Ana Clara" && ana(s)?.connected === true);
+    const again = await join(p, "Ana Clara", res.sessionToken);
+    assert.ok(again.ok && again.self.id === res.self.id);
+    await back;
+  });
+});
+
 describe("filtro por papel", () => {
   it("jogador não recebe vida de mob; mestre recebe", async () => {
     ctx.server.store.game.battle.mobs.push({

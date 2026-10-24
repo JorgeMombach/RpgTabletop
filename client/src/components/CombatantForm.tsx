@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { LIMITS, NAME_MAX_LENGTH, type CombatantInput } from "@rpg/shared";
+import { Abbr } from "./Abbr";
 import { AvatarPicker } from "./AvatarPicker";
 
 export interface FormValues extends CombatantInput {
@@ -57,7 +58,9 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, onSubm
       </label>
       <div className="cform-row">
         <label className="field">
-          <span>Vida máx.</span>
+          <span>
+            <Abbr title="Vida máxima (pontos de vida)">Vida máx.</Abbr>
+          </span>
           <input
             type="number"
             min={LIMITS.hpMax.min}
@@ -68,7 +71,9 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, onSubm
           />
         </label>
         <label className="field">
-          <span>Mod. DES</span>
+          <span>
+            <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">Mod. DES</Abbr>
+          </span>
           <input
             type="number"
             min={LIMITS.dexMod.min}

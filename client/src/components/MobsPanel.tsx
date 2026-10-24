@@ -27,7 +27,7 @@ export function MobsPanel({ mobs }: { mobs: Combatant[] }) {
               <span className="dot" style={{ background: m.color }} aria-hidden />
               <div className="grow">
                 <div className="crow-head">
-                  <span className="ellipsis">
+                  <span className="ellipsis" title={m.name}>
                     {m.hp <= 0 && "✕ "}
                     {m.name}
                     {!m.pos && <span className="muted small"> · fora do mapa</span>}

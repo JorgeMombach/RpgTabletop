@@ -21,9 +21,9 @@ export interface Config {
 export class ConfigError extends Error {}
 
 export const HELP = `
-Simulador de Encontros
+Jamal's Tabletop
 
-Uso: simulador-encontros [opções]
+Uso: jamals-tabletop [opções]
 
   --port <n>           Porta (padrão 3000; se ocupada, tenta as seguintes)   [PORT]
   --max-players <n>    Limite de jogadores conectados (padrão 6)             [MAX_PLAYERS]

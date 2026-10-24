@@ -42,7 +42,23 @@ function gmKey(): string | undefined {
 }
 
 export function savedName(): string {
-  return read(NAME_KEY) ?? "";
+  return read(NAME_KEY) ?? useApp.getState().lastName;
+}
+
+/**
+ * Sai da sessão para trocar de nome (ou deixar a mesa). Esquece o nome salvo, para o
+ * navegador não entrar sozinho de novo, mas mantém o token: voltando, a pessoa
+ * reencontra o mesmo personagem.
+ */
+export function leave() {
+  const lastName = useApp.getState().state?.self.name ?? "";
+  socket.emit("session:leave");
+  try {
+    localStorage.removeItem(NAME_KEY);
+  } catch {
+    // ignora
+  }
+  useApp.setState({ state: null, selectedId: null, joinError: null, lastName, rulers: {} });
 }
 
 export async function join(name: string) {

@@ -4,6 +4,7 @@ import { act } from "../actions";
 import { mapImageFromFile } from "../images";
 import { setTool, toast, useApp } from "../store";
 import { Panel } from "./Panel";
+import { Abbr } from "./Abbr";
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
 function useThrottledGrid() {
@@ -31,6 +32,10 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   // Valores locais para os sliders responderem na hora; o servidor confirma depois.
   const [local, setLocal] = useState({ cellPx: map.cellPx, offsetX: map.offsetX, offsetY: map.offsetY });
   useEffect(() => setLocal({ cellPx: map.cellPx, offsetX: map.offsetX, offsetY: map.offsetY }), [map.cellPx, map.offsetX, map.offsetY]);
+
+  // Deslocamento = tamanho do quadrado é o mesmo grid que deslocamento 0 (o servidor normaliza),
+  // então o slider para um passo antes para o grid não "pular" de volta ao início.
+  const offsetMax = Math.max(0, local.cellPx - 0.5);
 
   function change(patch: Partial<typeof local>) {
     setLocal((l) => ({ ...l, ...patch }));
@@ -77,7 +82,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
 
       <label className="check">
         <input type="checkbox" checked={map.showGrid} onChange={(e) => void act("battle:grid", { showGrid: e.target.checked })} />
-        Mostrar grid (1 quadrado = {map.feetPerCell} ft)
+        Mostrar grid (1 quadrado = {map.feetPerCell} <Abbr title="pés (1 ft ≈ 30 cm; 5 ft = 1,5 m)">ft</Abbr>)
       </label>
 
       <label className="field">
@@ -93,22 +98,26 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
       </label>
       <div className="cform-row">
         <label className="field">
-          <span>Desloc. X</span>
+          <span>
+            <Abbr title="Deslocamento horizontal do grid sobre a imagem">Desloc. X</Abbr>
+          </span>
           <input
             type="range"
             min={0}
-            max={local.cellPx}
+            max={offsetMax}
             step={0.5}
             value={local.offsetX}
             onChange={(e) => change({ offsetX: Number(e.target.value) })}
           />
         </label>
         <label className="field">
-          <span>Desloc. Y</span>
+          <span>
+            <Abbr title="Deslocamento vertical do grid sobre a imagem">Desloc. Y</Abbr>
+          </span>
           <input
             type="range"
             min={0}
-            max={local.cellPx}
+            max={offsetMax}
             step={0.5}
             value={local.offsetY}
             onChange={(e) => change({ offsetY: Number(e.target.value) })}

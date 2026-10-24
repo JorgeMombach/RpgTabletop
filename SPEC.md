@@ -1,4 +1,4 @@
-# Spec — Simulador de Encontros (tabletop local)
+# Spec — Jamal's Tabletop (antes: Simulador de Encontros)
 
 ## 1. Objetivo
 Ferramenta para conduzir **combates** de RPG de mesa (base D&D 5e) entre o mestre e os jogadores, cada um na sua máquina. O sistema é um **registro compartilhado**, não um motor de regras: ele guarda vida, iniciativa, slots de magia, mapa e posição dos tokens. **Todo cálculo (dano, cura, movimento, alcance) é feito pelas pessoas**, conforme as fichas manuais.

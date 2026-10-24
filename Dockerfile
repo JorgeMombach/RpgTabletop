@@ -16,7 +16,7 @@ RUN npm run typecheck && npm test && npm run build
 
 # ---- runtime: só o servidor empacotado (dist/server.cjs) e o client (dist/public) ----
 FROM node:22-alpine
-LABEL org.opencontainers.image.title="Simulador de Encontros" \
+LABEL org.opencontainers.image.title="Jamal's Tabletop" \
       org.opencontainers.image.description="Simulador de combates de RPG de mesa (servidor + web)" \
       org.opencontainers.image.source="https://github.com/JorgeMombach/RpgTabletop" \
       org.opencontainers.image.licenses="UNLICENSED"

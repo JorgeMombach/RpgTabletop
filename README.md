@@ -1,4 +1,4 @@
-# Simulador de Encontros
+# Jamal's Tabletop
 
 Simulador de combates de RPG de mesa (base D&D 5e). Quem hospeda é o **mestre**: abre o executável e os jogadores entram pelo navegador. O app é um registro compartilhado (vida, iniciativa, slots de magia, mapa e tokens): todo cálculo de dano, movimento e alcance fica com a mesa e as fichas. Nada é salvo: fechou a sessão, tudo some.
 
@@ -12,15 +12,15 @@ Não precisa instalar nada além do executável.
 
    | Sistema | Arquivo |
    |---|---|
-   | Windows | `simulador-encontros-<versão>-win-x64.exe` |
-   | Linux | `simulador-encontros-<versão>-linux-x64` |
-   | macOS (Apple Silicon) | `simulador-encontros-<versão>-macos-arm64` |
+   | Windows | `jamals-tabletop-<versão>-win-x64.exe` |
+   | Linux | `jamals-tabletop-<versão>-linux-x64` |
+   | macOS (Apple Silicon) | `jamals-tabletop-<versão>-macos-arm64` |
 
 2. **Dois cliques** no arquivo. Abre uma janela preta com os endereços e o navegador abre sozinho, já como mestre.
    - **Windows — "O Windows protegeu o computador"** (SmartScreen): o executável não tem assinatura digital paga. Clique em **Mais informações → Executar assim mesmo**. Só na primeira vez.
-   - **Windows — "Permitir acesso à rede?"** (Firewall): marque **Redes privadas** e clique em **Permitir**. Sem isso os jogadores não conseguem entrar.
+   - **Windows — "Permitir acesso à rede?"** (Firewall): marque **Redes privadas** e clique em **Permitir**. Sem isso os jogadores não conseguem entrar. Atenção: a rede do **Tailscale** é sempre *Privada*, mesmo que a rede da sua casa apareça como *Pública* — se o Windows sugerir só "Redes públicas", marque também **Redes privadas**.
    - **macOS:** se aparecer "desenvolvedor não identificado", botão direito no arquivo → **Abrir** → **Abrir**.
-   - **Linux:** `chmod +x simulador-encontros-*-linux-x64` e execute.
+   - **Linux:** `chmod +x jamals-tabletop-*-linux-x64` e execute.
 3. Passe para os jogadores o endereço que aparece em **Jogadores** na janela (também no painel *Convidar jogadores* do app). Jogando pela internet, todos precisam estar no mesmo Tailscale (veja abaixo).
 4. **Deixe a janela aberta** durante o jogo. Fechar a janela encerra a sessão.
 
@@ -32,8 +32,10 @@ Só precisa de um navegador.
 
 - **Mesma rede (LAN):** abra o endereço `http://192.168.x.x:3000` que o mestre passar.
 - **Pela internet:** usem uma VPN mesh. Recomendado: [Tailscale](https://tailscale.com/download) (alternativas: ZeroTier, Radmin VPN).
-  1. Todos (mestre e jogadores) instalam o Tailscale e entram na mesma rede: o mestre convida pelo painel do Tailscale ou compartilha a máquina dele.
-  2. O mestre passa o endereço `http://100.x.x.x:3000` (aparece como "Tailscale" na janela e no app).
+  1. Todos (mestre e jogadores) instalam o Tailscale. O mestre convida cada jogador pelo painel do Tailscale (**Users → Invite external users**).
+  2. O jogador aceita o convite e **troca para a rede do mestre** no aplicativo do Tailscale (ícone perto do relógio → conta → escolher a rede do mestre). Aceitar o convite não basta: se o aplicativo continuar na rede pessoal do jogador, o endereço do mestre não abre.
+  3. Para conferir: o computador do jogador aparece em **Machines** no painel do mestre.
+  4. O mestre passa o endereço `http://100.x.x.x:3000` (aparece como "Tailscale" na janela e no app).
 
 Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade e o mesmo personagem.
 
@@ -55,7 +57,7 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 ## Opções
 
-Para quem quer ajustar algo. Passe como argumento ao executável (ex.: `simulador-encontros-1.1.0-win-x64.exe --port 4000`) ou como variável de ambiente; o argumento vence. `--help` lista tudo.
+Para quem quer ajustar algo. Passe como argumento ao executável (ex.: `jamals-tabletop-1.1.0-win-x64.exe --port 4000`) ou como variável de ambiente; o argumento vence. `--help` lista tudo.
 
 | Argumento | Variável | Padrão | Uso |
 |---|---|---|---|
@@ -96,10 +98,10 @@ Com o [`docker-compose.yml`](docker-compose.yml) do repositório (edite `GM_KEY`
 | Sintoma | O que fazer |
 |---|---|
 | "O Windows protegeu o computador" | Normal para executável sem assinatura paga: **Mais informações → Executar assim mesmo**. |
-| A janela abre e fecha na hora | Rode pelo terminal (`.\simulador-encontros-…-win-x64.exe`) para ver a mensagem. Erros de inicialização também pedem Enter antes de fechar. |
+| A janela abre e fecha na hora | Rode pelo terminal (`.\jamals-tabletop-…-win-x64.exe`) para ver a mensagem. Erros de inicialização também pedem Enter antes de fechar. |
 | App subiu em outra porta (3001…) | A 3000 estava ocupada (outra sessão aberta?). Use o endereço que a janela mostrar, ou feche a outra sessão. |
-| Jogador não conecta pela LAN | Confira se estão na mesma rede e se o Firewall do Windows permitiu o app em **Redes privadas**. Se negou sem querer, libere a porta (PowerShell como administrador): `New-NetFirewallRule -DisplayName "Simulador de Encontros" -Direction Inbound -Protocol TCP -LocalPort 3000 -Action Allow` |
-| Jogador não conecta pela internet | Todos precisam estar logados na mesma rede do Tailscale; use o endereço `100.x.x.x`. |
+| Página do jogador **fica carregando para sempre** (Tailscale) | Duas causas comuns: (1) o jogador não está na rede do mestre — no painel do Tailscale do mestre, o computador dele precisa aparecer em **Machines** (veja *Jogadores: conectando*, passo 2); (2) o Firewall do Windows do mestre liberou o app só em *Redes públicas*, mas o Tailscale é *Privada*. Para (2), no PowerShell como administrador: `New-NetFirewallRule -DisplayName "Jamal's Tabletop (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 3000-3010 -Profile Private -Action Allow` |
+| Jogador não conecta pela LAN | Confira se estão na mesma rede e se o Firewall do Windows permitiu o app no tipo da sua rede (Privada ou Pública). Se negou sem querer, libere a porta (PowerShell como administrador): `New-NetFirewallRule -DisplayName "Jamal's Tabletop" -Direction Inbound -Protocol TCP -LocalPort 3000-3010 -Action Allow` |
 | Mestre entrou como "Jogador" | Abra `http://localhost:3000` na máquina do mestre, ou use o link de mestre (`?gm=`) da janela. |
 | "Sala cheia" | Limite de 6 jogadores; aumente com `--max-players`. |
 
@@ -172,7 +174,7 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E9 — Imagem Docker | ✅ v1.1.0 |
 | E10 — Executável | ✅ v1.1.0 |
 | E11 — CI/CD e releases | ✅ v1.1.0 |
-| E13 — Correções e identidade (Jamal's Tabletop) | ⏳ |
+| E13 — Correções e identidade (Jamal's Tabletop) | ✅ (próxima versão) |
 | E14 — Base de UX (Mantine) | ⏳ |
 | E15 — NPCs neutros e condições | ⏳ |
 | E16 — Dados no combate | ⏳ |

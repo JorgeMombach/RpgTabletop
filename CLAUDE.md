@@ -1,4 +1,4 @@
-# CLAUDE.md — Simulador de Encontros
+# CLAUDE.md — Jamal's Tabletop
 
 Simulador de combates de RPG de mesa. O mestre roda o servidor (executável, Docker ou código) e os jogadores entram pelo navegador. Monorepo TypeScript: `shared/` (contrato), `server/` (Express + Socket.IO, estado em memória), `client/` (Vite + React + Zustand + react-konva).
 

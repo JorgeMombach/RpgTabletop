@@ -59,7 +59,7 @@ function openBrowser(url: string) {
 }
 
 async function main() {
-  process.title = "Simulador de Encontros";
+  process.title = "Jamal's Tabletop";
   const config = await readConfig();
   if (config.help) {
     console.log(HELP);
@@ -91,7 +91,7 @@ async function main() {
   const gmLink = `${addresses[0]?.url ?? local}/?gm=${config.gmKey}`;
   const lines = [
     "",
-    `  Simulador de Encontros v${APP_VERSION}`,
+    `  Jamal's Tabletop v${APP_VERSION}`,
     "",
     ...(port !== config.port ? [`  A porta ${config.port} estava ocupada; usando a ${port}.`, ""] : []),
     config.gmLoopback

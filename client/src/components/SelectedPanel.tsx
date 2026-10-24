@@ -5,6 +5,7 @@ import { removeMob } from "../commands";
 import { fmtMod } from "../format";
 import { cellAt, nearestFreeCell } from "../map/geometry";
 import { select, useApp } from "../store";
+import { Abbr } from "./Abbr";
 import { CombatantForm } from "./CombatantForm";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
@@ -72,11 +73,26 @@ export function SelectedPanel({ state }: { state: ClientState }) {
       <div className="sel-head">
         <Avatar c={c} />
         <div className="grow">
-          <div className="sel-name">{c.name}</div>
-          <div className="muted small">
-            {c.type === "mob" ? "Mob" : owner ? `Aliado · ${owner.name}` : "Aliado"} · DES {fmtMod(c.dexMod)}
+          <div className="sel-name ellipsis" title={c.name}>
+            {c.name}
+          </div>
+          <div
+            className="muted small ellipsis"
+            title={`${c.type === "mob" ? "Mob" : owner ? `Aliado · ${owner.name}` : "Aliado"} · mod. DES ${fmtMod(c.dexMod)}`}
+          >
+            {c.type === "mob" ? "Mob" : owner ? `Aliado · ${owner.name}` : "Aliado"} · <Abbr title="Modificador de Destreza (usado na iniciativa)">DES</Abbr>{" "}
+            {fmtMod(c.dexMod)}
           </div>
         </div>
+        {canEdit && !editing && (
+          <button
+            className="btn small"
+            title="Mudar nome, vida máxima, mod. DES, cor e avatar"
+            onClick={() => setEditingId(c.id)}
+          >
+            ✎ Editar
+          </button>
+        )}
       </div>
 
       {editing ? (
@@ -107,9 +123,6 @@ export function SelectedPanel({ state }: { state: ClientState }) {
       {canEdit && !editing && (
         <div className="sel-actions">
           <div className="row-gap">
-            <button className="btn small" onClick={() => setEditingId(c.id)}>
-              Editar
-            </button>
             {c.pos ? (
               <button className="btn small" onClick={() => act("token:move", { id: c.id, pos: null })}>
                 Tirar do mapa
