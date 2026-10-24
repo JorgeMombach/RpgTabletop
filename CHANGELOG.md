@@ -7,6 +7,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Alterado
+- **O executável virou um app com janela própria** (Electron): dois cliques abrem o Jamal's Tabletop já na mesa, sem console nem navegador. Windows `.exe` portátil, macOS `.dmg`, Linux `.AppImage`. O executável antigo (Node SEA) foi descontinuado; Docker continua igual. (E12)
 - **Visual novo, "Grimório sombrio":** paleta de tinta, couro e bronze com verde-cobre e sangue; painéis como placas com cantoneiras de bronze; títulos em Cinzel e texto em Alegreya Sans; ícones desenhados (Tabler) no lugar dos emoji. A tela de entrada e a marca do topo continuam, agora em bronze. Guia em `docs/design/guia-visual.md`. (E20)
 - Tokens ganharam um contorno escuro fino, para se destacarem sobre efeitos (fogo, graxa…) e mapas de qualquer cor; o anel de seleção/turno ficou um pouco mais afastado. (E19)
 - Rolagens do mestre agora são **ocultas por padrão** (desmarque "Rolagem oculta" para mostrar). (E16)
@@ -18,6 +19,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - Confirmações (remover personagem, encerrar combate, excluir template…) agora abrem uma janela do próprio app em vez do aviso do navegador. (E14)
 
 ### Adicionado
+- **QR code** no painel *Convidar jogadores*: o jogador aponta a câmera do celular e entra. (E12)
+- **Fechar o app com alterações não salvas** pergunta antes: *Salvar e sair* (grava o arquivo da sessão, por padrão em *Documentos/Jamal's Tabletop*), *Sair sem salvar* ou *Cancelar*. (E12)
 - **Salvar e carregar sessão** (painel *Sessão*, mestre): baixa um arquivo `.json` com mapa, personagens, bestiário, mobs/NPCs, combate, condições, efeitos e log; carregar mostra um resumo e pede confirmação. Jogadores reencontram os personagens entrando com o mesmo nome. Arquivo inválido ou de versão mais nova é recusado com mensagem clara. (E18)
 - Lembrete de salvar: o painel *Sessão* mostra "Não salvo" quando algo mudou desde o último salvamento, e fechar a aba do mestre nesse estado pede confirmação. (E18)
 - **Efeitos persistentes no mapa:** *📌 Fixar como efeito* na ferramenta Área, com texturas próprias (Fogo, Água e Névoa animados; Graxa, Teia, Plantas, Raízes, Gelo, Escuridão) ou uma cor; ficam abaixo dos tokens. Duração em rounds contada no turno de quem conjurou, aviso ao acabar, vínculo com a *Concentração* do conjurador e painel *Efeitos no mapa* para ligar, desligar e remover. (E19)

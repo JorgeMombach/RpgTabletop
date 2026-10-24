@@ -39,6 +39,9 @@ interface AppStore {
   calibRect: Rect | null;
   /** Centro da visão atual do mapa, em pixels do mapa. */
   viewCenter: { x: number; y: number };
+  /** Estado da mesa no último salvamento ou carregamento de arquivo (E18); `null` = nunca salvou. */
+  savedSnapshot: string | null;
+  savedAt: Date | null;
 }
 
 export const useApp = create<AppStore>(() => ({
@@ -57,6 +60,8 @@ export const useApp = create<AppStore>(() => ({
   tool: "move",
   calibRect: null,
   viewCenter: { x: 0, y: 0 },
+  savedSnapshot: null,
+  savedAt: null,
 }));
 
 export function select(id: string | null) {

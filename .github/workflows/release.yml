@@ -1,5 +1,5 @@
 # Release automática (ADR-14): uma tag vX.Y.Z na master gera
-#   - executáveis de Windows, Linux e macOS anexados à GitHub Release (+ SHA256SUMS.txt)
+#   - app do mestre (Electron) de Windows, Linux e macOS anexado à GitHub Release (+ SHA256SUMS.txt)
 #   - imagem Docker no GHCR com as tags X.Y.Z, X.Y e latest
 # Antes da tag: atualizar "version" no package.json e a seção do CHANGELOG.md (ver README).
 name: Release

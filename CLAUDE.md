@@ -1,6 +1,6 @@
 # CLAUDE.md — Jamal's Tabletop
 
-Simulador de combates de RPG de mesa. O mestre roda o servidor (executável, Docker ou código) e os jogadores entram pelo navegador. Monorepo TypeScript: `shared/` (contrato), `server/` (Express + Socket.IO, estado em memória), `client/` (Vite + React + Zustand + react-konva).
+Simulador de combates de RPG de mesa. O mestre roda o servidor (app do mestre, Docker ou código) e os jogadores entram pelo navegador. Monorepo TypeScript: `shared/` (contrato), `server/` (Express + Socket.IO, estado em memória), `client/` (Vite + React + Zustand + react-konva), `desktop/` (app do mestre em Electron, ADR-18).
 
 **[SPEC.md](SPEC.md) é a fonte da verdade**: escopo, ADRs (decisões e porquês) e entregáveis com definição de pronto. Mudou uma decisão ou o escopo? Atualize a SPEC no mesmo PR.
 
@@ -9,13 +9,14 @@ Simulador de combates de RPG de mesa. O mestre roda o servidor (executável, Doc
 ```bash
 npm install          # dependências (workspaces)
 npm run dev          # servidor :3000 + Vite :5173 (mestre: localhost:5173)
-npm run typecheck    # tsc em shared, server e client
+npm run typecheck    # tsc em shared, server, client e desktop
 npm test             # testes de integração do servidor (node:test + socket.io-client)
 npm run build        # dist/server.cjs (esbuild) + dist/public (client)
-npm run package      # executável do SO atual em release/ (Node SEA)
+npm run app          # compila e abre o app do mestre (Electron) sem empacotar
+npm run package      # app do SO atual em release/ (electron-builder)
 ```
 
-Antes de dizer que algo está pronto: `npm run typecheck` e `npm test` passando. Mexeu em build/empacotamento: rode também `npm run build` (e `npm run package` se tocou em `scripts/package.mjs` ou `server/src/static.ts`).
+Antes de dizer que algo está pronto: `npm run typecheck` e `npm test` passando. Mexeu em build/empacotamento: rode também `npm run build` (e `npm run package` se tocou em `scripts/package.mjs`, `desktop/` ou `server/src/start.ts`).
 
 ## Regras de produto (não quebrar)
 
@@ -32,7 +33,8 @@ Antes de dizer que algo está pronto: `npm run typecheck` e `npm test` passando.
 - **Ação nova** = tipo em `ActionPayloads` → handler em `server/src/actions/*.ts` (registrado em `actions/index.ts`; validar entrada com `server/src/validate.ts`; recusar com `fail()`, mensagem em pt-BR pronta para o usuário) → chamada no client via `act()` (`client/src/actions.ts`) → teste em `server/test/`.
 - Handlers devem **validar tudo antes de alterar o estado** (não aplicar edição pela metade).
 - Testes: `useServer()` em `server/test/helpers.ts` sobe um servidor por arquivo. Conexão local = mestre; `client("10.x.x.x")` simula jogador remoto via `X-Forwarded-For`.
-- Executável: os nomes dos assets do client (`client-manifest.json`, prefixo `client/`) precisam casar entre `scripts/package.mjs` e `server/src/static.ts`.
+- **Subir o servidor** é sempre `startServer()` (`server/src/start.ts`): linha de comando (`index.ts`), Docker e o app Electron (`desktop/src/main.ts`) usam a mesma função.
+- **App do mestre (Electron):** a página conversa com o app só pela ponte `window.desktop` (`desktop/src/preload.ts`; no client, `desktop` em `client/src/sessionFile.ts`, `undefined` no navegador). O preload roda em sandbox: só `require("electron")`.
 - Textos de interface, mensagens de erro e comentários em **português**. Siga o estilo e a densidade de comentários do código ao redor.
 - Quebras de linha **LF** (`.gitattributes`). No Windows o `core.autocrlf` está ligado; o `.gitattributes` garante LF no checkout.
 
@@ -81,7 +83,8 @@ A versão e o CHANGELOG **não sobem sozinhos**; o workflow de release só confe
 
 ## Armadilhas conhecidas
 
-- **Executável só para o SO atual**: o Node SEA usa o binário do Node da máquina. Linux/macOS saem da CI. Limite de tamanho na CI: 150 MB (Linux dá ~123 MB, quase tudo é o Node).
+- **App do mestre só para o SO atual**: `npm run package` gera o pacote do sistema em que roda; Linux/macOS saem da CI. Limite de tamanho na CI: 200 MB (Windows dá ~106 MB, quase tudo é o Electron). Teste de fumaça com `--server-only` (sobe sem janela).
+- **Electron no npm 11:** o npm bloqueia o script que baixa o binário do Electron; para `npm run app` local, rode uma vez `node node_modules/electron/install.js`. O empacotamento não precisa disso (o electron-builder baixa o Electron). Versões de `electron`/`electron-builder` fixas (sem `^`) em `desktop/package.json`: o electron-builder exige.
 - **Docker**: dentro do container não há loopback de mestre nem detecção de IP útil (`DETECT_ADDRESSES=0`); convites vêm de `PUBLIC_URLS`.
 - **Ambiente Windows do desenvolvedor**: PowerShell 5.1 (sem `&&`); Git Bash disponível. O Node foi instalado via winget — em shells abertos antes da instalação, recarregue o `PATH`.
 - `npm` 11 avisa sobre `install-scripts` (esbuild): é aviso, o build funciona.

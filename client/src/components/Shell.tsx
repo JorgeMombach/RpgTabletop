@@ -9,6 +9,7 @@ import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
 import { BestiaryPanel } from "./BestiaryPanel";
 import { ClearBattleDialog } from "./ClearBattleDialog";
+import { CloseGuard } from "./CloseGuard";
 import { D20Emblem } from "./D20Emblem";
 import { ColumnResizer, LAYOUT, useColumnWidths } from "./ColumnResizer";
 import { DicePanel } from "./DicePanel";
@@ -122,6 +123,7 @@ export function Shell({ state }: { state: ClientState }) {
       </aside>
 
       {gm && <ClearBattleDialog open={clearing} onClose={() => setClearing(false)} />}
+      {gm && <CloseGuard />}
     </div>
   );
 }

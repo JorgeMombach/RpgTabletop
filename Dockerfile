@@ -9,7 +9,9 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY client/package.json client/
-RUN npm ci --no-audit --no-fund
+COPY desktop/package.json desktop/
+# --ignore-scripts: o pacote do app do mestre (Electron) vem só para o typecheck; o binário dele não é baixado.
+RUN npm ci --no-audit --no-fund --ignore-scripts
 
 COPY . .
 RUN npm run typecheck && npm test && npm run build

@@ -1,30 +1,30 @@
 # Jamal's Tabletop
 
-Simulador de combates de RPG de mesa (base D&D 5e). Quem hospeda é o **mestre**: abre o executável e os jogadores entram pelo navegador. O app é um registro compartilhado (vida, iniciativa, slots de magia, mapa e tokens): todo cálculo de dano, movimento e alcance fica com a mesa e as fichas. Nada é salvo: fechou a sessão, tudo some.
+Simulador de combates de RPG de mesa (base D&D 5e). Quem hospeda é o **mestre**: abre o app (uma janela própria, com o servidor da sessão dentro) e os jogadores entram pelo navegador, sem instalar nada. O app é um registro compartilhado (vida, iniciativa, slots de magia, mapa e tokens): todo cálculo de dano, movimento e alcance fica com a mesa e as fichas. Nada é salvo: fechou a sessão, tudo some.
 
 **⬇️ Baixar:** [última versão](https://github.com/JorgeMombach/RpgTabletop/releases/latest) (Windows, Linux e macOS) · [Changelog](CHANGELOG.md) · [Especificação e decisões](SPEC.md)
 
 ## Para quem vai mestrar
 
-Não precisa instalar nada além do executável.
+Não precisa instalar nada além do app (os jogadores nem isso: só o navegador).
 
 1. Na [página da última versão](https://github.com/JorgeMombach/RpgTabletop/releases/latest), em **Assets**, baixe o arquivo do seu sistema:
 
    | Sistema | Arquivo |
    |---|---|
-   | Windows | `jamals-tabletop-<versão>-win-x64.exe` |
-   | Linux | `jamals-tabletop-<versão>-linux-x64` |
-   | macOS (Apple Silicon) | `jamals-tabletop-<versão>-macos-arm64` |
+   | Windows | `jamals-tabletop-<versão>-win-x64.exe` (portátil: não instala) |
+   | Linux | `jamals-tabletop-<versão>-linux-x64.AppImage` |
+   | macOS (Apple Silicon) | `jamals-tabletop-<versão>-macos-arm64.dmg` |
 
-2. **Dois cliques** no arquivo. Abre uma janela preta com os endereços e o navegador abre sozinho, já como mestre.
-   - **Windows — "O Windows protegeu o computador"** (SmartScreen): o executável não tem assinatura digital paga. Clique em **Mais informações → Executar assim mesmo**. Só na primeira vez.
+2. **Dois cliques** no arquivo. Abre a janela do Jamal's Tabletop: o servidor sobe sozinho e a mesa aparece já como mestre (a primeira abertura no Windows demora uns segundos a mais).
+   - **Windows — "O Windows protegeu o computador"** (SmartScreen): o app não tem assinatura digital paga. Clique em **Mais informações → Executar assim mesmo**. Só na primeira vez.
    - **Windows — "Permitir acesso à rede?"** (Firewall): marque **Redes privadas** e clique em **Permitir**. Sem isso os jogadores não conseguem entrar. Atenção: a rede do **Tailscale** é sempre *Privada*, mesmo que a rede da sua casa apareça como *Pública* — se o Windows sugerir só "Redes públicas", marque também **Redes privadas**.
-   - **macOS:** se aparecer "desenvolvedor não identificado", botão direito no arquivo → **Abrir** → **Abrir**.
-   - **Linux:** `chmod +x jamals-tabletop-*-linux-x64` e execute.
-3. Passe para os jogadores o endereço que aparece em **Jogadores** na janela (também no painel *Convidar jogadores* do app). Jogando pela internet, todos precisam estar no mesmo Tailscale (veja abaixo).
-4. **Deixe a janela aberta** durante o jogo. Fechar a janela encerra a sessão.
+   - **macOS:** abra o `.dmg` e arraste o app para *Aplicativos*. Na primeira vez, se aparecer "desenvolvedor não identificado" (ou "está danificado"), botão direito no app → **Abrir** → **Abrir**; se ainda assim não abrir, no Terminal: `xattr -cr "/Applications/Jamal's Tabletop.app"`.
+   - **Linux:** `chmod +x jamals-tabletop-*-linux-x64.AppImage` e execute.
+3. Passe para os jogadores o endereço do painel **Convidar jogadores** (botão *Copiar*, ou o **QR code** para eles apontarem a câmera do celular). Jogando pela internet, todos precisam estar no mesmo Tailscale (veja abaixo).
+4. **Deixe o app aberto** durante o jogo. Fechar encerra a sessão para todos; se houver alterações não salvas, o app pergunta antes: **Salvar e sair** (grava o arquivo da sessão, por padrão em *Documentos/Jamal's Tabletop*), **Sair sem salvar** ou **Cancelar**.
 
-**Link de mestre:** a janela também mostra um link `…/?gm=<chave>`. Quem abre esse link entra como mestre de qualquer dispositivo (ex.: mestrar pelo notebook enquanto o executável roda no PC da sala). **Não compartilhe com os jogadores.** A chave muda a cada execução, a menos que você fixe uma com `--gm-key` (veja *Opções*). Sem o link, o mestre é quem abre `http://localhost:3000` na própria máquina — pelo IP da rede, mesmo na própria máquina, entra como jogador.
+**Link de mestre:** o painel *Convidar jogadores* tem, em *Abrir como mestre em outro dispositivo*, um link `…/?gm=<chave>`. Quem abre esse link entra como mestre de qualquer dispositivo (ex.: mestrar pelo tablet enquanto o app roda no PC da sala). **Não compartilhe com os jogadores.** A chave muda a cada execução, a menos que você fixe uma com `--gm-key` (veja *Opções*). Sem o link, o mestre é quem abre `http://localhost:3000` na própria máquina — pelo IP da rede, mesmo na própria máquina, entra como jogador.
 
 ## Jogadores: conectando
 
@@ -58,7 +58,7 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 ## Opções
 
-Para quem quer ajustar algo. Passe como argumento ao executável (ex.: `jamals-tabletop-1.1.0-win-x64.exe --port 4000`) ou como variável de ambiente; o argumento vence. `--help` lista tudo.
+Para quem quer ajustar algo. Passe como argumento ao app (ex.: `jamals-tabletop-2.0.0-win-x64.exe --port 4000`) ou como variável de ambiente; o argumento vence. `--help` lista tudo.
 
 | Argumento | Variável | Padrão | Uso |
 |---|---|---|---|
@@ -98,12 +98,12 @@ Com o [`docker-compose.yml`](docker-compose.yml) do repositório (edite `GM_KEY`
 
 | Sintoma | O que fazer |
 |---|---|
-| "O Windows protegeu o computador" | Normal para executável sem assinatura paga: **Mais informações → Executar assim mesmo**. |
-| A janela abre e fecha na hora | Rode pelo terminal (`.\jamals-tabletop-…-win-x64.exe`) para ver a mensagem. Erros de inicialização também pedem Enter antes de fechar. |
-| App subiu em outra porta (3001…) | A 3000 estava ocupada (outra sessão aberta?). Use o endereço que a janela mostrar, ou feche a outra sessão. |
+| "O Windows protegeu o computador" | Normal para app sem assinatura paga: **Mais informações → Executar assim mesmo**. |
+| A mesa não abre ("Não foi possível iniciar a mesa") | A janela mostra o motivo e um botão **Tentar de novo**. Opção inválida (ex.: `--port`) também aparece ali. |
+| App subiu em outra porta (3001…) | A 3000 estava ocupada (outra sessão aberta?). Use o endereço do painel *Convidar jogadores*, ou feche a outra sessão. |
 | Página do jogador **fica carregando para sempre** (Tailscale) | Duas causas comuns: (1) o jogador não está na rede do mestre — no painel do Tailscale do mestre, o computador dele precisa aparecer em **Machines** (veja *Jogadores: conectando*, passo 2); (2) o Firewall do Windows do mestre liberou o app só em *Redes públicas*, mas o Tailscale é *Privada*. Para (2), no PowerShell como administrador: `New-NetFirewallRule -DisplayName "Jamal's Tabletop (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 3000-3010 -Profile Private -Action Allow` |
 | Jogador não conecta pela LAN | Confira se estão na mesma rede e se o Firewall do Windows permitiu o app no tipo da sua rede (Privada ou Pública). Se negou sem querer, libere a porta (PowerShell como administrador): `New-NetFirewallRule -DisplayName "Jamal's Tabletop" -Direction Inbound -Protocol TCP -LocalPort 3000-3010 -Action Allow` |
-| Mestre entrou como "Jogador" | Abra `http://localhost:3000` na máquina do mestre, ou use o link de mestre (`?gm=`) da janela. |
+| Mestre entrou como "Jogador" | Use o app na máquina do mestre (ou `http://localhost:3000`), ou o link de mestre (`?gm=`) do painel *Convidar jogadores*. |
 | "Sala cheia" | Limite de 6 jogadores; aumente com `--max-players`. |
 
 ## Desenvolvimento
@@ -117,12 +117,13 @@ npm install
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | Servidor (3000) + Vite (5173) com hot reload. Mestre em `http://localhost:5173`, jogadores em `http://<ip>:5173` |
-| `npm run typecheck` | `tsc` em shared, server e client |
+| `npm run typecheck` | `tsc` em shared, server, client e desktop |
 | `npm test` | Testes de integração do servidor |
 | `npm run build` | Gera `dist/server.cjs` (servidor num arquivo, via esbuild) e `dist/public/` (client) |
 | `npm start` | Roda `node dist/server.cjs` (precisa do `build` antes). A pasta `dist/` roda em qualquer máquina com Node, sem `npm install` |
-| `npm run package` | Gera o executável do **sistema atual** em `release/` (Node SEA, ADR-11), com ícone e versão no Windows |
-| `npm run icon` | Regera `assets/icon.ico` |
+| `npm run app` | Compila e abre o app do mestre (Electron) sem empacotar — para testar a janela, o aviso ao fechar etc. |
+| `npm run package` | Gera o app do **sistema atual** em `release/` (electron-builder, ADR-18): `.exe` portátil, `.dmg` ou `.AppImage` |
+| `npm run icon` | Regera `assets/icon.ico` e `assets/icon.png` |
 
 Regras do projeto (fluxo, testes, changelog, release e **padrões de interface**) estão no [CLAUDE.md](CLAUDE.md).
 
@@ -133,7 +134,7 @@ Regras do projeto (fluxo, testes, changelog, release e **padrões de interface**
 - A `master` é protegida: toda mudança vai numa branch (`feat/…`, `fix/…`, `docs/…`) e entra por Pull Request com os checks verdes.
 - Checks de todo PR (aba **Checks**):
   - **Testes** no Linux e no Windows: typecheck, testes e build.
-  - **Executáveis** de Windows, Linux e macOS, com teste de fumaça. Ficam 7 dias em **Artifacts** na página da execução — bom para testar antes do merge.
+  - **Executáveis**: o app do mestre (Electron) de Windows, Linux e macOS, com teste de fumaça. Ficam 7 dias em **Artifacts** na página da execução — bom para testar antes do merge.
   - **Build e teste de fumaça** da imagem Docker.
 
 ### Publicar uma versão
@@ -151,7 +152,7 @@ O `CHANGELOG.md` e a versão **não são atualizados sozinhos**: a CI só confer
    git push origin v1.2.0
    ```
 
-3. O workflow **Release** confere se a tag bate com o `package.json` e se o CHANGELOG tem a seção, gera os 3 executáveis, publica a imagem no GHCR e cria a GitHub Release com as notas, os executáveis e o `SHA256SUMS.txt`.
+3. O workflow **Release** confere se a tag bate com o `package.json` e se o CHANGELOG tem a seção, gera o app dos 3 sistemas, publica a imagem no GHCR e cria a GitHub Release com as notas, os pacotes (`.exe`, `.dmg`, `.AppImage`) e o `SHA256SUMS.txt`.
 
 Se a tag não bater com a versão, a release falha antes de publicar qualquer coisa: apague a tag (`git push --delete origin vX.Y.Z` e `git tag -d vX.Y.Z`), corrija e crie de novo.
 
@@ -161,9 +162,11 @@ Se a tag não bater com a versão, a release falha antes de publicar qualquer co
 shared/   tipos do estado, contrato dos eventos Socket.IO, limites, regra de distância e versão
 server/   Express + Socket.IO; estado em memória, ações (src/actions), permissões e filtro por papel
 client/   Vite + React + Zustand; mapa com react-konva (src/map)
-scripts/  build (dist/), executável (release/), ícone e notas de release
-assets/   ícone do executável
-.github/  CI (testes, executáveis, Docker) e release
+desktop/  app do mestre (Electron): janela, tela de abertura e aviso ao fechar; usa o startServer do server
+scripts/  build (dist/), pacote do app (release/), ícone e notas de release
+assets/   ícones do app
+docs/     guia visual (identidade, paleta, componentes)
+.github/  CI (testes, app dos 3 sistemas, Docker) e release
 ```
 
 A versão do app é o campo `version` do `package.json` raiz: aparece na interface, no console e no `/healthz`.
@@ -175,7 +178,7 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E1–E7 — Simulador jogável (sessão, combatentes, dados, mapa, iniciativa, magias, ciclo da batalha) | ✅ v1.0.0 |
 | E8 — Preparação para distribuição | ✅ v1.1.0 |
 | E9 — Imagem Docker | ✅ v1.1.0 |
-| E10 — Executável | ✅ v1.1.0 |
+| E10 — Executável (Node SEA; substituído pelo app Electron na 2.0) | ✅ v1.1.0 |
 | E11 — CI/CD e releases | ✅ v1.1.0 |
 | E13 — Correções e identidade (Jamal's Tabletop) | ✅ (próxima versão) |
 | E14 — Base de UX (Mantine) | ✅ (próxima versão) |
@@ -185,4 +188,4 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E19 — Efeitos persistentes no mapa | ✅ (próxima versão) |
 | E20 — Identidade visual "Grimório sombrio" | ✅ (próxima versão) |
 | E18 — Salvar e carregar sessão | ✅ (próxima versão) |
-| E12 — Launcher com janela própria | ⏳ depois do E18 |
+| E12 — App do mestre com janela própria (Electron) | ✅ (próxima versão) |
