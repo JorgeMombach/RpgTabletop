@@ -428,7 +428,7 @@ Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padroni
 
 ## 15. Entregáveis da Fase 3
 
-Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E12**. O E19 (efeitos no mapa) vem antes do E18 para o arquivo salvo já incluir os efeitos. O E14 vem antes das features de interface para elas não serem feitas duas vezes.
+Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E20 → E12**. O E20 (identidade visual) entrou antes do launcher para ele já nascer com a cara nova. O E19 (efeitos no mapa) vem antes do E18 para o arquivo salvo já incluir os efeitos. O E14 vem antes das features de interface para elas não serem feitas duas vezes.
 
 ### E13 — Correções e identidade
 - **Bug:** slider de deslocamento X/Y no final volta o grid ao início (o valor máximo é igual ao tamanho do quadrado, que o servidor normaliza para 0). O slider deve ir só até um passo antes.
@@ -526,6 +526,17 @@ Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E
 
 **Decidido (E18):** arquivo `.json` com `app: "jamals-tabletop"`, `format` (hoje 1), versão do app, data, jogadores (só id, nome e papel: **sem tokens de sessão nem chave de mestre**), numeração dos mobs e o estado do jogo inteiro (combate em andamento incluído; pedido de rolagem e reações não, porque valem só para o turno). O servidor valida e copia campo por campo antes de trocar qualquer coisa: arquivo com erro não altera nada. Religação pelo nome (sem diferenciar maiúsculas): mestre do arquivo → mestre atual; jogador já conectado com o mesmo nome → religado na hora; os demais voltam offline e o **primeiro** que entrar com aquele nome assume o personagem. Exportar e importar vão pelo socket (limite de mensagem subiu para 50 MB por causa do mapa e dos avatares).
 - **Lembrete de salvar:** o painel *Sessão* mostra "Não salvo" quando algo mudou desde o último salvamento (jogadores entrando e saindo não contam). Fechar a aba do mestre nesse estado dispara o aviso do navegador; o texto desse aviso é do navegador e não pode ser personalizado nem ter botão "Salvar" — isso fica para o launcher (E12).
+
+### E20 — Identidade visual "Grimório sombrio"
+Repaginada da interface, que parecia genérica ("feita por IA"). Decidida num brainstorm com guia visual aprovado antes do código; a referência completa está em [docs/design/guia-visual.md](docs/design/guia-visual.md).
+- **Clima** taverna/grimório, intensidade equilibrada: clima nas bordas, títulos e ícones; conteúdo limpo e legível.
+- **Paleta** Grimório sombrio: tinta e couro escuros, bronze (ação principal e destaque), verde-cobre (secundária), sangue (perigo), texto em tons de pergaminho. Cores de combatentes e texturas de efeitos não mudam.
+- **Tipografia:** Cinzel só em títulos (marca, títulos de painel e de janela); Alegreya Sans no resto (substitui a Inter).
+- **Componentes:** painel como "placa" de couro com cantoneiras de bronze e título em Cinzel com losango e filete; botões, selos, campos, barras de vida, condições, avisos e barras do topo e do mapa no novo estilo.
+- **Ícones:** biblioteca Tabler (embutida) no lugar de todos os emoji.
+- Mantidos: a marca do topo (agora com o d20 em bronze) e a tela de entrada.
+
+**Pronto quando:** nenhuma tela usa emoji como ícone; paleta, fontes e placas seguem o guia; nada vaza com as colunas na largura mínima (260 px).
 
 ### E12 — Launcher com janela própria (reavaliado)
 Mantido como último da fila: janela com o nome/arte do app, botão iniciar/parar, endereços com copiar, QR code para o celular. Reavaliar depois do E14 (a arte da tela de entrada pode ser reaproveitada).

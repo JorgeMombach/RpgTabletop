@@ -81,7 +81,7 @@ export function HpControl({ c }: { c: Combatant }) {
         <Button color="red" variant="light" onClick={() => apply(-1)} disabled={!amount}>
           − Dano
         </Button>
-        <Button color="teal" variant="light" onClick={() => apply(1)} disabled={!amount}>
+        <Button color="copper" variant="light" onClick={() => apply(1)} disabled={!amount}>
           + Cura
         </Button>
       </Group>

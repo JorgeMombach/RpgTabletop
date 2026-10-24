@@ -1,4 +1,5 @@
 import { ActionIcon, Button, Divider, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import { LIMITS, SPELL_LEVELS, type Combatant, type SpellLevel, type SpellSlot } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
@@ -209,7 +210,7 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
               </div>
               {editable && (
                 <ActionIcon size="sm" aria-label={`Remover ${s.name}`} onClick={() => act("spell:remove", { id: c.id, spellId: s.id })}>
-                  ✕
+                  <IconX size={14} />
                 </ActionIcon>
               )}
             </Group>

@@ -1,4 +1,5 @@
 import { ActionIcon, Autocomplete, Badge, Button, Divider, Group, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import { CONDITIONS, LIMITS, type CombatantView } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
@@ -49,7 +50,9 @@ export function ConditionsSection({ c, editable }: { c: CombatantView; editable:
             <Tooltip key={k.id} label={k.rounds === null ? "Sem duração: fica até alguém tirar" : `${k.rounds} round(s) restante(s). ${ROUNDS_TIP}`}>
               <Badge
                 variant="light"
-                color="gold"
+                // Concentração em bronze; as demais em verde-cobre (guia visual E20).
+                color={k.name === "Concentração" ? "bronze" : "copper"}
+                radius="xl"
                 size="md"
                 tt="none"
                 maw="100%"
@@ -59,11 +62,11 @@ export function ConditionsSection({ c, editable }: { c: CombatantView; editable:
                     <ActionIcon
                       size="xs"
                       variant="transparent"
-                      color="gold"
+                      color={k.name === "Concentração" ? "bronze" : "copper"}
                       aria-label={`Tirar ${k.name}`}
                       onClick={() => act("condition:remove", { id: c.id, conditionId: k.id })}
                     >
-                      ✕
+                      <IconX size={12} stroke={2.5} />
                     </ActionIcon>
                   )
                 }

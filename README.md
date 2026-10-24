@@ -183,5 +183,6 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E16 — Dados no combate | ✅ (próxima versão) |
 | E17 — Mapa: rotação, escala e áreas de magia | ✅ (próxima versão) |
 | E19 — Efeitos persistentes no mapa | ✅ (próxima versão) |
+| E20 — Identidade visual "Grimório sombrio" | ✅ (próxima versão) |
 | E18 — Salvar e carregar sessão | ✅ (próxima versão) |
 | E12 — Launcher com janela própria | ⏳ depois do E18 |

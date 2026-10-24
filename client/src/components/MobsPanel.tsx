@@ -1,4 +1,5 @@
 import { ActionIcon, Badge, Button, Text, Tooltip } from "@mantine/core";
+import { IconTrash } from "@tabler/icons-react";
 import { NPC_COLORS, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -35,7 +36,7 @@ function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
                   void removeMob(m);
                 }}
               >
-                🗑
+                <IconTrash size={16} />
               </ActionIcon>
             </Tooltip>
           }

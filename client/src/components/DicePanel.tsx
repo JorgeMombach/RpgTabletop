@@ -251,13 +251,13 @@ function TurnLock(props: { state: ClientState; myTurn: boolean; requested: boole
   if (myTurn) return null;
   if (requested)
     return (
-      <Alert variant="light" color="gold" p="xs" title={`O mestre pediu: ${state.battle.rolls.request?.label}`}>
+      <Alert variant="light" color="bronze" p="xs" title={`O mestre pediu: ${state.battle.rolls.request?.label}`}>
         <Text size="xs">Role uma vez (ex.: d20 + modificador nos dados livres).</Text>
       </Alert>
     );
   if (reactionOpen)
     return (
-      <Alert variant="light" color="gold" p="xs" title="Reação liberada">
+      <Alert variant="light" color="bronze" p="xs" title="Reação liberada">
         <Text size="xs">Pode rolar até o turno mudar.</Text>
       </Alert>
     );
@@ -286,7 +286,7 @@ function RequestControl({ state }: { state: ClientState }) {
 
   if (request)
     return (
-      <Alert variant="light" color="gold" p="xs" title={`Pedido: ${request.label}`}>
+      <Alert variant="light" color="bronze" p="xs" title={`Pedido: ${request.label}`}>
         <Stack gap={6}>
           <Text size="xs">
             {request.playerIds.map((id) => `${request.done.includes(id) ? "✓" : "…"} ${nameOf(id)}`).join(" · ")}

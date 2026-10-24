@@ -1,4 +1,5 @@
 import { Badge, Button, FileButton, Group, Text } from "@mantine/core";
+import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
 import type { ActionResult, ClientState, SessionExportResult, SessionFile } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "../confirm";
@@ -130,7 +131,7 @@ export function SessionPanel() {
             Não salvo
           </Badge>
         ) : savedAt ? (
-          <Badge color="green" variant="light" size="sm">
+          <Badge color="copper" variant="light" size="sm">
             Salvo {savedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </Badge>
         ) : undefined
@@ -140,13 +141,13 @@ export function SessionPanel() {
         Nada fica salvo sozinho. Salve num arquivo para continuar na próxima vez (mapa, personagens, bestiário, combate e efeitos). Fechar a aba com alterações não salvas pede confirmação.
       </Text>
       <Group gap="xs" grow>
-        <Button variant="default" loading={busy} onClick={() => void save()}>
-          💾 Salvar
+        <Button variant="default" loading={busy} leftSection={<IconDeviceFloppy size={14} />} onClick={() => void save()}>
+          Salvar
         </Button>
         <FileButton onChange={(f) => void load(f)} accept="application/json,.json">
           {(props) => (
-            <Button {...props} variant="default" loading={busy}>
-              📂 Carregar
+            <Button {...props} variant="default" loading={busy} leftSection={<IconFolderOpen size={14} />}>
+              Carregar
             </Button>
           )}
         </FileButton>

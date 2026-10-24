@@ -1,4 +1,5 @@
 import { ActionIcon, Alert, Badge, Box, Button, Checkbox, Divider, Group, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
+import { IconCaretRightFilled, IconChevronDown, IconChevronUp, IconDice5, IconPlayerTrackNext, IconPlayerTrackPrev } from "@tabler/icons-react";
 import { LIMITS, type ClientState, type CombatantView } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
@@ -49,7 +50,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
       highlighted={myTurn}
       aside={
         combat.active && (
-          <Badge variant="light" size="sm">
+          <Badge color="copper" variant="light" size="sm">
             Round {combat.round}
           </Badge>
         )
@@ -67,26 +68,26 @@ export function InitiativePanel({ state }: { state: ClientState }) {
             <>
               <Tooltip label="Turno anterior">
                 <Button variant="default" onClick={() => act("combat:prev", {})} aria-label="Turno anterior">
-                  ◀
+                  <IconPlayerTrackPrev size={14} />
                 </Button>
               </Tooltip>
-              <Button style={{ flex: "1 1 120px" }} onClick={() => act("combat:next", {})}>
-                Próximo turno ▶
+              <Button style={{ flex: "1 1 120px" }} rightSection={<IconPlayerTrackNext size={14} />} onClick={() => act("combat:next", {})}>
+                Próximo turno
               </Button>
               <Button variant="default" onClick={() => void endCombat()}>
                 Encerrar
               </Button>
               <Tooltip label={`Zera todas as iniciativas, rola mobs e NPCs e pausa até os jogadores rolarem (${INIT_TIP})`}>
-                <Button variant="default" onClick={() => void rerollAll()}>
-                  🎲 Iniciativa de novo
+                <Button variant="default" leftSection={<IconDice5 size={14} />} onClick={() => void rerollAll()}>
+                  Iniciativa de novo
                 </Button>
               </Tooltip>
             </>
           ) : (
             <>
               <Tooltip label={`Rola para todos os mobs e NPCs (${INIT_TIP})`}>
-                <Button variant="default" disabled={gmControlled === 0} onClick={() => act("init:rollMobs", { grouped })}>
-                  🎲 Rolar mobs e NPCs
+                <Button variant="default" disabled={gmControlled === 0} leftSection={<IconDice5 size={14} />} onClick={() => act("init:rollMobs", { grouped })}>
+                  Rolar mobs e NPCs
                 </Button>
               </Tooltip>
               <Button style={{ flex: "1 1 120px" }} disabled={order.length === 0} onClick={() => act("combat:start", {})}>
@@ -168,8 +169,8 @@ function InitRow(props: {
   return (
     <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={() => select(c.id)}>
       <Group gap={4} wrap="nowrap">
-        <Text size="xs" c="gold.4" w={10} aria-label={current ? "Na vez" : undefined}>
-          {current ? "▶" : ""}
+        <Text component="span" c="bronze.4" w={12} style={{ display: "flex", flex: "none" }} aria-label={current ? "Na vez" : undefined}>
+          {current && <IconCaretRightFilled size={12} />}
         </Text>
         <Box
           w={8}
@@ -222,7 +223,7 @@ function InitRow(props: {
         {editable && (
           <Tooltip label={`Rolar de novo (${INIT_TIP})`}>
             <ActionIcon size="sm" aria-label={`Rolar iniciativa de ${c.name} de novo`} onClick={stop(() => void act("init:roll", { id: c.id }))}>
-              🎲
+              <IconDice5 size={16} />
             </ActionIcon>
           </Tooltip>
         )}
@@ -230,20 +231,20 @@ function InitRow(props: {
           // Empilhados para sobrar largura para o nome em colunas estreitas.
           <Stack gap={0}>
             <Tooltip label="Subir (desempate)">
-              <ActionIcon size={16} fz={9} disabled={index === 0} aria-label="Subir" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index - 1 }))}>
-                ▲
+              <ActionIcon size={16} disabled={index === 0} aria-label="Subir" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index - 1 }))}>
+                <IconChevronUp size={12} stroke={2.5} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Descer (desempate)">
-              <ActionIcon size={16} fz={9} disabled={last} aria-label="Descer" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index + 1 }))}>
-                ▼
+              <ActionIcon size={16} disabled={last} aria-label="Descer" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index + 1 }))}>
+                <IconChevronDown size={12} stroke={2.5} />
               </ActionIcon>
             </Tooltip>
           </Stack>
         )}
       </Group>
       {c.conditions.length > 0 && (
-        <Text size="xs" c="gold.4" truncate pl={26} title={c.conditions.map(fmtCondition).join(", ")}>
+        <Text size="xs" c="bronze.4" truncate pl={26} title={c.conditions.map(fmtCondition).join(", ")}>
           {c.conditions.map(fmtCondition).join(" · ")}
         </Text>
       )}
@@ -282,7 +283,7 @@ function PendingRow({ c }: { c: CombatantView }) {
       </Tooltip>
       <Tooltip label={`Rolar iniciativa (${INIT_TIP})`}>
         <ActionIcon variant="default" size="md" aria-label={`Rolar iniciativa de ${c.name}`} onClick={() => act("init:roll", { id: c.id })}>
-          🎲
+          <IconDice5 size={16} />
         </ActionIcon>
       </Tooltip>
     </Group>

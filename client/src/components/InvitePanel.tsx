@@ -17,7 +17,7 @@ function CopyRow({ value, label }: { value: string; label?: string }) {
       </div>
       <CopyButton value={value} timeout={1500}>
         {({ copied, copy }) => (
-          <Button variant={copied ? "light" : "default"} color={copied ? "teal" : undefined} onClick={copy} style={{ flex: "none" }}>
+          <Button variant={copied ? "light" : "default"} color={copied ? "copper" : undefined} onClick={copy} style={{ flex: "none" }}>
             {copied ? "Copiado" : "Copiar"}
           </Button>
         )}

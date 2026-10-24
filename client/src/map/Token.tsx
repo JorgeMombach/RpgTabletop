@@ -6,7 +6,8 @@ import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { useImage } from "./useImage";
 
-const HP_COLORS = { full: "#4cc38a", mid: "#e0a440", low: "#e5534b", zero: "#e5534b" };
+// Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
+const HP_COLORS = { full: "#4fae8c", mid: "#c19a62", low: "#c94a52", zero: "#c94a52" };
 
 interface Props {
   c: CombatantView;
@@ -133,7 +134,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
     >
       {(selected || active) &&
         RingShape(ring * 2, {
-          stroke: active ? "#d4a24c" : "#e6e8ee",
+          stroke: active ? "#d8b47a" : "#ece4d4",
           strokeWidth: ring,
           dash: selected && !active ? undefined : [ring * 2, ring],
           listening: false,
@@ -188,12 +189,12 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       {c.conditions.length > 0 && (
         // Selo com o número de condições; os nomes aparecem no rótulo (hover/seleção).
         <Group x={r * 0.78} y={-r * 0.78} listening={false}>
-          <Circle radius={Math.max(7, size * 0.17)} fill="#d4a24c" stroke="#1a1b1e" strokeWidth={Math.max(1.5, size * 0.03)} />
+          <Circle radius={Math.max(7, size * 0.17)} fill="#d8b47a" stroke="#141218" strokeWidth={Math.max(1.5, size * 0.03)} />
           <Text
             text={String(c.conditions.length)}
             fontSize={Math.max(9, size * 0.2)}
             fontStyle="bold"
-            fill="#1a1b1e"
+            fill="#141218"
             align="center"
             verticalAlign="middle"
             width={size}

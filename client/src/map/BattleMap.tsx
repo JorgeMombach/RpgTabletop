@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
+import { IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
@@ -312,21 +313,21 @@ export function BattleMap({ state }: { state: ClientState }) {
             {Object.entries(areas).map(([pid, a]) => (
               <AreaShape key={pid} area={a.area} grid={grid} scale={view.scale} label={a.name} color="#5ba3e6" />
             ))}
-            {myArea && <AreaShape area={myArea} grid={grid} scale={view.scale} color="#d4a24c" />}
+            {myArea && <AreaShape area={myArea} grid={grid} scale={view.scale} color="#d8b47a" />}
           </Layer>
 
           <Layer listening={false}>
             {Object.entries(rulers).map(([pid, r]) => (
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
-            {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d4a24c" />}
+            {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
             {calibRect && (
               <Rect
                 {...calibRect}
-                stroke="#d4a24c"
+                stroke="#d8b47a"
                 strokeWidth={2 / view.scale}
                 dash={[8 / view.scale, 4 / view.scale]}
-                fill="#d4a24c22"
+                fill="#d8b47a22"
               />
             )}
           </Layer>
@@ -363,7 +364,7 @@ export function BattleMap({ state }: { state: ClientState }) {
       )}
       {tool === "calibrate" && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
-          <MText size="sm" c="gold.4" ta="center">
+          <MText size="sm" c="bronze.4" ta="center">
             Arraste um retângulo sobre um ou mais quadrados do mapa.
           </MText>
         </Paper>
@@ -473,8 +474,8 @@ function MapToolbar({
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
         <Tooltip label="Mover tokens e a visão do mapa">
-          <Button variant={tool === "move" ? "filled" : "subtle"} color={tool === "move" ? undefined : "gray"} onClick={() => setTool("move")}>
-            ✋ Mover
+          <Button variant={tool === "move" ? "filled" : "subtle"} color={tool === "move" ? undefined : "gray"} leftSection={<IconHandStop size={14} />} onClick={() => setTool("move")}>
+            Mover
           </Button>
         </Tooltip>
         <Tooltip label="Medir distância em pés (ou segure Shift e arraste)">
@@ -482,8 +483,9 @@ function MapToolbar({
             variant={tool === "ruler" ? "filled" : "subtle"}
             color={tool === "ruler" ? undefined : "gray"}
             onClick={() => setTool(tool === "ruler" ? "move" : "ruler")}
+            leftSection={<IconRuler2 size={14} />}
           >
-            📏 Régua
+            Régua
           </Button>
         </Tooltip>
         <Tooltip label="Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)">
@@ -491,8 +493,9 @@ function MapToolbar({
             variant={tool === "area" ? "filled" : "subtle"}
             color={tool === "area" ? undefined : "gray"}
             onClick={() => setTool(tool === "area" ? "move" : "area")}
+            leftSection={<IconSparkles size={14} />}
           >
-            ✦ Área
+            Área
           </Button>
         </Tooltip>
         {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>Cancelar calibração</Button>}
@@ -556,8 +559,8 @@ function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) 
           Clique para pôr a origem e arraste para apontar. Esc apaga.
         </MText>
         <Tooltip label="Deixa a área no mapa (graxa, teia, fogo…), com duração e concentração">
-          <Button size="compact-xs" disabled={!canFix} onClick={onFix} style={{ flex: "none" }}>
-            📌 Fixar como efeito
+          <Button size="compact-xs" disabled={!canFix} leftSection={<IconPin size={12} />} onClick={onFix} style={{ flex: "none" }}>
+            Fixar como efeito
           </Button>
         </Tooltip>
       </MGroup>

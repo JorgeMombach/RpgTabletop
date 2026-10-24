@@ -1,4 +1,5 @@
 import { Collapse, Group, Paper, Stack, Text, UnstyledButton } from "@mantine/core";
+import { IconChevronDown } from "@tabler/icons-react";
 import { useState, type ReactNode } from "react";
 
 interface PanelProps {
@@ -40,21 +41,17 @@ export function Panel({ title, aside, className, highlighted, children }: PanelP
   }
 
   return (
-    <Paper
-      component="section"
-      className={className}
-      p="md"
-      style={highlighted ? { borderColor: "var(--mantine-primary-color-filled)", boxShadow: "0 0 0 1px var(--mantine-primary-color-filled)" } : undefined}
-    >
+    // Placa do guia visual (E20): cantoneiras de bronze e título em Cinzel; estilos em styles.css (.plaque).
+    <Paper component="section" className={`plaque ${highlighted ? "highlighted" : ""} ${className ?? ""}`} p="md">
       <Group justify="space-between" wrap="wrap" gap="xs" mb={collapsed ? 0 : "sm"}>
-        <UnstyledButton onClick={toggle} aria-expanded={!collapsed} className="panel-toggle">
-          <Group gap={6} wrap="nowrap">
-            <Text component="span" size="xs" c="dimmed" className={`chevron ${collapsed ? "collapsed" : ""}`} aria-hidden>
-              ▾
-            </Text>
-            <Text component="h2" size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.06em" }}>
+        <UnstyledButton onClick={toggle} aria-expanded={!collapsed} className="panel-toggle" style={{ flex: "1 1 120px", minWidth: 0 }}>
+          <Group gap={8} wrap="nowrap">
+            <span className="plaque-diamond" aria-hidden />
+            <Text component="h2" ff="heading" fz={13} fw={700} tt="uppercase" c="bronze.4" truncate title={title} style={{ letterSpacing: "0.1em", minWidth: 0 }}>
               {title}
             </Text>
+            <span className="plaque-rule" aria-hidden />
+            <IconChevronDown size={14} stroke={2} className={`chevron ${collapsed ? "collapsed" : ""}`} color="var(--mantine-color-dark-3)" aria-hidden />
           </Group>
         </UnstyledButton>
         {!collapsed && aside}
