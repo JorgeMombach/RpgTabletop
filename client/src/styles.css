@@ -65,10 +65,12 @@ body {
 .col {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px;
+  padding: 8px;
+  /* Barra fina: a padrão do Windows come 15 px de uma coluna estreita. */
+  scrollbar-width: thin;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 

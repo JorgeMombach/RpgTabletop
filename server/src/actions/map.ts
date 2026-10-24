@@ -48,6 +48,7 @@ export const mapHandlers: HandlerMap = {
     battle.map.image = null;
     battle.map.imageVersion++;
     battle.mobs = [];
+    battle.npcs = [];
     battle.combat = { active: false, round: 0, turnIndex: 0, order: [] };
     for (const a of game.allies) {
       a.pos = null;

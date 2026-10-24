@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Combatant, GameState, PublicPlayer, Role } from "@rpg/shared";
 
-/** Mob removido recentemente, guardado para o "Desfazer". */
+/** Mob ou NPC removido recentemente, guardado para o "Desfazer". */
 export interface RemovedMob {
   mob: Combatant;
+  list: "mobs" | "npcs";
   index: number;
   orderIndex: number | null;
   at: number;
@@ -33,6 +34,7 @@ export function createGame(): GameState {
         feetPerCell: 5,
       },
       mobs: [],
+      npcs: [],
       combat: { active: false, round: 0, turnIndex: 0, order: [] },
     },
     log: [],

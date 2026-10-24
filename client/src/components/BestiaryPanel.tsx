@@ -132,7 +132,7 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
         <Group
           component="form"
           gap="xs"
-          wrap="nowrap"
+          wrap="wrap"
           onSubmit={(e) => {
             e.preventDefault();
             void act("mob:addFromTemplate", { templateId: t.id, qty: Number(qty) || 1 });
@@ -151,9 +151,14 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
               aria-label="Quantidade"
             />
           </Tooltip>
-          <Tooltip label="Adicionar essa quantidade à batalha (Goblin 1, Goblin 2…)">
-            <Button type="submit" style={{ flex: 1 }}>
-              + Adicionar
+          <Tooltip label="Adicionar essa quantidade de mobs à batalha (Goblin 1, Goblin 2…)">
+            <Button type="submit" style={{ flex: "1 1 auto" }}>
+              + Mobs
+            </Button>
+          </Tooltip>
+          <Tooltip label="Adicionar um NPC (neutro) com os dados deste template">
+            <Button variant="default" style={{ flex: "1 1 auto" }} onClick={() => act("npc:addFromTemplate", { templateId: t.id })}>
+              + NPC
             </Button>
           </Tooltip>
         </Group>

@@ -60,8 +60,12 @@ export interface ActionPayloads {
   "template:remove": { id: string };
   "mob:addFromTemplate": { templateId: string; qty: number };
   "mob:add": CombatantInput;
+  /** Remove um mob ou NPC (o "Desfazer" vale para os dois). */
   "mob:remove": { id: string };
   "mob:restore": { id: string };
+  "npc:add": CombatantInput;
+  /** Um NPC com os dados do template (sem número no nome). */
+  "npc:addFromTemplate": { templateId: string };
   "ally:create": CombatantInput;
   "ally:remove": { id: string };
   "combatant:update": { id: string } & Partial<CombatantInput>;
@@ -95,8 +99,11 @@ export interface ActionPayloads {
   "ally:restoreAll": { id: string };
   "spell:add": { id: string; name: string; level: number; note?: string };
   "spell:remove": { id: string; spellId: string };
+  /** `rounds` ausente ou `null` = sem duração (fica até alguém tirar). */
+  "condition:add": { id: string; name: string; rounds?: number | null };
+  "condition:remove": { id: string; conditionId: string };
   /**
-   * Limpa o campo para a próxima batalha: tira mapa, mobs, iniciativa e posições.
+   * Limpa o campo para a próxima batalha: tira mapa, mobs, NPCs, iniciativa e posições.
    * Mantém jogadores, aliados (vida/slots/magias), grid e log; templates se `keepTemplates`.
    */
   "battle:clear": { keepTemplates: boolean };
@@ -142,6 +149,10 @@ export const LIMITS = {
   /** Quantidade de mobs criados de uma vez a partir de um template. */
   qty: { min: 1, max: 30 },
   notes: 500,
+  conditionName: 32,
+  /** Condições por combatente. */
+  conditions: 12,
+  conditionRounds: { min: 1, max: 100 },
   dice: {
     exprLength: 100,
     terms: 20,

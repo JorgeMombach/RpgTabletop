@@ -96,7 +96,12 @@ socket.on("disconnect", () => {
 });
 
 socket.on("state:full", (state) => {
+  const previous = useApp.getState().state;
   useApp.setState({ state, joinError: null });
+  // Avisos da mesa (ex.: condição que acabou) viram toast, mas só os novos: ao entrar, o log antigo não se repete.
+  if (!previous) return;
+  const seen = new Set(previous.log.map((e) => e.id));
+  for (const e of state.log) if (e.system && !seen.has(e.id)) toast({ kind: "info", text: e.text });
 });
 
 socket.on("toast", (t) => toast(t));

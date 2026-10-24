@@ -2,10 +2,11 @@ import type { Combatant } from "@rpg/shared";
 import type { Store } from "./store";
 
 export function allCombatants(store: Store): Combatant[] {
-  return [...store.game.allies, ...store.game.battle.mobs];
+  const { allies, battle } = store.game;
+  return [...allies, ...battle.mobs, ...battle.npcs];
 }
 
-function byId(store: Store, id: string): Combatant | undefined {
+export function byId(store: Store, id: string): Combatant | undefined {
   return allCombatants(store).find((c) => c.id === id);
 }
 

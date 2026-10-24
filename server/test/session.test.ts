@@ -121,6 +121,7 @@ describe("filtro por papel", () => {
       pos: null,
       initiative: null,
       initRoll: null,
+      conditions: [],
     });
 
     const gm = await client();

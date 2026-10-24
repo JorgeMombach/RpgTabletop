@@ -1,9 +1,10 @@
 import { LIMITS, type Combatant, type RollResult } from "@rpg/shared";
-import { moveInOrder, placeInOrder, removeFromOrder } from "../combat";
+import { allCombatants, moveInOrder, placeInOrder, removeFromOrder } from "../combat";
 import { roll } from "../dice";
 import type { Store } from "../store";
 import { fail, requireInt } from "../validate";
 import { editable, requireGm } from "./combatants";
+import { startTurn } from "./conditions";
 import { logRoll } from "./dice";
 import type { HandlerMap } from "./types";
 
@@ -28,18 +29,20 @@ export const initiativeHandlers: HandlerMap = {
     const c = editable(store, player, payload?.id);
     const result = rollInitiative(c.dexMod);
     applyRoll(store, c, result);
-    // Iniciativa de mob fica só para o mestre no log; a de aliado, para todos.
-    logRoll(store, player, result, { label: `Iniciativa · ${c.name}`, hidden: c.type === "mob" });
+    // Iniciativa de mob e NPC fica só para o mestre no log; a de aliado, para todos.
+    logRoll(store, player, result, { label: `Iniciativa · ${c.name}`, hidden: c.type !== "ally" });
   },
 
   "init:rollMobs": (store, player, payload) => {
     requireGm(player);
-    const { mobs } = store.game.battle;
-    if (mobs.length === 0) fail("Não há mobs na batalha.");
+    const { battle } = store.game;
+    // Tudo que o mestre controla: mobs e NPCs.
+    const mobs = [...battle.mobs, ...battle.npcs];
+    if (mobs.length === 0) fail("Não há mobs nem NPCs na batalha.");
     // Iniciativa em grupo: todos os mobs do mesmo template agem juntos.
     const byTemplate = new Map<string, RollResult>();
     for (const mob of mobs) {
-      const key = payload?.grouped && mob.templateId ? `${mob.templateId}:${mob.dexMod}` : null;
+      const key = payload?.grouped && mob.templateId ? `${mob.type}:${mob.templateId}:${mob.dexMod}` : null;
       let result = key ? byTemplate.get(key) : undefined;
       if (!result) {
         result = rollInitiative(mob.dexMod);
@@ -72,6 +75,7 @@ export const initiativeHandlers: HandlerMap = {
     const combat = store.game.battle.combat;
     if (combat.order.length === 0) fail("Role a iniciativa antes de iniciar o combate.");
     Object.assign(combat, { active: true, round: 1, turnIndex: 0 });
+    startTurn(store);
   },
 
   "combat:next": (store, player) => {
@@ -83,9 +87,11 @@ export const initiativeHandlers: HandlerMap = {
       combat.turnIndex = 0;
       combat.round++;
     }
+    startTurn(store);
   },
 
   "combat:prev": (store, player) => {
+    // Voltar não devolve rounds de condição: a contagem só anda para frente.
     requireGm(player);
     requireActive(store);
     const combat = store.game.battle.combat;
@@ -99,6 +105,6 @@ export const initiativeHandlers: HandlerMap = {
   "combat:end": (store, player) => {
     requireGm(player);
     Object.assign(store.game.battle.combat, { active: false, round: 0, turnIndex: 0, order: [] });
-    for (const c of [...store.game.allies, ...store.game.battle.mobs]) c.initiative = c.initRoll = null;
+    for (const c of allCombatants(store)) c.initiative = c.initRoll = null;
   },
 };

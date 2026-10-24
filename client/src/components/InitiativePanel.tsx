@@ -3,8 +3,9 @@ import { LIMITS, type ClientState, type CombatantView } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
+import { allCombatants, fmtCondition } from "../format";
 import { select, useApp } from "../store";
-import { CombatantAvatar } from "./CombatantAvatar";
+import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
 
 const INIT_TIP = "Iniciativa = d20 + mod. DES";
@@ -15,9 +16,10 @@ export function InitiativePanel({ state }: { state: ClientState }) {
   const gm = state.self.role === "gm";
   const { combat } = state.battle;
 
-  const all: CombatantView[] = [...state.allies, ...state.battle.mobs];
+  const all = allCombatants(state);
   const byId = new Map(all.map((c) => [c.id, c]));
   const order = combat.order.map((id) => byId.get(id)).filter((c): c is CombatantView => !!c);
+  const gmControlled = state.battle.mobs.length + state.battle.npcs.length;
   const currentId = combat.active ? combat.order[combat.turnIndex] : null;
   const canEdit = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
   const pending = all.filter((c) => c.initiative === null && canEdit(c));
@@ -68,9 +70,9 @@ export function InitiativePanel({ state }: { state: ClientState }) {
             </>
           ) : (
             <>
-              <Tooltip label={`Rola para todos os mobs (${INIT_TIP})`}>
-                <Button variant="default" disabled={state.battle.mobs.length === 0} onClick={() => act("init:rollMobs", { grouped })}>
-                  🎲 Rolar mobs
+              <Tooltip label={`Rola para todos os mobs e NPCs (${INIT_TIP})`}>
+                <Button variant="default" disabled={gmControlled === 0} onClick={() => act("init:rollMobs", { grouped })}>
+                  🎲 Rolar mobs e NPCs
                 </Button>
               </Tooltip>
               <Button style={{ flex: "1 1 120px" }} disabled={order.length === 0} onClick={() => act("combat:start", {})}>
@@ -80,7 +82,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
           )}
         </Group>
       )}
-      {gm && !combat.active && state.battle.mobs.length > 0 && (
+      {gm && !combat.active && gmControlled > 0 && (
         <Checkbox
           checked={grouped}
           onChange={(e) => setGrouped(e.currentTarget.checked)}
@@ -90,7 +92,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
 
       {order.length === 0 ? (
         <Text size="xs" c="dimmed">
-          {gm ? "Role a iniciativa dos mobs; os jogadores rolam a dos personagens." : "Role sua iniciativa abaixo quando o mestre pedir."}
+          {gm ? "Role a iniciativa dos mobs e NPCs; os jogadores rolam a dos personagens." : "Role sua iniciativa abaixo quando o mestre pedir."}
         </Text>
       ) : (
         <ol className="init-list">
@@ -155,7 +157,13 @@ function InitRow(props: {
         <Text size="xs" c="gold.4" w={10} aria-label={current ? "Na vez" : undefined}>
           {current ? "▶" : ""}
         </Text>
-        <Box w={8} h={8} bg={c.color} style={{ borderRadius: c.type === "mob" ? 2 : "50%", flex: "none" }} aria-hidden />
+        <Box
+          w={8}
+          h={8}
+          bg={c.color}
+          style={{ borderRadius: c.type === "mob" ? 2 : "50%", clipPath: c.type === "npc" ? HEX_CLIP : undefined, flex: "none" }}
+          aria-hidden
+        />
         <Text size="sm" fw={current ? 600 : 400} truncate title={c.name} style={{ flex: 1, minWidth: 0 }}>
           {c.name}
           {mine && (
@@ -205,20 +213,26 @@ function InitRow(props: {
           </Tooltip>
         )}
         {gm && (
-          <Group gap={0} wrap="nowrap">
+          // Empilhados para sobrar largura para o nome em colunas estreitas.
+          <Stack gap={0}>
             <Tooltip label="Subir (desempate)">
-              <ActionIcon size="xs" disabled={index === 0} aria-label="Subir" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index - 1 }))}>
+              <ActionIcon size={16} fz={9} disabled={index === 0} aria-label="Subir" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index - 1 }))}>
                 ▲
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Descer (desempate)">
-              <ActionIcon size="xs" disabled={last} aria-label="Descer" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index + 1 }))}>
+              <ActionIcon size={16} fz={9} disabled={last} aria-label="Descer" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index + 1 }))}>
                 ▼
               </ActionIcon>
             </Tooltip>
-          </Group>
+          </Stack>
         )}
       </Group>
+      {c.conditions.length > 0 && (
+        <Text size="xs" c="gold.4" truncate pl={26} title={c.conditions.map(fmtCondition).join(", ")}>
+          {c.conditions.map(fmtCondition).join(" · ")}
+        </Text>
+      )}
     </li>
   );
 }

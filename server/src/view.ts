@@ -13,7 +13,7 @@ function allyFor(player: ServerPlayer, c: Combatant): Combatant {
 }
 
 /**
- * Estado filtrado por papel (ADR-05): jogadores nunca recebem a vida dos mobs
+ * Estado filtrado por papel (ADR-05): jogadores nunca recebem a vida de mobs e NPCs
  * nem a lista de magias de outros jogadores.
  */
 export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): ClientState {
@@ -34,6 +34,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     battle: {
       map: { ...map, hasImage: image !== null },
       mobs: gm ? game.battle.mobs : game.battle.mobs.map(hideHp),
+      npcs: gm ? game.battle.npcs : game.battle.npcs.map(hideHp),
       combat: game.battle.combat,
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),

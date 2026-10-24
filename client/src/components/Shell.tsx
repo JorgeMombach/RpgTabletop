@@ -2,6 +2,7 @@ import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { APP_VERSION, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
+import { allCombatants } from "../format";
 import { leave } from "../session";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
@@ -12,7 +13,7 @@ import { DicePanel } from "./DicePanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { InvitePanel } from "./InvitePanel";
 import { MapPanel } from "./MapPanel";
-import { MobsPanel } from "./MobsPanel";
+import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { SelectedPanel } from "./SelectedPanel";
 
@@ -21,7 +22,7 @@ function TurnStatus({ state }: { state: ClientState }) {
   const { combat } = state.battle;
   if (!combat.active) return null;
   const id = combat.order[combat.turnIndex];
-  const who = [...state.allies, ...state.battle.mobs].find((c) => c.id === id);
+  const who = allCombatants(state).find((c) => c.id === id);
   return (
     <Text size="sm" c="dimmed" className="turn-status" truncate>
       Round {combat.round}
@@ -94,6 +95,7 @@ export function Shell({ state }: { state: ClientState }) {
       <aside className="col left">
         <InitiativePanel state={state} />
         {gm && <MobsPanel mobs={state.battle.mobs as Combatant[]} />}
+        {gm && <NpcsPanel npcs={state.battle.npcs as Combatant[]} />}
         <AlliesPanel state={state} />
         {gm && <MapPanel map={state.battle.map} />}
         {gm && <BestiaryPanel templates={state.templates} />}

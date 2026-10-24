@@ -160,7 +160,8 @@ export function BattleMap({ state }: { state: ClientState }) {
     if (p) void act("token:move", { id, pos: cellAt(p, grid) });
   }
 
-  const tokens: CombatantView[] = [...state.battle.mobs, ...state.allies].filter((c) => c.pos);
+  // Aliados por cima (desenhados por último).
+  const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   const combat = state.battle.combat;
   const activeId = combat.active ? combat.order[combat.turnIndex] : null;
   const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
