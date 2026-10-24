@@ -5,6 +5,8 @@ import { Server, type Socket } from "socket.io";
 import {
   LIMITS,
   type ActionName,
+  type Area,
+  type AreaKind,
   type ActionResult,
   type ClientToServerEvents,
   type GridPos,
@@ -49,6 +51,20 @@ function validRuler(raw: unknown): Ruler | null {
   const ok = (p: GridPos | undefined) =>
     !!p && Number.isInteger(p.col) && Number.isInteger(p.row) && Math.abs(p.col) <= LIMITS.gridCoord && Math.abs(p.row) <= LIMITS.gridCoord;
   return r && ok(r.from) && ok(r.to) ? { from: { col: r.from.col, row: r.from.row }, to: { col: r.to.col, row: r.to.row } } : null;
+}
+
+const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
+
+/** Área de magia vinda do cliente: só repassa se cada campo for válido (E17). */
+export function validArea(raw: unknown): Area | null {
+  const a = raw as Area | null;
+  if (!a || typeof a !== "object" || !AREA_KINDS.includes(a.kind)) return null;
+  const half = (n: unknown) => typeof n === "number" && Number.isInteger(n * 2) && Math.abs(n) <= LIMITS.gridCoord;
+  if (!a.origin || !half(a.origin.col) || !half(a.origin.row)) return null;
+  if (typeof a.angle !== "number" || !Number.isFinite(a.angle)) return null;
+  const { min, max } = LIMITS.areaFeet;
+  if (!Number.isInteger(a.feet) || a.feet < min || a.feet > max) return null;
+  return { kind: a.kind, origin: { col: a.origin.col, row: a.origin.row }, angle: a.angle % (Math.PI * 2), feet: a.feet };
 }
 
 export function createApp(opts: AppOptions) {
@@ -186,11 +202,18 @@ export function createApp(opts: AppOptions) {
       socket.to(SESSION_ROOM).emit("ruler", { playerId: player.id, name: player.name, ruler: validRuler(ruler) });
     });
 
+    socket.on("area:update", (area) => {
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (!player) return;
+      socket.to(SESSION_ROOM).emit("area", { playerId: player.id, name: player.name, area: validArea(area) });
+    });
+
     socket.on("session:leave", () => {
       const playerId = socket.data.playerId;
       detach(socket);
       if (!playerId) return;
       io.to(SESSION_ROOM).emit("ruler", { playerId, name: "", ruler: null });
+      io.to(SESSION_ROOM).emit("area", { playerId, name: "", area: null });
       broadcast();
     });
 
@@ -199,6 +222,7 @@ export function createApp(opts: AppOptions) {
       detach(socket);
       if (!playerId) return;
       io.to(SESSION_ROOM).emit("ruler", { playerId, name: "", ruler: null });
+      io.to(SESSION_ROOM).emit("area", { playerId, name: "", area: null });
       broadcast();
     });
   });

@@ -41,12 +41,33 @@ export interface RulerBroadcast {
   ruler: Ruler | null;
 }
 
+/** Formas de área do D&D 5e (E17). */
+export type AreaKind = "cone" | "sphere" | "cylinder" | "line" | "cube";
+
+/**
+ * Área de magia, efêmera como a régua. Origem em células (múltiplos de 0,5: centro ou canto de
+ * um quadrado), direção em radianos (0 = para a direita) e tamanho em pés: raio da esfera/cilindro,
+ * comprimento do cone/linha, lado do cubo.
+ */
+export interface Area {
+  kind: AreaKind;
+  origin: { col: number; row: number };
+  angle: number;
+  feet: number;
+}
+
+export interface AreaBroadcast {
+  playerId: string;
+  name: string;
+  area: Area | null;
+}
+
 export interface MapImagePayload {
   version: number;
   image: string | null;
 }
 
-export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY">>;
+export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale">>;
 
 export interface TemplateInput extends CombatantInput {
   /** Presente = edição; ausente = criação. */
@@ -133,6 +154,8 @@ export type ClientToServerEvents = ActionEvents & {
   "session:join": (payload: JoinPayload, ack: (res: JoinResult) => void) => void;
   /** Efêmero: repassado aos outros, não fica no estado. */
   "ruler:update": (ruler: Ruler | null) => void;
+  /** Efêmero, como a régua. */
+  "area:update": (area: Area | null) => void;
   /** Sai da sessão (fica offline). A identidade continua: voltar com o mesmo token recupera o personagem. */
   "session:leave": () => void;
 };
@@ -142,6 +165,7 @@ export interface ServerToClientEvents {
   /** A imagem do mapa vai separada do estado e só quando muda. */
   "map:image": (payload: MapImagePayload) => void;
   ruler: (payload: RulerBroadcast) => void;
+  area: (payload: AreaBroadcast) => void;
   toast: (toast: Toast) => void;
 }
 
@@ -181,6 +205,8 @@ export const LIMITS = {
   mapImageSide: 4096,
   avatarSide: 128,
   cellPx: { min: 8, max: 400 },
+  imageScale: { min: 0.1, max: 10 },
+  areaFeet: { min: 5, max: 500 },
   /** Limite de coordenada de célula (evita tokens perdidos no infinito). */
   gridCoord: 10_000,
 } as const;

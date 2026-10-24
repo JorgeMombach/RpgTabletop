@@ -41,7 +41,8 @@ type State = {
   allies: Combatant[];                 // da sessão
   battle: {
     map: { image: string | null; showGrid: boolean; cellPx: number;
-           offsetX: number; offsetY: number; feetPerCell: 5 };
+           offsetX: number; offsetY: number; feetPerCell: 5;
+           rotation: 0 | 90 | 180 | 270; imageScale: number }; // E17: só a imagem gira/escala
     mobs: Combatant[];                 // da batalha
     npcs: Combatant[];                 // da batalha, neutros (E15)
     combat: { active: boolean; round: number; turnIndex: number; order: string[] };
@@ -134,7 +135,7 @@ Cliente → servidor:
 `template:upsert|remove`, `mob:addFromTemplate {templateId, qty}`, `mob:add`, `mob:remove`, `mob:restore` (mob ou NPC),
 `npc:add`, `npc:addFromTemplate {templateId}`, `condition:add {id, name, rounds?}`, `condition:remove {id, conditionId}`,
 `ally:create`, `ally:remove`, `combatant:update {id, ...campos}`, `hp:change {id, delta}`, `hp:set {id, value}`, `hp:full {id}`,
-`token:move {id, pos}`, `ruler:update` (efêmero),
+`token:move {id, pos}` (recusa casa ocupada), `ruler:update` e `area:update {kind, origin, angle, feet}` (efêmeros),
 `slot:set {id, level, used|max}`, `slots:restore {id}`, `ally:restoreAll {id}`, `spell:add|remove`,
 `init:roll {id}`, `init:rollMobs {grouped?}`, `init:set {id, value | null}`, `init:move {id, toIndex}`, `init:rerollAll {grouped?}`, `combat:start|next|prev|end`,
 `dice:roll {expr, mode?: "adv"|"dis", hidden?, asId?, kind?: "attack"|"damage", crit?}`, `roll:request {label, playerIds}`, `roll:cancel`, `reaction:use` (E16).
@@ -142,7 +143,7 @@ Cliente → servidor:
 Toda ação responde por ack com `{ ok: true, ids? }` ou `{ ok: false, error }` (mensagem pronta para o usuário).
 
 Servidor → cliente:
-`state:full` (filtrado por papel), `map:image` (só quando a imagem muda), `ruler:update`, `toast`, `error`.
+`state:full` (filtrado por papel), `map:image` (só quando a imagem muda), `ruler:update`, `area`, `toast`, `error`.
 
 ## 7. Layout
 ```
@@ -419,11 +420,12 @@ Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padroni
   - Detalhes (E15): lista própria (`battle.npcs`); token em hexágono; criados avulsos ou a partir de um template (um NPC, sem número no nome, na paleta de cores neutra); *Rolar mobs* rola também para os NPCs; remover tem o mesmo *Desfazer* dos mobs.
 - **Condições:** qualquer combatente pode ter condições (concentração, atordoado, caído…), com **duração opcional em rounds**, que **desconta 1 no início do turno de quem tem a condição**; ao chegar a 0, ela sai e aparece um aviso. Sem duração = fica até alguém tirar. O app não aplica efeito nenhum (ADR-06).
   - Detalhes (E15): iniciar o combate conta como início do turno de quem age primeiro; *voltar turno* não devolve rounds; pôr de novo uma condição que já existe só troca a duração; condições não são segredo (jogadores veem as de mobs e NPCs); o jogador mexe só nas do próprio personagem.
+- **Efeitos no mapa (E19):** áreas persistentes com duração em rounds contada no turno de quem conjurou; efeitos de concentração somem quando o conjurador perde a condição *Concentração*.
 - **Dados no combate:** com combate ativo, **jogador só rola na própria vez**; o mestre rola sempre e a rolagem fica **atribuída ao mob/NPC da vez** ("Goblin 2"), não ao nome do mestre. Fora de combate, todos rolam livremente.
 
 ## 15. Entregáveis da Fase 3
 
-Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E18 → E12**. O E14 vem antes das features de interface para elas não serem feitas duas vezes.
+Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E12**. O E19 (efeitos no mapa) vem antes do E18 para o arquivo salvo já incluir os efeitos. O E14 vem antes das features de interface para elas não serem feitas duas vezes.
 
 ### E13 — Correções e identidade
 - **Bug:** slider de deslocamento X/Y no final volta o grid ao início (o valor máximo é igual ao tamanho do quadrado, que o servidor normaliza para 0). O slider deve ir só até um passo antes.
@@ -490,6 +492,24 @@ Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E18 → E12**. O 
 **Pronto quando:**
 - Mapa girado 90° mantém o grid alinhado após recalibrar; escala muda o tamanho da imagem sem mexer nos tokens.
 - Cone de 15 ft, esfera de 20 ft, linha de 30 ft e cubo de 10 ft aparecem com o tamanho certo no grid para todos.
+
+**Decidido (E17):** rotação e escala mudam só a imagem (grid e tokens ficam); imagem nova ou campo limpo voltam a 0° e 100%. A área fica no mapa depois de soltar o mouse, até trocar de ferramenta ou apertar Esc; origem com precisão de meio quadrado (centro ou canto); cone com a largura igual à distância da origem, linha de 5 ft de largura, cubo com a origem no meio de uma face, cilindro desenhado como círculo tracejado (vista de cima). Junto: **dois tokens não ocupam a mesma casa** (o servidor recusa; soltar da lista numa casa ocupada vai para a livre mais perto).
+
+### E19 — Efeitos persistentes no mapa
+Áreas que **ficam** no mapa (Graxa, Teia, Névoa, Fogo, Água…), em vez de sumirem como as do E17. Vem antes do E18 para o arquivo salvo já nascer com os efeitos.
+- **Criar:** na ferramenta *Área*, depois de posicionar, *Fixar como efeito*: nome, cor e duração opcional em rounds. Fica no estado do jogo, visível para todos.
+- **Duração:** desconta 1 no **início do turno de quem conjurou** (como as magias do 5e); ao chegar a 0 o efeito some e todos recebem um aviso ("Teia de Ana acabou"). Sem duração = fica até alguém tirar.
+- **Concentração:** o efeito pode ser marcado como de concentração. Se o conjurador perder a condição *Concentração* (ex.: falhou na resistência e alguém a tirou), o efeito some junto, com aviso. Ao criar um efeito de concentração, o conjurador ganha a condição se ainda não tiver.
+- **Ligar/desligar:** o efeito pode ficar desligado sem ser apagado (ex.: a graxa antes de pegar fogo; um "Fogo" preparado que o mestre liga depois). Desligado aparece apagado para o mestre e some para os jogadores.
+- **Permissões:** mestre cria, liga/desliga e remove qualquer efeito (inclusive os de inimigos); jogador só os que criou, em nome do próprio personagem.
+- **Painel de efeitos:** lista com nome, quem conjurou, rounds restantes e ações (ligar/desligar, remover).
+- O app só desenha (ADR-06): não calcula quem está dentro nem aplica terreno difícil ou dano.
+- *Limpar campo* remove todos os efeitos.
+
+**Pronto quando:**
+- "Teia (3)" de Ana passa a 2, 1 e some no início dos turnos de Ana, com aviso para todos; efeitos sem duração não mudam.
+- Tirar a *Concentração* de Ana remove os efeitos de concentração dela, e só esses.
+- Jogador não remove nem desliga efeito de outra pessoa (recusa no servidor, com teste); efeito desligado não chega aos jogadores.
 
 ### E18 — Salvar e carregar sessão
 - **Exportar** (mestre): baixa um `.json` com personagens, bestiário, mobs/NPCs, mapa (imagem inclusa), grid, condições e log.

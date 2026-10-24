@@ -32,6 +32,8 @@ export function createGame(): GameState {
         offsetX: 0,
         offsetY: 0,
         feetPerCell: 5,
+        rotation: 0,
+        imageScale: 1,
       },
       mobs: [],
       npcs: [],

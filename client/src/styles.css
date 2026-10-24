@@ -284,6 +284,16 @@ abbr.abbr {
   bottom: auto;
 }
 
+/* Opções da ferramenta Área, logo abaixo da barra do mapa. */
+.map-options {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  background: rgb(28 31 38 / 0.94) !important;
+}
+
 /* ---------- Telas menores ---------- */
 
 /*

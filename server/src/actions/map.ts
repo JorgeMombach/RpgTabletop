@@ -1,5 +1,5 @@
 import { LIMITS, type GridPos } from "@rpg/shared";
-import { resetCombat } from "../combat";
+import { allCombatants, resetCombat } from "../combat";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { editable, requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
@@ -16,11 +16,19 @@ function gridPosOf(raw: unknown): GridPos | null {
   };
 }
 
+/** Rotação em passos de 90° (E17); qualquer múltiplo de 90 vira 0–270. */
+function rotationOf(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw % 90 !== 0) fail("Rotação: use passos de 90°.");
+  return ((raw % 360) + 360) % 360;
+}
+
 export const mapHandlers: HandlerMap = {
   "battle:setMap": (store, player, payload) => {
     requireGm(player);
     const map = store.game.battle.map;
     map.image = payload?.image === null ? null : requireImage(payload?.image, "Mapa", LIMITS.mapImageChars);
+    // Imagem nova começa sem rotação e no tamanho original.
+    Object.assign(map, { rotation: 0, imageScale: 1 });
     // A versão faz o servidor reenviar a imagem (evento `map:image`) só quando muda.
     map.imageVersion++;
   },
@@ -34,10 +42,19 @@ export const mapHandlers: HandlerMap = {
       raw !== undefined ? requireNumber(raw, label, -max, max) : current;
     const offsetX = off(input.offsetX, "Deslocamento X", map.offsetX);
     const offsetY = off(input.offsetY, "Deslocamento Y", map.offsetY);
+    const rotation = input.rotation !== undefined ? rotationOf(input.rotation) : map.rotation;
+    const { min: sMin, max: sMax } = LIMITS.imageScale;
+    const imageScale = input.imageScale !== undefined ? requireNumber(input.imageScale, "Escala do mapa", sMin, sMax) : map.imageScale;
 
     // Offset normalizado para [0, cellPx): mesmo grid, números mais previsíveis.
     const norm = (v: number) => Math.round((((v % cellPx) + cellPx) % cellPx) * 100) / 100;
-    Object.assign(map, { cellPx: Math.round(cellPx * 100) / 100, offsetX: norm(offsetX), offsetY: norm(offsetY) });
+    Object.assign(map, {
+      cellPx: Math.round(cellPx * 100) / 100,
+      offsetX: norm(offsetX),
+      offsetY: norm(offsetY),
+      rotation,
+      imageScale: Math.round(imageScale * 1000) / 1000,
+    });
     if (typeof input.showGrid === "boolean") map.showGrid = input.showGrid;
   },
 
@@ -46,7 +63,7 @@ export const mapHandlers: HandlerMap = {
     const { game } = store;
     const { battle } = game;
     // Grid continua: a próxima batalha costuma usar mapas na mesma escala.
-    battle.map.image = null;
+    Object.assign(battle.map, { image: null, rotation: 0, imageScale: 1 });
     battle.map.imageVersion++;
     battle.mobs = [];
     battle.npcs = [];
@@ -64,6 +81,10 @@ export const mapHandlers: HandlerMap = {
   "token:move": (store, player, payload) => {
     // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa.
     const c = editable(store, player, payload?.id);
-    c.pos = gridPosOf(payload.pos);
+    const pos = gridPosOf(payload.pos);
+    // Dois corpos não ocupam a mesma casa.
+    const other = pos && allCombatants(store).find((o) => o.id !== c.id && o.pos?.col === pos.col && o.pos?.row === pos.row);
+    if (other) fail(`Essa casa já está ocupada por ${other.name}.`);
+    c.pos = pos;
   },
 };
