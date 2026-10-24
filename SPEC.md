@@ -387,3 +387,112 @@ Só se a janela de console incomodar: um launcher com botão iniciar/parar, ende
 
 ### Ordem sugerida
 `E8 → E9 → E10 → E11`. O E8 destrava os outros dois; E9 e E10 são independentes entre si; o E11 automatiza o que E9 e E10 já fazem à mão.
+
+---
+
+# Fase 3 — Refinamento, UX e novas features
+
+Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padronizar a interface e adicionar o que a mesa pediu. O app continua sendo um **registro, não um motor de regras** (ADR-06): nada abaixo calcula dano, acerto ou efeito de condição.
+
+## 14. Decisões da Fase 3
+
+### ADR-15 — Mantine como biblioteca de componentes
+- **Contexto:** a interface foi feita com CSS próprio; textos vazam dos painéis, faltam tooltips e cada painel tem um jeito. Antes de adicionar mais telas (NPCs, condições, dados, mapa), é preciso uma base comum.
+- **Decisão:** adotar **Mantine** (componentes + tema) com tokens próprios: tema escuro, cor de destaque dourada atual, escala de espaçamento em múltiplos de 4 px, escala tipográfica 12/14/16/20/24, **Inter** para interface e uma fonte de fantasia (ex.: Cinzel) **só em títulos**.
+- **Alternativas:** MUI (completa, mas visual Material difícil de descaracterizar e mais pesada de customizar); shadcn/ui (Radix + Tailwind, máximo controle, mais montagem).
+- **Consequências:** o E14 migra os componentes existentes; os entregáveis seguintes já nascem com Mantine. O mapa continua em Konva (fora do Mantine).
+
+### ADR-16 — Nome do produto: Jamal's Tabletop
+- **Decisão:** o app passa a se chamar **Jamal's Tabletop** na interface, no console, no executável (nome do arquivo e metadados) e na documentação. O **repositório** (`RpgTabletop`) e, por consequência, a **imagem** `ghcr.io/jorgemombach/rpgtabletop` mantêm o nome.
+- **Consequências:** executáveis passam a `jamals-tabletop-<versão>-<sistema>-<arch>`; os padrões de arquivo da CI/release (`simulador-encontros-*`) mudam junto. O fabricante nos metadados do `.exe` passa a ser **Jorge Mombach**. O aviso do SmartScreen continua "desconhecido" sem assinatura digital (ver §16).
+
+### ADR-17 — Salvar/carregar por arquivo (evolução do ADR-04)
+- **Contexto:** ao fechar o app tudo se perde; a mesa quer continuar na próxima sessão.
+- **Decisão:** continua **sem persistência automática**. O mestre exporta a sessão para um **arquivo JSON** quando quiser e importa ao abrir a próxima. O servidor não grava nada em disco por conta própria.
+- **Consequências:** o arquivo tem uma versão de formato, para importar arquivos de versões anteriores; importar substitui o estado atual (com confirmação).
+
+### Regras definidas para as novas features
+- **NPCs neutros:** terceiro tipo de combatente. Só o mestre cria, move e controla; **jogadores não veem a vida** (como mobs). Podem entrar na iniciativa.
+- **Condições:** qualquer combatente pode ter condições (concentração, atordoado, caído…), com **duração opcional em rounds**, que **desconta 1 no início do turno de quem tem a condição**; ao chegar a 0, ela sai e aparece um aviso. Sem duração = fica até alguém tirar. O app não aplica efeito nenhum (ADR-06).
+- **Dados no combate:** com combate ativo, **jogador só rola na própria vez**; o mestre rola sempre e a rolagem fica **atribuída ao mob/NPC da vez** ("Goblin 2"), não ao nome do mestre. Fora de combate, todos rolam livremente.
+
+## 15. Entregáveis da Fase 3
+
+Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E18 → E12**. O E14 vem antes das features de interface para elas não serem feitas duas vezes.
+
+### E13 — Correções e identidade
+- **Bug:** slider de deslocamento X/Y no final volta o grid ao início (o valor máximo é igual ao tamanho do quadrado, que o servidor normaliza para 0). O slider deve ir só até um passo antes.
+- **Bug:** contorno de seleção/turno **deslocado** nos tokens de inimigo (parece borda maior). Causa: o contorno é feito aumentando a forma; o círculo dos aliados cresce a partir do centro, mas o quadrado dos mobs cresce a partir do canto superior esquerdo. Desenhar o contorno com posição e tamanho calculados.
+- **Bug:** textos e botões cortados nos painéis (ex.: iniciativa — "🎲 Rolar" e "Iniciar combate" cortados, texto do checkbox vazando). Causa: linhas com mais itens do que cabem nos ~280 px da coluna, que corta o excesso. Linhas compactas (🎲 só ícone com tooltip, campo estreito), botões que quebram linha e reticências em textos longos.
+- Tooltips em toda abreviação (DES, ft, PV, d20, níveis de slot…).
+- **Jogador cria só 1 personagem** (validado no servidor); o mestre continua criando aliados NPC à vontade.
+- Botão **Editar** do personagem visível (já existe, mas está escondido): nome, vida máx., mod. DES, cor, avatar.
+- Botão **Sair / trocar nome** (hoje o navegador lembra o nome e entra sozinho).
+- Renomear para **Jamal's Tabletop** (ADR-16) e fabricante "Jorge Mombach" nos metadados do `.exe`.
+- Documentação do que faltou na primeira sessão real: no aviso do Firewall do Windows a interface do **Tailscale é Privada** (marcar *Redes privadas* mesmo quando a rede de casa é Pública); o convidado precisa **trocar para a rede do mestre** no aplicativo do Tailscale; sintoma "fica carregando infinitamente" em *Problemas comuns*.
+
+**Pronto quando:**
+- Arrastar o deslocamento até o fim não faz o grid pular; a borda de mobs e aliados tem a mesma espessura.
+- Nomes de 32 caracteres e a coluna lateral mais estreita não vazam em nenhum painel.
+- Toda abreviação tem tooltip.
+- Segundo `ally:create` de um jogador é recusado com mensagem clara (teste no servidor).
+- Nome "Jamal's Tabletop" em interface, título da aba, console, `--help`, executável, release e README; CI e release verdes com os novos nomes de arquivo.
+
+### E14 — Base de UX (Mantine)
+- Mantine + tema (ADR-15): cores, tipografia, espaçamentos e componentes (botões, campos numéricos, modais, tooltips, notificações) padronizados em todo o app.
+- **Painéis laterais redimensionáveis** (arrastar a borda), lembrando a largura por navegador.
+- **Tela de entrada com arte** (imagem de fundo/ilustração com o nome do app).
+- Guia curto de padrões de UI no `CLAUDE.md` (quais componentes usar para quê).
+
+**Pronto quando:**
+- Nenhum componente visual fora do tema (sem botões/campos "soltos" com CSS próprio).
+- Painéis redimensionam entre um mínimo e um máximo sem quebrar o layout.
+- Funciona em 1280 px e em janelas estreitas (≥ 1024 px) sem vazamento.
+
+### E15 — NPCs neutros e condições
+- Seção **NPCs** (mestre): criar avulso ou a partir do bestiário, vida, token com estilo próprio (nem círculo de aliado, nem quadrado de mob), entrada na iniciativa.
+- **Condições** em qualquer combatente: lista de condições do 5e + texto livre, duração opcional em rounds, contagem regressiva no turno de quem tem (§14), aviso ao expirar. Aparecem no painel *Selecionado*, na iniciativa e como ícone/etiqueta no token.
+
+**Pronto quando:**
+- Jogador vê NPCs no mapa e na iniciativa, mas não recebe a vida deles (teste no servidor).
+- "Atordoado (2)" passa a 1 e depois some nos turnos do combatente; condições sem duração não mudam.
+- Limpar o campo remove NPCs (como mobs) e as condições dos que saem.
+
+### E16 — Dados no combate
+- **Trava por turno** (§14): com combate ativo, jogador fora da vez não rola (botões desabilitados + recusa no servidor); mestre rola sempre.
+- **"Rolar como"**: rolagens do mestre ficam atribuídas ao combatente da vez (mob/NPC); o mestre pode trocar para outro ou para "Mestre".
+- **Ataque e dano separados**: dois blocos na tela — *Ataque* (d20 + modificador, vantagem/desvantagem) e *Dano* (expressão) — e o log agrupa as rolagens por turno ("Goblin 2 — Ataque 17 · Dano 6").
+- "Rolar iniciativa de novo para todos" (regra opcional de algumas mesas).
+
+**Pronto quando:**
+- Jogador fora da vez recebe recusa do servidor ao tentar rolar (teste) e vê o motivo na tela.
+- Rolagem do mestre no turno do "Goblin 2" aparece no log como "Goblin 2".
+- Ataque e dano de um mesmo turno aparecem juntos no log.
+
+**Em aberto:** testes de resistência e reações acontecem **fora da vez** do jogador. Definir no E16 como permitir (ex.: o mestre pede "todos rolam resistência de DES" e libera a rolagem por alguns segundos, ou libera um jogador específico).
+
+### E17 — Mapa: rotação, escala e áreas de magia
+- **Rotacionar** a imagem do mapa em passos de 90°.
+- **Redimensionar** a imagem (escala) independentemente do grid.
+- **Formas de área** junto da régua, visíveis para todos como ela: **cone, esfera/círculo (raio), cilindro, linha e cubo** (as formas do D&D 5e), com tamanho em pés.
+
+**Pronto quando:**
+- Mapa girado 90° mantém o grid alinhado após recalibrar; escala muda o tamanho da imagem sem mexer nos tokens.
+- Cone de 15 ft, esfera de 20 ft, linha de 30 ft e cubo de 10 ft aparecem com o tamanho certo no grid para todos.
+
+### E18 — Salvar e carregar sessão
+- **Exportar** (mestre): baixa um `.json` com personagens, bestiário, mobs/NPCs, mapa (imagem inclusa), grid, condições e log.
+- **Importar** (mestre): carrega um arquivo, valida, mostra o resumo e substitui o estado atual após confirmação. Jogadores reconectam e reencontram os personagens (ligados pelo nome).
+
+**Pronto quando:**
+- Exportar → fechar o app → abrir → importar recupera o estado completo.
+- Arquivo inválido ou de formato futuro é recusado com mensagem clara (teste).
+
+### E12 — Launcher com janela própria (reavaliado)
+Mantido como último da fila: janela com o nome/arte do app, botão iniciar/parar, endereços com copiar, QR code para o celular. Reavaliar depois do E14 (a arte da tela de entrada pode ser reaproveitada).
+
+## 16. Fora do código (configuração e conhecimento)
+
+- **Assinatura do executável:** sem certificado, o SmartScreen sempre mostra "Editor desconhecido"; os metadados do arquivo não mudam isso. Caminhos possíveis: **SignPath Foundation** (gratuito para projetos open source; exige licença open source no repositório) ou assinatura paga (ex.: Microsoft Trusted Signing). Mesmo assinado, o aviso só some com reputação de downloads.
+- **Proteção do repositório público:** ruleset da `master` com *Require approvals: 1*, bypass só para **Repository admin** no modo *For pull requests only*; em *Settings → Actions*, exigir aprovação para workflows de PRs de contribuidores externos. Só o dono faz merge.
+- **Aleatoriedade dos dados:** `crypto.randomInt` do Node no servidor (gerador criptográfico, uniforme), sem biblioteca externa (ADR-07).
