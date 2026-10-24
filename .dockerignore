@@ -8,3 +8,5 @@ client/dist
 Dockerfile
 docker-compose.yml
 .dockerignore
+release
+desktop/dist

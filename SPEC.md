@@ -312,7 +312,7 @@ Objetivo: quem desenvolve gera os pacotes; **quem mestra só baixa e dá dois cl
 
 ## 12. ADRs da Fase 2
 
-### ADR-11 — Executável com Node SEA (Single Executable Application)
+### ADR-11 — Executável com Node SEA (Single Executable Application) — *substituído pelo ADR-18 na 2.0*
 - **Contexto:** o mestre não deve precisar de Node nem de terminal. O app já é um servidor Node que serve o front; o mestre usa o navegador.
 - **Decisão:** gerar um executável único com o recurso oficial **Node SEA**: o servidor vira um único arquivo JS (esbuild), o client compilado vai embutido como asset, e tudo é injetado num binário do Node. Duplo clique → abre uma janela de console com os endereços e o navegador do mestre em `localhost`.
 - **Alternativas:**
@@ -418,6 +418,12 @@ Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padroni
 - **Decisão:** continua **sem persistência automática**. O mestre exporta a sessão para um **arquivo JSON** quando quiser e importa ao abrir a próxima. O servidor não grava nada em disco por conta própria.
 - **Consequências:** o arquivo tem uma versão de formato, para importar arquivos de versões anteriores; importar substitui o estado atual (com confirmação).
 
+### ADR-18 — App do mestre com Electron (substitui o ADR-11)
+- **Contexto:** o mestre quer uma janela própria (E12) e, principalmente, um aviso ao fechar com **Salvar e sair** — o navegador não deixa personalizar o aviso de fechar (E18). O executável SEA abria o navegador e uma janela de console.
+- **Decisão:** o app do mestre vira um **Electron**: o servidor roda dentro do processo principal (o Electron já traz o Node) e a janela mostra a mesa em `localhost`. O mesmo `startServer()` é usado pela linha de comando, pelo Docker e pelo Electron. Jogadores continuam no navegador. Empacotamento com **electron-builder**: Windows `.exe` portátil, macOS `.dmg` (arm64), Linux `.AppImage`. O SEA sai (um jeito a menos de manter); Docker continua para quem quer só o servidor.
+- **Alternativas:** Tauri (janela leve, mas exige Rust na CI e o servidor como *sidecar*); Edge/Chrome em modo app (quase sem custo, mas sem aviso de fechar próprio e dependente do Chrome no Mac/Linux); manter SEA junto (CI e testes em dobro).
+- **Consequências:** tamanho parecido com o SEA (~100–130 MB: hoje já embutíamos o Node inteiro). Sem assinatura digital: SmartScreen no Windows e Gatekeeper no Mac (abrir com botão direito → Abrir). Teste de fumaça da CI usa `--server-only` (sobe só o servidor, sem janela). Major version: **2.0.0**.
+
 ### Regras definidas para as novas features
 - **NPCs neutros:** terceiro tipo de combatente. Só o mestre cria, move e controla; **jogadores não veem a vida** (como mobs). Podem entrar na iniciativa.
   - Detalhes (E15): lista própria (`battle.npcs`); token em hexágono; criados avulsos ou a partir de um template (um NPC, sem número no nome, na paleta de cores neutra); *Rolar mobs* rola também para os NPCs; remover tem o mesmo *Desfazer* dos mobs.
@@ -428,7 +434,7 @@ Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padroni
 
 ## 15. Entregáveis da Fase 3
 
-Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E20 → E12**. O E20 (identidade visual) entrou antes do launcher para ele já nascer com a cara nova. O E19 (efeitos no mapa) vem antes do E18 para o arquivo salvo já incluir os efeitos. O E14 vem antes das features de interface para elas não serem feitas duas vezes.
+Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E20 → E12 → release 2.0.0**. O E20 (identidade visual) entrou antes do launcher para ele já nascer com a cara nova. O E19 (efeitos no mapa) vem antes do E18 para o arquivo salvo já incluir os efeitos. O E14 vem antes das features de interface para elas não serem feitas duas vezes.
 
 ### E13 — Correções e identidade
 - **Bug:** slider de deslocamento X/Y no final volta o grid ao início (o valor máximo é igual ao tamanho do quadrado, que o servidor normaliza para 0). O slider deve ir só até um passo antes.
@@ -538,9 +544,17 @@ Repaginada da interface, que parecia genérica ("feita por IA"). Decidida num br
 
 **Pronto quando:** nenhuma tela usa emoji como ícone; paleta, fontes e placas seguem o guia; nada vaza com as colunas na largura mínima (260 px).
 
-### E12 — Launcher com janela própria (reavaliado)
-Mantido como último da fila: janela com o nome/arte do app, botão iniciar/parar, endereços com copiar, QR code para o celular. Reavaliar depois do E14 (a arte da tela de entrada pode ser reaproveitada).
-- **Fechar com alterações não salvas** (pedido na revisão do E18): ao fechar a janela do launcher ou parar o servidor, um modal próprio — "Você tem alterações não salvas. **Salvar e sair** / Sair sem salvar / Cancelar". *Salvar e sair* grava o mesmo `.json` do E18 (o mestre escolhe onde, ou numa pasta padrão).
+### E12 — App do mestre com janela própria (Electron, ADR-18)
+- **Abrir:** dois cliques; tela de abertura (d20, nome, "Iniciando a mesa…"); o servidor sobe sozinho e a janela mostra a mesa como mestre. Sem botão Iniciar. Erro ao subir (porta bloqueada…): a tela de abertura mostra o motivo e **Tentar de novo**.
+- **Convite:** o painel *Convidar jogadores* ganha **QR code** por endereço (vale também fora do app: Docker, código).
+- **Fechar com alterações não salvas** (pedido na revisão do E18): modal do próprio app — "Você tem alterações não salvas. **Salvar e sair** / Sair sem salvar / Cancelar". *Salvar e sair* abre o "Salvar como" do sistema na pasta *Documentos/Jamal's Tabletop* com o nome de arquivo do E18 e fecha depois de gravar. Sem alterações: fecha direto.
+- **Opções:** as mesmas da linha de comando/ambiente (porta, PUBLIC_URLS…); `--server-only` sobe sem janela (teste de fumaça da CI).
+- **Distribuição:** Windows `.exe` portátil, macOS `.dmg` (arm64), Linux `.AppImage` (x64), nomes `jamals-tabletop-<versão>-<sistema>-<arch>`; Docker não muda. Checks da CI com os mesmos nomes (`Executáveis / win-x64`…).
+
+**Pronto quando:**
+- Abrir o app sobe a mesa sem terminal nem navegador; jogadores entram pelo endereço ou pelo QR code.
+- Fechar com alterações não salvas mostra o modal; *Salvar e sair* grava o `.json` e fecha.
+- A CI gera os três pacotes e o teste de fumaça (`--server-only`) passa nos três.
 
 ## 16. Fora do código (configuração e conhecimento)
 

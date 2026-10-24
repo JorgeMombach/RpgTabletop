@@ -1,4 +1,4 @@
-# CI de todo PR e da master: typecheck, testes e build (Linux e Windows) e os executáveis dos 3 sistemas.
+# CI de todo PR e da master: typecheck, testes e build (Linux e Windows) e o app do mestre dos 3 sistemas.
 # A imagem Docker é validada à parte em docker.yml.
 name: CI
 

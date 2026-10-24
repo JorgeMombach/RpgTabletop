@@ -1,13 +1,14 @@
-# Gera e testa o executável de cada sistema (Node SEA, ADR-11).
-# Reaproveitado pela CI (PRs) e pela release (tags). Cada sistema precisa gerar o próprio
-# executável, porque o SEA usa o binário do Node da máquina que roda o build.
+# Gera e testa o app do mestre de cada sistema (Electron, ADR-18).
+# Reaproveitado pela CI (PRs) e pela release (tags). Cada sistema gera o próprio pacote:
+# Windows .exe portátil, macOS .dmg (arm64), Linux .AppImage.
+# Os nomes dos jobs ("Executáveis / win-x64"…) são checks obrigatórios da master: não renomear.
 name: Executáveis
 
 on:
   workflow_call:
     inputs:
       retention-days:
-        description: Dias que os executáveis ficam disponíveis como artefato
+        description: Dias que os pacotes ficam disponíveis como artefato
         type: number
         default: 7
 
@@ -20,12 +21,18 @@ jobs:
         include:
           - os: windows-latest
             target: win-x64
+            # O teste de fumaça roda a versão descompactada (o .exe portátil extrai antes de abrir).
+            bin: release/win-unpacked/jamals-tabletop.exe
           - os: ubuntu-latest
             target: linux-x64
+            # Na CI o sandbox do Chromium exige root no chrome-sandbox; para o teste basta desligar.
+            bin: xvfb-run -a release/linux-unpacked/jamals-tabletop --no-sandbox
           - os: macos-latest
             target: macos-arm64
+            # O nome tem apóstrofo ("Jamal's"): localiza o binário em vez de escrever o caminho.
+            bin: "\"$(ls -d release/mac-arm64/*.app/Contents/MacOS/* | head -1)\""
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         shell: bash
@@ -39,42 +46,40 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
-      - name: Gera o executável
+      - name: Gera o pacote
         run: npm run package
 
       - name: Localiza o arquivo
-        id: exe
+        id: pkg
         run: |
-          file=$(ls release/jamals-tabletop-*-${{ matrix.target }}* | head -1)
+          file=$(ls release/jamals-tabletop-*-${{ matrix.target }}.* | head -1)
           test -n "$file"
           echo "path=$file" >> "$GITHUB_OUTPUT"
           echo "name=$(basename "$file")" >> "$GITHUB_OUTPUT"
           size=$(( $(wc -c < "$file") / 1024 / 1024 ))
           echo "$(basename "$file"): ${size} MB" | tee -a "$GITHUB_STEP_SUMMARY"
-          # Linux deu 123 MB: ~120 MB são o próprio Node, o app soma ~3 MB (ver SPEC, E10).
-          test "$size" -le 150
+          # Windows deu ~106 MB: quase tudo é o Electron (Chromium + Node).
+          test "$size" -le 200
 
-      - name: Teste de fumaça (sobe sozinho, sem node_modules)
+      - name: Teste de fumaça (--server-only, sem node_modules)
         run: |
-          mkdir smoke && cp "${{ steps.exe.outputs.path }}" smoke/
-          cd smoke
-          "./${{ steps.exe.outputs.name }}" --no-open --port 3999 > exe.log 2>&1 &
+          ${{ matrix.bin }} --server-only --port 3999 > app.log 2>&1 &
           pid=$!
           ok=0
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if curl -fsS http://localhost:3999/healthz; then ok=1; break; fi
             sleep 1
           done
           echo
           if ! curl -fsS http://localhost:3999/ | grep -q '<div id="root">'; then ok=0; fi
           if ! curl -fsS "http://localhost:3999/socket.io/?EIO=4&transport=polling" | grep -q '"sid"'; then ok=0; fi
-          cat exe.log
+          cat app.log
           kill "$pid" 2>/dev/null || true
           test "$ok" = 1
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.exe.outputs.name }}
-          path: ${{ steps.exe.outputs.path }}
+          name: ${{ steps.pkg.outputs.name }}
+          path: ${{ steps.pkg.outputs.path }}
           retention-days: ${{ inputs.retention-days }}
           if-no-files-found: error
