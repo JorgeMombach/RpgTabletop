@@ -32,17 +32,17 @@ console.log(`${section}
 
 ## Para quem vai mestrar
 
-Baixe o arquivo do seu sistema em **Assets** (abaixo) e abra com dois cliques. Não precisa instalar nada.
+Baixe o app do seu sistema em **Assets** (abaixo) e abra com dois cliques: a mesa abre numa janela própria, já como mestre. Os jogadores não instalam nada: entram pelo navegador (endereço ou QR code do painel *Convidar jogadores*).
 
 | Sistema | Arquivo |
 |---|---|
-| Windows | \`${exe("win-x64")}.exe\` |
-| Linux | \`${exe("linux-x64")}\` (rode \`chmod +x\` antes) |
-| macOS (Apple Silicon) | \`${exe("macos-arm64")}\` |
+| Windows | \`${exe("win-x64")}.exe\` (portátil: não instala) |
+| Linux | \`${exe("linux-x64")}.AppImage\` (rode \`chmod +x\` antes) |
+| macOS (Apple Silicon) | \`${exe("macos-arm64")}.dmg\` |
 
-- **Windows:** na primeira vez, o SmartScreen avisa "O Windows protegeu o computador" (o executável não tem assinatura paga): clique em **Mais informações → Executar assim mesmo**. No aviso do Firewall, permita em **Redes privadas**.
-- **macOS:** botão direito no arquivo → **Abrir** → **Abrir**.
-- Deixe a janela aberta durante o jogo; fechar a janela encerra a sessão.
+- **Windows:** na primeira vez, o SmartScreen avisa "O Windows protegeu o computador" (o app não tem assinatura paga): clique em **Mais informações → Executar assim mesmo**. No aviso do Firewall, permita em **Redes privadas**.
+- **macOS:** abra o \`.dmg\` e arraste o app para *Aplicativos*; na primeira vez, botão direito no app → **Abrir** → **Abrir** (se disser que está danificado: \`xattr -cr "/Applications/Jamal's Tabletop.app"\` no Terminal).
+- Deixe o app aberto durante o jogo; fechar encerra a sessão (com alterações não salvas, ele oferece **Salvar e sair**).
 - Jogando pela internet: todos no mesmo Tailscale. Guia completo no [README](https://github.com/${repo}#readme).
 
 Para conferir a integridade do download, compare com \`SHA256SUMS.txt\`.
