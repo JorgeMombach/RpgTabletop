@@ -25,6 +25,15 @@ export function InitiativePanel({ state }: { state: ClientState }) {
   const pending = all.filter((c) => c.initiative === null && canEdit(c));
   const myTurn = !gm && currentId !== null && byId.get(currentId)?.ownerId === state.self.id;
 
+  async function rerollAll() {
+    const ok = await confirmAction({
+      title: "Rolar a iniciativa de novo?",
+      message: "Todas as iniciativas são zeradas; mobs e NPCs rolam agora e os jogadores rolam de novo. O combate pausa neste round até você retomar.",
+      confirmLabel: "Rolar de novo",
+    });
+    if (ok) void act("init:rerollAll", { grouped });
+  }
+
   async function endCombat() {
     const ok = await confirmAction({
       title: "Encerrar o combate?",
@@ -67,6 +76,11 @@ export function InitiativePanel({ state }: { state: ClientState }) {
               <Button variant="default" onClick={() => void endCombat()}>
                 Encerrar
               </Button>
+              <Tooltip label={`Zera todas as iniciativas, rola mobs e NPCs e pausa até os jogadores rolarem (${INIT_TIP})`}>
+                <Button variant="default" onClick={() => void rerollAll()}>
+                  🎲 Iniciativa de novo
+                </Button>
+              </Tooltip>
             </>
           ) : (
             <>
@@ -76,7 +90,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
                 </Button>
               </Tooltip>
               <Button style={{ flex: "1 1 120px" }} disabled={order.length === 0} onClick={() => act("combat:start", {})}>
-                Iniciar combate
+                {combat.round > 0 ? `Retomar (round ${combat.round})` : "Iniciar combate"}
               </Button>
             </>
           )}

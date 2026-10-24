@@ -36,6 +36,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       mobs: gm ? game.battle.mobs : game.battle.mobs.map(hideHp),
       npcs: gm ? game.battle.npcs : game.battle.npcs.map(hideHp),
       combat: game.battle.combat,
+      rolls: game.battle.rolls,
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
     host: gm ? host : undefined,

@@ -1,9 +1,27 @@
-import { Badge, Button, Checkbox, Code, Group, NumberInput, Paper, SegmentedControl, SimpleGrid, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { DICE, LIMITS, type ClientState, type LogEntry, type RollMode, type RollTerm } from "@rpg/shared";
-import { useState, type FormEvent } from "react";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Divider,
+  Group,
+  MultiSelect,
+  NumberInput,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
+import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type RollMode } from "@rpg/shared";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
+import { allCombatants } from "../format";
+import { useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
+import { naturalD20, RollLog } from "./RollLog";
 
 const MODES: { value: RollMode; label: string }[] = [
   { value: "normal", label: "Normal" },
@@ -11,40 +29,180 @@ const MODES: { value: RollMode; label: string }[] = [
   { value: "dis", label: "Desvant." },
 ];
 
+const ATTACK_KEY = "rpg.attack";
+const AS_MASTER = "__mestre";
+
 function buildExpr(count: number, faces: number, mod: number) {
   const m = mod === 0 ? "" : mod > 0 ? `+${mod}` : `${mod}`;
   return `${count}d${faces}${m}`;
 }
 
+/** Crítico: dobra só a quantidade de dados ("2d6+3" → "4d6+3"). O modificador não muda. */
+export function doubleDice(expr: string): string {
+  return expr.replace(/(\d*)\s*d\s*(\d+|%)/gi, (_, n: string, faces: string) => `${(Number(n) || 1) * 2}d${faces}`);
+}
+
+/** Último ataque e dano usados, lembrados por navegador (ataques não ficam salvos no servidor). */
+function readAttack(): { mod: number; damage: string } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ATTACK_KEY) ?? "{}");
+    return { mod: Number(saved.mod) || 0, damage: typeof saved.damage === "string" ? saved.damage : "" };
+  } catch {
+    return { mod: 0, damage: "" };
+  }
+}
+
+function saveAttack(value: { mod: number; damage: string }) {
+  try {
+    localStorage.setItem(ATTACK_KEY, JSON.stringify(value));
+  } catch {
+    // ignora
+  }
+}
+
+/** Combatentes que o mestre controla: mobs, NPCs e os aliados criados por ele. */
+function gmSide(state: ClientState): CombatantView[] {
+  return [...state.battle.mobs, ...state.battle.npcs, ...state.allies.filter((a) => a.ownerId === state.self.id)];
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>
+      {children}
+    </Text>
+  );
+}
+
 export function DicePanel({ state }: { state: ClientState }) {
   const gm = state.self.role === "gm";
+  const { combat, rolls } = state.battle;
+  const saved = useState(readAttack)[0];
   const [count, setCount] = useState<string | number>(1);
   const [mod, setMod] = useState<string | number>(0);
   const [mode, setMode] = useState<RollMode>("normal");
   const [expr, setExpr] = useState("");
-  const [hidden, setHidden] = useState(false);
+  const [attackMod, setAttackMod] = useState<string | number>(saved.mod);
+  const [damage, setDamage] = useState(saved.damage);
+  const [crit, setCrit] = useState(false);
+  // Mestre rola atrás do escudo por padrão (SPEC E16); desmarca para mostrar.
+  const [hidden, setHidden] = useState(gm);
+  // Escolha manual do "rolar como" vale só para o turno em que foi feita.
+  const [asChoice, setAsChoice] = useState<{ turn: number; id: string } | null>(null);
+
+  const current = combat.active ? allCombatants(state).find((c) => c.id === combat.order[combat.turnIndex]) : undefined;
+  const side = gm ? gmSide(state) : [];
+  const defaultAs = current && side.some((c) => c.id === current.id) ? current.id : AS_MASTER;
+  const asId = asChoice && asChoice.turn === combat.turn && (asChoice.id === AS_MASTER || side.some((c) => c.id === asChoice.id)) ? asChoice.id : defaultAs;
+
+  // Trava por turno: o servidor também recusa; aqui só desabilita e explica.
+  const me = state.self.id;
+  const myTurn = current?.ownerId === me;
+  const request = rolls.request;
+  const requested = !!request && request.playerIds.includes(me) && !request.done.includes(me);
+  const reactionOpen = rolls.reactions.some((r) => r.playerId === me && r.turn === combat.turn);
+  const reactionUsed = rolls.reactions.some((r) => r.playerId === me && r.round === combat.round);
+  const locked = !gm && combat.active && !myTurn && !requested && !reactionOpen;
+
+  async function roll(payload: ActionPayloads["dice:roll"]) {
+    return act("dice:roll", { ...payload, hidden: gm && hidden, asId: gm && asId !== AS_MASTER ? asId : undefined });
+  }
 
   function rollDie(faces: number) {
     const n = Math.max(1, Math.trunc(Number(count)) || 1);
     const m = Math.trunc(Number(mod)) || 0;
     // Vantagem/desvantagem só faz sentido num único d20.
     const useMode = faces === 20 ? mode : "normal";
-    void act("dice:roll", { expr: buildExpr(useMode === "normal" ? n : 1, faces, m), mode: useMode, hidden });
+    void roll({ expr: buildExpr(useMode === "normal" ? n : 1, faces, m), mode: useMode });
   }
 
   async function rollExpr(e: FormEvent) {
     e.preventDefault();
     if (!expr.trim()) return;
-    const res = await act("dice:roll", { expr, mode, hidden });
+    const res = await roll({ expr, mode });
     if (res.ok) setExpr("");
+  }
+
+  async function rollAttack(e: FormEvent) {
+    e.preventDefault();
+    const m = Math.trunc(Number(attackMod)) || 0;
+    saveAttack({ mod: m, damage });
+    const res = await roll({ expr: buildExpr(1, 20, m), mode, kind: "attack" });
+    if (!res.ok) return;
+    // O estado novo chega antes do ack: dá para ver se foi 20 natural e já marcar o crítico.
+    const entry = useApp.getState().state?.log.find((l) => l.id === res.ids?.[0]);
+    setCrit(!!entry?.roll && naturalD20(entry.roll.terms) === 20);
+  }
+
+  async function rollDamage(e: FormEvent) {
+    e.preventDefault();
+    if (!damage.trim()) return;
+    saveAttack({ mod: Math.trunc(Number(attackMod)) || 0, damage });
+    const res = await roll({ expr: crit ? doubleDice(damage) : damage, kind: "damage", crit });
+    if (res.ok) setCrit(false);
   }
 
   return (
     <Panel title="Dados">
+      {gm && side.length > 0 && (
+        <Tooltip label="Nome que aparece no log. Muda sozinho para o combatente da vez.">
+          <Select
+            label="Rolar como"
+            data={[{ value: AS_MASTER, label: "Mestre" }, ...side.map((c) => ({ value: c.id, label: c.name }))]}
+            value={asId}
+            onChange={(v) => setAsChoice(v ? { turn: combat.turn, id: v } : null)}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+          />
+        </Tooltip>
+      )}
+
+      {!gm && combat.active && <TurnLock state={state} myTurn={myTurn} requested={requested} reactionOpen={reactionOpen} reactionUsed={reactionUsed} />}
+      {gm && combat.active && <RequestControl state={state} />}
+
+      <SectionTitle>Ataque</SectionTitle>
+      <Group component="form" gap="xs" wrap="nowrap" align="flex-end" onSubmit={rollAttack}>
+        <Tooltip label="Bônus de ataque (d20 + este valor)">
+          <NumberInput
+            w={96}
+            leftSection={<Text size="xs" c="dimmed">d20 +</Text>}
+            leftSectionWidth={40}
+            allowDecimal={false}
+            value={attackMod}
+            onChange={setAttackMod}
+            aria-label="Bônus de ataque"
+          />
+        </Tooltip>
+        <Button type="submit" style={{ flex: 1 }} disabled={locked}>
+          Rolar ataque
+        </Button>
+      </Group>
+      <Tooltip label="Vale para o ataque e para o d20: rola dois e usa o maior (vantagem) ou o menor (desvantagem)">
+        <SegmentedControl data={MODES} value={mode} onChange={(v) => setMode(v as RollMode)} aria-label="Modo do d20" />
+      </Tooltip>
+
+      <SectionTitle>Dano</SectionTitle>
+      <Group component="form" gap="xs" wrap="nowrap" onSubmit={rollDamage}>
+        <TextInput
+          style={{ flex: 1, minWidth: 0 }}
+          value={damage}
+          maxLength={LIMITS.dice.exprLength}
+          onChange={(e) => setDamage(e.currentTarget.value)}
+          placeholder="Ex.: 1d8+3"
+          aria-label="Dano"
+        />
+        <Button type="submit" disabled={locked || !damage.trim()}>
+          Rolar dano
+        </Button>
+      </Group>
+      <Tooltip label="Dobra a quantidade de dados (2d6+3 → 4d6+3). Marca sozinho quando o ataque tira 20 natural.">
+        <Checkbox checked={crit} onChange={(e) => setCrit(e.currentTarget.checked)} label={crit && damage.trim() ? `Crítico: ${doubleDice(damage)}` : "Crítico"} />
+      </Tooltip>
+
+      <Divider label="Dados livres" labelPosition="left" />
       <SimpleGrid cols={4} spacing={6} verticalSpacing={6}>
         {DICE.map((f) => (
           <Tooltip key={f} label={`Rolar ${Number(count) > 1 ? `${count}` : "1"}d${f}${Number(mod) ? ` ${Number(mod) > 0 ? "+" : ""}${mod}` : ""}`}>
-            <Button variant="default" size="sm" fw={700} px={0} onClick={() => rollDie(f)}>
+            <Button variant="default" size="sm" fw={700} px={0} disabled={locked} onClick={() => rollDie(f)}>
               d{f}
             </Button>
           </Tooltip>
@@ -65,144 +223,126 @@ export function DicePanel({ state }: { state: ClientState }) {
         <NumberInput label="Modificador" allowDecimal={false} value={mod} onChange={setMod} />
       </Group>
 
-      <Tooltip label="Vale para o d20: rola dois e usa o maior (vantagem) ou o menor (desvantagem)">
-        <SegmentedControl
-          data={MODES}
-          value={mode}
-          onChange={(v) => setMode(v as RollMode)}
-          aria-label="Modo do d20"
-        />
-      </Tooltip>
-
       <Group component="form" gap="xs" wrap="nowrap" onSubmit={rollExpr}>
         <TextInput
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 0 }}
           value={expr}
           maxLength={LIMITS.dice.exprLength}
           onChange={(e) => setExpr(e.currentTarget.value)}
           placeholder="Ex.: 2d6+1d4+3"
           aria-label="Expressão de dados"
         />
-        <Button type="submit" disabled={!expr.trim()}>
+        <Button type="submit" disabled={locked || !expr.trim()}>
           Rolar
         </Button>
       </Group>
 
       {gm && <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label="Rolagem oculta (só você vê)" />}
 
+      <Divider />
       <RollLog log={state.log} selfId={state.self.id} />
     </Panel>
   );
 }
 
-function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
-  if (log.length === 0)
+/** Jogador em combate: de quem é a vez e o que pode rolar fora dela. */
+function TurnLock(props: { state: ClientState; myTurn: boolean; requested: boolean; reactionOpen: boolean; reactionUsed: boolean }) {
+  const { state, myTurn, requested, reactionOpen, reactionUsed } = props;
+  if (myTurn) return null;
+  if (requested)
     return (
-      <Text size="xs" c="dimmed">
-        Nenhuma rolagem ainda.
-      </Text>
+      <Alert variant="light" color="gold" p="xs" title={`O mestre pediu: ${state.battle.rolls.request?.label}`}>
+        <Text size="xs">Role uma vez (ex.: d20 + modificador nos dados livres).</Text>
+      </Alert>
     );
-
+  if (reactionOpen)
+    return (
+      <Alert variant="light" color="gold" p="xs" title="Reação liberada">
+        <Text size="xs">Pode rolar até o turno mudar.</Text>
+      </Alert>
+    );
   return (
-    <Stack component="ol" gap={6} className="roll-log">
-      {[...log].reverse().map((e) => (
-        <Paper component="li" key={e.id} p="xs" bg="dark.7" style={e.hidden ? { borderStyle: "dashed" } : undefined}>
-          <Group gap={6} wrap="nowrap" mb={4}>
-            <Text size="xs" fw={600} c={e.authorId === selfId ? "gold.4" : undefined} truncate>
-              {e.author}
-            </Text>
-            {e.hidden && (
-              <Badge size="xs" variant="default">
-                oculta
-              </Badge>
-            )}
-            <Text size="xs" c="dimmed" ml="auto" style={{ flex: "none" }}>
-              {new Date(e.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-            </Text>
-          </Group>
-          {e.roll ? <RollBody entry={e} /> : <Text size="sm">{e.text}</Text>}
-        </Paper>
-      ))}
-    </Stack>
+    <Group gap="xs" wrap="nowrap" justify="space-between">
+      <Text size="xs" c="dimmed" style={{ minWidth: 0 }}>
+        Fora da sua vez: dados travados.
+      </Text>
+      <Tooltip label={reactionUsed ? "Você já usou a reação neste round" : "Ataque de oportunidade, Escudo… Libera a rolagem até o turno mudar (1 por round)"}>
+        <Button variant="default" disabled={reactionUsed} onClick={() => act("reaction:use", {})} style={{ flex: "none" }}>
+          Usar reação
+        </Button>
+      </Tooltip>
+    </Group>
   );
 }
 
-/** Valor natural do d20 que valeu, para destacar 20 e 1. */
-function naturalD20(terms: RollTerm[]): number | null {
-  const d = terms.find((t) => t.kind === "dice" && t.faces === 20 && (t.count === 1 || t.keptIndex !== undefined));
-  if (!d || d.kind !== "dice") return null;
-  return d.rolls[d.keptIndex ?? 0];
-}
+/** Mestre: pedir uma rolagem fora da vez (ex.: "Resistência DES") a todos ou a alguns jogadores. */
+function RequestControl({ state }: { state: ClientState }) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [who, setWho] = useState<string[]>([]);
+  const request = state.battle.rolls.request;
+  const players = state.players.filter((p) => p.role === "player");
+  const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? "?";
 
-function RollBody({ entry }: { entry: LogEntry }) {
-  const r = entry.roll!;
-  const nat = naturalD20(r.terms);
-  const totalColor = nat === 20 ? "teal.4" : nat === 1 ? "red.4" : undefined;
+  if (request)
+    return (
+      <Alert variant="light" color="gold" p="xs" title={`Pedido: ${request.label}`}>
+        <Stack gap={6}>
+          <Text size="xs">
+            {request.playerIds.map((id) => `${request.done.includes(id) ? "✓" : "…"} ${nameOf(id)}`).join(" · ")}
+          </Text>
+          <Button variant="default" onClick={() => act("roll:cancel", {})}>
+            Cancelar pedido
+          </Button>
+        </Stack>
+      </Alert>
+    );
+
+  if (!open)
+    return (
+      <Tooltip label="Libera uma rolagem fora da vez (resistência, teste…). Acaba quando todos rolarem ou o turno mudar.">
+        <Button variant="default" disabled={players.length === 0} onClick={() => setOpen(true)}>
+          Pedir rolagem
+        </Button>
+      </Tooltip>
+    );
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const res = await act("roll:request", { label, playerIds: who });
+    if (res.ok) {
+      setOpen(false);
+      setLabel("");
+      setWho([]);
+    }
+  }
 
   return (
-    <Group gap="sm" wrap="nowrap" align="center">
-      <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
-        {entry.label && (
-          <Text size="xs" fw={600}>
-            {entry.label}
-          </Text>
-        )}
-        <Group gap={6}>
-          <Code>{r.expr}</Code>
-          {r.mode !== "normal" && (
-            <Text size="xs" c="dimmed">
-              {r.mode === "adv" ? "vantagem" : "desvantagem"}
-            </Text>
-          )}
-        </Group>
-        <Group gap={4}>
-          {r.terms.map((t, i) =>
-            t.kind === "dice" ? (
-              <Group key={i} gap={3} wrap="nowrap">
-                {t.sign < 0 && <Text size="xs">−</Text>}
-                {t.rolls.map((v, j) => {
-                  const dropped = t.keptIndex !== undefined && t.keptIndex !== j;
-                  const color = t.faces === 20 && v === 20 ? "teal" : t.faces === 20 && v === 1 ? "red" : "gray";
-                  return (
-                    <Tooltip key={j} label={`d${t.faces}${dropped ? " (descartado)" : ""}`}>
-                      <Badge
-                        size="sm"
-                        radius="sm"
-                        variant={color === "gray" ? "default" : "light"}
-                        color={color}
-                        miw={24}
-                        style={dropped ? { opacity: 0.4, textDecoration: "line-through" } : undefined}
-                      >
-                        {v}
-                      </Badge>
-                    </Tooltip>
-                  );
-                })}
-              </Group>
-            ) : (
-              <Text key={i} size="xs" c="dimmed">
-                {t.sign < 0 ? "−" : "+"}
-                {t.value}
-              </Text>
-            ),
-          )}
-        </Group>
-      </Stack>
-      <Stack gap={0} align="flex-end">
-        <Text fz={22} fw={700} lh={1.1} c={totalColor}>
-          {r.total}
-        </Text>
-        {nat === 20 && (
-          <Text size="xs" c="teal.4">
-            20 natural
-          </Text>
-        )}
-        {nat === 1 && (
-          <Text size="xs" c="red.4">
-            1 natural
-          </Text>
-        )}
-      </Stack>
-    </Group>
+    <Stack component="form" gap="xs" onSubmit={submit}>
+      <TextInput
+        autoFocus
+        placeholder="Ex.: Resistência DES"
+        maxLength={LIMITS.rollLabel}
+        value={label}
+        onChange={(e) => setLabel(e.currentTarget.value)}
+        aria-label="O que rolar"
+      />
+      <MultiSelect
+        placeholder={who.length === 0 ? "Todos os jogadores" : undefined}
+        data={players.map((p) => ({ value: p.id, label: p.name }))}
+        value={who}
+        onChange={setWho}
+        aria-label="Quem rola"
+        comboboxProps={{ withinPortal: true }}
+      />
+      <Group justify="flex-end" gap="xs">
+        <Button variant="default" onClick={() => setOpen(false)}>
+          Fechar
+        </Button>
+        <Button type="submit" disabled={!label.trim()}>
+          Pedir
+        </Button>
+      </Group>
+    </Stack>
   );
 }

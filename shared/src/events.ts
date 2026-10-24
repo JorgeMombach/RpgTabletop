@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { ClientState, GridPos, MapConfig, PublicPlayer, Role, RollMode } from "./types";
+import type { ClientState, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -72,8 +72,16 @@ export interface ActionPayloads {
   "hp:change": { id: string; delta: number };
   "hp:set": { id: string; value: number };
   "hp:full": { id: string };
-  /** `hidden` só vale para o mestre (rolagem oculta). */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean };
+  /**
+   * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
+   * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
+   */
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean };
+  /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
+  "roll:request": { label: string; playerIds: string[] };
+  "roll:cancel": Record<string, never>;
+  /** Jogador: usa a reação do round (libera rolar até o turno mudar). */
+  "reaction:use": Record<string, never>;
   "battle:setMap": { image: string | null };
   "battle:grid": GridInput;
   /** `pos: null` tira o token do mapa. */
@@ -86,6 +94,8 @@ export interface ActionPayloads {
   "init:set": { id: string; value: number | null };
   /** Mestre: reordenação manual (desempate). */
   "init:move": { id: string; toIndex: number };
+  /** Mestre: zera todas as iniciativas, rola mobs e NPCs e pausa o combate até os jogadores rolarem. */
+  "init:rerollAll": { grouped?: boolean };
   "combat:start": Record<string, never>;
   "combat:next": Record<string, never>;
   "combat:prev": Record<string, never>;
@@ -153,6 +163,7 @@ export const LIMITS = {
   /** Condições por combatente. */
   conditions: 12,
   conditionRounds: { min: 1, max: 100 },
+  rollLabel: 32,
   dice: {
     exprLength: 100,
     terms: 20,

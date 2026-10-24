@@ -10,6 +10,20 @@ export function byId(store: Store, id: string): Combatant | undefined {
   return allCombatants(store).find((c) => c.id === id);
 }
 
+/** Para o combate e esquece pedidos e reações. `turn` continua contando, para nunca repetir o número de um turno antigo. */
+export function resetCombat(store: Store) {
+  const { battle } = store.game;
+  Object.assign(battle.combat, { active: false, round: 0, turnIndex: 0, order: [] });
+  battle.rolls = { request: null, reactions: [] };
+}
+
+/** Troca de turno: o pedido de rolagem do mestre acaba e as reações abertas fecham (SPEC E16). */
+export function newTurn(store: Store) {
+  const { battle } = store.game;
+  battle.combat.turn++;
+  battle.rolls.request = null;
+}
+
 /** Ordem de iniciativa: total maior primeiro; empate → maior mod. DES (SPEC F5). */
 export function compareInitiative(a: Combatant, b: Combatant): number {
   return (b.initiative ?? -Infinity) - (a.initiative ?? -Infinity) || b.dexMod - a.dexMod;

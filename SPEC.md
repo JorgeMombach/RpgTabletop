@@ -136,8 +136,8 @@ Cliente → servidor:
 `ally:create`, `ally:remove`, `combatant:update {id, ...campos}`, `hp:change {id, delta}`, `hp:set {id, value}`, `hp:full {id}`,
 `token:move {id, pos}`, `ruler:update` (efêmero),
 `slot:set {id, level, used|max}`, `slots:restore {id}`, `ally:restoreAll {id}`, `spell:add|remove`,
-`init:roll {id}`, `init:rollMobs {grouped?}`, `init:set {id, value | null}`, `init:move {id, toIndex}`, `combat:start|next|prev|end`,
-`dice:roll {expr, mode?: "adv"|"dis", hidden?}`.
+`init:roll {id}`, `init:rollMobs {grouped?}`, `init:set {id, value | null}`, `init:move {id, toIndex}`, `init:rerollAll {grouped?}`, `combat:start|next|prev|end`,
+`dice:roll {expr, mode?: "adv"|"dis", hidden?, asId?, kind?: "attack"|"damage", crit?}`, `roll:request {label, playerIds}`, `roll:cancel`, `reaction:use` (E16).
 
 Toda ação responde por ack com `{ ok: true, ids? }` ou `{ ok: false, error }` (mensagem pronta para o usuário).
 

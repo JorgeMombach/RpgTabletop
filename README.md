@@ -48,6 +48,7 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
    - Arrasta mobs e aliados da lista para o mapa (ou *Colocar no mapa* no painel *Selecionado*).
 3. **Iniciativa**: o mestre clica *Rolar mobs e NPCs* (opção de uma rolagem por template); cada jogador rola a sua ou digita o valor do dado físico. *Iniciar combate* → *Próximo turno*. O token e a linha de quem está na vez ficam destacados; o jogador vê "Sua vez!".
 4. **Combate**: a vida só soma/subtrai o que for digitado (− Dano / + Cura; Enter = dano, Shift+Enter = cura). O mestre controla a vida dos mobs (jogadores não a veem); cada jogador controla a própria. Mob com 0 de vida fica marcado ✕ e sai quando o mestre remove (com *Desfazer*). **Condições** (atordoado, concentração…) ficam em *Selecionado → + Condição*, com duração opcional em rounds: desconta no início do turno de quem tem e, ao acabar, todos recebem um aviso.
+   - **Dados em combate:** blocos *Ataque* (d20 + bônus, com vantagem/desvantagem) e *Dano* (20 natural marca *Crítico*, que dobra os dados). O jogador só rola **na própria vez**; fora dela, só quando o mestre clica *Pedir rolagem* (ex.: "Resistência DES", uma rolagem por jogador) ou usando a **Reação** (1 por round, libera até o turno mudar). O mestre rola sempre, **oculto por padrão**, e a rolagem sai com o nome do combatente da vez ("Goblin 2"; dá para trocar em *Rolar como*). O log agrupa por turno. *Iniciativa de novo* zera tudo, rola mobs e NPCs e pausa até os jogadores rolarem.
 5. **Magias**: no painel *Selecionado*, cada jogador ajusta quantos slots tem por nível, clica nas bolinhas para gastar/recuperar e anota magias para referência. *Recuperar slots* e *Restaurar tudo* (vida cheia + slots) ficam a critério do jogador.
 6. **Fim da luta**: *Encerrar* (no painel Iniciativa) zera rounds e iniciativas. **🧹 Limpar campo** (barra do topo) tira mapa, mobs, NPCs, iniciativa e posições para montar a próxima batalha — jogadores continuam conectados e personagens mantêm vida, slots e magias. O bestiário pode ser mantido.
 
@@ -179,7 +180,7 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E13 — Correções e identidade (Jamal's Tabletop) | ✅ (próxima versão) |
 | E14 — Base de UX (Mantine) | ✅ (próxima versão) |
 | E15 — NPCs neutros e condições | ✅ (próxima versão) |
-| E16 — Dados no combate | ⏳ |
+| E16 — Dados no combate | ✅ (próxima versão) |
 | E17 — Mapa: rotação, escala e áreas de magia | ⏳ |
 | E18 — Salvar e carregar sessão | ⏳ |
 | E12 — Launcher com janela própria | ⏳ depois do E18 |
