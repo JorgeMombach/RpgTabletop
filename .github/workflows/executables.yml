@@ -1,0 +1,79 @@
+# Gera e testa o executável de cada sistema (Node SEA, ADR-11).
+# Reaproveitado pela CI (PRs) e pela release (tags). Cada sistema precisa gerar o próprio
+# executável, porque o SEA usa o binário do Node da máquina que roda o build.
+name: Executáveis
+
+on:
+  workflow_call:
+    inputs:
+      retention-days:
+        description: Dias que os executáveis ficam disponíveis como artefato
+        type: number
+        default: 7
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win-x64
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: macos-latest
+            target: macos-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Gera o executável
+        run: npm run package
+
+      - name: Localiza o arquivo
+        id: exe
+        run: |
+          file=$(ls release/simulador-encontros-*-${{ matrix.target }}* | head -1)
+          test -n "$file"
+          echo "path=$file" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$file")" >> "$GITHUB_OUTPUT"
+          size=$(( $(wc -c < "$file") / 1024 / 1024 ))
+          echo "$(basename "$file"): ${size} MB" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$size" -le 120
+
+      - name: Teste de fumaça (sobe sozinho, sem node_modules)
+        run: |
+          mkdir smoke && cp "${{ steps.exe.outputs.path }}" smoke/
+          cd smoke
+          "./${{ steps.exe.outputs.name }}" --no-open --port 3999 > exe.log 2>&1 &
+          pid=$!
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3999/healthz; then ok=1; break; fi
+            sleep 1
+          done
+          echo
+          if ! curl -fsS http://localhost:3999/ | grep -q '<div id="root">'; then ok=0; fi
+          if ! curl -fsS "http://localhost:3999/socket.io/?EIO=4&transport=polling" | grep -q '"sid"'; then ok=0; fi
+          cat exe.log
+          kill "$pid" 2>/dev/null || true
+          test "$ok" = 1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.exe.outputs.name }}
+          path: ${{ steps.exe.outputs.path }}
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: error
