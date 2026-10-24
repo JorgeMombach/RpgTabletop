@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { APP_VERSION, type ClientState, type Combatant } from "@rpg/shared";
 import { BattleMap } from "../map/BattleMap";
+import { leave } from "../session";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
 import { BestiaryPanel } from "./BestiaryPanel";
@@ -42,7 +43,7 @@ export function Shell({ state }: { state: ClientState }) {
     <div className="shell">
       <header className="topbar">
         <span className="brand">
-          🎲 Simulador de Encontros <span className="version">v{APP_VERSION}</span>
+          🎲 Jamal's Tabletop <span className="version">v{APP_VERSION}</span>
         </span>
         <TurnStatus state={state} />
         <div className="topbar-right">
@@ -56,6 +57,13 @@ export function Shell({ state }: { state: ClientState }) {
             {state.self.name}
             <span className={`role-tag ${gm ? "role-gm" : "role-player"}`}>{gm ? "Mestre" : "Jogador"}</span>
           </span>
+          <button
+            className="btn small"
+            title="Sair da sessão ou trocar de nome. Ao voltar, você reencontra o seu personagem."
+            onClick={leave}
+          >
+            Sair
+          </button>
         </div>
       </header>
 

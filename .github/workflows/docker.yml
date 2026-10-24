@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      IMAGE: simulador-encontros:ci
+      IMAGE: jamals-tabletop:ci
       GM_KEY: chave-de-ci-1234
     steps:
       - uses: actions/checkout@v4

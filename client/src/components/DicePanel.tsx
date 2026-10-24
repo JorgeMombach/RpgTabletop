@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { DICE, LIMITS, type ClientState, type LogEntry, type RollMode, type RollTerm } from "@rpg/shared";
 import { act } from "../actions";
 import { Panel } from "./Panel";
+import { Abbr } from "./Abbr";
 
 const MODES: { value: RollMode; label: string }[] = [
   { value: "normal", label: "Normal" },
@@ -49,7 +50,9 @@ export function DicePanel({ state }: { state: ClientState }) {
 
       <div className="dice-opts">
         <label className="field">
-          <span>Qtd.</span>
+          <span>
+            <Abbr title="Quantidade de dados">Qtd.</Abbr>
+          </span>
           <input type="number" min={1} max={LIMITS.dice.count} value={count} onChange={(e) => setCount(e.target.value)} />
         </label>
         <label className="field">

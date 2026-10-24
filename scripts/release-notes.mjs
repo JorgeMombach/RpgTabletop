@@ -27,7 +27,7 @@ const section = match[1]
   .join("\n")
   .trim();
 
-const exe = (os) => `simulador-encontros-${version}-${os}`;
+const exe = (os) => `jamals-tabletop-${version}-${os}`;
 console.log(`${section}
 
 ## Para quem vai mestrar

@@ -252,6 +252,9 @@ code {
   border-radius: var(--radius);
   padding: 12px;
   display: grid;
+  /* Coluna única que pode encolher: sem isso, uma linha larga estica o painel e a coluna corta o excesso. */
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 10px;
 }
 
@@ -1020,6 +1023,7 @@ input[type="range"] {
 
 .init-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -1118,7 +1122,8 @@ input[type="range"] {
 }
 
 .pending-row input {
-  width: 64px;
+  width: 56px;
+  flex: none;
 }
 
 .roll-label {
@@ -1421,4 +1426,125 @@ input[type="range"] {
 
 .invite-row code {
   word-break: break-all;
+}
+
+/* E13: ajustes de largura */
+
+.btn.icon {
+  padding: 4px 8px;
+  flex: none;
+}
+
+/* Botões nunca passam da largura disponível: o texto ganha reticências. */
+.btn {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.check {
+  align-items: flex-start;
+}
+
+.check input {
+  margin-top: 1px;
+  flex: none;
+}
+
+/* Abreviações com tooltip */
+abbr.abbr {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 2px;
+  cursor: help;
+}
+
+/* Listas também encolhem (grid com coluna que pode ficar menor que o conteúdo). */
+.list,
+.players,
+.invite,
+.roll-log,
+.init-list,
+.spell-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Nome + vida na mesma linha: o nome encolhe e ganha reticências. */
+.crow-head {
+  min-width: 0;
+}
+
+.crow-head > .ellipsis {
+  flex: 1;
+  min-width: 0;
+}
+
+.crow-head > .muted {
+  flex: none;
+}
+
+/* Grids internos dos painéis: mesma regra, o conteúdo encolhe em vez de esticar o painel. */
+.init-pending,
+.magic,
+.spells,
+.slot-rows,
+.hp-control,
+.hp-readonly,
+.cform,
+.field,
+.template-row,
+.roll,
+.calib,
+.gm-link {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.pending-row,
+.template-info,
+.sel-head,
+.init-row {
+  min-width: 0;
+}
+
+/* Colunas estreitas: linhas de botões quebram em vez de cortar o texto. */
+.row-gap,
+.hp-footer,
+.sel-actions {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.row-gap > .btn.grow {
+  flex: 1 1 auto;
+}
+
+.hp-actions {
+  grid-template-columns: minmax(56px, 1fr) auto auto;
+}
+
+.hp-actions .btn {
+  padding: 6px 10px;
+}
+
+/* Campos numéricos compactos sem as setinhas (que ocupam metade do campo). */
+.hp-actions input,
+.pending-row input,
+.init-edit {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.hp-actions input::-webkit-inner-spin-button,
+.hp-actions input::-webkit-outer-spin-button,
+.pending-row input::-webkit-inner-spin-button,
+.pending-row input::-webkit-outer-spin-button,
+.init-edit::-webkit-inner-spin-button,
+.init-edit::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.segmented button {
+  padding: 6px 2px;
+  font-size: 11px;
 }

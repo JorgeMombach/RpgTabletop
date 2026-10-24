@@ -129,7 +129,7 @@ function InitRow(props: {
         {current ? "▶" : ""}
       </span>
       <span className="dot" style={{ background: c.color }} aria-hidden />
-      <span className="grow ellipsis">
+      <span className="grow ellipsis" title={c.name}>
         {c.name}
         {mine && <span className="muted small"> (seu)</span>}
       </span>
@@ -216,18 +216,27 @@ function PendingRow({ c }: { c: CombatantView }) {
       }}
     >
       <span className="dot" style={{ background: c.color }} aria-hidden />
-      <span className="grow ellipsis">{c.name}</span>
+      <span className="grow ellipsis" title={c.name}>
+        {c.name}
+      </span>
       <input
         type="number"
         placeholder="Valor"
+        title="Valor do dado físico (d20 + mod. DES)"
         value={value}
         min={LIMITS.initiative.min}
         max={LIMITS.initiative.max}
         onChange={(e) => setValue(e.target.value)}
         aria-label={`Iniciativa de ${c.name}`}
       />
-      <button type="button" className="btn small" onClick={() => act("init:roll", { id: c.id })}>
-        🎲 Rolar
+      <button
+        type="button"
+        className="btn small icon"
+        title="Rolar iniciativa (d20 + mod. DES)"
+        aria-label={`Rolar iniciativa de ${c.name}`}
+        onClick={() => act("init:roll", { id: c.id })}
+      >
+        🎲
       </button>
     </form>
   );

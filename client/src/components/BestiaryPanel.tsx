@@ -4,6 +4,7 @@ import { act } from "../actions";
 import { fmtMod } from "../format";
 import { CombatantForm } from "./CombatantForm";
 import { Panel } from "./Panel";
+import { Abbr } from "./Abbr";
 
 type Mode = { kind: "none" } | { kind: "newTemplate" } | { kind: "newMob" } | { kind: "edit"; id: string };
 
@@ -93,11 +94,11 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
       <div className="template-info">
         <span className="dot" style={{ background: t.color }} aria-hidden />
         <div className="grow">
-          <div className="ellipsis" title={t.notes}>
+          <div className="ellipsis" title={t.notes ? `${t.name} — ${t.notes}` : t.name}>
             {t.name}
           </div>
           <div className="muted small">
-            Vida {t.hpMax} · DES {fmtMod(t.dexMod)}
+            Vida {t.hpMax} · <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr> {fmtMod(t.dexMod)}
           </div>
         </div>
         <button className="icon-btn" title="Editar" onClick={onEdit}>

@@ -1,5 +1,5 @@
 // Gera o executável do sistema atual com Node SEA (ADR-11):
-//   release/simulador-encontros-<versão>-<win|linux|macos>-<arch>[.exe]
+//   release/jamals-tabletop-<versão>-<win|linux|macos>-<arch>[.exe]
 // Cada sistema gera o próprio executável (na CI, uma máquina de cada; ver E11).
 import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -19,7 +19,7 @@ const os = { win32: "win", linux: "linux", darwin: "macos" }[process.platform];
 if (!os) throw new Error(`Sistema não suportado: ${process.platform}`);
 const isWin = process.platform === "win32";
 const isMac = process.platform === "darwin";
-const exe = path.join(release, `simulador-encontros-${version}-${os}-${process.arch}${isWin ? ".exe" : ""}`);
+const exe = path.join(release, `jamals-tabletop-${version}-${os}-${process.arch}${isWin ? ".exe" : ""}`);
 
 // Precisa casar com SEA_MANIFEST / SEA_PREFIX em server/src/static.ts.
 const MANIFEST = "client-manifest.json";
@@ -109,11 +109,11 @@ function setWindowsResources(file) {
   info.setFileVersion(major, minor, patch, 0, lang.lang);
   info.setProductVersion(major, minor, patch, 0, lang.lang);
   info.setStringValues(lang, {
-    ProductName: "Simulador de Encontros",
-    FileDescription: "Simulador de Encontros — servidor da mesa de RPG",
-    CompanyName: "Simulador de Encontros",
-    LegalCopyright: "",
-    InternalName: "simulador-encontros",
+    ProductName: "Jamal's Tabletop",
+    FileDescription: "Jamal's Tabletop — servidor da mesa de RPG",
+    CompanyName: "Jorge Mombach",
+    LegalCopyright: `© ${new Date().getFullYear()} Jorge Mombach`,
+    InternalName: "jamals-tabletop",
     OriginalFilename: path.basename(file),
     ProductVersion: version,
     FileVersion: version,

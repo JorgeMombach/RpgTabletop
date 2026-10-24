@@ -23,7 +23,7 @@ export function JoinScreen() {
         <div className="join-logo" aria-hidden>
           🎲
         </div>
-        <h1>Simulador de Encontros</h1>
+        <h1>Jamal's Tabletop</h1>
 
         {!connected ? (
           <p className="muted">Conectando ao servidor…</p>

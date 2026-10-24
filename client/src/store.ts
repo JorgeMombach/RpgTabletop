@@ -31,6 +31,8 @@ interface AppStore {
   rulers: Record<string, { name: string; ruler: Ruler }>;
   /** Combatente aberto no painel "Selecionado" (local, não sincroniza). */
   selectedId: string | null;
+  /** Nome usado antes de "Sair", para preencher a tela de entrada. */
+  lastName: string;
   tool: MapTool;
   /** Retângulo desenhado pelo mestre na calibração (pixels do mapa). */
   calibRect: Rect | null;
@@ -48,6 +50,7 @@ export const useApp = create<AppStore>(() => ({
   mapImage: { version: 0, image: null },
   rulers: {},
   selectedId: null,
+  lastName: "",
   tool: "move",
   calibRect: null,
   viewCenter: { x: 0, y: 0 },

@@ -17,7 +17,7 @@ export function PlayersPanel({ state }: { state: ClientState }) {
         {state.players.map((p) => (
           <li key={p.id} className={p.connected ? "" : "offline"}>
             <span className={`dot ${p.connected ? "on" : "off"}`} aria-hidden />
-            <span className="player-name">
+            <span className="player-name" title={p.name}>
               {p.name}
               {p.id === state.self.id && <span className="muted"> (você)</span>}
             </span>

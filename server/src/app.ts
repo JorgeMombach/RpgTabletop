@@ -186,6 +186,14 @@ export function createApp(opts: AppOptions) {
       socket.to(SESSION_ROOM).emit("ruler", { playerId: player.id, name: player.name, ruler: validRuler(ruler) });
     });
 
+    socket.on("session:leave", () => {
+      const playerId = socket.data.playerId;
+      detach(socket);
+      if (!playerId) return;
+      io.to(SESSION_ROOM).emit("ruler", { playerId, name: "", ruler: null });
+      broadcast();
+    });
+
     socket.on("disconnect", () => {
       const playerId = socket.data.playerId;
       detach(socket);

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { LIMITS, SPELL_LEVELS, type Combatant, type SpellLevel, type SpellSlot } from "@rpg/shared";
 import { act } from "../actions";
+import { Abbr } from "./Abbr";
 
 const ORDINAL = ["Truque", "1º", "2º", "3º", "4º", "5º", "6º", "7º", "8º", "9º"];
 const EMPTY: SpellSlot = { max: 0, used: 0 };
@@ -49,7 +50,9 @@ export function MagicSection({ c, editable }: { c: Combatant; editable: boolean 
             const { max, used } = slot(l);
             return (
               <div key={l} className="slot-row">
-                <span className="slot-level">{ORDINAL[l]}</span>
+                <span className="slot-level">
+                  <Abbr title={`Slots de magia de ${l}º nível`}>{ORDINAL[l]}</Abbr>
+                </span>
                 <div className="pips">
                   {Array.from({ length: max }, (_, i) => {
                     // Disponíveis primeiro, gastos depois: clicar gasta ou recupera um slot.
@@ -162,7 +165,13 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
         <ul className="spell-list">
           {spells.map((s) => (
             <li key={s.id}>
-              <span className="spell-level">{ORDINAL[s.level] ?? s.level}</span>
+              <span className="spell-level">
+                {s.level === 0 ? (
+                  <Abbr title="Truque: magia de nível 0, não gasta slot">Truque</Abbr>
+                ) : (
+                  <Abbr title={`Magia de ${s.level}º nível`}>{ORDINAL[s.level] ?? s.level}</Abbr>
+                )}
+              </span>
               <div className="grow">
                 <div>{s.name}</div>
                 {s.note && <div className="muted small">{s.note}</div>}

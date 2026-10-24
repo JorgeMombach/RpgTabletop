@@ -57,6 +57,24 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
   const Shape = (extra: Konva.ShapeConfig) =>
     outline.as === "rect" ? <Rect {...outline.props} {...extra} /> : <Circle {...outline.props} {...extra} />;
 
+  /**
+   * Contorno de seleção/turno, afastado `gap` da borda. Calculado em vez de escalar a forma:
+   * o retângulo escala a partir do canto, e o contorno dos mobs ficava deslocado.
+   */
+  const RingShape = (gap: number, extra: Konva.ShapeConfig) =>
+    isMob ? (
+      <Rect
+        x={-r - gap}
+        y={-r - gap}
+        width={size + gap * 2}
+        height={size + gap * 2}
+        cornerRadius={size * 0.18 + gap}
+        {...extra}
+      />
+    ) : (
+      <Circle radius={r + gap} {...extra} />
+    );
+
   function handleDragEnd(e: Konva.KonvaEventObject<DragEvent>) {
     const node = e.target;
     const from = dragStart.current;
@@ -100,9 +118,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       onDragEnd={handleDragEnd}
     >
       {(selected || active) &&
-        Shape({
-          scaleX: 1 + (ring * 2.6) / size,
-          scaleY: 1 + (ring * 2.6) / size,
+        RingShape(ring * 1.3, {
           stroke: active ? "#d4a24c" : "#e6e8ee",
           strokeWidth: ring,
           dash: selected && !active ? undefined : [ring * 2, ring],
