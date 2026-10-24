@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { ClientState, EffectPreset, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode } from "./types";
+import type { ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -155,6 +155,28 @@ export interface ActionPayloads {
   "battle:clear": { keepTemplates: boolean };
 }
 
+/** Identifica o arquivo de sessão do app (E18). */
+export const SESSION_FILE_APP = "jamals-tabletop";
+/** Versão do formato do arquivo: sobe quando o formato muda de um jeito que versões antigas não leem. */
+export const SESSION_FILE_FORMAT = 1;
+
+/**
+ * Sessão salva em arquivo (ADR-17, E18). Os jogadores vão só com id e nome: quem entrar com o mesmo
+ * nome reencontra o personagem. Tokens de sessão e a chave de mestre nunca vão para o arquivo.
+ */
+export interface SessionFile {
+  app: typeof SESSION_FILE_APP;
+  format: number;
+  appVersion: string;
+  savedAt: string;
+  players: { id: string; name: string; role: Role }[];
+  /** Último número usado por template ("Goblin 4"), para a numeração continuar. */
+  mobCounters: Record<string, number>;
+  game: GameState;
+}
+
+export type SessionExportResult = { ok: true; file: SessionFile } | { ok: false; error: string };
+
 export type ActionName = keyof ActionPayloads;
 
 export type ActionResult = { ok: true; ids?: string[] } | { ok: false; error: string };
@@ -173,6 +195,10 @@ export type ClientToServerEvents = ActionEvents & {
   "area:update": (area: Area | null) => void;
   /** Sai da sessão (fica offline). A identidade continua: voltar com o mesmo token recupera o personagem. */
   "session:leave": () => void;
+  /** Mestre: estado atual em formato de arquivo (E18). */
+  "session:export": (ack: (res: SessionExportResult) => void) => void;
+  /** Mestre: substitui o estado atual pelo do arquivo (validado inteiro antes). */
+  "session:import": (file: unknown, ack: (res: ActionResult) => void) => void;
 };
 
 export interface ServerToClientEvents {

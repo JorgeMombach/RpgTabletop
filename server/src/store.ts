@@ -17,6 +17,8 @@ export interface ServerPlayer {
   /** Segredo usado para reconectar; nunca sai do servidor exceto para o próprio dono. */
   token: string;
   sockets: Set<string>;
+  /** Veio de um arquivo de sessão (E18): o primeiro jogador que entrar com este nome assume. */
+  claimByName?: boolean;
 }
 
 export function createGame(): GameState {
@@ -73,6 +75,14 @@ export class Store {
 
   findByToken(token: string): ServerPlayer | undefined {
     for (const p of this.players.values()) if (p.token === token) return p;
+  }
+
+  /** Jogador importado de um arquivo, ainda sem dono, com este nome (E18). */
+  findClaimable(name: string): ServerPlayer | undefined {
+    const key = name.toLocaleLowerCase("pt-BR");
+    for (const p of this.players.values()) {
+      if (p.claimByName && p.sockets.size === 0 && p.name.toLocaleLowerCase("pt-BR") === key) return p;
+    }
   }
 
   connectedPlayerCount(): number {

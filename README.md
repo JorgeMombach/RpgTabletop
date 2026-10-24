@@ -50,7 +50,7 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 4. **Combate**: a vida só soma/subtrai o que for digitado (− Dano / + Cura; Enter = dano, Shift+Enter = cura). O mestre controla a vida dos mobs (jogadores não a veem); cada jogador controla a própria. Mob com 0 de vida fica marcado ✕ e sai quando o mestre remove (com *Desfazer*). **Condições** (atordoado, concentração…) ficam em *Selecionado → + Condição*, com duração opcional em rounds: desconta no início do turno de quem tem e, ao acabar, todos recebem um aviso.
    - **Dados em combate:** blocos *Ataque* (d20 + bônus, com vantagem/desvantagem) e *Dano* (20 natural marca *Crítico*, que dobra os dados). O jogador só rola **na própria vez**; fora dela, só quando o mestre clica *Pedir rolagem* (ex.: "Resistência DES", uma rolagem por jogador) ou usando a **Reação** (1 por round, libera até o turno mudar). O mestre rola sempre, **oculto por padrão**, e a rolagem sai com o nome do combatente da vez ("Goblin 2"; dá para trocar em *Rolar como*). O log agrupa por turno. *Iniciativa de novo* zera tudo, rola mobs e NPCs e pausa até os jogadores rolarem.
 5. **Magias**: no painel *Selecionado*, cada jogador ajusta quantos slots tem por nível, clica nas bolinhas para gastar/recuperar e anota magias para referência. *Recuperar slots* e *Restaurar tudo* (vida cheia + slots) ficam a critério do jogador.
-6. **Fim da luta**: *Encerrar* (no painel Iniciativa) zera rounds e iniciativas. **🧹 Limpar campo** (barra do topo) tira mapa, mobs, NPCs, iniciativa e posições para montar a próxima batalha — jogadores continuam conectados e personagens mantêm vida, slots e magias. O bestiário pode ser mantido.
+6. **Fim da luta**: *Encerrar* (no painel Iniciativa) zera rounds e iniciativas. **🧹 Limpar campo** (barra do topo) tira mapa, mobs, NPCs, iniciativa e posições para montar a próxima batalha — jogadores continuam conectados e personagens mantêm vida, slots e magias. . **Salvar para a próxima sessão**: nada fica salvo sozinho. No painel *Sessão*, **💾 Salvar** baixa um arquivo `.json` com tudo (mapa, personagens, bestiário, combate, condições, efeitos e log). Na próxima vez, **📂 Carregar** esse arquivo; os jogadores entram com o **mesmo nome** de antes e reencontram os personagens. O arquivo não leva senhas nem a chave de mestre. O painel avisa "Não salvo" quando algo mudou desde o último salvamento, e fechar a aba nesse estado pede confirmação.
 
 **Dados**: botões d4–d100 com quantidade e modificador, expressão livre (`2d6+1d4+3`), vantagem/desvantagem; o log é compartilhado e o mestre pode rolar oculto.
 
@@ -183,5 +183,5 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E16 — Dados no combate | ✅ (próxima versão) |
 | E17 — Mapa: rotação, escala e áreas de magia | ✅ (próxima versão) |
 | E19 — Efeitos persistentes no mapa | ✅ (próxima versão) |
-| E18 — Salvar e carregar sessão | ⏳ |
+| E18 — Salvar e carregar sessão | ✅ (próxima versão) |
 | E12 — Launcher com janela própria | ⏳ depois do E18 |

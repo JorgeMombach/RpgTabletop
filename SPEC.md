@@ -132,6 +132,7 @@ O jogador é **dono e único gestor** do estado do próprio personagem. O sistem
 ## 6. Eventos Socket.IO
 Cliente → servidor:
 `session:join {name, sessionToken?}` (papel definido pelo servidor),
+`session:export` e `session:import {arquivo}` (mestre, E18),
 `battle:setMap {image | null}`, `battle:grid {showGrid?, cellPx?, offsetX?, offsetY?}`, `battle:clear {keepTemplates}`,
 `template:upsert|remove`, `mob:addFromTemplate {templateId, qty}`, `mob:add`, `mob:remove`, `mob:restore` (mob ou NPC),
 `npc:add`, `npc:addFromTemplate {templateId}`, `condition:add {id, name, rounds?}`, `condition:remove {id, conditionId}`,
@@ -523,8 +524,12 @@ Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E
 - Exportar → fechar o app → abrir → importar recupera o estado completo.
 - Arquivo inválido ou de formato futuro é recusado com mensagem clara (teste).
 
+**Decidido (E18):** arquivo `.json` com `app: "jamals-tabletop"`, `format` (hoje 1), versão do app, data, jogadores (só id, nome e papel: **sem tokens de sessão nem chave de mestre**), numeração dos mobs e o estado do jogo inteiro (combate em andamento incluído; pedido de rolagem e reações não, porque valem só para o turno). O servidor valida e copia campo por campo antes de trocar qualquer coisa: arquivo com erro não altera nada. Religação pelo nome (sem diferenciar maiúsculas): mestre do arquivo → mestre atual; jogador já conectado com o mesmo nome → religado na hora; os demais voltam offline e o **primeiro** que entrar com aquele nome assume o personagem. Exportar e importar vão pelo socket (limite de mensagem subiu para 50 MB por causa do mapa e dos avatares).
+- **Lembrete de salvar:** o painel *Sessão* mostra "Não salvo" quando algo mudou desde o último salvamento (jogadores entrando e saindo não contam). Fechar a aba do mestre nesse estado dispara o aviso do navegador; o texto desse aviso é do navegador e não pode ser personalizado nem ter botão "Salvar" — isso fica para o launcher (E12).
+
 ### E12 — Launcher com janela própria (reavaliado)
 Mantido como último da fila: janela com o nome/arte do app, botão iniciar/parar, endereços com copiar, QR code para o celular. Reavaliar depois do E14 (a arte da tela de entrada pode ser reaproveitada).
+- **Fechar com alterações não salvas** (pedido na revisão do E18): ao fechar a janela do launcher ou parar o servidor, um modal próprio — "Você tem alterações não salvas. **Salvar e sair** / Sair sem salvar / Cancelar". *Salvar e sair* grava o mesmo `.json` do E18 (o mestre escolhe onde, ou numa pasta padrão).
 
 ## 16. Fora do código (configuração e conhecimento)
 
