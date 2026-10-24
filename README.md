@@ -53,7 +53,7 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 **Dados**: botões d4–d100 com quantidade e modificador, expressão livre (`2d6+1d4+3`), vantagem/desvantagem; o log é compartilhado e o mestre pode rolar oculto.
 
-**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. Painéis laterais recolhem clicando no título.
+**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. Painéis laterais recolhem clicando no título e mudam de largura arrastando a borda entre a coluna e o mapa (duplo clique volta ao padrão). A tela do app tem no mínimo 1024 × 640 px: numa janela menor aparece barra de rolagem.
 
 ## Opções
 
@@ -123,7 +123,9 @@ npm install
 | `npm run package` | Gera o executável do **sistema atual** em `release/` (Node SEA, ADR-11), com ícone e versão no Windows |
 | `npm run icon` | Regera `assets/icon.ico` |
 
-Regras do projeto (fluxo, testes, changelog, release) estão no [CLAUDE.md](CLAUDE.md).
+Regras do projeto (fluxo, testes, changelog, release e **padrões de interface**) estão no [CLAUDE.md](CLAUDE.md).
+
+**Arte da tela de entrada:** coloque uma imagem em `client/src/assets/login-bg.jpg` (ou `.png`/`.webp`) e ela vira o fundo da tela de entrada no próximo build. Sem o arquivo, o fundo é o padrão (grid dourado).
 
 ### Fluxo de trabalho e CI
 
@@ -175,7 +177,7 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E10 — Executável | ✅ v1.1.0 |
 | E11 — CI/CD e releases | ✅ v1.1.0 |
 | E13 — Correções e identidade (Jamal's Tabletop) | ✅ (próxima versão) |
-| E14 — Base de UX (Mantine) | ⏳ |
+| E14 — Base de UX (Mantine) | ✅ (próxima versão) |
 | E15 — NPCs neutros e condições | ⏳ |
 | E16 — Dados no combate | ⏳ |
 | E17 — Mapa: rotação, escala e áreas de magia | ⏳ |

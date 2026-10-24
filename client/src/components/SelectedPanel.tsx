@@ -1,11 +1,14 @@
+import { ActionIcon, Button, Divider, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { ALLY_COLORS, MOB_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
-import { ALLY_COLORS, MOB_COLORS, type ClientState, type Combatant, type CombatantView } from "@rpg/shared";
 import { act } from "../actions";
 import { removeMob } from "../commands";
+import { confirmAction } from "../confirm";
 import { fmtMod } from "../format";
 import { cellAt, nearestFreeCell } from "../map/geometry";
 import { select, useApp } from "../store";
 import { Abbr } from "./Abbr";
+import { CombatantAvatar } from "./CombatantAvatar";
 import { CombatantForm } from "./CombatantForm";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
@@ -19,13 +22,7 @@ function placeOnMap(state: ClientState, id: string) {
   void act("token:move", { id, pos: nearestFreeCell(cellAt(viewCenter, state.battle.map), occupied) });
 }
 
-function Avatar({ c }: { c: CombatantView }) {
-  return c.avatar ? (
-    <img className="sel-avatar" src={c.avatar} alt="" style={{ borderColor: c.color }} />
-  ) : (
-    <span className="dot big" style={{ background: c.color }} aria-hidden />
-  );
-}
+const DES = <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr>;
 
 export function SelectedPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
@@ -37,21 +34,27 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   // Jogadores não recebem vida de mob, então só o mestre tem o mob completo.
   const c: Combatant | undefined = ally ?? (gm ? (mobView as Combatant | undefined) : undefined);
   const close = (
-    <button className="icon-btn" title="Fechar" onClick={() => select(null)}>
-      ✕
-    </button>
+    <Tooltip label="Fechar">
+      <ActionIcon size="sm" onClick={() => select(null)} aria-label="Fechar">
+        ✕
+      </ActionIcon>
+    </Tooltip>
   );
 
   if (!c && mobView) {
     return (
       <Panel title="Selecionado" aside={close}>
-        <div className="sel-head">
-          <Avatar c={mobView} />
-          <div className="grow">
-            <div className="sel-name">{mobView.name}</div>
-            <div className="muted small">Inimigo</div>
+        <Group gap="sm" wrap="nowrap">
+          <CombatantAvatar c={mobView} />
+          <div style={{ minWidth: 0 }}>
+            <Text fw={600} truncate title={mobView.name}>
+              {mobView.name}
+            </Text>
+            <Text size="xs" c="dimmed">
+              Inimigo
+            </Text>
           </div>
-        </div>
+        </Group>
       </Panel>
     );
   }
@@ -59,7 +62,9 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   if (!c) {
     return (
       <Panel title="Selecionado">
-        <p className="muted small">Clique num aliado{gm ? " ou mob" : ""} (na lista ou no mapa) para ver e controlar a vida.</p>
+        <Text size="xs" c="dimmed">
+          Clique num aliado{gm ? " ou mob" : ""} (na lista ou no mapa) para ver e controlar a vida.
+        </Text>
       </Panel>
     );
   }
@@ -67,33 +72,34 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const canEdit = gm || c.ownerId === state.self.id;
   const owner = state.players.find((p) => p.id === c.ownerId);
   const editing = editingId === c.id;
+  const kind = c.type === "mob" ? "Mob" : owner ? `Aliado · ${owner.name}` : "Aliado";
+
+  async function remove(target: Combatant) {
+    if (target.type === "mob") return void removeMob(target);
+    const ok = await confirmAction({ title: `Remover ${target.name}?`, message: "O personagem sai da sessão.", confirmLabel: "Remover", danger: true });
+    if (ok) void act("ally:remove", { id: target.id }).then((r) => r.ok && select(null));
+  }
 
   return (
     <Panel title="Selecionado" aside={close}>
-      <div className="sel-head">
-        <Avatar c={c} />
-        <div className="grow">
-          <div className="sel-name ellipsis" title={c.name}>
+      <Group gap="sm" wrap="nowrap">
+        <CombatantAvatar c={c} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <Text fw={600} truncate title={c.name}>
             {c.name}
-          </div>
-          <div
-            className="muted small ellipsis"
-            title={`${c.type === "mob" ? "Mob" : owner ? `Aliado · ${owner.name}` : "Aliado"} · mod. DES ${fmtMod(c.dexMod)}`}
-          >
-            {c.type === "mob" ? "Mob" : owner ? `Aliado · ${owner.name}` : "Aliado"} · <Abbr title="Modificador de Destreza (usado na iniciativa)">DES</Abbr>{" "}
-            {fmtMod(c.dexMod)}
-          </div>
+          </Text>
+          <Text size="xs" c="dimmed" truncate title={`${kind} · mod. DES ${fmtMod(c.dexMod)}`}>
+            {kind} · {DES} {fmtMod(c.dexMod)}
+          </Text>
         </div>
         {canEdit && !editing && (
-          <button
-            className="btn small"
-            title="Mudar nome, vida máxima, mod. DES, cor e avatar"
-            onClick={() => setEditingId(c.id)}
-          >
-            ✎ Editar
-          </button>
+          <Tooltip label="Mudar nome, vida máxima, mod. DES, cor e avatar">
+            <Button variant="default" onClick={() => setEditingId(c.id)}>
+              ✎ Editar
+            </Button>
+          </Tooltip>
         )}
-      </div>
+      </Group>
 
       {editing ? (
         <CombatantForm
@@ -110,41 +116,37 @@ export function SelectedPanel({ state }: { state: ClientState }) {
       ) : canEdit ? (
         <HpControl c={c} />
       ) : (
-        <div className="hp-readonly">
-          <div>
-            {c.hp} <span className="muted">/ {c.hpMax}</span>
-          </div>
+        <Stack gap="xs">
+          <Text fz={24} fw={700} lh={1.1}>
+            {c.hp}{" "}
+            <Text span size="lg" c="dimmed" fw={400}>
+              / {c.hpMax}
+            </Text>
+          </Text>
           <HpBar hp={c.hp} hpMax={c.hpMax} thick />
-        </div>
+        </Stack>
       )}
 
       {c.type === "ally" && !editing && <MagicSection c={c} editable={canEdit} />}
 
       {canEdit && !editing && (
-        <div className="sel-actions">
-          <div className="row-gap">
+        <>
+          <Divider />
+          <Group justify="space-between" gap="xs" wrap="wrap">
             {c.pos ? (
-              <button className="btn small" onClick={() => act("token:move", { id: c.id, pos: null })}>
+              <Button variant="default" onClick={() => act("token:move", { id: c.id, pos: null })}>
                 Tirar do mapa
-              </button>
+              </Button>
             ) : (
-              <button className="btn small" onClick={() => placeOnMap(state, c.id)}>
+              <Button variant="default" onClick={() => placeOnMap(state, c.id)}>
                 Colocar no mapa
-              </button>
+              </Button>
             )}
-          </div>
-          <button
-            className="btn small danger-outline"
-            onClick={() => {
-              if (c.type === "mob") return void removeMob(c);
-              if (confirm(`Remover ${c.name}?`)) {
-                void act("ally:remove", { id: c.id }).then((r) => r.ok && select(null));
-              }
-            }}
-          >
-            Remover
-          </button>
-        </div>
+            <Button variant="subtle" color="red" onClick={() => void remove(c)}>
+              Remover
+            </Button>
+          </Group>
+        </>
       )}
     </Panel>
   );

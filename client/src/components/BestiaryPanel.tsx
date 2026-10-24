@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { ActionIcon, Button, Group, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import { LIMITS, MOB_COLORS, type MobTemplate } from "@rpg/shared";
+import { useState } from "react";
 import { act } from "../actions";
+import { confirmAction } from "../confirm";
 import { fmtMod } from "../format";
+import { Abbr } from "./Abbr";
+import { CombatantAvatar } from "./CombatantAvatar";
 import { CombatantForm } from "./CombatantForm";
 import { Panel } from "./Panel";
-import { Abbr } from "./Abbr";
 
 type Mode = { kind: "none" } | { kind: "newTemplate" } | { kind: "newMob" } | { kind: "edit"; id: string };
 
@@ -18,14 +21,18 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
       title="Bestiário"
       aside={
         mode.kind === "none" && (
-          <div className="row-gap">
-            <button className="btn small" onClick={() => setMode({ kind: "newMob" })}>
-              + Avulso
-            </button>
-            <button className="btn small" onClick={() => setMode({ kind: "newTemplate" })}>
-              + Template
-            </button>
-          </div>
+          <Group gap="xs">
+            <Tooltip label="Um mob único, sem template">
+              <Button variant="default" onClick={() => setMode({ kind: "newMob" })}>
+                + Avulso
+              </Button>
+            </Tooltip>
+            <Tooltip label="Modelo para adicionar vários mobs iguais (ex.: Goblin)">
+              <Button variant="default" onClick={() => setMode({ kind: "newTemplate" })}>
+                + Template
+              </Button>
+            </Tooltip>
+          </Group>
         )
       }
     >
@@ -57,82 +64,100 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
       )}
 
       {templates.length === 0 && mode.kind === "none" && (
-        <p className="muted small">Crie templates (ex.: Goblin) para adicionar vários mobs iguais de uma vez.</p>
+        <Text size="xs" c="dimmed">
+          Crie templates (ex.: Goblin) para adicionar vários mobs iguais de uma vez.
+        </Text>
       )}
 
-      <ul className="list">
-        {templates.map((t) =>
-          mode.kind === "edit" && mode.id === t.id ? (
-            <li key={t.id}>
-              <CombatantForm
-                initial={t}
-                palette={MOB_COLORS}
-                submitLabel="Salvar"
-                withNotes
-                onCancel={close}
-                onSubmit={async (v) => {
-                  const ok = (await act("template:upsert", { ...v, id: t.id })).ok;
-                  if (ok) close();
-                  return ok;
-                }}
-              />
-            </li>
-          ) : (
-            <TemplateRow key={t.id} t={t} onEdit={() => setMode({ kind: "edit", id: t.id })} />
-          ),
-        )}
-      </ul>
+      {templates.map((t) =>
+        mode.kind === "edit" && mode.id === t.id ? (
+          <CombatantForm
+            key={t.id}
+            initial={t}
+            palette={MOB_COLORS}
+            submitLabel="Salvar"
+            withNotes
+            onCancel={close}
+            onSubmit={async (v) => {
+              const ok = (await act("template:upsert", { ...v, id: t.id })).ok;
+              if (ok) close();
+              return ok;
+            }}
+          />
+        ) : (
+          <TemplateRow key={t.id} t={t} onEdit={() => setMode({ kind: "edit", id: t.id })} />
+        ),
+      )}
     </Panel>
   );
 }
 
 function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
-  const [qty, setQty] = useState("1");
+  const [qty, setQty] = useState<string | number>(1);
+
+  async function remove() {
+    const ok = await confirmAction({
+      title: `Excluir o template "${t.name}"?`,
+      message: "Mobs já criados com ele continuam na batalha.",
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (ok) void act("template:remove", { id: t.id });
+  }
 
   return (
-    <li className="template-row">
-      <div className="template-info">
-        <span className="dot" style={{ background: t.color }} aria-hidden />
-        <div className="grow">
-          <div className="ellipsis" title={t.notes ? `${t.name} — ${t.notes}` : t.name}>
-            {t.name}
+    <Paper p="xs" bg="dark.7">
+      <Stack gap="xs">
+        <Group gap="sm" wrap="nowrap">
+          <CombatantAvatar c={{ ...t, type: "mob" }} size={28} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Text size="sm" truncate title={t.notes ? `${t.name} — ${t.notes}` : t.name}>
+              {t.name}
+            </Text>
+            <Text size="xs" c="dimmed">
+              Vida {t.hpMax} · <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr> {fmtMod(t.dexMod)}
+            </Text>
           </div>
-          <div className="muted small">
-            Vida {t.hpMax} · <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr> {fmtMod(t.dexMod)}
-          </div>
-        </div>
-        <button className="icon-btn" title="Editar" onClick={onEdit}>
-          ✎
-        </button>
-        <button
-          className="icon-btn"
-          title="Excluir template"
-          onClick={() => {
-            if (confirm(`Excluir o template "${t.name}"? Mobs já criados continuam na batalha.`)) {
-              void act("template:remove", { id: t.id });
-            }
+          <Tooltip label="Editar template">
+            <ActionIcon size="sm" onClick={onEdit} aria-label={`Editar ${t.name}`}>
+              ✎
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Excluir template">
+            <ActionIcon size="sm" onClick={() => void remove()} aria-label={`Excluir ${t.name}`}>
+              🗑
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+        <Group
+          component="form"
+          gap="xs"
+          wrap="nowrap"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void act("mob:addFromTemplate", { templateId: t.id, qty: Number(qty) || 1 });
           }}
         >
-          🗑
-        </button>
-      </div>
-      <form
-        className="template-add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void act("mob:addFromTemplate", { templateId: t.id, qty: Number(qty) });
-        }}
-      >
-        <input
-          type="number"
-          min={LIMITS.qty.min}
-          max={LIMITS.qty.max}
-          value={qty}
-          onChange={(e) => setQty(e.target.value)}
-          aria-label="Quantidade"
-        />
-        <button className="btn small primary">Adicionar à batalha</button>
-      </form>
-    </li>
+          <Tooltip label="Quantidade">
+            <NumberInput
+              w={64}
+              min={LIMITS.qty.min}
+              max={LIMITS.qty.max}
+              allowDecimal={false}
+              allowNegative={false}
+              clampBehavior="strict"
+              value={qty}
+              onChange={setQty}
+              aria-label="Quantidade"
+            />
+          </Tooltip>
+          <Tooltip label="Adicionar essa quantidade à batalha (Goblin 1, Goblin 2…)">
+            <Button type="submit" style={{ flex: 1 }}>
+              + Adicionar
+            </Button>
+          </Tooltip>
+        </Group>
+      </Stack>
+    </Paper>
   );
 }

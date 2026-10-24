@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
+// Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
+import { ActionIcon, Button, Divider, Group as MGroup, Paper, Text as MText, Tooltip } from "@mantine/core";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
@@ -246,14 +248,20 @@ export function BattleMap({ state }: { state: ClientState }) {
       />
 
       {!image && tokens.length === 0 && (
-        <div className="map-hint">
-          {gm
-            ? "Suba a imagem do mapa no painel Mapa, ou use só o grid. Arraste aliados e mobs da lista para cá."
-            : "Aguardando o mestre montar o campo. Arraste seu personagem da lista para o mapa."}
-        </div>
+        <Paper className="map-hint" px="md" py="sm" shadow="md">
+          <MText size="sm" c="dimmed" ta="center">
+            {gm
+              ? "Suba a imagem do mapa no painel Mapa, ou use só o grid. Arraste aliados e mobs da lista para cá."
+              : "Aguardando o mestre montar o campo. Arraste seu personagem da lista para o mapa."}
+          </MText>
+        </Paper>
       )}
       {tool === "calibrate" && (
-        <div className="map-hint top">Arraste um retângulo sobre um ou mais quadrados do mapa.</div>
+        <Paper className="map-hint top" px="md" py="sm" shadow="md">
+          <MText size="sm" c="gold.4" ta="center">
+            Arraste um retângulo sobre um ou mais quadrados do mapa.
+          </MText>
+        </Paper>
       )}
     </div>
   );
@@ -357,32 +365,40 @@ function MapToolbar({
   onFit: () => void;
 }) {
   return (
-    <div className="map-toolbar">
-      <button className={tool === "move" ? "on" : ""} onClick={() => setTool("move")} title="Mover tokens e o mapa">
-        ✋ Mover
-      </button>
-      <button
-        className={tool === "ruler" ? "on" : ""}
-        onClick={() => setTool(tool === "ruler" ? "move" : "ruler")}
-        title="Régua (ou segure Shift)"
-      >
-        📏 Régua
-      </button>
-      {gm && tool === "calibrate" && (
-        <button className="on" onClick={() => setTool("move")}>
-          Cancelar calibração
-        </button>
-      )}
-      <span className="sep" />
-      <button onClick={() => onZoom(1 / 1.25)} title="Afastar">
-        −
-      </button>
-      <button onClick={() => onZoom(1.25)} title="Aproximar">
-        +
-      </button>
-      <button onClick={onFit} title="Enquadrar o mapa">
-        Ajustar
-      </button>
-    </div>
+    <Paper className="map-toolbar" p={4} shadow="md" radius="md">
+      <MGroup gap={4} wrap="nowrap">
+        <Tooltip label="Mover tokens e a visão do mapa">
+          <Button variant={tool === "move" ? "filled" : "subtle"} color={tool === "move" ? undefined : "gray"} onClick={() => setTool("move")}>
+            ✋ Mover
+          </Button>
+        </Tooltip>
+        <Tooltip label="Medir distância em pés (ou segure Shift e arraste)">
+          <Button
+            variant={tool === "ruler" ? "filled" : "subtle"}
+            color={tool === "ruler" ? undefined : "gray"}
+            onClick={() => setTool(tool === "ruler" ? "move" : "ruler")}
+          >
+            📏 Régua
+          </Button>
+        </Tooltip>
+        {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>Cancelar calibração</Button>}
+        <Divider orientation="vertical" mx={2} />
+        <Tooltip label="Afastar">
+          <ActionIcon onClick={() => onZoom(1 / 1.25)} aria-label="Afastar">
+            −
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Aproximar">
+          <ActionIcon onClick={() => onZoom(1.25)} aria-label="Aproximar">
+            +
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Enquadrar o mapa inteiro">
+          <Button variant="subtle" color="gray" onClick={onFit}>
+            Ajustar
+          </Button>
+        </Tooltip>
+      </MGroup>
+    </Paper>
   );
 }

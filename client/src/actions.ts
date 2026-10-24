@@ -1,6 +1,6 @@
 import type { ActionName, ActionPayloads, ActionResult } from "@rpg/shared";
 import { socket } from "./socket";
-import { toast } from "./store";
+import { toast } from "./notify";
 
 type AckEmitter = { emitWithAck(ev: string, payload: unknown): Promise<ActionResult> };
 

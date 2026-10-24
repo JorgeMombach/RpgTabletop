@@ -1,5 +1,6 @@
 import { socket } from "./socket";
-import { toast, useApp } from "./store";
+import { toast } from "./notify";
+import { useApp } from "./store";
 
 const TOKEN_KEY = "rpg.sessionToken";
 const NAME_KEY = "rpg.name";

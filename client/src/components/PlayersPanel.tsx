@@ -1,3 +1,4 @@
+import { Badge, Box, Group, Stack, Text } from "@mantine/core";
 import type { ClientState } from "@rpg/shared";
 import { Panel } from "./Panel";
 
@@ -8,27 +9,44 @@ export function PlayersPanel({ state }: { state: ClientState }) {
     <Panel
       title="Na sessão"
       aside={
-        <span className="muted small">
+        <Text size="xs" c="dimmed">
           {online}/{state.maxPlayers} jogadores
-        </span>
+        </Text>
       }
     >
-      <ul className="players">
+      <Stack gap={6}>
         {state.players.map((p) => (
-          <li key={p.id} className={p.connected ? "" : "offline"}>
-            <span className={`dot ${p.connected ? "on" : "off"}`} aria-hidden />
-            <span className="player-name" title={p.name}>
+          <Group key={p.id} gap="sm" wrap="nowrap">
+            <Box
+              w={8}
+              h={8}
+              bg={p.connected ? "teal.5" : "dark.3"}
+              style={{ borderRadius: "50%", flex: "none" }}
+              aria-label={p.connected ? "online" : "offline"}
+            />
+            <Text size="sm" c={p.connected ? undefined : "dimmed"} truncate title={p.name} style={{ flex: 1, minWidth: 0 }}>
               {p.name}
-              {p.id === state.self.id && <span className="muted"> (você)</span>}
-            </span>
+              {p.id === state.self.id && (
+                <Text span size="xs" c="dimmed">
+                  {" "}
+                  (você)
+                </Text>
+              )}
+            </Text>
             {p.role === "gm" ? (
-              <span className="role-tag role-gm">Mestre</span>
+              <Badge size="xs" variant="light">
+                Mestre
+              </Badge>
             ) : (
-              !p.connected && <span className="muted small">offline</span>
+              !p.connected && (
+                <Text size="xs" c="dimmed">
+                  offline
+                </Text>
+              )
             )}
-          </li>
+          </Group>
         ))}
-      </ul>
+      </Stack>
     </Panel>
   );
 }

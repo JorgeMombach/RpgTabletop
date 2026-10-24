@@ -36,6 +36,20 @@ Antes de dizer que algo está pronto: `npm run typecheck` e `npm test` passando.
 - Textos de interface, mensagens de erro e comentários em **português**. Siga o estilo e a densidade de comentários do código ao redor.
 - Quebras de linha **LF** (`.gitattributes`). No Windows o `core.autocrlf` está ligado; o `.gitattributes` garante LF no checkout.
 
+## Padrões de interface (Mantine, ADR-15)
+
+Toda tela nova usa os componentes do **Mantine** e o tema em `client/src/theme.ts`. Não crie botões, campos ou caixas com HTML/CSS próprio.
+
+- **Tema:** cores (`gold` = destaque, `player` = aliados, `dark.*` = fundos), fontes (Inter na interface; **Cinzel só em títulos**, via `ff="heading"` ou `Title`), tamanhos 12/14/16/20/24 e espaçamentos em múltiplos de 4 px. Componentes já vêm em tamanho pequeno por padrão (densidade de painel).
+- **Painel lateral:** sempre `Panel` (`components/Panel.tsx`): título recolhível, `aside` para ações à direita, conteúdo empilhado.
+- **Ações:** `Button` (`variant="default"` para secundárias; padrão = primária dourada; `color="red"` para destrutivas). Ícone sozinho: `ActionIcon` **com `Tooltip` e `aria-label`**.
+- **Campos:** `TextInput`, `NumberInput` (sem setas por padrão; use `allowDecimal={false}` para inteiros), `Select`, `Checkbox`, `SegmentedControl`, `Slider`, `ColorInput`, `FileButton`.
+- **Abreviação** (DES, ft, Qtd.…): `Abbr` (tooltip). **Texto que pode ser longo:** `Text truncate` + `title` com o texto completo.
+- **Confirmação:** `confirmAction()` (`client/src/confirm.tsx`) — nunca `window.confirm`. **Aviso rápido:** `toast()` (`client/src/notify.tsx`), com `action` para "Desfazer".
+- **Combatente:** `CombatantAvatar` (anel na cor do token; círculo = aliado, quadrado = mob) e `CombatantRow` nas listas.
+- **CSS próprio** (`styles.css`) só para layout da tela, mapa e peças sem equivalente no Mantine (linhas das listas, bolinhas de slot, alças de redimensionar). Use as variáveis `--mantine-*`.
+- **Tamanho mínimo:** a tela do app tem no mínimo **1024 × 640 px** (`LAYOUT` em `components/ColumnResizer.tsx`); numa janela menor a página rola em vez de encolher. O mapa nunca fica com menos de 480 px: as colunas laterais (220–520 px, arrastáveis) é que cedem. Verifique telas novas com as colunas na largura mínima — nada pode vazar.
+
 ## Fluxo de git
 
 - `master` é **protegida**: só entra por Pull Request com os checks verdes. Nunca commitar direto nela.
