@@ -136,8 +136,8 @@ Cliente → servidor:
 `ally:create`, `ally:remove`, `combatant:update {id, ...campos}`, `hp:change {id, delta}`, `hp:set {id, value}`, `hp:full {id}`,
 `token:move {id, pos}`, `ruler:update` (efêmero),
 `slot:set {id, level, used|max}`, `slots:restore {id}`, `ally:restoreAll {id}`, `spell:add|remove`,
-`init:roll {id}`, `init:rollMobs {grouped?}`, `init:set {id, value | null}`, `init:move {id, toIndex}`, `combat:start|next|prev|end`,
-`dice:roll {expr, mode?: "adv"|"dis", hidden?}`.
+`init:roll {id}`, `init:rollMobs {grouped?}`, `init:set {id, value | null}`, `init:move {id, toIndex}`, `init:rerollAll {grouped?}`, `combat:start|next|prev|end`,
+`dice:roll {expr, mode?: "adv"|"dis", hidden?, asId?, kind?: "attack"|"damage", crit?}`, `roll:request {label, playerIds}`, `roll:cancel`, `reaction:use` (E16).
 
 Toda ação responde por ack com `{ ok: true, ids? }` ou `{ ok: false, error }` (mensagem pronta para o usuário).
 
@@ -474,7 +474,13 @@ Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E18 → E12**. O 
 - Rolagem do mestre no turno do "Goblin 2" aparece no log como "Goblin 2".
 - Ataque e dano de um mesmo turno aparecem juntos no log.
 
-**Em aberto:** testes de resistência e reações acontecem **fora da vez** do jogador. Definir no E16 como permitir (ex.: o mestre pede "todos rolam resistência de DES" e libera a rolagem por alguns segundos, ou libera um jogador específico).
+**Decidido (fora da vez e detalhes):**
+- **Resistência = pedido do mestre:** *Pedir rolagem* com rótulo ("Resistência DES") para todos ou jogadores escolhidos; cada um rola **uma vez**. O pedido some quando todos rolaram, quando o mestre cancela ou quando o turno muda. Fora disso, o jogador fora da vez não rola (nem os dados livres).
+- **Reação = do jogador:** botão *Reação*, **1 por round** (como no 5e), libera a rolagem até o próximo turno; o log marca "Reação".
+- **Rolagens do mestre ocultas por padrão** (ele desmarca para mostrar). A rolagem oculta continua só para o mestre.
+- **Crítico:** 20 natural no ataque aparece destacado ("Crítico!") e o bloco de Dano vem com *Crítico* marcado, que dobra só a quantidade de dados (2d6+3 → 4d6+3); dá para desmarcar.
+- **Rolar iniciativa de novo:** zera todas as iniciativas, rola mobs/NPCs na hora; jogadores rolam ou digitam de novo.
+- Modificador do ataque digitado na hora (o navegador lembra o último); sem ataques salvos. O log agrupa por turno ("Round 2 · Goblin 2"); fora de combate as rolagens ficam soltas. "Rolar como" começa no combatente da vez se for do mestre (mob, NPC ou aliado dele); na vez de um jogador, "Mestre".
 
 ### E17 — Mapa: rotação, escala e áreas de magia
 - **Rotacionar** a imagem do mapa em passos de 90°.

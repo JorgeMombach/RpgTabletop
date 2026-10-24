@@ -51,7 +51,7 @@ describe("limpar campo de batalha", () => {
     assert.equal((await imageCleared).image, null, "todos recebem o mapa vazio");
     const s = await after;
     assert.equal(s.battle.map.hasImage, false);
-    assert.deepEqual(s.battle.combat, { active: false, round: 0, turnIndex: 0, order: [] });
+    assert.deepEqual({ ...s.battle.combat, turn: 0 }, { active: false, round: 0, turnIndex: 0, order: [], turn: 0 });
     assert.equal(s.battle.map.cellPx, 70, "grid continua");
 
     const a = s.allies.find((x) => x.id === ally)!;

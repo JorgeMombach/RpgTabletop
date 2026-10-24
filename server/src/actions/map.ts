@@ -1,4 +1,5 @@
 import { LIMITS, type GridPos } from "@rpg/shared";
+import { resetCombat } from "../combat";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { editable, requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
@@ -49,7 +50,7 @@ export const mapHandlers: HandlerMap = {
     battle.map.imageVersion++;
     battle.mobs = [];
     battle.npcs = [];
-    battle.combat = { active: false, round: 0, turnIndex: 0, order: [] };
+    resetCombat(store);
     for (const a of game.allies) {
       a.pos = null;
       a.initiative = a.initRoll = null;

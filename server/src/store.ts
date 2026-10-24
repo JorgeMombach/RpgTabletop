@@ -35,7 +35,8 @@ export function createGame(): GameState {
       },
       mobs: [],
       npcs: [],
-      combat: { active: false, round: 0, turnIndex: 0, order: [] },
+      combat: { active: false, round: 0, turnIndex: 0, order: [], turn: 0 },
+      rolls: { request: null, reactions: [] },
     },
     log: [],
   };

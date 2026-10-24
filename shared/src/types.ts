@@ -112,7 +112,33 @@ export interface CombatState {
   round: number;
   turnIndex: number;
   order: string[];
+  /** Conta cada troca de turno (iniciar, próximo, anterior): identifica "este turno" para pedidos e reações. */
+  turn: number;
 }
+
+/** Pedido do mestre para jogadores rolarem fora da vez (ex.: "Resistência DES"). Cada um rola uma vez. */
+export interface RollRequest {
+  id: string;
+  label: string;
+  playerIds: string[];
+  /** Quem já rolou. */
+  done: string[];
+}
+
+/** Reação usada por um jogador: 1 por round; libera a rolagem só durante o turno em que foi usada. */
+export interface ReactionUse {
+  playerId: string;
+  round: number;
+  turn: number;
+}
+
+export interface RollsState {
+  request: RollRequest | null;
+  reactions: ReactionUse[];
+}
+
+/** Bloco de rolagem usado no combate (E16). */
+export type RollKind = "attack" | "damage";
 
 export type RollMode = "normal" | "adv" | "dis";
 
@@ -148,6 +174,13 @@ export interface LogEntry {
   /** Contexto da rolagem, ex.: "Iniciativa · Thorin". */
   label?: string;
   roll?: RollResult;
+  /** Mestre rolando como um combatente: o log mostra este nome em vez do autor. */
+  as?: string;
+  kind?: RollKind;
+  /** Dano de crítico (dados dobrados). */
+  crit?: boolean;
+  /** Turno do combate em que a rolagem aconteceu, para o log agrupar. */
+  turn?: { seq: number; round: number; name: string };
 }
 
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
@@ -160,6 +193,7 @@ export interface GameState {
     /** NPCs neutros: saem ao limpar o campo, como os mobs. */
     npcs: Combatant[];
     combat: CombatState;
+    rolls: RollsState;
   };
   log: LogEntry[];
 }
@@ -184,6 +218,7 @@ export interface ClientState {
     mobs: CombatantView[];
     npcs: CombatantView[];
     combat: CombatState;
+    rolls: RollsState;
   };
   log: LogEntry[];
   /** Só para o mestre: endereços para passar aos jogadores. */

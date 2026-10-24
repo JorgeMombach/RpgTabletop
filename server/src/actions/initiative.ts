@@ -1,5 +1,5 @@
 import { LIMITS, type Combatant, type RollResult } from "@rpg/shared";
-import { allCombatants, moveInOrder, placeInOrder, removeFromOrder } from "../combat";
+import { allCombatants, moveInOrder, newTurn, placeInOrder, removeFromOrder, resetCombat } from "../combat";
 import { roll } from "../dice";
 import type { Store } from "../store";
 import { fail, requireInt } from "../validate";
@@ -20,6 +20,22 @@ function applyRoll(store: Store, c: Combatant, result: RollResult) {
   placeInOrder(store, c);
 }
 
+/** Rola para tudo que o mestre controla: mobs e NPCs. `grouped` = uma rolagem por template. */
+function rollGmSide(store: Store, grouped: boolean) {
+  const { battle } = store.game;
+  const byTemplate = new Map<string, RollResult>();
+  for (const mob of [...battle.mobs, ...battle.npcs]) {
+    // Iniciativa em grupo: todos os mobs do mesmo template agem juntos.
+    const key = grouped && mob.templateId ? `${mob.type}:${mob.templateId}:${mob.dexMod}` : null;
+    let result = key ? byTemplate.get(key) : undefined;
+    if (!result) {
+      result = rollInitiative(mob.dexMod);
+      if (key) byTemplate.set(key, result);
+    }
+    applyRoll(store, mob, result);
+  }
+}
+
 function requireActive(store: Store) {
   if (!store.game.battle.combat.active) fail("O combate não começou.");
 }
@@ -36,20 +52,18 @@ export const initiativeHandlers: HandlerMap = {
   "init:rollMobs": (store, player, payload) => {
     requireGm(player);
     const { battle } = store.game;
-    // Tudo que o mestre controla: mobs e NPCs.
-    const mobs = [...battle.mobs, ...battle.npcs];
-    if (mobs.length === 0) fail("Não há mobs nem NPCs na batalha.");
-    // Iniciativa em grupo: todos os mobs do mesmo template agem juntos.
-    const byTemplate = new Map<string, RollResult>();
-    for (const mob of mobs) {
-      const key = payload?.grouped && mob.templateId ? `${mob.type}:${mob.templateId}:${mob.dexMod}` : null;
-      let result = key ? byTemplate.get(key) : undefined;
-      if (!result) {
-        result = rollInitiative(mob.dexMod);
-        if (key) byTemplate.set(key, result);
-      }
-      applyRoll(store, mob, result);
-    }
+    if (battle.mobs.length + battle.npcs.length === 0) fail("Não há mobs nem NPCs na batalha.");
+    rollGmSide(store, payload?.grouped === true);
+  },
+
+  "init:rerollAll": (store, player, payload) => {
+    requireGm(player);
+    const { battle } = store.game;
+    for (const c of allCombatants(store)) c.initiative = c.initRoll = null;
+    // Pausa no mesmo round: os jogadores rolam de novo e o mestre retoma com "Iniciar combate".
+    Object.assign(battle.combat, { active: false, turnIndex: 0, order: [] });
+    battle.rolls.request = null;
+    rollGmSide(store, payload?.grouped === true);
   },
 
   "init:set": (store, player, payload) => {
@@ -74,7 +88,9 @@ export const initiativeHandlers: HandlerMap = {
     requireGm(player);
     const combat = store.game.battle.combat;
     if (combat.order.length === 0) fail("Role a iniciativa antes de iniciar o combate.");
-    Object.assign(combat, { active: true, round: 1, turnIndex: 0 });
+    // Depois de "rolar iniciativa de novo" o combate retoma no mesmo round.
+    Object.assign(combat, { active: true, round: Math.max(1, combat.round), turnIndex: 0 });
+    newTurn(store);
     startTurn(store);
   },
 
@@ -87,6 +103,7 @@ export const initiativeHandlers: HandlerMap = {
       combat.turnIndex = 0;
       combat.round++;
     }
+    newTurn(store);
     startTurn(store);
   },
 
@@ -100,11 +117,12 @@ export const initiativeHandlers: HandlerMap = {
       combat.round--;
       combat.turnIndex = Math.max(0, combat.order.length - 1);
     }
+    newTurn(store);
   },
 
   "combat:end": (store, player) => {
     requireGm(player);
-    Object.assign(store.game.battle.combat, { active: false, round: 0, turnIndex: 0, order: [] });
+    resetCombat(store);
     for (const c of allCombatants(store)) c.initiative = c.initRoll = null;
   },
 };

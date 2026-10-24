@@ -153,7 +153,7 @@ describe("turnos", () => {
     const { g } = await setup();
     await act(g, "combat:start", {});
     await act(g, "combat:end", {});
-    assert.deepEqual(combat(), { active: false, round: 0, turnIndex: 0, order: [] });
+    assert.deepEqual({ ...combat(), turn: 0 }, { active: false, round: 0, turnIndex: 0, order: [], turn: 0 });
     const mobs = ctx.server.store.game.battle.mobs;
     assert.equal(mobs.length, 3);
     assert.ok(mobs.every((m) => m.initiative === null));
