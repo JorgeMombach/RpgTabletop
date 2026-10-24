@@ -48,7 +48,7 @@ Toda tela nova usa os componentes do **Mantine** e o tema em `client/src/theme.t
 - **Confirmação:** `confirmAction()` (`client/src/confirm.tsx`) — nunca `window.confirm`. **Aviso rápido:** `toast()` (`client/src/notify.tsx`), com `action` para "Desfazer".
 - **Combatente:** `CombatantAvatar` (anel na cor do token; círculo = aliado, quadrado = mob) e `CombatantRow` nas listas.
 - **CSS próprio** (`styles.css`) só para layout da tela, mapa e peças sem equivalente no Mantine (linhas das listas, bolinhas de slot, alças de redimensionar). Use as variáveis `--mantine-*`.
-- **Tamanho mínimo:** a tela do app tem no mínimo **1024 × 640 px** (`LAYOUT` em `components/ColumnResizer.tsx`); numa janela menor a página rola em vez de encolher. O mapa nunca fica com menos de 480 px: as colunas laterais (220–520 px, arrastáveis) é que cedem. Verifique telas novas com as colunas na largura mínima — nada pode vazar.
+- **Tamanho mínimo:** a tela do app tem no mínimo **1024 × 640 px** (`LAYOUT` em `components/ColumnResizer.tsx`); numa janela menor a página rola em vez de encolher. O mapa nunca fica com menos de 480 px: as colunas laterais (260–520 px, arrastáveis) é que cedem. Verifique telas novas com as colunas na largura mínima — nada pode vazar.
 
 ## Fluxo de git
 

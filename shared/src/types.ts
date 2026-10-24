@@ -31,10 +31,41 @@ export interface GridPos {
   row: number;
 }
 
+/** Condição em um combatente (atordoado, concentração…). O app não aplica efeito (ADR-06). */
+export interface Condition {
+  id: string;
+  name: string;
+  /** Rounds restantes; desconta 1 no início do turno de quem tem. `null` = até alguém tirar. */
+  rounds: number | null;
+}
+
+/** Condições do 5e mais concentração. O campo também aceita texto livre. */
+export const CONDITIONS = [
+  "Agarrado",
+  "Amedrontado",
+  "Atordoado",
+  "Caído",
+  "Cego",
+  "Concentração",
+  "Contido",
+  "Enfeitiçado",
+  "Envenenado",
+  "Exausto",
+  "Incapacitado",
+  "Inconsciente",
+  "Invisível",
+  "Paralisado",
+  "Petrificado",
+  "Surdo",
+];
+
+/** Aliado = de um jogador (ou do mestre); mob = inimigo; NPC = neutro, controlado pelo mestre. */
+export type CombatantType = "ally" | "mob" | "npc";
+
 export interface Combatant {
   id: string;
   name: string;
-  type: "ally" | "mob";
+  type: CombatantType;
   /** Jogador dono (aliados). */
   ownerId?: string;
   templateId?: string;
@@ -49,9 +80,10 @@ export interface Combatant {
   initRoll: number | null;
   spellSlots?: Record<SpellLevel, SpellSlot>;
   spells?: Spell[];
+  conditions: Condition[];
 }
 
-/** Como um combatente chega ao cliente: jogadores não recebem a vida dos mobs. */
+/** Como um combatente chega ao cliente: jogadores não recebem a vida de mobs e NPCs. */
 export type CombatantView = Omit<Combatant, "hp" | "hpMax"> & {
   hp?: number;
   hpMax?: number;
@@ -111,6 +143,8 @@ export interface LogEntry {
   author: string;
   text: string;
   hidden?: boolean;
+  /** Aviso da mesa (ex.: condição que acabou), sem autor humano. */
+  system?: boolean;
   /** Contexto da rolagem, ex.: "Iniciativa · Thorin". */
   label?: string;
   roll?: RollResult;
@@ -123,6 +157,8 @@ export interface GameState {
   battle: {
     map: MapConfig & { image: string | null; imageVersion: number };
     mobs: Combatant[];
+    /** NPCs neutros: saem ao limpar o campo, como os mobs. */
+    npcs: Combatant[];
     combat: CombatState;
   };
   log: LogEntry[];
@@ -146,6 +182,7 @@ export interface ClientState {
     /** A imagem do mapa vai num evento separado (`map:image`). */
     map: MapConfig & { imageVersion: number; hasImage: boolean };
     mobs: CombatantView[];
+    npcs: CombatantView[];
     combat: CombatState;
   };
   log: LogEntry[];

@@ -22,7 +22,7 @@ export function AlliesPanel({ state }: { state: ClientState }) {
         !creating &&
         (gm || !hasOwn) && (
           <Button variant="default" onClick={() => setCreating(true)}>
-            {gm ? "+ Aliado (NPC)" : "+ Criar personagem"}
+            {gm ? "+ Aliado" : "+ Criar personagem"}
           </Button>
         )
       }

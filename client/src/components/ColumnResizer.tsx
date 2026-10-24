@@ -1,7 +1,8 @@
 import { useViewportSize } from "@mantine/hooks";
 import { useCallback, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
-export const COLUMN_LIMITS = { min: 220, max: 520 } as const;
+/** Abaixo de 260 px as linhas da iniciativa não mostram o nome. 480 + 2 × 260 + 12 cabe em 1024. */
+export const COLUMN_LIMITS = { min: 260, max: 520 } as const;
 
 /**
  * Tamanho mínimo da tela do app. O navegador não deixa travar o tamanho da janela, então abaixo

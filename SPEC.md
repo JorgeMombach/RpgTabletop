@@ -43,13 +43,14 @@ type State = {
     map: { image: string | null; showGrid: boolean; cellPx: number;
            offsetX: number; offsetY: number; feetPerCell: 5 };
     mobs: Combatant[];                 // da batalha
+    npcs: Combatant[];                 // da batalha, neutros (E15)
     combat: { active: boolean; round: number; turnIndex: number; order: string[] };
   };
-  log: { ts; author; text; hidden?: boolean }[];
+  log: { ts; author; text; hidden?: boolean; system?: boolean }[]; // system = aviso da mesa (E15)
 };
 
 type Combatant = {
-  id; name; type: "ally" | "mob";
+  id; name; type: "ally" | "mob" | "npc";
   ownerId?: string;                    // jogador dono (aliado)
   templateId?: string;
   hp: number; hpMax: number;           // vida é só um número
@@ -59,6 +60,7 @@ type Combatant = {
   initiative: number | null; initRoll: number | null;
   spellSlots?: Record<1|2|3|4|5|6|7|8|9, { max: number; used: number }>; // aliado
   spells?: { name: string; level: number; note?: string }[];             // aliado
+  conditions: { id; name: string; rounds: number | null }[];             // E15
 };
 ```
 
@@ -129,7 +131,8 @@ O jogador é **dono e único gestor** do estado do próprio personagem. O sistem
 Cliente → servidor:
 `session:join {name, sessionToken?}` (papel definido pelo servidor),
 `battle:setMap {image | null}`, `battle:grid {showGrid?, cellPx?, offsetX?, offsetY?}`, `battle:clear {keepTemplates}`,
-`template:upsert|remove`, `mob:addFromTemplate {templateId, qty}`, `mob:add`, `mob:remove`, `mob:restore`,
+`template:upsert|remove`, `mob:addFromTemplate {templateId, qty}`, `mob:add`, `mob:remove`, `mob:restore` (mob ou NPC),
+`npc:add`, `npc:addFromTemplate {templateId}`, `condition:add {id, name, rounds?}`, `condition:remove {id, conditionId}`,
 `ally:create`, `ally:remove`, `combatant:update {id, ...campos}`, `hp:change {id, delta}`, `hp:set {id, value}`, `hp:full {id}`,
 `token:move {id, pos}`, `ruler:update` (efêmero),
 `slot:set {id, level, used|max}`, `slots:restore {id}`, `ally:restoreAll {id}`, `spell:add|remove`,
@@ -413,7 +416,9 @@ Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padroni
 
 ### Regras definidas para as novas features
 - **NPCs neutros:** terceiro tipo de combatente. Só o mestre cria, move e controla; **jogadores não veem a vida** (como mobs). Podem entrar na iniciativa.
+  - Detalhes (E15): lista própria (`battle.npcs`); token em hexágono; criados avulsos ou a partir de um template (um NPC, sem número no nome, na paleta de cores neutra); *Rolar mobs* rola também para os NPCs; remover tem o mesmo *Desfazer* dos mobs.
 - **Condições:** qualquer combatente pode ter condições (concentração, atordoado, caído…), com **duração opcional em rounds**, que **desconta 1 no início do turno de quem tem a condição**; ao chegar a 0, ela sai e aparece um aviso. Sem duração = fica até alguém tirar. O app não aplica efeito nenhum (ADR-06).
+  - Detalhes (E15): iniciar o combate conta como início do turno de quem age primeiro; *voltar turno* não devolve rounds; pôr de novo uma condição que já existe só troca a duração; condições não são segredo (jogadores veem as de mobs e NPCs); o jogador mexe só nas do próprio personagem.
 - **Dados no combate:** com combate ativo, **jogador só rola na própria vez**; o mestre rola sempre e a rolagem fica **atribuída ao mob/NPC da vez** ("Goblin 2"), não ao nome do mestre. Fora de combate, todos rolam livremente.
 
 ## 15. Entregáveis da Fase 3

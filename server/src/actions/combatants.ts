@@ -4,12 +4,13 @@ import {
   LIMITS,
   MOB_COLORS,
   NAME_MAX_LENGTH,
+  NPC_COLORS,
   isColor,
   type Combatant,
   type CombatantInput,
   type MobTemplate,
 } from "@rpg/shared";
-import { placeInOrder, removeFromOrder } from "../combat";
+import { byId, placeInOrder, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireImage, requireInt, requireName, requireString } from "../validate";
 import type { HandlerMap } from "./types";
@@ -52,9 +53,7 @@ function clampHp(c: Combatant, value: number) {
 }
 
 function findCombatant(store: Store, rawId: unknown): Combatant {
-  const id = requireString(rawId, "Combatente");
-  const { allies, battle } = store.game;
-  return allies.find((c) => c.id === id) ?? battle.mobs.find((c) => c.id === id) ?? fail("Combatente não encontrado.");
+  return byId(store, requireString(rawId, "Combatente")) ?? fail("Combatente não encontrado.");
 }
 
 /** Mestre edita tudo; jogador só os próprios aliados. */
@@ -81,6 +80,7 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
     pos: null,
     initiative: null,
     initRoll: null,
+    conditions: [],
   };
   applyAvatar(c, input?.avatar);
   return c;
@@ -157,12 +157,13 @@ export const combatantHandlers: HandlerMap = {
   "mob:remove": (store, player, { id }) => {
     requireGm(player);
     pruneRemoved(store);
-    const { mobs } = store.game.battle;
-    const index = mobs.findIndex((m) => m.id === id);
-    if (index < 0) fail("Mob não encontrado.");
-    const [mob] = mobs.splice(index, 1);
+    const { battle } = store.game;
+    const list = battle.mobs.some((m) => m.id === id) ? "mobs" : "npcs";
+    const index = battle[list].findIndex((m) => m.id === id);
+    if (index < 0) fail("Mob ou NPC não encontrado.");
+    const [mob] = battle[list].splice(index, 1);
     const orderIndex = removeFromOrder(store, id);
-    store.removedMobs.set(id, { mob, index, orderIndex, at: Date.now() });
+    store.removedMobs.set(id, { mob, list, index, orderIndex, at: Date.now() });
   },
 
   "mob:restore": (store, player, { id }) => {
@@ -171,8 +172,9 @@ export const combatantHandlers: HandlerMap = {
     const removed = store.removedMobs.get(id) ?? fail("Não dá mais para desfazer essa remoção.");
     store.removedMobs.delete(id);
 
-    const { mobs, combat } = store.game.battle;
-    mobs.splice(Math.min(removed.index, mobs.length), 0, removed.mob);
+    const { combat } = store.game.battle;
+    const list = store.game.battle[removed.list];
+    list.splice(Math.min(removed.index, list.length), 0, removed.mob);
     // A ordem existe também antes do combate começar (lista de iniciativa já rolada).
     if (removed.orderIndex !== null) {
       const at = Math.min(removed.orderIndex, combat.order.length);
@@ -180,6 +182,26 @@ export const combatantHandlers: HandlerMap = {
       if (combat.active && at <= combat.turnIndex && combat.order.length > 1) combat.turnIndex++;
     }
     return [id];
+  },
+
+  "npc:add": (store, player, input) => {
+    requireGm(player);
+    const { npcs } = store.game.battle;
+    const npc = newCombatant("npc", input, colorOf(input?.color, NPC_COLORS, npcs.length));
+    npcs.push(npc);
+    return [npc.id];
+  },
+
+  "npc:addFromTemplate": (store, player, payload) => {
+    requireGm(player);
+    const t = store.game.templates.find((t) => t.id === payload?.templateId) ?? fail("Template não encontrado.");
+    const { npcs } = store.game.battle;
+    // A cor do template é de mob (tons quentes): o NPC usa a paleta neutra.
+    const npc = newCombatant("npc", { name: t.name, hpMax: t.hpMax, dexMod: t.dexMod }, colorOf(undefined, NPC_COLORS, npcs.length));
+    npc.templateId = t.id;
+    if (t.avatar) npc.avatar = t.avatar;
+    npcs.push(npc);
+    return [npc.id];
   },
 
   "ally:create": (store, player, input) => {

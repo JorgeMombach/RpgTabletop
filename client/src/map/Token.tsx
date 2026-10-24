@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import type Konva from "konva";
-import { Circle, Group, Image as KImage, Line, Rect, Text } from "react-konva";
+import { Circle, Group, Image as KImage, Line, Rect, RegularPolygon, Text } from "react-konva";
 import { feetBetween, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
-import { hpLevel, hpRatio } from "../format";
+import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { useImage } from "./useImage";
 
@@ -20,7 +20,7 @@ interface Props {
   onMove: (pos: GridPos) => Promise<boolean>;
 }
 
-/** Aliados são círculos; mobs são quadrados arredondados (SPEC F4). */
+/** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). */
 export function Token({ c, grid, selected, active, draggable, onSelect, onMove }: Props) {
   const avatar = useImage(c.avatar);
   const [hover, setHover] = useState(false);
@@ -33,11 +33,20 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
   const r = size / 2;
   const ring = Math.max(2, size * 0.07);
   const isMob = c.type === "mob";
+  const isNpc = c.type === "npc";
+  // Hexágono com a mesma área visual do círculo: o raio até a ponta é um pouco maior.
+  const hexR = r * 1.08;
   const down = c.hp !== undefined && c.hp <= 0;
+  const conditionText = c.conditions.map(fmtCondition).join(", ");
 
   const clip = (ctx: Konva.Context) => {
     ctx.beginPath();
-    if (isMob) {
+    if (isNpc) {
+      for (let i = 0; i < 6; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI) / 3;
+        ctx.lineTo(Math.cos(a) * hexR, Math.sin(a) * hexR);
+      }
+    } else if (isMob) {
       const k = size * 0.18;
       ctx.moveTo(-r + k, -r);
       ctx.arcTo(r, -r, r, r, k);
@@ -50,19 +59,24 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
     ctx.closePath();
   };
 
-  const outline = isMob
-    ? { as: "rect" as const, props: { x: -r, y: -r, width: size, height: size, cornerRadius: size * 0.18 } }
-    : { as: "circle" as const, props: { radius: r } };
-
   const Shape = (extra: Konva.ShapeConfig) =>
-    outline.as === "rect" ? <Rect {...outline.props} {...extra} /> : <Circle {...outline.props} {...extra} />;
+    isNpc ? (
+      <RegularPolygon sides={6} radius={hexR} {...extra} />
+    ) : isMob ? (
+      <Rect x={-r} y={-r} width={size} height={size} cornerRadius={size * 0.18} {...extra} />
+    ) : (
+      <Circle radius={r} {...extra} />
+    );
 
   /**
    * Contorno de seleção/turno, afastado `gap` da borda. Calculado em vez de escalar a forma:
    * o retângulo escala a partir do canto, e o contorno dos mobs ficava deslocado.
    */
   const RingShape = (gap: number, extra: Konva.ShapeConfig) =>
-    isMob ? (
+    isNpc ? (
+      // Distância até a ponta = distância até o lado ÷ cos 30°.
+      <RegularPolygon sides={6} radius={hexR + gap / Math.cos(Math.PI / 6)} {...extra} />
+    ) : isMob ? (
       <Rect
         x={-r - gap}
         y={-r - gap}
@@ -169,10 +183,32 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
         </Group>
       )}
 
-      {(hover || selected || dragFeet !== null) && (
-        <Group y={-r - ring * 2 - size * 0.3} listening={false}>
+      {c.conditions.length > 0 && (
+        // Selo com o número de condições; os nomes aparecem no rótulo (hover/seleção).
+        <Group x={r * 0.78} y={-r * 0.78} listening={false}>
+          <Circle radius={Math.max(7, size * 0.17)} fill="#d4a24c" stroke="#1a1b1e" strokeWidth={Math.max(1.5, size * 0.03)} />
           <Text
-            text={dragFeet !== null ? `${c.name} · ${dragFeet} ft` : c.name}
+            text={String(c.conditions.length)}
+            fontSize={Math.max(9, size * 0.2)}
+            fontStyle="bold"
+            fill="#1a1b1e"
+            align="center"
+            verticalAlign="middle"
+            width={size}
+            height={size}
+            x={-size / 2}
+            y={-size / 2}
+          />
+        </Group>
+      )}
+
+      {(hover || selected || dragFeet !== null) && (
+        <Group y={-r - ring * 2 - size * (conditionText ? 0.6 : 0.3)} listening={false}>
+          <Text
+            text={
+              (dragFeet !== null ? `${c.name} · ${dragFeet} ft` : c.name) + (conditionText ? `\n${conditionText}` : "")
+            }
+            lineHeight={1.2}
             fontSize={Math.max(11, size * 0.24)}
             fill="#ffffff"
             stroke="#000000"

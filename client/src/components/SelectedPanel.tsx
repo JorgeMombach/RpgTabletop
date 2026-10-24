@@ -1,15 +1,16 @@
 import { ActionIcon, Button, Divider, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { ALLY_COLORS, MOB_COLORS, type ClientState, type Combatant } from "@rpg/shared";
+import { ALLY_COLORS, MOB_COLORS, NPC_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
 import { removeMob } from "../commands";
 import { confirmAction } from "../confirm";
-import { fmtMod } from "../format";
+import { allCombatants, fmtMod } from "../format";
 import { cellAt, nearestFreeCell } from "../map/geometry";
 import { select, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { CombatantAvatar } from "./CombatantAvatar";
 import { CombatantForm } from "./CombatantForm";
+import { ConditionsSection } from "./ConditionsSection";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
 import { MagicSection } from "./MagicSection";
@@ -18,9 +19,11 @@ import { Panel } from "./Panel";
 /** Coloca o token no quadrado livre mais perto do centro da visão do mapa. */
 function placeOnMap(state: ClientState, id: string) {
   const { viewCenter } = useApp.getState();
-  const occupied = [...state.allies, ...state.battle.mobs].flatMap((c) => (c.pos ? [c.pos] : []));
+  const occupied = allCombatants(state).flatMap((c) => (c.pos ? [c.pos] : []));
   void act("token:move", { id, pos: nearestFreeCell(cellAt(viewCenter, state.battle.map), occupied) });
 }
+
+const PALETTE = { ally: ALLY_COLORS, mob: MOB_COLORS, npc: NPC_COLORS };
 
 const DES = <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr>;
 
@@ -30,8 +33,8 @@ export function SelectedPanel({ state }: { state: ClientState }) {
 
   const gm = state.self.role === "gm";
   const ally = state.allies.find((a) => a.id === selectedId);
-  const mobView = state.battle.mobs.find((m) => m.id === selectedId);
-  // Jogadores não recebem vida de mob, então só o mestre tem o mob completo.
+  const mobView = [...state.battle.mobs, ...state.battle.npcs].find((m) => m.id === selectedId);
+  // Jogadores não recebem vida de mob nem de NPC, então só o mestre tem o combatente completo.
   const c: Combatant | undefined = ally ?? (gm ? (mobView as Combatant | undefined) : undefined);
   const close = (
     <Tooltip label="Fechar">
@@ -51,10 +54,11 @@ export function SelectedPanel({ state }: { state: ClientState }) {
               {mobView.name}
             </Text>
             <Text size="xs" c="dimmed">
-              Inimigo
+              {mobView.type === "npc" ? "NPC" : "Inimigo"}
             </Text>
           </div>
         </Group>
+        <ConditionsSection c={mobView} editable={false} />
       </Panel>
     );
   }
@@ -63,7 +67,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
     return (
       <Panel title="Selecionado">
         <Text size="xs" c="dimmed">
-          Clique num aliado{gm ? " ou mob" : ""} (na lista ou no mapa) para ver e controlar a vida.
+          Clique num aliado{gm ? ", mob ou NPC" : ""} (na lista ou no mapa) para ver e controlar a vida.
         </Text>
       </Panel>
     );
@@ -72,10 +76,10 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const canEdit = gm || c.ownerId === state.self.id;
   const owner = state.players.find((p) => p.id === c.ownerId);
   const editing = editingId === c.id;
-  const kind = c.type === "mob" ? "Mob" : owner ? `Aliado · ${owner.name}` : "Aliado";
+  const kind = c.type === "mob" ? "Mob" : c.type === "npc" ? "NPC" : owner ? `Aliado · ${owner.name}` : "Aliado";
 
   async function remove(target: Combatant) {
-    if (target.type === "mob") return void removeMob(target);
+    if (target.type !== "ally") return void removeMob(target);
     const ok = await confirmAction({ title: `Remover ${target.name}?`, message: "O personagem sai da sessão.", confirmLabel: "Remover", danger: true });
     if (ok) void act("ally:remove", { id: target.id }).then((r) => r.ok && select(null));
   }
@@ -104,7 +108,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
       {editing ? (
         <CombatantForm
           initial={c}
-          palette={c.type === "mob" ? MOB_COLORS : ALLY_COLORS}
+          palette={PALETTE[c.type]}
           submitLabel="Salvar"
           onCancel={() => setEditingId(null)}
           onSubmit={async (v) => {
@@ -126,6 +130,8 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           <HpBar hp={c.hp} hpMax={c.hpMax} thick />
         </Stack>
       )}
+
+      {!editing && <ConditionsSection c={c} editable={canEdit} />}
 
       {c.type === "ally" && !editing && <MagicSection c={c} editable={canEdit} />}
 
