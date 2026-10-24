@@ -180,12 +180,12 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E9 — Imagem Docker | ✅ v1.1.0 |
 | E10 — Executável (Node SEA; substituído pelo app Electron na 2.0) | ✅ v1.1.0 |
 | E11 — CI/CD e releases | ✅ v1.1.0 |
-| E13 — Correções e identidade (Jamal's Tabletop) | ✅ (próxima versão) |
-| E14 — Base de UX (Mantine) | ✅ (próxima versão) |
-| E15 — NPCs neutros e condições | ✅ (próxima versão) |
-| E16 — Dados no combate | ✅ (próxima versão) |
-| E17 — Mapa: rotação, escala e áreas de magia | ✅ (próxima versão) |
-| E19 — Efeitos persistentes no mapa | ✅ (próxima versão) |
-| E20 — Identidade visual "Grimório sombrio" | ✅ (próxima versão) |
-| E18 — Salvar e carregar sessão | ✅ (próxima versão) |
-| E12 — App do mestre com janela própria (Electron) | ✅ (próxima versão) |
+| E13 — Correções e identidade (Jamal's Tabletop) | ✅ v2.0.0 |
+| E14 — Base de UX (Mantine) | ✅ v2.0.0 |
+| E15 — NPCs neutros e condições | ✅ v2.0.0 |
+| E16 — Dados no combate | ✅ v2.0.0 |
+| E17 — Mapa: rotação, escala e áreas de magia | ✅ v2.0.0 |
+| E19 — Efeitos persistentes no mapa | ✅ v2.0.0 |
+| E20 — Identidade visual "Grimório sombrio" | ✅ v2.0.0 |
+| E18 — Salvar e carregar sessão | ✅ v2.0.0 |
+| E12 — App do mestre com janela própria (Electron) | ✅ v2.0.0 |

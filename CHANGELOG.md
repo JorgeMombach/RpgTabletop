@@ -6,6 +6,12 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.0.0] - 2026-10-24
+
+A Fase 3 inteira: **app do mestre com janela própria**, **visual novo** ("Grimório sombrio"), NPCs e condições, dados no combate com trava por turno, áreas e efeitos de magia no mapa e **salvar/carregar sessão**.
+
+**Por que 2.0:** o executável de console foi substituído por um app com janela, com arquivos de nomes e formatos novos (`.exe` portátil, `.dmg`, `.AppImage`), e a interface mudou por completo. A atualização não perde nada: até aqui nenhuma sessão era salva. Quem usa Docker só troca a tag da imagem.
+
 ### Alterado
 - **O executável virou um app com janela própria** (Electron): dois cliques abrem o Jamal's Tabletop já na mesa, sem console nem navegador. Windows `.exe` portátil, macOS `.dmg`, Linux `.AppImage`. O executável antigo (Node SEA) foi descontinuado; Docker continua igual. (E12)
 - **Visual novo, "Grimório sombrio":** paleta de tinta, couro e bronze com verde-cobre e sangue; painéis como placas com cantoneiras de bronze; títulos em Cinzel e texto em Alegreya Sans; ícones desenhados (Tabler) no lugar dos emoji. A tela de entrada e a marca do topo continuam, agora em bronze. Guia em `docs/design/guia-visual.md`. (E20)
@@ -38,6 +44,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Tela de entrada com arte:** emblema de d20 e fundo temático. (E14)
 - Botão **Sair** na barra do topo: sai da sessão ou troca de nome sem perder o personagem, e o navegador para de entrar sozinho. (E13)
 - README: como o jogador troca para a rede do mestre no Tailscale e o que fazer quando a página fica carregando para sempre. (E13)
+
+### Removido
+- Executável de console (Node SEA) e a janela preta com os endereços: o app com janela substitui os dois; os endereços e o link de mestre ficam no painel *Convidar jogadores*. (E12)
 
 ### Corrigido
 - Dois tokens podiam ficar na mesma casa; agora o servidor recusa ("Essa casa já está ocupada por …") e, ao soltar da lista numa casa ocupada, o token vai para a livre mais perto. (E17)
@@ -79,6 +88,7 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.1.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/JorgeMombach/RpgTabletop/releases/tag/v1.0.0
