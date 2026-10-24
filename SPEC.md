@@ -45,6 +45,7 @@ type State = {
            rotation: 0 | 90 | 180 | 270; imageScale: number }; // E17: só a imagem gira/escala
     mobs: Combatant[];                 // da batalha
     npcs: Combatant[];                 // da batalha, neutros (E15)
+    effects: MapEffect[];              // E19: { name, preset, color, area, ownerId, casterId, rounds, concentration, active }
     combat: { active: boolean; round: number; turnIndex: number; order: string[] };
   };
   log: { ts; author; text; hidden?: boolean; system?: boolean }[]; // system = aviso da mesa (E15)
@@ -134,6 +135,7 @@ Cliente → servidor:
 `battle:setMap {image | null}`, `battle:grid {showGrid?, cellPx?, offsetX?, offsetY?}`, `battle:clear {keepTemplates}`,
 `template:upsert|remove`, `mob:addFromTemplate {templateId, qty}`, `mob:add`, `mob:remove`, `mob:restore` (mob ou NPC),
 `npc:add`, `npc:addFromTemplate {templateId}`, `condition:add {id, name, rounds?}`, `condition:remove {id, conditionId}`,
+`effect:add {name, preset, color?, area, casterId?, rounds?, concentration?}`, `effect:toggle {id, active}`, `effect:remove {id}` (E19),
 `ally:create`, `ally:remove`, `combatant:update {id, ...campos}`, `hp:change {id, delta}`, `hp:set {id, value}`, `hp:full {id}`,
 `token:move {id, pos}` (recusa casa ocupada), `ruler:update` e `area:update {kind, origin, angle, feet}` (efêmeros),
 `slot:set {id, level, used|max}`, `slots:restore {id}`, `ally:restoreAll {id}`, `spell:add|remove`,
@@ -505,6 +507,8 @@ Ordem: **E13 → E14 → (E15, E16, E17 em qualquer ordem) → E19 → E18 → E
 - **Painel de efeitos:** lista com nome, quem conjurou, rounds restantes e ações (ligar/desligar, remover).
 - O app só desenha (ADR-06): não calcula quem está dentro nem aplica terreno difícil ou dano.
 - *Limpar campo* remove todos os efeitos.
+- **Visual (decidido na implementação):** efeitos predefinidos com textura própria desenhada pelo app (sem arquivos de imagem, funciona offline): Fogo, Água, Graxa, Teia, Plantas, Raízes, Névoa, Gelo e Escuridão; Fogo, Água e Névoa são animados. *Personalizado* = só uma cor. A lista cresce acrescentando um desenho em `client/src/map/effectTextures.ts` e uma entrada em `EFFECT_PRESETS`. Os efeitos ficam numa camada semitransparente **entre o mapa e os tokens**.
+- Efeito sem conjurador (ambiente, só o mestre) conta no início de cada round. Combatente que sai da batalha perde a concentração (os efeitos de concentração dele somem).
 
 **Pronto quando:**
 - "Teia (3)" de Ana passa a 2, 1 e some no início dos turnos de Ana, com aviso para todos; efeitos sem duração não mudam.

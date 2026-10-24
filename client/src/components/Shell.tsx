@@ -10,6 +10,7 @@ import { BestiaryPanel } from "./BestiaryPanel";
 import { ClearBattleDialog } from "./ClearBattleDialog";
 import { ColumnResizer, LAYOUT, useColumnWidths } from "./ColumnResizer";
 import { DicePanel } from "./DicePanel";
+import { EffectsPanel } from "./EffectsPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { InvitePanel } from "./InvitePanel";
 import { MapPanel } from "./MapPanel";
@@ -97,6 +98,7 @@ export function Shell({ state }: { state: ClientState }) {
         {gm && <MobsPanel mobs={state.battle.mobs as Combatant[]} />}
         {gm && <NpcsPanel npcs={state.battle.npcs as Combatant[]} />}
         <AlliesPanel state={state} />
+        <EffectsPanel state={state} />
         {gm && <MapPanel map={state.battle.map} />}
         {gm && <BestiaryPanel templates={state.templates} />}
         <PlayersPanel state={state} />

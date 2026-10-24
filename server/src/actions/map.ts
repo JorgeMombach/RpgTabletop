@@ -67,6 +67,7 @@ export const mapHandlers: HandlerMap = {
     battle.map.imageVersion++;
     battle.mobs = [];
     battle.npcs = [];
+    battle.effects = [];
     resetCombat(store);
     for (const a of game.allies) {
       a.pos = null;

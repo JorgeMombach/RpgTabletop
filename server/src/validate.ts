@@ -1,4 +1,4 @@
-import { NAME_MAX_LENGTH } from "@rpg/shared";
+import { LIMITS, NAME_MAX_LENGTH, type Area, type AreaKind } from "@rpg/shared";
 
 /** Erro de ação: a mensagem vai direto para o usuário. */
 export class ActionError extends Error {}
@@ -45,4 +45,18 @@ export function requireNumber(raw: unknown, label: string, min: number, max: num
 export function requireString(raw: unknown, label: string): string {
   if (typeof raw !== "string" || !raw) fail(`${label} inválido.`);
   return raw;
+}
+
+const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
+
+/** Área de magia vinda do cliente: só repassa se cada campo for válido (E17). */
+export function validArea(raw: unknown): Area | null {
+  const a = raw as Area | null;
+  if (!a || typeof a !== "object" || !AREA_KINDS.includes(a.kind)) return null;
+  const half = (n: unknown) => typeof n === "number" && Number.isInteger(n * 2) && Math.abs(n) <= LIMITS.gridCoord;
+  if (!a.origin || !half(a.origin.col) || !half(a.origin.row)) return null;
+  if (typeof a.angle !== "number" || !Number.isFinite(a.angle)) return null;
+  const { min, max } = LIMITS.areaFeet;
+  if (!Number.isInteger(a.feet) || a.feet < min || a.feet > max) return null;
+  return { kind: a.kind, origin: { col: a.origin.col, row: a.origin.row }, angle: a.angle % (Math.PI * 2), feet: a.feet };
 }

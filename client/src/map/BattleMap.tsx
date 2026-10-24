@@ -8,8 +8,10 @@ import { act } from "../actions";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setTool, useApp } from "../store";
 import { allCombatants } from "../format";
+import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, nearestFreeCell, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
+import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
 
@@ -45,6 +47,7 @@ export function BattleMap({ state }: { state: ClientState }) {
   const [shiftHeld, setShiftHeld] = useState(false);
   const [myRuler, setMyRuler] = useState<Ruler | null>(null);
   const [myArea, setMyArea] = useState<Area | null>(null);
+  const [fixing, setFixing] = useState(false);
   const calibStart = useRef<Point | null>(null);
 
   const { tool, selectedId, rulers, areas, areaKind, areaFeet, calibRect, mapImage } = useApp();
@@ -277,6 +280,19 @@ export function BattleMap({ state }: { state: ClientState }) {
             {grid.showGrid && <GridLines grid={grid} view={view} size={size} onImage={!!image} />}
           </Layer>
 
+          {/* Efeitos no mapa: acima da imagem e do grid, abaixo dos tokens (E19). */}
+          <Layer listening={false}>
+            {state.battle.effects.map((e) => (
+              <EffectShape
+                key={e.id}
+                effect={e}
+                grid={grid}
+                scale={view.scale}
+                casterName={e.casterId ? allCombatants(state).find((c) => c.id === e.casterId)?.name : undefined}
+              />
+            ))}
+          </Layer>
+
           <Layer>
             {tokens.map((c) => (
               <Token
@@ -333,7 +349,18 @@ export function BattleMap({ state }: { state: ClientState }) {
           </MText>
         </Paper>
       )}
-      {tool === "area" && <AreaOptions />}
+      {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
+      {fixing && myArea && (
+        <FixEffectModal
+          state={state}
+          area={myArea}
+          onClose={() => setFixing(false)}
+          onFixed={() => {
+            setFixing(false);
+            updateArea(null);
+          }}
+        />
+      )}
       {tool === "calibrate" && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="gold.4" ta="center">
@@ -493,7 +520,7 @@ function MapToolbar({
 const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
 
 /** Forma e tamanho da área (ferramenta Área). */
-function AreaOptions() {
+function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) {
   const { areaKind, areaFeet } = useApp();
   return (
     <Paper className="map-options" p="xs" shadow="md" radius="md">
@@ -524,9 +551,16 @@ function AreaOptions() {
           />
         </Tooltip>
       </MGroup>
-      <MText size="xs" c="dimmed" mt={4}>
-        Clique para pôr a origem e arraste para apontar. Esc apaga.
-      </MText>
+      <MGroup gap="xs" wrap="nowrap" justify="space-between" mt={4}>
+        <MText size="xs" c="dimmed">
+          Clique para pôr a origem e arraste para apontar. Esc apaga.
+        </MText>
+        <Tooltip label="Deixa a área no mapa (graxa, teia, fogo…), com duração e concentração">
+          <Button size="compact-xs" disabled={!canFix} onClick={onFix} style={{ flex: "none" }}>
+            📌 Fixar como efeito
+          </Button>
+        </Tooltip>
+      </MGroup>
     </Paper>
   );
 }

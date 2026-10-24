@@ -5,17 +5,21 @@ import type { Store } from "../store";
 import { fail, requireInt, requireString } from "../validate";
 import { editable } from "./combatants";
 import { logSystem } from "./dice";
+import { endConcentration, isConcentration, tickCasterEffects } from "./effects";
 import type { HandlerMap } from "./types";
 
 /**
  * Início do turno de quem está na vez: desconta 1 round das condições com duração.
  * As que chegam a 0 saem e viram aviso no log. Sem duração = não muda (SPEC §14).
+ * Também contam os efeitos no mapa que ele conjurou (E19).
  */
 export function startTurn(store: Store) {
   const { combat } = store.game.battle;
   if (!combat.active) return;
   const c = byId(store, combat.order[combat.turnIndex]);
-  if (!c || c.conditions.length === 0) return;
+  if (!c) return;
+  tickCasterEffects(store, c.id);
+  if (c.conditions.length === 0) return;
   const expired: string[] = [];
   c.conditions = c.conditions.filter((k) => {
     if (k.rounds === null) return true;
@@ -25,6 +29,7 @@ export function startTurn(store: Store) {
     return false;
   });
   for (const name of expired) logSystem(store, `${name} acabou em ${c.name}.`);
+  if (expired.some(isConcentration)) endConcentration(store, c.id);
 }
 
 export const conditionHandlers: HandlerMap = {
@@ -52,6 +57,9 @@ export const conditionHandlers: HandlerMap = {
     const c = editable(store, player, payload?.id);
     const id = requireString(payload.conditionId, "Condição");
     if (!c.conditions.some((k) => k.id === id)) fail("Condição não encontrada.");
+    const removed = c.conditions.find((k) => k.id === id)!;
     c.conditions = c.conditions.filter((k) => k.id !== id);
+    // Perdeu a concentração: os efeitos de concentração dele somem junto (E19).
+    if (isConcentration(removed.name)) endConcentration(store, c.id);
   },
 };

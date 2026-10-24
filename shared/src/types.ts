@@ -1,4 +1,5 @@
 // Modelo de dados compartilhado entre servidor e cliente (ver SPEC.md §4).
+import type { Area } from "./events";
 
 export type Role = "gm" | "player";
 
@@ -187,6 +188,42 @@ export interface LogEntry {
   turn?: { seq: number; round: number; name: string };
 }
 
+/** Efeitos predefinidos (cada um tem textura própria no mapa); "custom" = só a cor escolhida. */
+export const EFFECT_PRESETS = {
+  fire: { label: "Fogo", color: "#ff6a1a" },
+  water: { label: "Água", color: "#3b8fd9" },
+  grease: { label: "Graxa", color: "#5a4a32" },
+  web: { label: "Teia", color: "#e6e6e6" },
+  plants: { label: "Plantas", color: "#3f9a3a" },
+  roots: { label: "Raízes", color: "#8a5a32" },
+  fog: { label: "Névoa", color: "#c9d1d9" },
+  ice: { label: "Gelo", color: "#9fdcf0" },
+  darkness: { label: "Escuridão", color: "#1a1424" },
+  custom: { label: "Personalizado", color: "#d4a24c" },
+} as const;
+
+export type EffectPreset = keyof typeof EFFECT_PRESETS;
+
+/**
+ * Efeito persistente no mapa (E19): uma área que fica até acabar a duração, alguém remover
+ * ou, se for de concentração, o conjurador perder a *Concentração*.
+ */
+export interface MapEffect {
+  id: string;
+  name: string;
+  preset: EffectPreset;
+  color: string;
+  area: Area;
+  /** Jogador que criou (quem pode mexer, além do mestre). */
+  ownerId: string;
+  /** Combatente que conjurou: a duração desconta no turno dele. Sem conjurador = no início de cada round. */
+  casterId: string | null;
+  rounds: number | null;
+  concentration: boolean;
+  /** Desligado = fica guardado, mas só o mestre vê. */
+  active: boolean;
+}
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];
@@ -198,6 +235,7 @@ export interface GameState {
     npcs: Combatant[];
     combat: CombatState;
     rolls: RollsState;
+    effects: MapEffect[];
   };
   log: LogEntry[];
 }
@@ -223,6 +261,7 @@ export interface ClientState {
     npcs: CombatantView[];
     combat: CombatState;
     rolls: RollsState;
+    effects: MapEffect[];
   };
   log: LogEntry[];
   /** Só para o mestre: endereços para passar aos jogadores. */
