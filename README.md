@@ -54,7 +54,7 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 **Dados**: botões d4–d100 com quantidade e modificador, expressão livre (`2d6+1d4+3`), vantagem/desvantagem; o log é compartilhado e o mestre pode rolar oculto.
 
-**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. Painéis laterais recolhem clicando no título e mudam de largura arrastando a borda entre a coluna e o mapa (duplo clique volta ao padrão). A tela do app tem no mínimo 1024 × 640 px: numa janela menor aparece barra de rolagem.
+**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. *✦ Área* mostra a área de uma magia para todos (cone, esfera, cilindro, linha ou cubo, tamanho em pés): clique na origem e arraste para apontar; Esc apaga. No painel *Mapa*, o mestre gira a imagem em 90° e muda o tamanho dela (para casar os quadrados do desenho com o grid) sem mexer nos tokens. Dois tokens não ficam na mesma casa. Painéis laterais recolhem clicando no título e mudam de largura arrastando a borda entre a coluna e o mapa (duplo clique volta ao padrão). A tela do app tem no mínimo 1024 × 640 px: numa janela menor aparece barra de rolagem.
 
 ## Opções
 
@@ -181,6 +181,7 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E14 — Base de UX (Mantine) | ✅ (próxima versão) |
 | E15 — NPCs neutros e condições | ✅ (próxima versão) |
 | E16 — Dados no combate | ✅ (próxima versão) |
-| E17 — Mapa: rotação, escala e áreas de magia | ⏳ |
+| E17 — Mapa: rotação, escala e áreas de magia | ✅ (próxima versão) |
+| E19 — Efeitos persistentes no mapa | ⏳ (antes do E18) |
 | E18 — Salvar e carregar sessão | ⏳ |
 | E12 — Launcher com janela própria | ⏳ depois do E18 |

@@ -1,7 +1,10 @@
 import { create } from "zustand";
-import type { ClientState, JoinError, MapImagePayload, Role, Ruler } from "@rpg/shared";
+import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, Role, Ruler } from "@rpg/shared";
 
-export type MapTool = "move" | "ruler" | "calibrate";
+export type MapTool = "move" | "ruler" | "area" | "calibrate";
+
+/** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
+export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
 
 export interface Rect {
   x: number;
@@ -22,6 +25,11 @@ interface AppStore {
   mapImage: MapImagePayload;
   /** Réguas que outras pessoas estão medindo agora. */
   rulers: Record<string, { name: string; ruler: Ruler }>;
+  /** Áreas de magia que outras pessoas estão mostrando agora. */
+  areas: Record<string, { name: string; area: Area }>;
+  /** Forma e tamanho escolhidos na ferramenta de área. */
+  areaKind: AreaKind;
+  areaFeet: number;
   /** Combatente aberto no painel "Selecionado" (local, não sincroniza). */
   selectedId: string | null;
   /** Nome usado antes de "Sair", para preencher a tela de entrada. */
@@ -41,6 +49,9 @@ export const useApp = create<AppStore>(() => ({
   state: null,
   mapImage: { version: 0, image: null },
   rulers: {},
+  areas: {},
+  areaKind: "cone",
+  areaFeet: AREA_DEFAULT_FEET.cone,
   selectedId: null,
   lastName: "",
   tool: "move",

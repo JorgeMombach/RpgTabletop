@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
-import { ActionIcon, Button, Divider, Group as MGroup, Paper, Text as MText, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
+import { cellDistance, LIMITS, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
 import { act } from "../actions";
 import { socket } from "../socket";
-import { select, setTool, useApp } from "../store";
-import { cellAt, cellCenter, sameCell, type Point } from "./geometry";
+import { AREA_DEFAULT_FEET, select, setTool, useApp } from "../store";
+import { allCombatants } from "../format";
+import { cellAt, cellCenter, nearestFreeCell, sameCell, type Point } from "./geometry";
+import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
 
@@ -23,6 +25,18 @@ interface View {
   scale: number;
 }
 
+/**
+ * Posição da imagem girada (sentido horário) e escalada para ocupar [0, largura] × [0, altura]
+ * do mapa a partir da origem: o grid e os tokens não se mexem (E17).
+ */
+function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
+  const w = image.width * scale;
+  const h = image.height * scale;
+  const at: Record<number, Point> = { 0: { x: 0, y: 0 }, 90: { x: h, y: 0 }, 180: { x: w, y: h }, 270: { x: 0, y: w } };
+  const turned = rotation % 180 !== 0;
+  return { ...(at[rotation] ?? at[0]), w, h, bounds: { width: turned ? h : w, height: turned ? w : h } };
+}
+
 export function BattleMap({ state }: { state: ClientState }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -30,11 +44,13 @@ export function BattleMap({ state }: { state: ClientState }) {
   const [view, setView] = useState<View>({ x: 40, y: 40, scale: 1 });
   const [shiftHeld, setShiftHeld] = useState(false);
   const [myRuler, setMyRuler] = useState<Ruler | null>(null);
+  const [myArea, setMyArea] = useState<Area | null>(null);
   const calibStart = useRef<Point | null>(null);
 
-  const { tool, selectedId, rulers, calibRect, mapImage } = useApp();
+  const { tool, selectedId, rulers, areas, areaKind, areaFeet, calibRect, mapImage } = useApp();
   const image = useImage(mapImage.image);
   const grid = state.battle.map;
+  const layout = image ? imageLayout(image, grid.rotation, grid.imageScale) : null;
   const gm = state.self.role === "gm";
   const rulerMode = tool === "ruler" || (tool === "move" && shiftHeld);
 
@@ -78,13 +94,14 @@ export function BattleMap({ state }: { state: ClientState }) {
       setView({ x: 40, y: 40, scale: 1 });
       return;
     }
-    const scale = Math.min(size.width / image.width, size.height / image.height) * 0.95;
+    const { width, height } = imageLayout(image, grid.rotation, grid.imageScale).bounds;
+    const scale = Math.min(size.width / width, size.height / height) * 0.95;
     setView({
       scale,
-      x: (size.width - image.width * scale) / 2,
-      y: (size.height - image.height * scale) / 2,
+      x: (size.width - width * scale) / 2,
+      y: (size.height - height * scale) / 2,
     });
-  }, [image, size.width, size.height]);
+  }, [image, size.width, size.height, grid.rotation, grid.imageScale]);
 
   // Mapa novo: enquadra a imagem inteira.
   const fittedFor = useRef<HTMLImageElement | null>(null);
@@ -119,13 +136,54 @@ export function BattleMap({ state }: { state: ClientState }) {
     socket.emit("ruler:update", next);
   }
 
+  // Área de magia: fica no mapa depois de soltar o mouse, até trocar de ferramenta ou apertar Esc.
+  const areaRef = useRef<Area | null>(null);
+  const areaDragging = useRef(false);
+  function updateArea(next: Area | null) {
+    const prev = areaRef.current;
+    if (!next && !prev) return;
+    if (next && prev && JSON.stringify(next) === JSON.stringify(prev)) return;
+    areaRef.current = next;
+    setMyArea(next);
+    socket.emit("area:update", next);
+  }
+
+  useEffect(() => {
+    if (tool !== "area") updateArea(null);
+  }, [tool]);
+
+  // Trocar forma ou tamanho atualiza a área que já está no mapa.
+  useEffect(() => {
+    const a = areaRef.current;
+    if (a) updateArea({ ...a, kind: areaKind, feet: areaFeet });
+  }, [areaKind, areaFeet]);
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && updateArea(null);
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, []);
+
+  /** Direção da origem até o ponteiro, em passos de 1° (evita mandar mudança mínima a cada pixel). */
+  function angleTo(a: Area, p: Point): number {
+    const o = { x: grid.offsetX + a.origin.col * grid.cellPx, y: grid.offsetY + a.origin.row * grid.cellPx };
+    if (Math.hypot(p.x - o.x, p.y - o.y) < grid.cellPx / 4) return a.angle;
+    const step = Math.PI / 180;
+    return Math.round(Math.atan2(p.y - o.y, p.x - o.x) / step) * step;
+  }
+
   function onMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
     if (e.evt.button !== 0) return;
+    // Clique sem mover o mouse antes: garante que o Konva saiba onde está o ponteiro.
+    stageRef.current?.setPointersPositions(e.evt);
     const p = worldPointer();
     if (!p) return;
     if (tool === "calibrate") {
       calibStart.current = p;
       useApp.setState({ calibRect: { x: p.x, y: p.y, width: 0, height: 0 } });
+    } else if (tool === "area") {
+      areaDragging.current = true;
+      updateArea({ kind: areaKind, origin: areaOrigin(p, grid), angle: areaRef.current?.angle ?? 0, feet: areaFeet });
     } else if (rulerMode) {
       const cell = cellAt(p, grid);
       updateRuler({ from: cell, to: cell });
@@ -140,6 +198,11 @@ export function BattleMap({ state }: { state: ClientState }) {
       useApp.setState({
         calibRect: { x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), width: Math.abs(p.x - s.x), height: Math.abs(p.y - s.y) },
       });
+    } else if (tool === "area" && areaDragging.current && areaRef.current) {
+      const a = areaRef.current;
+      // Esfera e cilindro: arrastar move o centro; as outras formas giram em volta da origem.
+      const round = a.kind === "sphere" || a.kind === "cylinder";
+      updateArea(round ? { ...a, origin: areaOrigin(p, grid) } : { ...a, angle: angleTo(a, p) });
     } else if (rulerRef.current) {
       updateRuler({ from: rulerRef.current.from, to: cellAt(p, grid) });
     }
@@ -147,6 +210,7 @@ export function BattleMap({ state }: { state: ClientState }) {
 
   function onMouseUp() {
     calibStart.current = null;
+    areaDragging.current = false;
     updateRuler(null);
   }
 
@@ -157,7 +221,10 @@ export function BattleMap({ state }: { state: ClientState }) {
     e.preventDefault();
     stage.setPointersPositions(e.nativeEvent);
     const p = stage.getRelativePointerPosition();
-    if (p) void act("token:move", { id, pos: cellAt(p, grid) });
+    if (!p) return;
+    // Soltar da lista é "colocar": se a casa estiver ocupada, vai para a livre mais perto.
+    const occupied = allCombatants(state).flatMap((c) => (c.pos && c.id !== id ? [c.pos] : []));
+    void act("token:move", { id, pos: nearestFreeCell(cellAt(p, grid), occupied) });
   }
 
   // Aliados por cima (desenhados por último).
@@ -204,7 +271,9 @@ export function BattleMap({ state }: { state: ClientState }) {
           }}
         >
           <Layer listening={false}>
-            {image && <KImage image={image} />}
+            {image && layout && (
+              <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
+            )}
             {grid.showGrid && <GridLines grid={grid} view={view} size={size} onImage={!!image} />}
           </Layer>
 
@@ -221,6 +290,13 @@ export function BattleMap({ state }: { state: ClientState }) {
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}
               />
             ))}
+          </Layer>
+
+          <Layer listening={false}>
+            {Object.entries(areas).map(([pid, a]) => (
+              <AreaShape key={pid} area={a.area} grid={grid} scale={view.scale} label={a.name} color="#5ba3e6" />
+            ))}
+            {myArea && <AreaShape area={myArea} grid={grid} scale={view.scale} color="#d4a24c" />}
           </Layer>
 
           <Layer listening={false}>
@@ -257,6 +333,7 @@ export function BattleMap({ state }: { state: ClientState }) {
           </MText>
         </Paper>
       )}
+      {tool === "area" && <AreaOptions />}
       {tool === "calibrate" && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="gold.4" ta="center">
@@ -382,6 +459,15 @@ function MapToolbar({
             📏 Régua
           </Button>
         </Tooltip>
+        <Tooltip label="Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)">
+          <Button
+            variant={tool === "area" ? "filled" : "subtle"}
+            color={tool === "area" ? undefined : "gray"}
+            onClick={() => setTool(tool === "area" ? "move" : "area")}
+          >
+            ✦ Área
+          </Button>
+        </Tooltip>
         {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>Cancelar calibração</Button>}
         <Divider orientation="vertical" mx={2} />
         <Tooltip label="Afastar">
@@ -400,6 +486,47 @@ function MapToolbar({
           </Button>
         </Tooltip>
       </MGroup>
+    </Paper>
+  );
+}
+
+const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
+
+/** Forma e tamanho da área (ferramenta Área). */
+function AreaOptions() {
+  const { areaKind, areaFeet } = useApp();
+  return (
+    <Paper className="map-options" p="xs" shadow="md" radius="md">
+      <MGroup gap="xs" wrap="nowrap" align="flex-end">
+        <SegmentedControl
+          size="xs"
+          data={AREA_KINDS.map((k) => ({ value: k, label: AREA_LABEL[k] }))}
+          value={areaKind}
+          onChange={(v) => useApp.setState({ areaKind: v as AreaKind, areaFeet: AREA_DEFAULT_FEET[v as AreaKind] })}
+          aria-label="Forma da área"
+        />
+        <Tooltip label={`Em pés: ${AREA_MEASURE[areaKind]}`}>
+          <NumberInput
+            w={84}
+            min={LIMITS.areaFeet.min}
+            max={LIMITS.areaFeet.max}
+            step={5}
+            allowDecimal={false}
+            allowNegative={false}
+            clampBehavior="blur"
+            suffix=" ft"
+            value={areaFeet}
+            onChange={(v) => {
+              const n = Number(v);
+              if (Number.isInteger(n) && n >= LIMITS.areaFeet.min && n <= LIMITS.areaFeet.max) useApp.setState({ areaFeet: n });
+            }}
+            aria-label={`Tamanho em pés (${AREA_MEASURE[areaKind]})`}
+          />
+        </Tooltip>
+      </MGroup>
+      <MText size="xs" c="dimmed" mt={4}>
+        Clique para pôr a origem e arraste para apontar. Esc apaga.
+      </MText>
     </Paper>
   );
 }

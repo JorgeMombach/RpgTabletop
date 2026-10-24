@@ -1,4 +1,4 @@
-import { Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, Slider, Stack, Text } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, Slider, Stack, Text, Tooltip } from "@mantine/core";
 import { LIMITS, type GridInput, type MapConfig } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { act } from "../actions";
@@ -32,8 +32,11 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   const sendGrid = useThrottledGrid();
 
   // Valores locais para os sliders responderem na hora; o servidor confirma depois.
-  const [local, setLocal] = useState({ cellPx: map.cellPx, offsetX: map.offsetX, offsetY: map.offsetY });
-  useEffect(() => setLocal({ cellPx: map.cellPx, offsetX: map.offsetX, offsetY: map.offsetY }), [map.cellPx, map.offsetX, map.offsetY]);
+  const [local, setLocal] = useState({ cellPx: map.cellPx, offsetX: map.offsetX, offsetY: map.offsetY, imageScale: map.imageScale });
+  useEffect(
+    () => setLocal({ cellPx: map.cellPx, offsetX: map.offsetX, offsetY: map.offsetY, imageScale: map.imageScale }),
+    [map.cellPx, map.offsetX, map.offsetY, map.imageScale],
+  );
 
   // Deslocamento = tamanho do quadrado é o mesmo grid que deslocamento 0 (o servidor normaliza),
   // então o slider para um passo antes para o grid não "pular" de volta ao início.
@@ -79,6 +82,51 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
           </Button>
         )}
       </Group>
+
+      {map.hasImage && (
+        <Group gap="xs" wrap="nowrap">
+          <Text size="sm" style={{ flex: 1 }}>
+            Girar imagem ({map.rotation}°)
+          </Text>
+          <Tooltip label="Girar 90° para a esquerda">
+            <ActionIcon variant="default" aria-label="Girar 90° para a esquerda" onClick={() => act("battle:grid", { rotation: map.rotation - 90 })}>
+              ⟲
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Girar 90° para a direita">
+            <ActionIcon variant="default" aria-label="Girar 90° para a direita" onClick={() => act("battle:grid", { rotation: map.rotation + 90 })}>
+              ⟳
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+      )}
+      {map.hasImage && (
+        <Input.Wrapper
+          label={
+            <Tooltip label="Muda só a imagem: o grid e os tokens ficam onde estão. Use para casar os quadrados do desenho com o grid.">
+              <span>Tamanho da imagem: {Math.round(local.imageScale * 100)}%</span>
+            </Tooltip>
+          }
+        >
+          <Group gap="xs" wrap="nowrap" mt={6}>
+            <Slider
+              style={{ flex: 1 }}
+              min={10}
+              max={400}
+              step={1}
+              value={Math.round(local.imageScale * 100)}
+              onChange={(v) => change({ imageScale: v / 100 })}
+              label={(v) => `${v}%`}
+              aria-label="Tamanho da imagem"
+            />
+            <Tooltip label="Tamanho original">
+              <Button variant="default" size="compact-xs" disabled={map.imageScale === 1} onClick={() => change({ imageScale: 1 })}>
+                100%
+              </Button>
+            </Tooltip>
+          </Group>
+        </Input.Wrapper>
+      )}
 
       <Checkbox
         checked={map.showGrid}

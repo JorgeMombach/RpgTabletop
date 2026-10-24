@@ -105,6 +105,10 @@ export interface MapConfig {
   offsetX: number;
   offsetY: number;
   feetPerCell: number;
+  /** Rotação da imagem (0, 90, 180 ou 270 graus, sentido horário). O grid e os tokens não giram. */
+  rotation: number;
+  /** Escala da imagem (1 = tamanho original), para casar os quadrados do desenho com o grid. */
+  imageScale: number;
 }
 
 export interface CombatState {

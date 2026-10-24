@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ActionResult, MapImagePayload, RulerBroadcast } from "@rpg/shared";
+import type { ActionResult, Area, AreaBroadcast, MapImagePayload, RulerBroadcast } from "@rpg/shared";
+import { validArea } from "../src/app";
 import { act, join, stateWhere, useServer, type Client } from "./helpers";
 
 const { ctx, client } = useServer();
@@ -114,6 +115,19 @@ describe("tokens", () => {
     assert.ok((await act(ana, "token:move", { id: anaId, pos: null })).ok, "tirar do mapa");
   });
 
+  it("dois tokens não ocupam a mesma casa", async () => {
+    const g = await gm();
+    const [a] = idsOf(await act(g, "mob:add", { name: "Goblin 1", hpMax: 7, dexMod: 0 }));
+    const [b] = idsOf(await act(g, "npc:add", { name: "Guarda", hpMax: 7, dexMod: 0 }));
+    assert.ok((await act(g, "token:move", { id: a, pos: { col: 2, row: 2 } })).ok);
+    const res = await act(g, "token:move", { id: b, pos: { col: 2, row: 2 } });
+    assert.equal(res.ok, false);
+    assert.match(res.ok ? "" : res.error, /ocupada por Goblin 1/);
+    assert.ok((await act(g, "token:move", { id: a, pos: { col: 2, row: 2 } })).ok, "ficar na própria casa vale");
+    assert.ok((await act(g, "token:move", { id: a, pos: null })).ok);
+    assert.ok((await act(g, "token:move", { id: b, pos: { col: 2, row: 2 } })).ok, "casa liberada");
+  });
+
   it("movimento é livre (sem limite de distância), mas a coordenada é validada", async () => {
     const p = await player("Ana");
     const [id] = idsOf(await act(p, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1 }));
@@ -171,5 +185,75 @@ describe("régua", () => {
     const seen = new Promise<RulerBroadcast>((resolve) => g.once("ruler", resolve));
     p.emit("ruler:update", { from: { col: "x", row: 0 }, to: { col: 1, row: 1 } } as never);
     assert.equal((await seen).ruler, null);
+  });
+});
+
+describe("rotação e escala do mapa (E17)", () => {
+  it("gira em passos de 90° e escala a imagem sem mexer no grid nem nos tokens", async () => {
+    const g = await gm();
+    const [mob] = idsOf(await act(g, "mob:add", { name: "Goblin", hpMax: 7, dexMod: 0 }));
+    await act(g, "token:move", { id: mob, pos: { col: 3, row: 4 } });
+    await act(g, "battle:setMap", { image: PNG });
+
+    assert.ok((await act(g, "battle:grid", { rotation: 90, imageScale: 1.5 })).ok);
+    assert.equal(map().rotation, 90);
+    assert.equal(map().imageScale, 1.5);
+    assert.ok((await act(g, "battle:grid", { rotation: -90 })).ok);
+    assert.equal(map().rotation, 270, "−90 = 270");
+    assert.equal(map().cellPx, 50, "grid não muda");
+    assert.deepEqual(ctx.server.store.game.battle.mobs[0].pos, { col: 3, row: 4 }, "token não muda");
+  });
+
+  it("recusa ângulo fora dos passos de 90° e escala fora do limite, sem alterar nada", async () => {
+    const g = await gm();
+    assert.equal((await act(g, "battle:grid", { rotation: 45, cellPx: 60 })).ok, false);
+    assert.equal((await act(g, "battle:grid", { imageScale: 0 })).ok, false);
+    assert.equal((await act(g, "battle:grid", { imageScale: 50 })).ok, false);
+    assert.equal(map().cellPx, 50);
+    assert.deepEqual([map().rotation, map().imageScale], [0, 1]);
+  });
+
+  it("imagem nova volta para 0° e escala 1; limpar o campo também", async () => {
+    const g = await gm();
+    await act(g, "battle:setMap", { image: PNG });
+    await act(g, "battle:grid", { rotation: 180, imageScale: 2 });
+    await act(g, "battle:setMap", { image: PNG });
+    assert.deepEqual([map().rotation, map().imageScale], [0, 1]);
+    await act(g, "battle:grid", { rotation: 180, imageScale: 2 });
+    await act(g, "battle:clear", { keepTemplates: true });
+    assert.deepEqual([map().rotation, map().imageScale], [0, 1]);
+  });
+});
+
+describe("áreas de magia (E17)", () => {
+  it("área é repassada aos outros com o nome de quem desenhou e some ao sair", async () => {
+    const g = await gm();
+    const p = await player("Ana");
+    const cone: Area = { kind: "cone", origin: { col: 2.5, row: 3 }, angle: Math.PI / 2, feet: 15 };
+    const seen = new Promise<AreaBroadcast>((resolve) => g.once("area", resolve));
+    p.emit("area:update", cone);
+    const a = await seen;
+    assert.equal(a.name, "Ana");
+    assert.deepEqual(a.area, cone);
+
+    const cleared = new Promise<AreaBroadcast>((resolve) => g.once("area", resolve));
+    p.disconnect();
+    assert.equal((await cleared).area, null);
+  });
+
+  it("área malformada vira null", () => {
+    const ok: Area = { kind: "sphere", origin: { col: 0, row: 0 }, angle: 0, feet: 20 };
+    assert.deepEqual(validArea(ok), ok);
+    for (const bad of [
+      { ...ok, kind: "hexagono" },
+      { ...ok, origin: { col: 0.3, row: 0 } },
+      { ...ok, feet: 0 },
+      { ...ok, feet: 12.5 },
+      { ...ok, angle: Number.NaN },
+      null,
+      "cone",
+    ]) {
+      assert.equal(validArea(bad), null, JSON.stringify(bad));
+    }
   });
 });

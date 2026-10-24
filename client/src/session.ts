@@ -59,7 +59,7 @@ export function leave() {
   } catch {
     // ignora
   }
-  useApp.setState({ state: null, selectedId: null, joinError: null, lastName, rulers: {} });
+  useApp.setState({ state: null, selectedId: null, joinError: null, lastName, rulers: {}, areas: {} });
 }
 
 export async function join(name: string) {
@@ -116,5 +116,14 @@ socket.on("ruler", ({ playerId, name, ruler }) => {
     if (ruler) rulers[playerId] = { name, ruler };
     else delete rulers[playerId];
     return { rulers };
+  });
+});
+
+socket.on("area", ({ playerId, name, area }) => {
+  useApp.setState((s) => {
+    const areas = { ...s.areas };
+    if (area) areas[playerId] = { name, area };
+    else delete areas[playerId];
+    return { areas };
   });
 });
