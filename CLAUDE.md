@@ -84,6 +84,8 @@ A versão e o CHANGELOG **não sobem sozinhos**; o workflow de release só confe
 ## Armadilhas conhecidas
 
 - **App do mestre só para o SO atual**: `npm run package` gera o pacote do sistema em que roda; Linux/macOS saem da CI. Limite de tamanho na CI: 200 MB (Windows dá ~106 MB, quase tudo é o Electron). Teste de fumaça com `--server-only` (sobe sem janela).
+- **`.exe` portátil do Windows:** a cada abertura o lançador apaga e reextrai o app numa pasta **fixa** de `%TEMP%`; aberto de novo com o app rodando, ele apaga tudo que não está travado. Por isso o front vai **dentro do `app.asar`** (travado em uso) e não em `extraResources`; não ponha arquivos que o app lê depois de aberto soltos em `resources/`. `unpackDirName: false` não resolve (o electron-builder 26 ignora o `false`).
+- **Nome do app no Mac:** `executableName` renomeia também o `.app`; por isso ele fica só em `win`/`linux` em `scripts/package.mjs`.
 - **Electron no npm 11:** o npm bloqueia o script que baixa o binário do Electron; para `npm run app` local, rode uma vez `node node_modules/electron/install.js`. O empacotamento não precisa disso (o electron-builder baixa o Electron). Versões de `electron`/`electron-builder` fixas (sem `^`) em `desktop/package.json`: o electron-builder exige.
 - **Docker**: dentro do container não há loopback de mestre nem detecção de IP útil (`DETECT_ADDRESSES=0`); convites vêm de `PUBLIC_URLS`.
 - **Ambiente Windows do desenvolvedor**: PowerShell 5.1 (sem `&&`); Git Bash disponível. O Node foi instalado via winget — em shells abertos antes da instalação, recarregue o `PATH`.

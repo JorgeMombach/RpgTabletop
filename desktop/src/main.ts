@@ -16,9 +16,9 @@ let win: BrowserWindow | null = null;
 let rendererGuardsClose = false;
 let allowClose = false;
 
-/** O front compilado: dentro do pacote fica em `resources/public`; em dev, em `dist/public` da raiz. */
+/** O front compilado: dentro do pacote fica em `app.asar/public` (ver scripts/package.mjs); em dev, em `dist/public` da raiz. */
 function clientDir(): string {
-  return app.isPackaged ? path.join(process.resourcesPath, "public") : path.resolve(__dirname, "../../dist/public");
+  return app.isPackaged ? path.join(app.getAppPath(), "public") : path.resolve(__dirname, "../../dist/public");
 }
 
 function readConfig(): Config {
