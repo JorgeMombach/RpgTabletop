@@ -1,6 +1,7 @@
 {
   "name": "@rpg/desktop",
   "version": "0.0.0",
+  "productName": "Jamal's Tabletop",
   "private": true,
   "description": "App do mestre (Electron, ADR-18): janela própria com o servidor da sessão dentro.",
   "main": "dist/main.cjs",

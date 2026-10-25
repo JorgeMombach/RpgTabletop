@@ -1,4 +1,5 @@
-// Gera os ícones do app do mestre: assets/icon.ico (Windows) e assets/icon.png 512 px (macOS/Linux).
+// Gera os ícones do app do mestre: assets/icon.ico (Windows) e assets/icon.png 512 px (macOS/Linux),
+// e assets/splash.bmp (aparece enquanto o .exe portátil do Windows extrai o app).
 // Um dado em bronze, face 5, nas cores do guia visual (docs/design/guia-visual.md).
 // Desenhado por código para não depender de editor de imagem. Rodar: node scripts/make-icon.mjs
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -13,6 +14,7 @@ const SS = 4; // supersampling para bordas suaves
 const FACE = [193, 154, 98]; // bronze
 const EDGE = [110, 83, 49]; // bronze escuro
 const PIP = [20, 18, 24]; // tinta
+const INK = [20, 18, 24]; // fundo da tela de abertura (#141218)
 
 /** Cor (RGBA 0–1) no ponto (u, v) ∈ [0,1]² — quadrado arredondado com 5 pontos. */
 function sample(u, v) {
@@ -136,3 +138,43 @@ console.log(`✓ ${path.relative(root, out)} (${SIZES.join(", ")} px)`);
 const outPng = path.join(root, "assets/icon.png");
 writeFileSync(outPng, png(512));
 console.log(`✓ ${path.relative(root, outPng)} (512 px)`);
+
+/** Tela de abertura do .exe portátil: o dado no fundo tinta. BMP 24 bpp (o instalador só aceita BMP). */
+function splash(width, height, die) {
+  const px = rgba(die);
+  const stride = Math.ceil((width * 3) / 4) * 4;
+  const pixels = Buffer.alloc(stride * height);
+  const x0 = Math.round((width - die) / 2);
+  const y0 = Math.round((height - die) / 2);
+  for (let row = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) {
+      const u = col - x0;
+      const v = row - y0;
+      let c = INK;
+      if (u >= 0 && v >= 0 && u < die && v < die) {
+        const i = (v * die + u) * 4;
+        const a = px[i + 3] / 255;
+        c = [0, 1, 2].map((k) => Math.round(px[i + k] * a + INK[k] * (1 - a)));
+      }
+      const o = (height - 1 - row) * stride + col * 3; // de baixo para cima, BGR
+      pixels[o] = c[2];
+      pixels[o + 1] = c[1];
+      pixels[o + 2] = c[0];
+    }
+  }
+  const header = Buffer.alloc(54);
+  header.write("BM", 0);
+  header.writeUInt32LE(54 + pixels.length, 2);
+  header.writeUInt32LE(54, 10);
+  header.writeUInt32LE(40, 14);
+  header.writeInt32LE(width, 18);
+  header.writeInt32LE(height, 22);
+  header.writeUInt16LE(1, 26);
+  header.writeUInt16LE(24, 28);
+  header.writeUInt32LE(pixels.length, 34);
+  return Buffer.concat([header, pixels]);
+}
+
+const outSplash = path.join(root, "assets/splash.bmp");
+writeFileSync(outSplash, splash(320, 200, 120));
+console.log(`✓ ${path.relative(root, outSplash)} (320 × 200 px)`);

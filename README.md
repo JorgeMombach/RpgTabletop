@@ -16,10 +16,10 @@ Não precisa instalar nada além do app (os jogadores nem isso: só o navegador)
    | Linux | `jamals-tabletop-<versão>-linux-x64.AppImage` |
    | macOS (Apple Silicon) | `jamals-tabletop-<versão>-macos-arm64.dmg` |
 
-2. **Dois cliques** no arquivo. Abre a janela do Jamal's Tabletop: o servidor sobe sozinho e a mesa aparece já como mestre (a primeira abertura no Windows demora uns segundos a mais).
+2. **Dois cliques** no arquivo. Abre a janela do Jamal's Tabletop: o servidor sobe sozinho e a mesa aparece já como mestre (no Windows, o `.exe` leva alguns segundos para preparar o app a cada abertura: aparece um dado na tela enquanto isso; não precisa clicar de novo).
    - **Windows — "O Windows protegeu o computador"** (SmartScreen): o app não tem assinatura digital paga. Clique em **Mais informações → Executar assim mesmo**. Só na primeira vez.
    - **Windows — "Permitir acesso à rede?"** (Firewall): marque **Redes privadas** e clique em **Permitir**. Sem isso os jogadores não conseguem entrar. Atenção: a rede do **Tailscale** é sempre *Privada*, mesmo que a rede da sua casa apareça como *Pública* — se o Windows sugerir só "Redes públicas", marque também **Redes privadas**.
-   - **macOS:** abra o `.dmg` e arraste o app para *Aplicativos*. Na primeira vez, se aparecer "desenvolvedor não identificado" (ou "está danificado"), botão direito no app → **Abrir** → **Abrir**; se ainda assim não abrir, no Terminal: `xattr -cr "/Applications/Jamal's Tabletop.app"`.
+   - **macOS:** abra o `.dmg` e arraste o **Jamal's Tabletop** para *Aplicativos*. O app não tem assinatura da Apple, então o macOS bloqueia a primeira abertura ("não foi possível verificar" ou "está danificado"). Para liberar, rode no Terminal `xattr -cr "/Applications/Jamal's Tabletop.app"` e abra de novo; ou, depois da primeira tentativa, vá em *Ajustes do Sistema → Privacidade e Segurança* e clique em **Abrir Mesmo Assim** (o antigo "botão direito → Abrir" não funciona mais nas versões recentes do macOS).
    - **Linux:** `chmod +x jamals-tabletop-*-linux-x64.AppImage` e execute.
 3. Passe para os jogadores o endereço do painel **Convidar jogadores** (botão *Copiar*, ou o **QR code** para eles apontarem a câmera do celular). Jogando pela internet, todos precisam estar no mesmo Tailscale (veja abaixo).
 4. **Deixe o app aberto** durante o jogo. Fechar encerra a sessão para todos; se houver alterações não salvas, o app pergunta antes: **Salvar e sair** (grava o arquivo da sessão, por padrão em *Documentos/Jamal's Tabletop*), **Sair sem salvar** ou **Cancelar**.
@@ -189,3 +189,9 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E20 — Identidade visual "Grimório sombrio" | ✅ v2.0.0 |
 | E18 — Salvar e carregar sessão | ✅ v2.0.0 |
 | E12 — App do mestre com janela própria (Electron) | ✅ v2.0.0 |
+| Correções do app no macOS e no Windows | ✅ v2.0.1 |
+| E21 — Quem está na luta (iniciativa em campo, ocultos, animais) | ⏳ 2.1.0 |
+| E22 — Dados à vista (log destacável, rolagem animada) | ⏳ 2.2.0 |
+| E23 — Celular e tablet (jogadores) | ⏳ 2.3.0 |
+| E24 — Animações do campo | ⏳ 2.4.0 |
+| E25 — Som (música e efeitos para todos) | ⏳ 2.5.0 |

@@ -422,7 +422,7 @@ Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padroni
 - **Contexto:** o mestre quer uma janela própria (E12) e, principalmente, um aviso ao fechar com **Salvar e sair** — o navegador não deixa personalizar o aviso de fechar (E18). O executável SEA abria o navegador e uma janela de console.
 - **Decisão:** o app do mestre vira um **Electron**: o servidor roda dentro do processo principal (o Electron já traz o Node) e a janela mostra a mesa em `localhost`. O mesmo `startServer()` é usado pela linha de comando, pelo Docker e pelo Electron. Jogadores continuam no navegador. Empacotamento com **electron-builder**: Windows `.exe` portátil, macOS `.dmg` (arm64), Linux `.AppImage`. O SEA sai (um jeito a menos de manter); Docker continua para quem quer só o servidor.
 - **Alternativas:** Tauri (janela leve, mas exige Rust na CI e o servidor como *sidecar*); Edge/Chrome em modo app (quase sem custo, mas sem aviso de fechar próprio e dependente do Chrome no Mac/Linux); manter SEA junto (CI e testes em dobro).
-- **Consequências:** tamanho parecido com o SEA (~100–130 MB: hoje já embutíamos o Node inteiro). Sem assinatura digital: SmartScreen no Windows e Gatekeeper no Mac (abrir com botão direito → Abrir). Teste de fumaça da CI usa `--server-only` (sobe só o servidor, sem janela). Major version: **2.0.0**.
+- **Consequências:** tamanho parecido com o SEA (~100–130 MB: hoje já embutíamos o Node inteiro). Sem assinatura digital: SmartScreen no Windows e Gatekeeper no Mac (liberar com `xattr -cr` ou *Privacidade e Segurança → Abrir Mesmo Assim*). No Windows portátil, o front vai dentro do `app.asar` e o `.exe` tem tela de abertura: o lançador extrai numa pasta fixa de `%TEMP%` e, aberto de novo, apagava os arquivos soltos da mesa em uso (corrigido na 2.0.1). Teste de fumaça da CI usa `--server-only` (sobe só o servidor, sem janela). Major version: **2.0.0**.
 
 ### Regras definidas para as novas features
 - **NPCs neutros:** terceiro tipo de combatente. Só o mestre cria, move e controla; **jogadores não veem a vida** (como mobs). Podem entrar na iniciativa.
@@ -561,3 +561,38 @@ Repaginada da interface, que parecia genérica ("feita por IA"). Decidida num br
 - **Assinatura do executável:** sem certificado, o SmartScreen sempre mostra "Editor desconhecido"; os metadados do arquivo não mudam isso. Caminhos possíveis: **SignPath Foundation** (gratuito para projetos open source; exige licença open source no repositório) ou assinatura paga (ex.: Microsoft Trusted Signing). Mesmo assinado, o aviso só some com reputação de downloads.
 - **Proteção do repositório público:** ruleset da `master` com *Require approvals: 1*, bypass só para **Repository admin** no modo *For pull requests only*; em *Settings → Actions*, exigir aprovação para workflows de PRs de contribuidores externos. Só o dono faz merge.
 - **Aleatoriedade dos dados:** `crypto.randomInt` do Node no servidor (gerador criptográfico, uniforme), sem biblioteca externa (ADR-07).
+
+# Fase 4 — Melhorias incrementais
+
+Objetivo: depois de jogar com a 2.0, ir somando melhorias pequenas, **uma versão por entregável**, em vez de juntar tudo numa release grande. O ADR-06 continua valendo: o app registra, não aplica regras.
+
+## 17. Versões da Fase 4
+
+- **Correção** sobe o PATCH (2.0.1, 2.0.2…). **Entregável novo** sobe o MINOR (2.1.0, 2.2.0…; depois da 2.9.0 vem a 2.10.0). MAJOR (3.0.0) só se quebrar compatibilidade (ex.: arquivo de sessão antigo que deixa de abrir).
+- O PR que fecha o entregável já leva a versão no `package.json` e a seção datada no CHANGELOG: depois do merge, é só criar a tag (checklist no CLAUDE.md).
+
+## 18. Entregáveis da Fase 4
+
+Ordem: **2.0.1 → E21 → E22 → E23 → E24 → E25**. Regras de combate primeiro (mexem no jogo); depois a visibilidade dos dados (reclamação mais concreta); celular porque a mesa já entra pelo QR code; acabamento visual e som por último. Os detalhes de cada um são fechados no início do entregável.
+
+### 2.0.1 — Correções do app
+- **macOS:** o `executableName` (sem apóstrofo) também renomeava o pacote para `jamals-tabletop.app`; agora vale só para Windows e Linux, e o Mac fica com `Jamal's Tabletop.app` (o que o README manda liberar com `xattr`). Disco do `.dmg` e pasta de dados do app com o nome do produto.
+- **Windows:** abrir o `.exe` portátil de novo com o app aberto apagava os arquivos da mesa em uso (ver ADR-18). Front dentro do `app.asar` e tela de abertura no `.exe`.
+
+### E21 — Quem está na luta  *(2.1.0)*
+- **Iniciativa:** a rolagem automática do mestre (*Rolar mobs*) só inclui quem está **no mapa** e **visível**. NPCs (aliados ou neutros) entram quando o mestre quiser: ele rola a iniciativa de cada um, como já faz hoje.
+- **Mobs ocultos** (furtividade, sala escura): ficam no mapa só para o mestre; o **servidor não os envia** aos jogadores (filtro em `view.ts`, com teste). Fora da iniciativa até o mestre revelar; ao revelar, rolam iniciativa e entram na ordem.
+- **Animais:** não são um tipo novo. São NPCs (neutros) ou mobs (hostis) com a marca *animal*: ícone de pata no token e na lista. O formato continua dizendo o lado (círculo aliado, quadrado inimigo, hexágono neutro).
+
+### E22 — Dados à vista  *(2.2.0)*
+- **Log de rolagens destacável:** janela flutuante que dá para arrastar; minimizada, volta para o painel da direita.
+- **Rolagem animada no centro da tela**, com biblioteca de dados (3D ou similar). A animação **termina no resultado que o servidor sorteou** (ADR-07); rolagens ocultas do mestre só animam na tela dele. Dá para desligar a animação.
+
+### E23 — Celular e tablet  *(2.3.0)*
+- Layout próprio para **jogadores** em telas pequenas (abas como Mapa, Ficha, Dados, Iniciativa). O mestre continua no app do computador; a tela mínima de 1024 × 640 vale para ele.
+
+### E24 — Animações do campo  *(2.4.0)*
+- Efeitos (fogo, água, névoa…) mais vivos, com biblioteca (partículas ou animações em loop) por cima do mapa, alinhada ao zoom e à rotação. Começa com um teste técnico antes de fechar a abordagem.
+
+### E25 — Som  *(2.5.0)*
+- Música ambiente e efeitos sonoros (trovão…) escolhidos pelo mestre e **tocados no navegador de todos** (a mesa joga cada um em casa). O servidor transmite o comando (tocar, parar, volume) e os arquivos; os navegadores pedem um clique antes de liberar áudio.

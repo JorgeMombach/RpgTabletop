@@ -6,6 +6,15 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.0.1] - 2026-10-25
+
+### Corrigido
+- **macOS:** o app aparecia como `jamals-tabletop.app` em vez de **Jamal's Tabletop**, e o comando de liberar a primeira abertura (`xattr`) do README não achava o app. O disco do `.dmg` também passa a se chamar "Jamal's Tabletop". Instruções de primeira abertura atualizadas para o macOS recente (o "botão direito → Abrir" não libera mais).
+- **Windows:** abrir o `.exe` de novo com o app já aberto (ou ainda abrindo) apagava arquivos da mesa em uso; a imagem do mapa, entre outras coisas, parava de funcionar até fechar tudo. Agora um dado aparece na tela enquanto o `.exe` prepara o app (sem ele, parecia que o clique não tinha funcionado) e abrir de novo avisa que o app já está aberto, sem estragar a mesa.
+
+### Alterado
+- O app guarda as preferências (largura das colunas, painéis recolhidos, último nome usado…) numa pasta chamada *Jamal's Tabletop* (antes *@rpg/desktop*): na primeira abertura da 2.0.1 elas voltam ao padrão.
+
 ## [2.0.0] - 2026-10-24
 
 A Fase 3 inteira: **app do mestre com janela própria**, **visual novo** ("Grimório sombrio"), NPCs e condições, dados no combate com trava por turno, áreas e efeitos de magia no mapa e **salvar/carregar sessão**.
@@ -88,7 +97,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/JorgeMombach/RpgTabletop/releases/tag/v1.0.0

@@ -62,20 +62,28 @@ await build({
   config: {
     appId: "io.github.jorgemombach.jamalstabletop",
     productName: "Jamal's Tabletop",
-    executableName: "jamals-tabletop",
     copyright: "Jorge Mombach",
     directories: { output: path.join(root, "release"), buildResources: assets },
-    // Tudo já vem empacotado pelo esbuild: nada de node_modules no app.
-    files: ["dist/**/*", "package.json"],
-    extraResources: [{ from: path.join(root, "dist/public"), to: "public" }],
-    extraMetadata: { version, author: "Jorge Mombach" },
+    // Tudo já vem empacotado pelo esbuild: nada de node_modules no app. O front vai dentro do app.asar (e não
+    // solto em resources/): o .exe portátil extrai o app numa pasta fixa de %TEMP% e, se aberto de novo com o app
+    // já aberto, apaga dela tudo que não está em uso. O app.asar fica travado enquanto o app roda; arquivos soltos
+    // sumiam e a mesa quebrava (ex.: a imagem do mapa não carregava mais).
+    files: ["dist/**/*", "package.json", { from: path.join(root, "dist/public"), to: "public" }],
+    extraMetadata: { version, author: "Jorge Mombach", productName: "Jamal's Tabletop" },
     npmRebuild: false,
-    win: { target: [{ target: "portable", arch: ["x64"] }], icon: path.join(assets, "icon.ico") },
-    portable: { artifactName: "jamals-tabletop-${version}-win-x64.${ext}" },
+    // Windows e Linux: binário sem apóstrofo (jamals-tabletop). No Mac fica o nome do app: lá `executableName`
+    // também renomeia o pacote (.app), e o README manda o usuário procurar "Jamal's Tabletop.app".
+    win: { target: [{ target: "portable", arch: ["x64"] }], icon: path.join(assets, "icon.ico"), executableName: "jamals-tabletop" },
+    portable: {
+      artifactName: "jamals-tabletop-${version}-win-x64.${ext}",
+      // Aparece enquanto extrai (alguns segundos): sem ela parecia que o clique não tinha funcionado e a pessoa
+      // abria de novo. Com ela, abrir com o app já aberto avisa em vez de extrair por cima em silêncio.
+      splashImage: path.join(assets, "splash.bmp"),
+    },
     // Sem assinatura (identity null): o Gatekeeper pede "botão direito → Abrir" na primeira vez (ver README).
     mac: { target: [{ target: "dmg", arch: ["arm64"] }], icon: path.join(assets, "icon.png"), category: "public.app-category.games", identity: null },
-    dmg: { artifactName: "jamals-tabletop-${version}-macos-arm64.${ext}" },
-    linux: { target: [{ target: "AppImage", arch: ["x64"] }], icon: path.join(assets, "icon.png"), category: "Game" },
+    dmg: { artifactName: "jamals-tabletop-${version}-macos-arm64.${ext}", title: "${productName} ${version}" },
+    linux: { target: [{ target: "AppImage", arch: ["x64"] }], icon: path.join(assets, "icon.png"), category: "Game", executableName: "jamals-tabletop" },
     appImage: { artifactName: "jamals-tabletop-${version}-linux-x64.${ext}" },
   },
 });

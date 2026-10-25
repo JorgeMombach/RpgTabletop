@@ -41,7 +41,7 @@ Baixe o app do seu sistema em **Assets** (abaixo) e abra com dois cliques: a mes
 | macOS (Apple Silicon) | \`${exe("macos-arm64")}.dmg\` |
 
 - **Windows:** na primeira vez, o SmartScreen avisa "O Windows protegeu o computador" (o app não tem assinatura paga): clique em **Mais informações → Executar assim mesmo**. No aviso do Firewall, permita em **Redes privadas**.
-- **macOS:** abra o \`.dmg\` e arraste o app para *Aplicativos*; na primeira vez, botão direito no app → **Abrir** → **Abrir** (se disser que está danificado: \`xattr -cr "/Applications/Jamal's Tabletop.app"\` no Terminal).
+- **macOS:** abra o \`.dmg\` e arraste o app para *Aplicativos*. Sem assinatura da Apple, a primeira abertura é bloqueada: rode \`xattr -cr "/Applications/Jamal's Tabletop.app"\` no Terminal (ou *Ajustes do Sistema → Privacidade e Segurança → Abrir Mesmo Assim*).
 - Deixe o app aberto durante o jogo; fechar encerra a sessão (com alterações não salvas, ele oferece **Salvar e sair**).
 - Jogando pela internet: todos no mesmo Tailscale. Guia completo no [README](https://github.com/${repo}#readme).
 
