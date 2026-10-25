@@ -1,16 +1,19 @@
 import { ActionIcon, Badge, Group, Stack, Switch, Text, Tooltip } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
-import type { ClientState } from "@rpg/shared";
+import { IconTransform, IconTrash } from "@tabler/icons-react";
+import type { ClientState, MapEffect } from "@rpg/shared";
+import { useState } from "react";
 import { act } from "../actions";
 import { allCombatants } from "../format";
 import { EffectSwatch } from "./FixEffectModal";
 import { Panel } from "./Panel";
+import { TransformEffectModal } from "./TransformEffectModal";
 
-/** Efeitos persistentes no mapa (E19): quem conjurou, rounds restantes, ligar/desligar e remover. */
+/** Efeitos persistentes no mapa (E19): quem conjurou, rounds restantes, transformar (E24), ligar/desligar e remover. */
 export function EffectsPanel({ state }: { state: ClientState }) {
   const gm = state.self.role === "gm";
   const { effects } = state.battle;
   const nameOf = (id: string | null) => (id ? allCombatants(state).find((c) => c.id === id)?.name : undefined);
+  const [transforming, setTransforming] = useState<MapEffect | null>(null);
 
   return (
     <Panel
@@ -30,7 +33,9 @@ export function EffectsPanel({ state }: { state: ClientState }) {
           {effects.map((e) => {
             const canEdit = gm || e.ownerId === state.self.id;
             const caster = nameOf(e.casterId) ?? "ambiente";
-            const detail = `${caster}${e.rounds !== null ? ` · ${e.rounds} round(s)` : ""}${e.concentration ? " · concentração" : ""}`;
+            const detail =
+              `${caster}${e.rounds !== null ? ` · ${e.rounds} round(s)` : ""}${e.concentration ? " · concentração" : ""}` +
+              (e.revertTo ? ` · depois volta a ser ${e.revertTo.name}` : "");
             return (
               <Group key={e.id} gap="xs" wrap="nowrap" style={{ opacity: e.active ? 1 : 0.55 }}>
                 <EffectSwatch preset={e.preset} color={e.color} size={24} />
@@ -42,6 +47,14 @@ export function EffectsPanel({ state }: { state: ClientState }) {
                     {detail}
                   </Text>
                 </div>
+                {/* Qualquer um transforma um efeito que vê: é a magia dele agindo na área (E24). */}
+                {(gm || e.active) && (
+                  <Tooltip label="Transformar (ex.: graxa pega fogo, água fica eletrificada)">
+                    <ActionIcon size="sm" aria-label={`Transformar ${e.name}`} onClick={() => setTransforming(e)}>
+                      <IconTransform size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
                 {canEdit && (
                   <Tooltip label={e.active ? "Desligar (fica guardado; só o mestre vê)" : "Ligar"}>
                     <Switch
@@ -64,6 +77,7 @@ export function EffectsPanel({ state }: { state: ClientState }) {
           })}
         </Stack>
       )}
+      {transforming && <TransformEffectModal state={state} effect={transforming} onClose={() => setTransforming(null)} />}
     </Panel>
   );
 }

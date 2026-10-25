@@ -59,7 +59,7 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 **Dados**: botões d4–d100 com quantidade e modificador, expressão livre (`2d6+1d4+3`), vantagem/desvantagem; o log é compartilhado e o mestre pode rolar oculto.
 
-**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. *✦ Área* mostra a área de uma magia para todos (cone, esfera, cilindro, linha ou cubo, tamanho em pés): clique na origem e arraste para apontar; Esc apaga. No painel *Mapa*, o mestre gira a imagem em 90° e muda o tamanho dela (para casar os quadrados do desenho com o grid) sem mexer nos tokens. Dois tokens não ficam na mesma casa. Com uma área desenhada, *📌 Fixar como efeito* deixa ela no mapa (Fogo, Água, Graxa, Teia, Plantas, Raízes, Névoa, Gelo, Escuridão ou uma cor), com quem conjurou, duração em rounds (desconta no turno de quem conjurou) e concentração (some quando o conjurador perde a *Concentração*). O painel *Efeitos no mapa* liga, desliga e remove; cada um mexe só nos próprios efeitos, o mestre em todos. Painéis laterais recolhem clicando no título e mudam de largura arrastando a borda entre a coluna e o mapa (duplo clique volta ao padrão). A tela do app tem no mínimo 1024 × 640 px: numa janela menor aparece barra de rolagem.
+**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. *✦ Área* mostra a área de uma magia para todos (cone, esfera, cilindro, linha ou cubo, tamanho em pés): clique na origem e arraste para apontar; Esc apaga. No painel *Mapa*, o mestre gira a imagem em 90° e muda o tamanho dela (para casar os quadrados do desenho com o grid) sem mexer nos tokens. Dois tokens não ficam na mesma casa. Com uma área desenhada, *📌 Fixar como efeito* deixa ela no mapa, animada e com a borda esfumaçada (Fogo, Água, Solo molhado, Eletrificado, Vapor, Lama, Chão chamuscado, Gás tóxico, Graxa, Teia, Plantas, Raízes, Névoa, Gelo, Escuridão ou uma cor), com quem conjurou, duração em rounds (desconta no turno de quem conjurou) e concentração (some quando o conjurador perde a *Concentração*). O painel *Efeitos no mapa* liga, desliga e remove (cada um os próprios efeitos, o mestre todos) e **transforma**: a mesma área muda de estado (graxa pega fogo, água fica eletrificada, gelo derrete…), com as transformações comuns sugeridas primeiro. Qualquer um transforma um efeito que está vendo (é a magia dele) e passa a controlá-lo; com *Quando acabar, volta a ser…*, o estado novo dura o tempo dado e depois a área volta ao que era. Painéis laterais recolhem clicando no título e mudam de largura arrastando a borda entre a coluna e o mapa (duplo clique volta ao padrão). A tela do app tem no mínimo 1024 × 640 px: numa janela menor aparece barra de rolagem.
 
 ## Opções
 
@@ -197,6 +197,6 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | Correções do app no macOS e no Windows | ✅ v2.0.1 |
 | E21 — Quem está na luta (iniciativa em campo, ocultos, animais, conjurados) | ✅ v2.1.0 |
 | E22 — Dados à vista (log destacável, rolagem animada) | ✅ v2.2.0 |
-| E23 — Celular e tablet (jogadores) | ⏳ 2.3.0 |
-| E24 — Animações do campo | ⏳ 2.4.0 |
-| E25 — Som (música e efeitos para todos) | ⏳ 2.5.0 |
+| E24 — Animações do campo e mudança de estado dos efeitos | ✅ v2.3.0 |
+| E25 — Som (música e efeitos para todos) | ⏳ 2.4.0 |
+| E23 — Celular e tablet (jogadores) | ⏳ 2.5.0 |

@@ -206,6 +206,12 @@ export interface LogEntry {
 export const EFFECT_PRESETS = {
   fire: { label: "Fogo", color: "#ff6a1a" },
   water: { label: "Água", color: "#3b8fd9" },
+  wet: { label: "Solo molhado", color: "#4a6b8a" },
+  electric: { label: "Eletrificado", color: "#7fd4ff" },
+  steam: { label: "Vapor", color: "#e8eef2" },
+  mud: { label: "Lama", color: "#6b4a2b" },
+  burnt: { label: "Chão chamuscado", color: "#3a2a22" },
+  toxic: { label: "Gás tóxico", color: "#8fd14f" },
   grease: { label: "Graxa", color: "#5a4a32" },
   web: { label: "Teia", color: "#e6e6e6" },
   plants: { label: "Plantas", color: "#3f9a3a" },
@@ -217,6 +223,36 @@ export const EFFECT_PRESETS = {
 } as const;
 
 export type EffectPreset = keyof typeof EFFECT_PRESETS;
+
+/**
+ * Mudanças de estado mais comuns (E24), sugeridas primeiro em "Transformar". Qualquer outra também vale:
+ * o app não aplica regra (ADR-06), só mostra.
+ */
+export const EFFECT_TRANSITIONS: Partial<Record<EffectPreset, EffectPreset[]>> = {
+  grease: ["fire"],
+  web: ["fire"],
+  plants: ["fire"],
+  roots: ["fire"],
+  ice: ["wet", "water"],
+  water: ["electric", "ice", "steam", "mud"],
+  wet: ["electric", "ice", "steam", "mud"],
+  mud: ["wet", "ice"],
+  fire: ["burnt", "steam", "wet"],
+  toxic: ["fog"],
+  electric: ["water", "wet"],
+  steam: ["fog", "wet"],
+};
+
+/** O que muda numa transformação (e o que volta com "volta a ser o anterior"). */
+export interface EffectState {
+  name: string;
+  preset: EffectPreset;
+  color: string;
+  ownerId: string;
+  casterId: string | null;
+  rounds: number | null;
+  concentration: boolean;
+}
 
 /**
  * Efeito persistente no mapa (E19): uma área que fica até acabar a duração, alguém remover
@@ -236,6 +272,8 @@ export interface MapEffect {
   concentration: boolean;
   /** Desligado = fica guardado, mas só o mestre vê. */
   active: boolean;
+  /** Estado de antes de "Transformar", se for para voltar a ele quando este acabar (duração ou concentração). */
+  revertTo?: EffectState;
 }
 
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */

@@ -6,6 +6,16 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.3.0] - 2026-10-25
+
+### Adicionado
+- **Transformar efeitos (mudança de estado):** no painel *Efeitos no mapa*, a mesma área muda de tipo: graxa ou teia pegam fogo, água ou solo molhado ficam eletrificados, gelo derrete, fogo apagado vira vapor… As transformações comuns aparecem primeiro, mas qualquer uma vale. Qualquer jogador transforma um efeito que está vendo (é a magia dele) e passa a controlá-lo; o log registra. Com *Quando acabar, volta a ser…*, o estado novo dura o tempo dado e depois a área volta ao que era (ex.: água eletrificada por 1 round). (E24)
+- Efeitos novos: **Solo molhado** (piso encharcado com poças e pingos), **Eletrificado** (raios estalando), **Vapor**, **Lama** (com bolhas), **Chão chamuscado** (fuligem e brasas fracas; bom para depois do fogo) e **Gás tóxico** (névoa verde). (E24)
+
+### Alterado
+- **Efeitos do mapa animados e mais realistas:** fogo com chamas, fagulhas e fumaça; água com ondas e reflexos; névoa e vapor em camadas que se movem; brilho de óleo na graxa, orvalho na teia, folhas ao vento, cintilação no gelo, escuridão girando. A borda agora se esfuma em vez de cortar seco, com uma linha bem fraca marcando o limite exato da área. (E24)
+- Ordem dos próximos entregáveis: Som (E25) vem antes de Celular e tablet (E23).
+
 ## [2.2.0] - 2026-10-25
 
 ### Adicionado
@@ -114,7 +124,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.2.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.0...v2.0.1

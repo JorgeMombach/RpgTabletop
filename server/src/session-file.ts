@@ -11,6 +11,7 @@ import {
   type CombatState,
   type Condition,
   type EffectPreset,
+  type EffectState,
   type GameState,
   type GridPos,
   type LogEntry,
@@ -172,21 +173,31 @@ function template(raw: unknown): MobTemplate {
 
 function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
   const e = obj(raw, "efeito");
+  const out: MapEffect = {
+    id: requireString(e.id, "Efeito"),
+    ...effectState(e, combatantIds),
+    area: validArea(e.area) ?? fail("Arquivo inválido: área do efeito."),
+    active: bool(e.active, "efeito ligado"),
+  };
+  // Estado de antes de "Transformar" (E24); arquivos da 2.x anteriores não têm.
+  if (e.revertTo !== undefined) out.revertTo = effectState(obj(e.revertTo, "efeito"), combatantIds);
+  return out;
+}
+
+/** Tipo, nome, cor, dono, conjurador, duração e concentração de um efeito (o atual ou o de antes). */
+function effectState(e: Obj, combatantIds: Set<string>): EffectState {
   if (typeof e.preset !== "string" || !(e.preset in EFFECT_PRESETS)) fail("Arquivo inválido: efeito.");
   const casterId = e.casterId === null ? null : requireString(e.casterId, "Conjurador");
   if (casterId && !combatantIds.has(casterId)) fail("Arquivo inválido: conjurador de efeito não existe.");
   const { min, max } = LIMITS.conditionRounds;
   return {
-    id: requireString(e.id, "Efeito"),
     name: text(e.name, "efeito", LIMITS.effectName) || fail("Arquivo inválido: efeito sem nome."),
     preset: e.preset as EffectPreset,
     color: isColor(e.color) ? e.color : fail("Arquivo inválido: cor do efeito."),
-    area: validArea(e.area) ?? fail("Arquivo inválido: área do efeito."),
     ownerId: requireString(e.ownerId, "Dono do efeito"),
     casterId,
     rounds: nullableInt(e.rounds, "duração do efeito", min, max),
     concentration: bool(e.concentration, "concentração"),
-    active: bool(e.active, "efeito ligado"),
   };
 }
 
