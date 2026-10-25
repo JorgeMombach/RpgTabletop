@@ -6,6 +6,17 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.1.0] - 2026-10-25
+
+### Adicionado
+- **Mobs e NPCs ocultos** (furtividade, sala escura): só o mestre vê o token (translúcido, contorno tracejado); os jogadores não recebem nada dele. Ficam fora da iniciativa até o mestre revelar (olho na lista ou *Revelar* no painel *Selecionado*); revelados com a iniciativa em andamento, rolam e entram na ordem sem mudar a vez. Dá para criar já oculto (*Já entra oculto*, *Adicionar ocultos* no template). (E21)
+- **Animais:** marca *Animal* no template, mob, NPC ou personagem mostra uma pata no token e na lista. Animal hostil continua mob (quadrado) e neutro continua NPC (hexágono). (E21)
+
+- **Conjurados** (familiar, esqueletos, animais conjurados…): *Conjurar* no painel *Selecionado* cria um ou vários do lado de quem conjurou, ao lado dele ou onde você clicar no mapa (com a distância em pés até o conjurador), menores e com uma varinha. **Duração opcional** em rounds, contada no turno de quem conjurou: ao zerar, o conjurado some. Quem controla o conjurador controla os conjurados (o jogador move o familiar do personagem dele). Têm iniciativa própria, saem junto quando o conjurador é removido (o *Desfazer* traz todos) e, se marcados *Depende de concentração*, somem quando ele perde a Concentração. (E21)
+
+### Alterado
+- **Iniciativa só de quem está em campo:** *Rolar mobs e NPCs* virou *Rolar mobs em campo* e rola só os mobs no mapa e visíveis. NPCs (aliados ou neutros) entram quando o mestre rolar a de cada um. *Iniciativa de novo* rola os mobs em campo e os NPCs que já lutavam. (E21)
+
 ## [2.0.1] - 2026-10-25
 
 ### Corrigido
@@ -97,7 +108,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.1...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.0.0...v1.1.0

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, LIMITS, isColor, type EffectPreset, type MapEffect } from "@rpg/shared";
-import { byId } from "../combat";
+import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type MapEffect } from "@rpg/shared";
+import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
 import { logSystem } from "./dice";
@@ -12,14 +12,41 @@ export function isConcentration(name: string): boolean {
   return name.toLocaleLowerCase("pt-BR") === CONCENTRATION.toLocaleLowerCase("pt-BR");
 }
 
-/** Efeitos de concentração do conjurador somem (perdeu a concentração, saiu da batalha…). */
+/**
+ * Efeitos e conjurados de concentração do conjurador somem (perdeu a concentração, saiu da batalha…).
+ * Conjurado de concentração (E21) sai de vez, sem "Desfazer", como os efeitos.
+ */
 export function endConcentration(store: Store, casterId: string) {
-  const { battle } = store.game;
+  const { game } = store;
+  const { battle } = game;
+  const caster = byId(store, casterId)?.name;
+  const of = caster ? ` de ${caster}` : "";
+
+  const summons = allCombatants(store).filter((c) => c.summonConcentration && c.summonerId === casterId);
+  for (const s of summons) dismissSummon(store, s, `${s.name}${of} sumiu (concentração perdida).`);
+
   const ended = battle.effects.filter((e) => e.concentration && e.casterId === casterId);
   if (ended.length === 0) return;
   battle.effects = battle.effects.filter((e) => !ended.includes(e));
-  const caster = byId(store, casterId)?.name;
-  for (const e of ended) logSystem(store, `${e.name}${caster ? ` de ${caster}` : ""} acabou (concentração perdida).`);
+  for (const e of ended) logSystem(store, `${e.name}${of} acabou (concentração perdida).`);
+}
+
+/** Concentração: o conjurador ganha a condição (o vínculo só funciona se ela existir). */
+export function ensureConcentration(caster: Combatant) {
+  if (caster.conditions.some((k) => isConcentration(k.name))) return;
+  if (caster.conditions.length < LIMITS.conditions) caster.conditions.push({ id: randomUUID(), name: CONCENTRATION, rounds: null });
+}
+
+/** Conjurado sai de vez (concentração, duração): sem "Desfazer", com aviso no log. */
+function dismissSummon(store: Store, s: Combatant, message: string) {
+  const { game } = store;
+  const { battle } = game;
+  game.allies = game.allies.filter((c) => c.id !== s.id);
+  battle.mobs = battle.mobs.filter((c) => c.id !== s.id);
+  battle.npcs = battle.npcs.filter((c) => c.id !== s.id);
+  removeFromOrder(store, s.id);
+  endConcentration(store, s.id);
+  logSystem(store, message);
 }
 
 /** Desconta 1 round dos efeitos que passam no filtro; os que chegam a 0 somem com aviso. */
@@ -39,9 +66,15 @@ function tick(store: Store, which: (e: MapEffect) => boolean) {
   }
 }
 
-/** Início do turno de um combatente: contam os efeitos que ele conjurou (como as magias do 5e). */
+/** Início do turno de um combatente: contam os efeitos e os conjurados (E21) com duração que ele conjurou. */
 export function tickCasterEffects(store: Store, casterId: string) {
   tick(store, (e) => e.casterId === casterId);
+  const caster = byId(store, casterId)?.name;
+  for (const s of allCombatants(store)) {
+    if (s.summonerId !== casterId || s.summonRounds === undefined) continue;
+    s.summonRounds--;
+    if (s.summonRounds <= 0) dismissSummon(store, s, `${s.name}${caster ? ` de ${caster}` : ""} sumiu (duração acabou).`);
+  }
 }
 
 /** Round novo: contam os efeitos sem conjurador (do ambiente, postos pelo mestre). */
@@ -92,11 +125,8 @@ export const effectHandlers: HandlerMap = {
     };
     battle.effects.push(effect);
 
-    // Concentração: o conjurador ganha a condição (o vínculo só funciona se ela existir).
     const caster = casterId ? byId(store, casterId) : undefined;
-    if (concentration && caster && !caster.conditions.some((k) => isConcentration(k.name))) {
-      if (caster.conditions.length < LIMITS.conditions) caster.conditions.push({ id: randomUUID(), name: CONCENTRATION, rounds: null });
-    }
+    if (concentration && caster) ensureConcentration(caster);
     return [effect.id];
   },
 

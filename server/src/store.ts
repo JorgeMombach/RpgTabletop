@@ -8,6 +8,8 @@ export interface RemovedMob {
   index: number;
   orderIndex: number | null;
   at: number;
+  /** Conjurados que saíram junto (E21): o "Desfazer" do conjurador traz todos. */
+  summonIds?: string[];
 }
 
 export interface ServerPlayer {

@@ -4,10 +4,10 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
+import { cellDistance, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
 import { act } from "../actions";
 import { socket } from "../socket";
-import { AREA_DEFAULT_FEET, select, setTool, useApp } from "../store";
+import { AREA_DEFAULT_FEET, select, setPlacing, setTool, useApp } from "../store";
 import { allCombatants } from "../format";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, nearestFreeCell, sameCell, type Point } from "./geometry";
@@ -51,12 +51,28 @@ export function BattleMap({ state }: { state: ClientState }) {
   const [fixing, setFixing] = useState(false);
   const calibStart = useRef<Point | null>(null);
 
-  const { tool, selectedId, rulers, areas, areaKind, areaFeet, calibRect, mapImage } = useApp();
+  const { tool, selectedId, rulers, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
+  // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
+  const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
   const image = useImage(mapImage.image);
   const grid = state.battle.map;
   const layout = image ? imageLayout(image, grid.rotation, grid.imageScale) : null;
   const gm = state.self.role === "gm";
-  const rulerMode = tool === "ruler" || (tool === "move" && shiftHeld);
+  const rulerMode = !placing && (tool === "ruler" || (tool === "move" && shiftHeld));
+  // Próximo da fila que já chegou no estado e está fora do mapa (a resposta da ação pode vir antes do estado).
+  const placingNext = placing
+    ? placing.ids.map((id) => allCombatants(state).find((c) => c.id === id)).find((c) => c && !c.pos)
+    : undefined;
+  const placingLeft = placing ? placing.ids.filter((id) => allCombatants(state).some((c) => c.id === id && !c.pos)).length : 0;
+  const placingFrom = placing ? allCombatants(state).find((c) => c.id === placing.fromId) : undefined;
+
+  // Esc encerra a colocação: quem sobrou fica fora do mapa (dá para arrastar da lista depois).
+  useEffect(() => {
+    if (!placing) return;
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setPlacing(null);
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [placing]);
 
   // Tamanho do palco acompanha o painel.
   useLayoutEffect(() => {
@@ -182,6 +198,16 @@ export function BattleMap({ state }: { state: ClientState }) {
     stageRef.current?.setPointersPositions(e.evt);
     const p = worldPointer();
     if (!p) return;
+    if (placing && placingNext) {
+      const occupied = allCombatants(state).flatMap((c) => (c.pos && c.id !== placingNext.id ? [c.pos] : []));
+      const rest = placing.ids.filter((id) => id !== placingNext.id);
+      void act("token:move", { id: placingNext.id, pos: nearestFreeCell(cellAt(p, grid), occupied) }).then((r) => {
+        if (r.ok) setPlacing(rest.length ? { ...placing, ids: rest } : null);
+      });
+      return;
+    }
+    // Todos já estão no mapa (ex.: arrastados da lista): a colocação acabou.
+    if (placing) setPlacing(null);
     if (tool === "calibrate") {
       calibStart.current = p;
       useApp.setState({ calibRect: { x: p.x, y: p.y, width: 0, height: 0 } });
@@ -197,6 +223,11 @@ export function BattleMap({ state }: { state: ClientState }) {
   function onMouseMove() {
     const p = worldPointer();
     if (!p) return;
+    if (placing) {
+      const cell = cellAt(p, grid);
+      setHoverCell((h) => (sameCell(h, cell) ? h : cell));
+      return;
+    }
     if (tool === "calibrate" && calibStart.current) {
       const s = calibStart.current;
       useApp.setState({
@@ -242,7 +273,7 @@ export function BattleMap({ state }: { state: ClientState }) {
   return (
     <div
       ref={containerRef}
-      className={`battle-map tool-${rulerMode ? "ruler" : tool}`}
+      className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes(DRAG_MIME)) e.preventDefault();
       }}
@@ -257,7 +288,7 @@ export function BattleMap({ state }: { state: ClientState }) {
           y={view.y}
           scaleX={view.scale}
           scaleY={view.scale}
-          draggable={tool === "move" && !shiftHeld}
+          draggable={tool === "move" && !shiftHeld && !placing}
           onDragMove={(e) => {
             if (e.target === e.target.getStage()) setView((v) => ({ ...v, x: e.target.x(), y: e.target.y() }));
           }}
@@ -271,7 +302,7 @@ export function BattleMap({ state }: { state: ClientState }) {
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
           onClick={(e) => {
-            if (e.target === e.target.getStage() && tool === "move") select(null);
+            if (e.target === e.target.getStage() && tool === "move" && !placing) select(null);
           }}
         >
           <Layer listening={false}>
@@ -302,7 +333,7 @@ export function BattleMap({ state }: { state: ClientState }) {
                 grid={grid}
                 selected={c.id === selectedId}
                 active={c.id === activeId}
-                draggable={canMove(c) && tool === "move" && !shiftHeld}
+                draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}
               />
@@ -321,6 +352,10 @@ export function BattleMap({ state }: { state: ClientState }) {
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
+            {placing && hoverCell && (
+              // Distância até quem conjurou; sem ele no mapa, só a casa.
+              <RulerShape ruler={{ from: placingFrom?.pos ?? hoverCell, to: hoverCell }} grid={grid} scale={view.scale} label={placingNext?.name} color="#d8b47a" />
+            )}
             {calibRect && (
               <Rect
                 {...calibRect}
@@ -347,6 +382,15 @@ export function BattleMap({ state }: { state: ClientState }) {
             {gm
               ? "Suba a imagem do mapa no painel Mapa, ou use só o grid. Arraste aliados e mobs da lista para cá."
               : "Aguardando o mestre montar o campo. Arraste seu personagem da lista para o mapa."}
+          </MText>
+        </Paper>
+      )}
+      {placing && placingNext && (
+        <Paper className="map-hint top" px="md" py="sm" shadow="md">
+          <MText size="sm" c="bronze.4" ta="center">
+            Clique onde aparece <strong>{placingNext.name}</strong>
+            {placingLeft > 1 && ` (faltam ${placingLeft})`}
+            {placingFrom?.pos ? `; a régua mede a distância até ${placingFrom.name}` : ""}. Esc deixa o resto fora do mapa.
           </MText>
         </Paper>
       )}

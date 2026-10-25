@@ -145,6 +145,12 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.avatar !== undefined) out.avatar = requireImage(c.avatar, "Avatar", LIMITS.avatarChars);
   if (c.spellSlots !== undefined) out.spellSlots = spellSlots(c.spellSlots);
   if (c.spells !== undefined) out.spells = list(c.spells, "magias", LIMITS.spells).map(spell);
+  // Marcas do E21: arquivos da 2.0 não têm (ausente = não).
+  if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
+  if (c.hidden !== undefined && bool(c.hidden, "oculto") && type !== "ally") out.hidden = true;
+  if (c.summonerId !== undefined) out.summonerId = requireString(c.summonerId, "Conjurador");
+  if (c.summonConcentration !== undefined && bool(c.summonConcentration, "concentração do conjurado")) out.summonConcentration = true;
+  if (c.summonRounds !== undefined) out.summonRounds = int(c.summonRounds, "duração do conjurado", LIMITS.conditionRounds.min, LIMITS.conditionRounds.max);
   return out;
 }
 
@@ -160,6 +166,7 @@ function template(raw: unknown): MobTemplate {
   if (t.avatar !== undefined) out.avatar = requireImage(t.avatar, "Avatar", LIMITS.avatarChars);
   const notes = optText(t.notes, "notas", LIMITS.notes);
   if (notes) out.notes = notes;
+  if (t.animal !== undefined && bool(t.animal, "animal")) out.animal = true;
   return out;
 }
 
@@ -273,6 +280,13 @@ export function parseSession(raw: unknown): ParsedSession {
   const npcs = list(b.npcs ?? [], "NPCs", 500).map((c) => combatant(c, "npc"));
   const ids = new Set([...allies, ...mobs, ...npcs].map((c) => c.id));
   if (ids.size !== allies.length + mobs.length + npcs.length) fail("Arquivo inválido: combatentes repetidos.");
+  // Conjurado (E21): o conjurador existe e é do mesmo lado.
+  const all = [...allies, ...mobs, ...npcs];
+  for (const c of all) {
+    if (!c.summonerId) continue;
+    const by = all.find((o) => o.id === c.summonerId);
+    if (!by || by.type !== c.type || by.summonerId) fail("Arquivo inválido: conjurado sem conjurador.");
+  }
   const rotation = int(m.rotation ?? 0, "rotação do mapa", 0, 270);
   if (rotation % 90 !== 0) fail("Arquivo inválido: rotação do mapa.");
 
@@ -293,7 +307,8 @@ export function parseSession(raw: unknown): ParsedSession {
       },
       mobs,
       npcs,
-      combat: combat(b.combat, ids),
+      // Oculto não fica na ordem de iniciativa (E21).
+      combat: combat(b.combat, new Set([...allies, ...mobs, ...npcs].filter((c) => !c.hidden).map((c) => c.id))),
       rolls: { request: null, reactions: [] },
       effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
     },

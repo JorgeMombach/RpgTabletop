@@ -12,9 +12,14 @@ function allyFor(player: ServerPlayer, c: Combatant): Combatant {
   return rest;
 }
 
+/** Para jogadores: sem os ocultos (E21) e sem a vida. */
+function forPlayers(list: Combatant[]): CombatantView[] {
+  return list.filter((c) => !c.hidden).map(hideHp);
+}
+
 /**
- * Estado filtrado por papel (ADR-05): jogadores nunca recebem a vida de mobs e NPCs
- * nem a lista de magias de outros jogadores.
+ * Estado filtrado por papel (ADR-05): jogadores nunca recebem a vida de mobs e NPCs,
+ * nem mobs/NPCs ocultos, nem a lista de magias de outros jogadores.
  */
 export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): ClientState {
   const { game } = store;
@@ -33,8 +38,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     allies: game.allies.map((a) => allyFor(player, a)),
     battle: {
       map: { ...map, hasImage: image !== null },
-      mobs: gm ? game.battle.mobs : game.battle.mobs.map(hideHp),
-      npcs: gm ? game.battle.npcs : game.battle.npcs.map(hideHp),
+      mobs: gm ? game.battle.mobs : forPlayers(game.battle.mobs),
+      npcs: gm ? game.battle.npcs : forPlayers(game.battle.npcs),
       combat: game.battle.combat,
       rolls: game.battle.rolls,
       // Efeito desligado fica guardado só para o mestre (E19).

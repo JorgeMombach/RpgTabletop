@@ -82,6 +82,16 @@ export interface Combatant {
   spellSlots?: Record<SpellLevel, SpellSlot>;
   spells?: Spell[];
   conditions: Condition[];
+  /** Marca de animal (ícone de pata); o formato continua dizendo o lado (E21). */
+  animal?: boolean;
+  /** Mob ou NPC oculto (furtividade, sala escura): só o mestre recebe; fora da iniciativa até ser revelado (E21). */
+  hidden?: boolean;
+  /** Conjurado (familiar, esqueleto…): quem conjurou. Fica do lado dele e com o mesmo controle (E21). */
+  summonerId?: string;
+  /** Conjurado que some quando o conjurador perde a Concentração. */
+  summonConcentration?: boolean;
+  /** Rounds que faltam (conta no início do turno de quem conjurou, como os efeitos); ausente = sem duração. */
+  summonRounds?: number;
 }
 
 /** Como um combatente chega ao cliente: jogadores não recebem a vida de mobs e NPCs. */
@@ -98,6 +108,8 @@ export interface MobTemplate {
   color: string;
   avatar?: string;
   notes?: string;
+  /** Mobs e NPCs criados com o template já vêm com a marca de animal. */
+  animal?: boolean;
 }
 
 export interface MapConfig {

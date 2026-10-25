@@ -426,7 +426,7 @@ Objetivo: depois das primeiras sessões reais, corrigir o que incomodou, padroni
 
 ### Regras definidas para as novas features
 - **NPCs neutros:** terceiro tipo de combatente. Só o mestre cria, move e controla; **jogadores não veem a vida** (como mobs). Podem entrar na iniciativa.
-  - Detalhes (E15): lista própria (`battle.npcs`); token em hexágono; criados avulsos ou a partir de um template (um NPC, sem número no nome, na paleta de cores neutra); *Rolar mobs* rola também para os NPCs; remover tem o mesmo *Desfazer* dos mobs.
+  - Detalhes (E15): lista própria (`battle.npcs`); token em hexágono; criados avulsos ou a partir de um template (um NPC, sem número no nome, na paleta de cores neutra); *Rolar mobs* rola também para os NPCs (até a 2.0; desde o E21, NPCs rolam um a um); remover tem o mesmo *Desfazer* dos mobs.
 - **Condições:** qualquer combatente pode ter condições (concentração, atordoado, caído…), com **duração opcional em rounds**, que **desconta 1 no início do turno de quem tem a condição**; ao chegar a 0, ela sai e aparece um aviso. Sem duração = fica até alguém tirar. O app não aplica efeito nenhum (ADR-06).
   - Detalhes (E15): iniciar o combate conta como início do turno de quem age primeiro; *voltar turno* não devolve rounds; pôr de novo uma condição que já existe só troca a duração; condições não são segredo (jogadores veem as de mobs e NPCs); o jogador mexe só nas do próprio personagem.
 - **Efeitos no mapa (E19):** áreas persistentes com duração em rounds contada no turno de quem conjurou; efeitos de concentração somem quando o conjurador perde a condição *Concentração*.
@@ -583,6 +583,19 @@ Ordem: **2.0.1 → E21 → E22 → E23 → E24 → E25**. Regras de combate prim
 - **Iniciativa:** a rolagem automática do mestre (*Rolar mobs*) só inclui quem está **no mapa** e **visível**. NPCs (aliados ou neutros) entram quando o mestre quiser: ele rola a iniciativa de cada um, como já faz hoje.
 - **Mobs ocultos** (furtividade, sala escura): ficam no mapa só para o mestre; o **servidor não os envia** aos jogadores (filtro em `view.ts`, com teste). Fora da iniciativa até o mestre revelar; ao revelar, rolam iniciativa e entram na ordem.
 - **Animais:** não são um tipo novo. São NPCs (neutros) ou mobs (hostis) com a marca *animal*: ícone de pata no token e na lista. O formato continua dizendo o lado (círculo aliado, quadrado inimigo, hexágono neutro).
+- Detalhes (E21):
+  - *Rolar mobs em campo*: só mobs com posição no mapa e visíveis; sem nenhum, recusa com o motivo. *Iniciativa de novo* rola esses mobs e os NPCs que já tinham iniciativa.
+  - Ocultar tira da ordem (se era a vez dele, passa ao próximo) e zera a iniciativa; oculto não rola nem recebe valor. Revelar com combate ativo ou ordem já montada rola d20 + DES (log oculto, "(revelado)") e entra sem mudar a vez; senão só aparece. Dá para criar já oculto (mob avulso, NPC, *Adicionar ocultos* no template).
+  - Para o jogador, um oculto não ocupa a casa (a recusa entregaria que há alguém ali); para o mestre, ocupa.
+  - A marca *animal* vale para qualquer combatente (inclusive o companheiro de um jogador) e vem do template; não é segredo.
+  - Arquivo de sessão guarda as duas marcas; arquivos da 2.0 abrem normalmente (sem marca). Oculto na ordem de iniciativa = arquivo inválido.
+- **Conjurados** (pedido durante o E21): familiar, esqueletos, animais conjurados… Combatente comum do **mesmo tipo** de quem conjurou (`summonerId`), com o mesmo controle: conjurado de aliado é do jogador dono; de mob/NPC, do mestre.
+  - Token no formato do lado, menor e com selo de varinha (o formato continua dizendo o lado). Na lista, "· de <conjurador>".
+  - Conjurar: painel *Selecionado* → *Conjurar*: nome, vida, DES, cor, avatar, animal, quantidade ("Esqueleto 1…N") e *Depende de concentração*; o mestre pode preencher a partir de um template. Onde nascem: *Ao lado* (casas livres mais perto do conjurador, se ele estiver no mapa) ou *Escolher no mapa* (cada clique põe o próximo; a régua mostra os pés até o conjurador; o app **não limita o alcance**, a mesa confere; Esc deixa o resto fora do mapa). Nascem ocultos se o conjurador estiver oculto. Conjurado não conjura.
+  - **Duração opcional** em rounds (1–100): conta no início do turno de quem conjurou, como os efeitos do E19; ao zerar, o conjurado some com aviso no log. Vazio = sem duração.
+  - **Iniciativa própria**, como qualquer combatente (mobs conjurados entram no *Rolar mobs em campo*).
+  - Remover o conjurador leva os conjurados; o *Desfazer* traz todos. Remover o personagem do jogador leva os dele (sem desfazer). *Limpar campo* tira todos os conjurados, até os dos jogadores. Conjurado não conta como "o personagem" do jogador.
+  - *Depende de concentração*: o conjurador ganha a condição *Concentração*; ao perdê-la, os conjurados marcados somem (com aviso no log), como os efeitos do E19.
 
 ### E22 — Dados à vista  *(2.2.0)*
 - **Log de rolagens destacável:** janela flutuante que dá para arrastar; minimizada, volta para o painel da direita.

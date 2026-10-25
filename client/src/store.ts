@@ -42,6 +42,8 @@ interface AppStore {
   /** Estado da mesa no último salvamento ou carregamento de arquivo (E18); `null` = nunca salvou. */
   savedSnapshot: string | null;
   savedAt: Date | null;
+  /** Conjurados esperando um clique no mapa (E21): um por clique, com a distância até quem conjurou. */
+  placing: { ids: string[]; fromId: string } | null;
 }
 
 export const useApp = create<AppStore>(() => ({
@@ -62,6 +64,7 @@ export const useApp = create<AppStore>(() => ({
   viewCenter: { x: 0, y: 0 },
   savedSnapshot: null,
   savedAt: null,
+  placing: null,
 }));
 
 export function select(id: string | null) {
@@ -69,5 +72,10 @@ export function select(id: string | null) {
 }
 
 export function setTool(tool: MapTool) {
-  useApp.setState({ tool, calibRect: null });
+  useApp.setState({ tool, calibRect: null, placing: null });
+}
+
+/** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */
+export function setPlacing(placing: AppStore["placing"]) {
+  useApp.setState(placing ? { placing, tool: "move", calibRect: null } : { placing: null });
 }

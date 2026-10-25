@@ -78,6 +78,8 @@ describe("ordem de iniciativa", () => {
     const [tid] = idsOf(await act(g, "template:upsert", { name: "Goblin", hpMax: 7, dexMod: 2 }));
     await act(g, "mob:addFromTemplate", { templateId: tid, qty: 4 });
     await mob(g, "Chefe", 1);
+    // Só mobs no mapa entram na rolagem automática (E21).
+    for (const [i, m] of ctx.server.store.game.battle.mobs.entries()) await act(g, "token:move", { id: m.id, pos: { col: i, row: 0 } });
 
     assert.ok((await act(g, "init:rollMobs", { grouped: true })).ok);
     const goblins = ctx.server.store.game.battle.mobs.filter((m) => m.templateId === tid);

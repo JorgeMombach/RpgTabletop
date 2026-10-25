@@ -11,7 +11,8 @@ export function AlliesPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
   const [creating, setCreating] = useState(false);
   const gm = state.self.role === "gm";
-  const hasOwn = state.allies.some((a) => a.ownerId === state.self.id);
+  // Conjurados (E21) não contam como o personagem do jogador.
+  const hasOwn = state.allies.some((a) => a.ownerId === state.self.id && !a.summonerId);
   const ownerName = (id?: string) => state.players.find((p) => p.id === id)?.name;
 
   return (

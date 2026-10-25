@@ -81,14 +81,6 @@ describe("NPCs", () => {
     assert.equal(game().battle.mobs.length, 0);
   });
 
-  it("rolar iniciativa dos mobs inclui os NPCs", async () => {
-    const g = await gm();
-    await act(g, "mob:add", { name: "Goblin", hpMax: 7, dexMod: 2 });
-    await act(g, "npc:add", { name: "Guarda", hpMax: 11, dexMod: 0 });
-    assert.ok((await act(g, "init:rollMobs", {})).ok);
-    assert.equal(game().battle.combat.order.length, 2);
-  });
-
   it("limpar o campo remove NPCs; aliados ficam com as condições", async () => {
     const g = await gm();
     const p = await player("Ana");

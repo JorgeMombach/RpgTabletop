@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Divider, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { IconPencil, IconX } from "@tabler/icons-react";
+import { IconEye, IconEyeOff, IconPencil, IconWand, IconX } from "@tabler/icons-react";
 import { ALLY_COLORS, MOB_COLORS, NPC_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -10,6 +10,7 @@ import { cellAt, nearestFreeCell } from "../map/geometry";
 import { select, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { CombatantAvatar } from "./CombatantAvatar";
+import { SummonForm } from "./SummonForm";
 import { CombatantForm } from "./CombatantForm";
 import { ConditionsSection } from "./ConditionsSection";
 import { HpBar } from "./HpBar";
@@ -31,6 +32,7 @@ const DES = <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod
 export function SelectedPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [summoningId, setSummoningId] = useState<string | null>(null);
 
   const gm = state.self.role === "gm";
   const ally = state.allies.find((a) => a.id === selectedId);
@@ -56,6 +58,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
             </Text>
             <Text size="xs" c="dimmed">
               {mobView.type === "npc" ? "NPC" : "Inimigo"}
+              {mobView.animal && " · animal"}
             </Text>
           </div>
         </Group>
@@ -77,7 +80,14 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const canEdit = gm || c.ownerId === state.self.id;
   const owner = state.players.find((p) => p.id === c.ownerId);
   const editing = editingId === c.id;
-  const kind = c.type === "mob" ? "Mob" : c.type === "npc" ? "NPC" : owner ? `Aliado · ${owner.name}` : "Aliado";
+  const summoner = c.summonerId ? allCombatants(state).find((o) => o.id === c.summonerId) : undefined;
+  const summoning = summoningId === c.id;
+  const kind =
+    (c.type === "mob" ? "Mob" : c.type === "npc" ? "NPC" : owner ? `Aliado · ${owner.name}` : "Aliado") +
+    (summoner ? ` · conjurado de ${summoner.name}` : "") +
+    (c.summonRounds !== undefined ? ` · ${c.summonRounds} ${c.summonRounds === 1 ? "round" : "rounds"}` : "") +
+    (c.animal ? " · animal" : "") +
+    (c.hidden ? " · oculto" : "");
 
   async function remove(target: Combatant) {
     if (target.type !== "ally") return void removeMob(target);
@@ -97,7 +107,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
             {kind} · {DES} {fmtMod(c.dexMod)}
           </Text>
         </div>
-        {canEdit && !editing && (
+        {canEdit && !editing && !summoning && (
           <Tooltip label="Mudar nome, vida máxima, mod. DES, cor e avatar">
             <Button variant="default" leftSection={<IconPencil size={14} />} onClick={() => setEditingId(c.id)}>
               Editar
@@ -106,7 +116,9 @@ export function SelectedPanel({ state }: { state: ClientState }) {
         )}
       </Group>
 
-      {editing ? (
+      {summoning ? (
+        <SummonForm summoner={c} templates={state.templates} onClose={() => setSummoningId(null)} />
+      ) : editing ? (
         <CombatantForm
           initial={c}
           palette={PALETTE[c.type]}
@@ -132,11 +144,11 @@ export function SelectedPanel({ state }: { state: ClientState }) {
         </Stack>
       )}
 
-      {!editing && <ConditionsSection c={c} editable={canEdit} />}
+      {!editing && !summoning && <ConditionsSection c={c} editable={canEdit} />}
 
-      {c.type === "ally" && !editing && <MagicSection c={c} editable={canEdit} />}
+      {c.type === "ally" && !editing && !summoning && <MagicSection c={c} editable={canEdit} />}
 
-      {canEdit && !editing && (
+      {canEdit && !editing && !summoning && (
         <>
           <Divider />
           <Group justify="space-between" gap="xs" wrap="wrap">
@@ -148,6 +160,24 @@ export function SelectedPanel({ state }: { state: ClientState }) {
               <Button variant="default" onClick={() => placeOnMap(state, c.id)}>
                 Colocar no mapa
               </Button>
+            )}
+            {!c.summonerId && (
+              <Tooltip label="Familiar, esqueletos, animais…: ficam do seu lado e você controla">
+                <Button variant="default" leftSection={<IconWand size={14} />} onClick={() => setSummoningId(c.id)}>
+                  Conjurar
+                </Button>
+              </Tooltip>
+            )}
+            {gm && c.type !== "ally" && (
+              <Tooltip label={c.hidden ? "Os jogadores passam a ver; rola a iniciativa se ela já estiver em andamento" : "Só você vê; sai da iniciativa até revelar"}>
+                <Button
+                  variant="default"
+                  leftSection={c.hidden ? <IconEye size={14} /> : <IconEyeOff size={14} />}
+                  onClick={() => act("combatant:setHidden", { id: c.id, hidden: !c.hidden })}
+                >
+                  {c.hidden ? "Revelar" : "Ocultar"}
+                </Button>
+              </Tooltip>
             )}
             <Button variant="subtle" color="red" onClick={() => void remove(c)}>
               Remover
