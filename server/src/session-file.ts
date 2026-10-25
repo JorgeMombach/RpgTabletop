@@ -229,6 +229,7 @@ function logEntry(raw: unknown): LogEntry {
   if (label) out.label = label;
   const as = optText(e.as, "log", 64);
   if (as) out.as = as;
+  if (isColor(e.color)) out.color = e.color;
   if (e.kind === "attack" || e.kind === "damage") out.kind = e.kind;
   if (e.roll !== undefined) out.roll = rollResult(e.roll);
   if (e.turn !== undefined) {

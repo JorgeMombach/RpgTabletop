@@ -13,7 +13,20 @@ export interface Rect {
   height: number;
 }
 
-interface AppStore {
+/** Preferências deste navegador (E22): animação dos dados e log destacado. */
+const PREFS_KEY = "rpg.dicePrefs";
+type DicePrefs = { diceAnim: boolean; logDetached: boolean };
+
+function readPrefs(): DicePrefs {
+  try {
+    const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
+    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true };
+  } catch {
+    return { diceAnim: true, logDetached: false };
+  }
+}
+
+interface AppStore extends DicePrefs {
   connected: boolean;
   /** Papel que esta conexão receberá (antes de entrar). */
   probedRole: Role | null;
@@ -65,7 +78,18 @@ export const useApp = create<AppStore>(() => ({
   savedSnapshot: null,
   savedAt: null,
   placing: null,
+  ...readPrefs(),
 }));
+
+export function setDicePrefs(patch: Partial<DicePrefs>) {
+  useApp.setState(patch);
+  const { diceAnim, logDetached } = useApp.getState();
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached }));
+  } catch {
+    // sem armazenamento (aba anônima…): vale só nesta aba
+  }
+}
 
 export function select(id: string | null) {
   useApp.setState({ selectedId: id });

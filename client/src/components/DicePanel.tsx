@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Button,
   Checkbox,
@@ -10,15 +11,17 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Switch,
   Text,
   TextInput,
   Tooltip,
 } from "@mantine/core";
+import { IconWindowMaximize } from "@tabler/icons-react";
 import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type RollMode } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { allCombatants } from "../format";
-import { useApp } from "../store";
+import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
 import { naturalD20, RollLog } from "./RollLog";
@@ -74,6 +77,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 export function DicePanel({ state }: { state: ClientState }) {
+  const logDetached = useApp((s) => s.logDetached);
   const gm = state.self.role === "gm";
   const { combat, rolls } = state.battle;
   const saved = useState(readAttack)[0];
@@ -240,8 +244,35 @@ export function DicePanel({ state }: { state: ClientState }) {
       {gm && <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label="Rolagem oculta (só você vê)" />}
 
       <Divider />
-      <RollLog log={state.log} selfId={state.self.id} />
+      <LogHeader />
+      {logDetached ? (
+        <Text size="xs" c="dimmed">
+          O log está numa janela flutuante. Minimize a janela para ele voltar aqui.
+        </Text>
+      ) : (
+        <RollLog log={state.log} selfId={state.self.id} />
+      )}
     </Panel>
+  );
+}
+
+/** Cabeçalho do log (E22): animação dos dados no centro e destacar o log numa janela. Valem só para este navegador. */
+function LogHeader() {
+  const diceAnim = useApp((s) => s.diceAnim);
+  const logDetached = useApp((s) => s.logDetached);
+  return (
+    <Group justify="space-between" wrap="nowrap" gap="xs">
+      <Tooltip label="Dados rolando no centro do mapa a cada rolagem (só neste navegador)">
+        <Switch size="xs" label="Animar rolagens" checked={diceAnim} onChange={(e) => setDicePrefs({ diceAnim: e.currentTarget.checked })} />
+      </Tooltip>
+      {!logDetached && (
+        <Tooltip label="Abrir o log numa janela que dá para arrastar e redimensionar">
+          <ActionIcon size="sm" aria-label="Destacar o log" onClick={() => setDicePrefs({ logDetached: true })}>
+            <IconWindowMaximize size={16} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </Group>
   );
 }
 

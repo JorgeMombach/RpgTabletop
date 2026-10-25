@@ -34,7 +34,7 @@ export function logRoll(
   store: Store,
   player: ServerPlayer,
   result: RollResult,
-  opts: Pick<LogEntry, "hidden" | "label" | "as" | "kind" | "crit"> = {},
+  opts: Pick<LogEntry, "hidden" | "label" | "as" | "kind" | "crit" | "color"> = {},
 ): string {
   return pushLog(store, {
     authorId: player.id,
@@ -43,6 +43,7 @@ export function logRoll(
     hidden: opts.hidden || undefined,
     label: opts.label,
     as: opts.as,
+    color: opts.color,
     kind: opts.kind,
     crit: opts.crit || undefined,
     roll: result,
@@ -52,6 +53,17 @@ export function logRoll(
 /** Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. */
 export function logSystem(store: Store, text: string) {
   pushLog(store, { authorId: "system", author: "Mesa", text, system: true });
+}
+
+/**
+ * Cor dos dados do jogador (E22): o combatente dele que está na vez (pode ser um conjurado);
+ * fora disso, o personagem dele. Sem personagem: bronze (ausente).
+ */
+function rollerColor(store: Store, player: ServerPlayer): string | undefined {
+  const { combat } = store.game.battle;
+  const current = combat.active ? byId(store, combat.order[combat.turnIndex]) : undefined;
+  if (current?.ownerId === player.id) return current.color;
+  return store.game.allies.find((a) => a.ownerId === player.id && !a.summonerId)?.color;
 }
 
 /** Reação aberta = usada neste turno (fecha sozinha quando o turno muda). */
@@ -90,15 +102,18 @@ export const diceHandlers: HandlerMap = {
     const crit = kind === "damage" && payload.crit === true;
     // "Rolar como": o mestre assina a rolagem com o nome de um combatente (o da vez, por padrão no cliente).
     let as: string | undefined;
+    let color: string | undefined;
     if (gm && payload?.asId) {
-      as = (byId(store, requireString(payload.asId, "Combatente")) ?? fail("Combatente não encontrado.")).name;
-    }
+      const c = byId(store, requireString(payload.asId, "Combatente")) ?? fail("Combatente não encontrado.");
+      as = c.name;
+      color = c.color;
+    } else if (!gm) color = rollerColor(store, player);
     const result = roll(payload?.expr, mode);
     // Só depois de validar a expressão: rolagem inválida não gasta o pedido do mestre.
     const context = outOfTurn(store, player);
     const kindLabel = kind === "attack" ? "Ataque" : kind === "damage" ? (crit ? "Dano (crítico)" : "Dano") : undefined;
     const label = [context, kindLabel].filter(Boolean).join(" · ") || undefined;
-    return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit })];
+    return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit, color })];
   },
 
   "roll:request": (store, player, payload) => {

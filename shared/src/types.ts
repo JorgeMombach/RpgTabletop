@@ -193,6 +193,8 @@ export interface LogEntry {
   roll?: RollResult;
   /** Mestre rolando como um combatente: o log mostra este nome em vez do autor. */
   as?: string;
+  /** Cor de quem rolou (token do combatente), usada nos dados 3D (E22); ausente = bronze do mestre. */
+  color?: string;
   kind?: RollKind;
   /** Dano de crítico (dados dobrados). */
   crit?: boolean;

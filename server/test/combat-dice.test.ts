@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ActionResult } from "@rpg/shared";
+import { allCombatants } from "../src/combat";
 import { act, join, stateWhere, useServer, type Client } from "./helpers";
 
 const { ctx, client } = useServer();
@@ -186,5 +187,29 @@ describe("estado para os clientes", () => {
     await act(g, "roll:request", { label: "Resistência CON", playerIds: [] });
     const s = await seen;
     assert.equal(s.battle.rolls.request?.label, "Resistência CON");
+  });
+});
+
+describe("cor dos dados (E22)", () => {
+  it("jogador rola na cor do personagem (ou do conjurado na vez); mestre como combatente, na cor dele; mestre puro, sem cor", async () => {
+    const { g, ana, thorin, goblin } = await setup();
+    const color = (id: string) => allCombatants(ctx.server.store).find((c) => c.id === id)!.color;
+    const last = () => game().log.at(-1)!;
+
+    await act(ana, "dice:roll", { expr: "1d20" }); // vez do Thorin
+    assert.equal(last().color, color(thorin));
+    await act(g, "dice:roll", { expr: "1d20", asId: goblin });
+    assert.equal(last().color, color(goblin));
+    await act(g, "dice:roll", { expr: "1d20" });
+    assert.equal(last().color, undefined);
+
+    // Conjurado do jogador na vez: os dados saem na cor dele.
+    const [sapoId] = idsOf(await act(ana, "summon:add", { summonerId: thorin, name: "Sapo", hpMax: 1, dexMod: 0, qty: 1, color: "#3a9b5c" }));
+    await act(g, "combat:end", {});
+    await act(ana, "init:set", { id: sapoId, value: 25 });
+    await act(g, "init:set", { id: goblin, value: 10 });
+    await act(g, "combat:start", {});
+    await act(ana, "dice:roll", { expr: "1d20" });
+    assert.equal(last().color, "#3a9b5c");
   });
 });
