@@ -438,6 +438,97 @@ const steam: Painter = (ctx, st, t, dt, area, cell) => {
   ctx.restore();
 };
 
+const toxic: Painter = (ctx, st, t, dt, area, cell) => {
+  const { box } = area;
+  fill(ctx, box, "rgba(80, 130, 30, 0.14)");
+  const gas = noiseTexture("toxic", 151, [3, 6, 12, 24], (v) => [150, 215, 80, smooth(0.3, 0.85, v) * 255]);
+  // Como a névoa, em verde, mais pesada e "respirando" mais rápido.
+  drawTiled(ctx, gas, box, cell * 6, t * cell * 0.2, -t * cell * 0.06, 0.45 + Math.sin(t * 0.8) * 0.1);
+  drawTiled(ctx, gas, box, cell * 3.5, -t * cell * 0.25, t * cell * 0.1, 0.35 + Math.sin(t * 1.1 + 1) * 0.08);
+  drawTiled(ctx, gas, box, cell * 2, t * cell * 0.35, t * cell * 0.15, 0.2);
+  // Bolhas que sobem e estouram.
+  st.a = step(st.a, dt);
+  keep(st.a, budget(area, cell, 0.25, 25), () => ({
+    ...spawnPoint(area),
+    vx: 0,
+    vy: -cell * (0.15 + Math.random() * 0.2),
+    age: 0,
+    life: 1.5 + Math.random() * 2,
+    size: cell * (0.08 + Math.random() * 0.1),
+    seed: 0,
+  }));
+  ctx.save();
+  ctx.lineWidth = Math.max(1, cell * 0.02);
+  for (const p of st.a) {
+    const k = p.age / p.life;
+    ctx.strokeStyle = `rgba(200, 250, 140, ${Math.sin(Math.PI * k) * 0.6})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * (0.6 + k * 0.6), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+
+const burnt: Painter = (ctx, st, t, dt, area, cell, color) => {
+  const { box } = area;
+  // Piso queimado: fuligem por cima do mapa, com manchas mais escuras.
+  base(ctx, "burnt", color, box, cell);
+  const soot = noiseTexture("soot", 157, [4, 8, 16, 32], (v) => [12, 9, 8, smooth(0.35, 0.8, v) * 230]);
+  drawTiled(ctx, soot, box, cell * 3, 0, 0, 0.6);
+  // Brasas fracas que acendem e apagam devagar.
+  st.a = step(st.a, dt);
+  keep(st.a, budget(area, cell, 0.5, 50), () => ({
+    ...spawnPoint(area),
+    vx: 0,
+    vy: 0,
+    age: 0,
+    life: 2 + Math.random() * 3,
+    size: cell * (0.08 + Math.random() * 0.12),
+    seed: Math.random() * 10,
+  }));
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const p of st.a) {
+    const k = p.age / p.life;
+    ctx.globalAlpha = Math.sin(Math.PI * k) * (0.5 + Math.sin(t * 4 + p.seed) * 0.2);
+    sprite(ctx, glow(255, 100, 25), p.x, p.y, p.size * 2);
+  }
+  ctx.restore();
+  // Cinza fina levada pelo vento.
+  const ash = noiseTexture("ash", 163, [8, 16, 32], (v) => [150, 140, 130, smooth(0.75, 0.95, v) * 200]);
+  drawTiled(ctx, ash, box, cell * 2.5, t * cell * 0.3, t * cell * 0.08, 0.25);
+};
+
+const mud: Painter = (ctx, st, t, dt, area, cell, color) => {
+  const { box } = area;
+  base(ctx, "mud", color, box, cell);
+  const depth = noiseTexture("mud-depth", 167, [4, 8, 16], (v) => [40, 25, 12, smooth(0.4, 0.85, v) * 200]);
+  drawTiled(ctx, depth, box, cell * 3.5, 0, 0, 0.55);
+  // Brilho úmido que escorre devagar.
+  const sheen = noiseTexture("mud-sheen", 173, [4, 8, 16], (v) => [220, 200, 170, smooth(0.9, 0.98, ridge(v)) * 255]);
+  drawTiled(ctx, sheen, box, cell * 4, t * cell * 0.08, t * cell * 0.04, 0.1, "lighter");
+  // Bolhas que crescem e estouram.
+  st.a = step(st.a, dt);
+  if (st.a.length < budget(area, cell, 0.12, 12) && Math.random() < dt * 1.5) {
+    st.a.push({ ...spawnPoint(area), vx: 0, vy: 0, age: 0, life: 1.2 + Math.random(), size: cell * (0.1 + Math.random() * 0.12), seed: 0 });
+  }
+  ctx.save();
+  for (const p of st.a) {
+    const k = p.age / p.life;
+    const r = p.size * Math.min(1, k * 1.4);
+    ctx.globalAlpha = k < 0.85 ? 0.7 : (1 - k) * 4.5;
+    ctx.fillStyle = "rgba(60, 38, 20, 1)";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(230, 210, 180, 0.6)";
+    ctx.beginPath();
+    ctx.arc(p.x - r * 0.3, p.y - r * 0.35, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+};
+
 /** Textura parada do E19 (graxa, teia…), andando de leve: a base dos efeitos que não são "líquidos". */
 function base(ctx: Ctx, preset: EffectPreset, color: string, box: Box, cell: number, ox = 0, oy = 0, alpha = 1) {
   drawTiled(ctx, effectTexture(preset, color), box, cell * 2, ox, oy, alpha);
@@ -540,7 +631,24 @@ const custom: Painter = (ctx, _st, t, _dt, area, cell, color) => {
   drawTiled(ctx, wave, box, cell * 4, t * cell * 0.2, t * cell * 0.1, 0.35);
 };
 
-const PAINTERS: Record<EffectPreset, Painter> = { fire, water, wet, electric, steam, grease, web, plants, roots, fog, ice, darkness, custom };
+const PAINTERS: Record<EffectPreset, Painter> = {
+  fire,
+  water,
+  wet,
+  electric,
+  steam,
+  mud,
+  burnt,
+  toxic,
+  grease,
+  web,
+  plants,
+  roots,
+  fog,
+  ice,
+  darkness,
+  custom,
+};
 
 /** Desenha um quadro do efeito. */
 export function drawFx(ctx: Ctx, preset: EffectPreset, color: string, st: FxState, area: FxArea, cell: number, now: number) {

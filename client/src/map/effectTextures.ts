@@ -131,6 +131,55 @@ const painters: Record<Exclude<EffectPreset, "custom">, (ctx: Ctx, r: () => numb
       });
     }
   },
+  mud(ctx, r) {
+    base(ctx, "rgba(80, 52, 28, 0.6)");
+    for (let i = 0; i < 14; i++) {
+      const x = r() * TILE;
+      const y = r() * TILE;
+      const rx = 6 + r() * 14;
+      const ry = 4 + r() * 8;
+      const a = r() * Math.PI;
+      wrapped(ctx, () => {
+        ctx.fillStyle = "rgba(45, 28, 14, 0.55)";
+        ctx.beginPath();
+        ctx.ellipse(x, y, rx, ry, a, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(200, 170, 130, 0.22)";
+        ctx.beginPath();
+        ctx.ellipse(x - rx * 0.3, y - ry * 0.35, rx * 0.3, ry * 0.18, a, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  },
+  burnt(ctx, r) {
+    base(ctx, "rgba(28, 20, 16, 0.6)");
+    for (let i = 0; i < 40; i++) {
+      const x = r() * TILE;
+      const y = r() * TILE;
+      const s = 1 + r() * 3;
+      // Cor sorteada fora do `wrapped`: as 9 cópias saem iguais e o ladrilho emenda.
+      const fillStyle = r() < 0.2 ? "rgba(255, 110, 30, 0.7)" : `rgba(${120 + r() * 60}, ${115 + r() * 50}, ${110 + r() * 40}, 0.35)`;
+      wrapped(ctx, () => {
+        ctx.fillStyle = fillStyle;
+        ctx.fillRect(x, y, s, s);
+      });
+    }
+  },
+  toxic(ctx, r) {
+    base(ctx, "rgba(110, 170, 50, 0.22)");
+    for (let i = 0; i < 10; i++) {
+      const x = r() * TILE;
+      const y = r() * TILE;
+      const rad = 18 + r() * 24;
+      wrapped(ctx, () => {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+        g.addColorStop(0, "rgba(170, 230, 90, 0.5)");
+        g.addColorStop(1, "rgba(170, 230, 90, 0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      });
+    }
+  },
   grease(ctx, r) {
     base(ctx, "rgba(60, 45, 25, 0.55)");
     for (let i = 0; i < 12; i++) {
