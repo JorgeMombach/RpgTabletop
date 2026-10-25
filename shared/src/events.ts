@@ -27,6 +27,10 @@ export interface CombatantInput {
   color?: string;
   /** dataURL já reduzido no cliente; `null` remove o avatar. */
   avatar?: string | null;
+  /** Marca de animal (E21). */
+  animal?: boolean;
+  /** Mob ou NPC já criado oculto (E21; ignorado em aliados). */
+  hidden?: boolean;
 }
 
 /** Régua em células (as pontas ficam no centro dos quadrados). */
@@ -79,14 +83,29 @@ export interface TemplateInput extends CombatantInput {
 export interface ActionPayloads {
   "template:upsert": TemplateInput;
   "template:remove": { id: string };
-  "mob:addFromTemplate": { templateId: string; qty: number };
+  "mob:addFromTemplate": { templateId: string; qty: number; hidden?: boolean };
   "mob:add": CombatantInput;
   /** Remove um mob ou NPC (o "Desfazer" vale para os dois). */
   "mob:remove": { id: string };
   "mob:restore": { id: string };
   "npc:add": CombatantInput;
   /** Um NPC com os dados do template (sem número no nome). */
-  "npc:addFromTemplate": { templateId: string };
+  "npc:addFromTemplate": { templateId: string; hidden?: boolean };
+  /**
+   * Conjura `qty` combatentes do lado de `summonerId` (E21): quem controla o conjurador controla os conjurados.
+   * `near` (padrão): com o conjurador no mapa, aparecem nas casas livres mais perto dele; `false` = fora do mapa,
+   * para quem conjurou escolher onde (alcance da magia: o app não limita).
+   */
+  "summon:add": CombatantInput & {
+    summonerId: string;
+    qty: number;
+    concentration?: boolean;
+    /** Duração em rounds; ausente ou `null` = sem duração. */
+    rounds?: number | null;
+    near?: boolean;
+  };
+  /** Oculta ou revela um mob/NPC (E21). Revelar com a iniciativa em andamento rola a dele. */
+  "combatant:setHidden": { id: string; hidden: boolean };
   "ally:create": CombatantInput;
   "ally:remove": { id: string };
   "combatant:update": { id: string } & Partial<CombatantInput>;

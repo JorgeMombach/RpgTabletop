@@ -69,6 +69,8 @@ export const mapHandlers: HandlerMap = {
     battle.npcs = [];
     battle.effects = [];
     resetCombat(store);
+    // Conjurados são da batalha: até os dos jogadores somem (E21).
+    game.allies = game.allies.filter((a) => !a.summonerId);
     for (const a of game.allies) {
       a.pos = null;
       a.initiative = a.initRoll = null;
@@ -83,8 +85,13 @@ export const mapHandlers: HandlerMap = {
     // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa.
     const c = editable(store, player, payload?.id);
     const pos = gridPosOf(payload.pos);
-    // Dois corpos não ocupam a mesma casa.
-    const other = pos && allCombatants(store).find((o) => o.id !== c.id && o.pos?.col === pos.col && o.pos?.row === pos.row);
+    // Dois corpos não ocupam a mesma casa. Para o jogador, um oculto não conta: a recusa entregaria
+    // que há alguém ali (E21). O mestre separa os dois quando revelar.
+    const other =
+      pos &&
+      allCombatants(store).find(
+        (o) => o.id !== c.id && o.pos?.col === pos.col && o.pos?.row === pos.row && (player.role === "gm" || !o.hidden),
+      );
     if (other) fail(`Essa casa já está ocupada por ${other.name}.`);
     c.pos = pos;
   },

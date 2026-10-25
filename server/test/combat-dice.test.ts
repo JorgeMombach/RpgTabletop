@@ -156,8 +156,9 @@ describe("reação", () => {
 });
 
 describe("rolar iniciativa de novo", () => {
-  it("zera todos, rola mobs/NPCs e pausa no mesmo round; retomar continua o round", async () => {
+  it("zera todos, rola os mobs em campo e pausa no mesmo round; retomar continua o round", async () => {
     const { g, ana, thorin, goblin } = await setup();
+    await act(g, "token:move", { id: goblin, pos: { col: 1, row: 1 } });
     await act(g, "combat:next", {});
     await act(g, "combat:next", {});
     await act(g, "combat:next", {}); // round 2

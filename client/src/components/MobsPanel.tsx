@@ -1,5 +1,5 @@
-import { ActionIcon, Badge, Button, Text, Tooltip } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Badge, Button, Group, Text, Tooltip } from "@mantine/core";
+import { IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
 import { NPC_COLORS, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -9,7 +9,28 @@ import { CombatantForm } from "./CombatantForm";
 import { CombatantRow } from "./CombatantRow";
 import { Panel } from "./Panel";
 
-/** Lista de mobs ou NPCs (só o mestre), com remover + "Desfazer". */
+/** Olho na linha do mob/NPC: oculta dos jogadores ou revela (E21). */
+export function HideToggle({ c }: { c: Combatant }) {
+  const tip = c.hidden
+    ? "Revelar aos jogadores (rola a iniciativa se ela já estiver em andamento)"
+    : "Ocultar dos jogadores (furtividade, sala escura): sai da iniciativa até você revelar";
+  return (
+    <Tooltip label={tip}>
+      <ActionIcon
+        size="sm"
+        aria-label={c.hidden ? `Revelar ${c.name}` : `Ocultar ${c.name}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          void act("combatant:setHidden", { id: c.id, hidden: !c.hidden });
+        }}
+      >
+        {c.hidden ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+      </ActionIcon>
+    </Tooltip>
+  );
+}
+
+/** Lista de mobs ou NPCs (só o mestre), com ocultar e remover + "Desfazer". */
 function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
   const selectedId = useApp((s) => s.selectedId);
   if (list.length === 0)
@@ -27,18 +48,21 @@ function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
           selected={m.id === selectedId}
           draggable
           trailing={
-            <Tooltip label="Remover da batalha (dá para desfazer)">
-              <ActionIcon
-                size="sm"
-                aria-label={`Remover ${m.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void removeMob(m);
-                }}
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Tooltip>
+            <Group gap={2} wrap="nowrap">
+              <HideToggle c={m} />
+              <Tooltip label="Remover da batalha (dá para desfazer)">
+                <ActionIcon
+                  size="sm"
+                  aria-label={`Remover ${m.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void removeMob(m);
+                  }}
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
           }
         />
       ))}
@@ -82,6 +106,7 @@ export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
         <CombatantForm
           palette={NPC_COLORS}
           submitLabel="Adicionar NPC"
+          withHidden
           onCancel={() => setCreating(false)}
           onSubmit={async (v) => {
             const res = await act("npc:add", v);

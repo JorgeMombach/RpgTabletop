@@ -1,9 +1,10 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { IconSkull } from "@tabler/icons-react";
+import { IconEyeOff, IconPaw, IconSkull, IconWand } from "@tabler/icons-react";
 import type { Combatant } from "@rpg/shared";
 import type { ReactNode } from "react";
 import { DRAG_MIME } from "../map/BattleMap";
-import { select } from "../store";
+import { allCombatants } from "../format";
+import { select, useApp } from "../store";
 import { CombatantAvatar } from "./CombatantAvatar";
 import { HpBar } from "./HpBar";
 
@@ -23,6 +24,10 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
   const down = c.hp <= 0;
   const status = down ? (c.type === "mob" ? "Abatido" : "Caído") : `${c.hp}/${c.hpMax}`;
   const hint = draggable && !c.pos ? "Fora do mapa: arraste para posicionar" : undefined;
+  const summoner = useApp((s) => (c.summonerId && s.state ? allCombatants(s.state).find((o) => o.id === c.summonerId)?.name : undefined));
+  const rounds = c.summonRounds !== undefined ? `${c.summonRounds} ${c.summonRounds === 1 ? "round" : "rounds"}` : null;
+  // Na coluna estreita o complemento corta: o texto completo fica no title.
+  const full = [c.name, summoner && `conjurado de ${summoner}`, rounds && `faltam ${rounds}`].filter(Boolean).join(" · ");
 
   return (
     <Box
@@ -37,13 +42,29 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
         <CombatantAvatar c={c} size={28} />
         <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
           <Group gap={6} wrap="nowrap" justify="space-between">
-            <Text size="sm" truncate title={c.name} style={{ minWidth: 0 }}>
+            <Text size="sm" truncate title={full} style={{ minWidth: 0 }}>
               {down && c.type === "mob" && <IconSkull size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Abatido" />}
+              {c.hidden && <IconEyeOff size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Oculto" />}
+              {c.animal && <IconPaw size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Animal" />}
+              {c.summonerId && <IconWand size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Conjurado" />}
               {c.name}
               {suffix && (
                 <Text span size="xs" c="dimmed">
                   {" "}
                   {suffix}
+                </Text>
+              )}
+              {summoner && (
+                <Text span size="xs" c="dimmed">
+                  {" "}
+                  · de {summoner}
+                  {rounds && ` · ${rounds}`}
+                </Text>
+              )}
+              {c.hidden && (
+                <Text span size="xs" c="dimmed">
+                  {" "}
+                  · oculto
                 </Text>
               )}
               {draggable && !c.pos && (

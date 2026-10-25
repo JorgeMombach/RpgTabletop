@@ -1,5 +1,5 @@
-import { ActionIcon, Button, Group, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
-import { IconPencil, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Button, Checkbox, Group, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { IconPaw, IconPencil, IconTrash } from "@tabler/icons-react";
 import { LIMITS, MOB_COLORS, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -55,6 +55,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
         <CombatantForm
           palette={MOB_COLORS}
           submitLabel="Adicionar à batalha"
+          withHidden
           onCancel={close}
           onSubmit={async (v) => {
             const ok = (await act("mob:add", v)).ok;
@@ -95,6 +96,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
 
 function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
   const [qty, setQty] = useState<string | number>(1);
+  const [hidden, setHidden] = useState(false);
 
   async function remove() {
     const ok = await confirmAction({
@@ -113,6 +115,7 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
           <CombatantAvatar c={{ ...t, type: "mob" }} size={28} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <Text size="sm" truncate title={t.notes ? `${t.name} — ${t.notes}` : t.name}>
+              {t.animal && <IconPaw size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Animal" />}
               {t.name}
             </Text>
             <Text size="xs" c="dimmed">
@@ -136,7 +139,7 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
           wrap="wrap"
           onSubmit={(e) => {
             e.preventDefault();
-            void act("mob:addFromTemplate", { templateId: t.id, qty: Number(qty) || 1 });
+            void act("mob:addFromTemplate", { templateId: t.id, qty: Number(qty) || 1, hidden });
           }}
         >
           <Tooltip label="Quantidade">
@@ -158,11 +161,14 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
             </Button>
           </Tooltip>
           <Tooltip label="Adicionar um NPC (neutro) com os dados deste template">
-            <Button variant="default" style={{ flex: "1 1 auto" }} onClick={() => act("npc:addFromTemplate", { templateId: t.id })}>
+            <Button variant="default" style={{ flex: "1 1 auto" }} onClick={() => act("npc:addFromTemplate", { templateId: t.id, hidden })}>
               + NPC
             </Button>
           </Tooltip>
         </Group>
+        <Tooltip label="Os próximos mobs/NPCs deste template entram ocultos: só você vê, fora da iniciativa até revelar">
+          <Checkbox size="xs" label="Adicionar ocultos" checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} w="fit-content" />
+        </Tooltip>
       </Stack>
     </Paper>
   );

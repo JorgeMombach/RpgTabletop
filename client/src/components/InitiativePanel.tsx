@@ -20,16 +20,19 @@ export function InitiativePanel({ state }: { state: ClientState }) {
   const all = allCombatants(state);
   const byId = new Map(all.map((c) => [c.id, c]));
   const order = combat.order.map((id) => byId.get(id)).filter((c): c is CombatantView => !!c);
-  const gmControlled = state.battle.mobs.length + state.battle.npcs.length;
+  // Rolagem automática do mestre: só mobs no mapa e visíveis (E21). NPCs rolam um a um.
+  const inField = state.battle.mobs.filter((m) => m.pos && !m.hidden).length;
   const currentId = combat.active ? combat.order[combat.turnIndex] : null;
   const canEdit = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
-  const pending = all.filter((c) => c.initiative === null && canEdit(c));
+  // Oculto fica fora da iniciativa até ser revelado.
+  const pending = all.filter((c) => c.initiative === null && !c.hidden && canEdit(c));
   const myTurn = !gm && currentId !== null && byId.get(currentId)?.ownerId === state.self.id;
 
   async function rerollAll() {
     const ok = await confirmAction({
       title: "Rolar a iniciativa de novo?",
-      message: "Todas as iniciativas são zeradas; mobs e NPCs rolam agora e os jogadores rolam de novo. O combate pausa neste round até você retomar.",
+      message:
+        "Todas as iniciativas são zeradas; os mobs em campo e os NPCs que já lutavam rolam agora, e os jogadores rolam de novo. O combate pausa neste round até você retomar.",
       confirmLabel: "Rolar de novo",
     });
     if (ok) void act("init:rerollAll", { grouped });
@@ -77,7 +80,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
               <Button variant="default" onClick={() => void endCombat()}>
                 Encerrar
               </Button>
-              <Tooltip label={`Zera todas as iniciativas, rola mobs e NPCs e pausa até os jogadores rolarem (${INIT_TIP})`}>
+              <Tooltip label={`Zera todas as iniciativas, rola os mobs em campo e os NPCs que já lutavam e pausa até os jogadores rolarem (${INIT_TIP})`}>
                 <Button variant="default" leftSection={<IconDice5 size={14} />} onClick={() => void rerollAll()}>
                   Iniciativa de novo
                 </Button>
@@ -85,9 +88,15 @@ export function InitiativePanel({ state }: { state: ClientState }) {
             </>
           ) : (
             <>
-              <Tooltip label={`Rola para todos os mobs e NPCs (${INIT_TIP})`}>
-                <Button variant="default" disabled={gmControlled === 0} leftSection={<IconDice5 size={14} />} onClick={() => act("init:rollMobs", { grouped })}>
-                  Rolar mobs e NPCs
+              <Tooltip
+                label={
+                  inField === 0
+                    ? "Nenhum mob visível no mapa: coloque os tokens no mapa (ou revele os ocultos)"
+                    : `Rola para os mobs no mapa e visíveis. NPCs entram quando você rolar a de cada um, abaixo (${INIT_TIP})`
+                }
+              >
+                <Button variant="default" disabled={inField === 0} leftSection={<IconDice5 size={14} />} onClick={() => act("init:rollMobs", { grouped })}>
+                  Rolar mobs em campo
                 </Button>
               </Tooltip>
               <Button style={{ flex: "1 1 120px" }} disabled={order.length === 0} onClick={() => act("combat:start", {})}>
@@ -97,7 +106,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
           )}
         </Group>
       )}
-      {gm && !combat.active && gmControlled > 0 && (
+      {gm && !combat.active && inField > 0 && (
         <Checkbox
           checked={grouped}
           onChange={(e) => setGrouped(e.currentTarget.checked)}
@@ -107,7 +116,9 @@ export function InitiativePanel({ state }: { state: ClientState }) {
 
       {order.length === 0 ? (
         <Text size="xs" c="dimmed">
-          {gm ? "Role a iniciativa dos mobs e NPCs; os jogadores rolam a dos personagens." : "Role sua iniciativa abaixo quando o mestre pedir."}
+          {gm
+            ? "Role a iniciativa dos mobs em campo e, um a um, a dos NPCs que entram na luta; os jogadores rolam a dos personagens."
+            : "Role sua iniciativa abaixo quando o mestre pedir."}
         </Text>
       ) : (
         <ol className="init-list">
