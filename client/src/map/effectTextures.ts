@@ -77,6 +77,60 @@ const painters: Record<Exclude<EffectPreset, "custom">, (ctx: Ctx, r: () => numb
       });
     }
   },
+  wet(ctx, r) {
+    base(ctx, "rgba(15, 25, 35, 0.3)");
+    for (let i = 0; i < 6; i++) {
+      const x = r() * TILE;
+      const y = r() * TILE;
+      const rx = 10 + r() * 18;
+      const ry = 6 + r() * 10;
+      wrapped(ctx, () => {
+        ctx.fillStyle = "rgba(90, 130, 170, 0.45)";
+        ctx.beginPath();
+        ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(220, 235, 250, 0.35)";
+        ctx.beginPath();
+        ctx.ellipse(x - rx * 0.3, y - ry * 0.3, rx * 0.3, ry * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  },
+  electric(ctx, r) {
+    base(ctx, "rgba(20, 50, 110, 0.4)");
+    ctx.lineJoin = "round";
+    for (let i = 0; i < 5; i++) {
+      const pts: [number, number][] = [[r() * TILE, r() * TILE]];
+      for (let j = 0; j < 5; j++) {
+        const [px, py] = pts[pts.length - 1];
+        pts.push([px + 6 + r() * 8, py + (r() - 0.5) * 14]);
+      }
+      wrapped(ctx, () => {
+        for (const [style, width] of [["rgba(90, 170, 255, 0.5)", 4], ["rgba(240, 250, 255, 0.95)", 1.2]] as const) {
+          ctx.strokeStyle = style;
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+          ctx.stroke();
+        }
+      });
+    }
+  },
+  steam(ctx, r) {
+    base(ctx, "rgba(235, 240, 245, 0.18)");
+    for (let i = 0; i < 12; i++) {
+      const x = r() * TILE;
+      const y = r() * TILE;
+      const rad = 14 + r() * 20;
+      wrapped(ctx, () => {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+        g.addColorStop(0, "rgba(250, 252, 255, 0.55)");
+        g.addColorStop(1, "rgba(250, 252, 255, 0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      });
+    }
+  },
   grease(ctx, r) {
     base(ctx, "rgba(60, 45, 25, 0.55)");
     for (let i = 0; i < 12; i++) {

@@ -573,7 +573,7 @@ Objetivo: depois de jogar com a 2.0, ir somando melhorias pequenas, **uma versã
 
 ## 18. Entregáveis da Fase 4
 
-Ordem: **2.0.1 → E21 → E22 → E23 → E24 → E25**. Regras de combate primeiro (mexem no jogo); depois a visibilidade dos dados (reclamação mais concreta); celular porque a mesa já entra pelo QR code; acabamento visual e som por último. Os detalhes de cada um são fechados no início do entregável.
+Ordem: **2.0.1 → E21 → E22 → E24 → E25 → E23**. Regras de combate primeiro (mexem no jogo); depois a visibilidade dos dados (reclamação mais concreta); animações e som antes do celular (revisto depois da 2.2.0: o E23 é o maior e atende menos gente, e quem joga pelo celular já consegue jogar). Os detalhes de cada um são fechados no início do entregável.
 
 ### 2.0.1 — Correções do app
 - **macOS:** o `executableName` (sem apóstrofo) também renomeava o pacote para `jamals-tabletop.app`; agora vale só para Windows e Linux, e o Mac fica com `Jamal's Tabletop.app` (o que o README manda liberar com `xattr`). Disco do `.dmg` e pasta de dados do app com o nome do produto.
@@ -608,11 +608,18 @@ Ordem: **2.0.1 → E21 → E22 → E23 → E24 → E25**. Regras de combate prim
   - Faixa por cima: quem rolou (ou o combatente, "Rolar como"), o rótulo, o total em destaque, a expressão e 20/1 natural.
   - *Animar rolagens* e *log destacado* (posição e tamanho) ficam no navegador de cada um (localStorage).
 
-### E23 — Celular e tablet  *(2.3.0)*
-- Layout próprio para **jogadores** em telas pequenas (abas como Mapa, Ficha, Dados, Iniciativa). O mestre continua no app do computador; a tela mínima de 1024 × 640 vale para ele.
+### E24 — Animações do campo e mudança de estado  *(2.3.0)*
+- Efeitos (fogo, água, névoa…) mais vivos, alinhados ao zoom e à rotação. Começa com um teste técnico antes de fechar a abordagem.
+- Detalhes (E24):
+  - **Sem biblioteca nova:** desenho por quadro no canvas do Konva (camada dos efeitos, abaixo dos tokens), com **camadas de ruído** periódico gerado por código andando em direções e velocidades diferentes e **partículas** com brilho aditivo (chamas, fagulhas, brilhos, ondulações, raios, baforadas). PixiJS foi considerado (filtros WebGL), mas exigiria outro canvas sincronizado com zoom, arrasto e rotação entre as camadas do Konva. Partículas proporcionais à área, com teto; só a camada dos efeitos redesenha a cada quadro.
+  - **Borda difusa:** cada efeito é desenhado numa camada própria e recortado por uma máscara borrada do formato da área (refeita só quando a área, o grid ou o zoom mudam). Fica uma linha bem fraca no limite exato da área. Navegador sem filtro de canvas: borda nítida.
+  - Todos os tipos animados: Fogo (calor subindo, chamas, fagulhas, fumaça), Água (lago: profundidade, ondas, reflexos, ondulações), **Solo molhado** (piso escurecido, poças que refletem, pingos), **Eletrificado** (raios que estalam), **Vapor** (névoa branca subindo), Névoa, Graxa (brilho de óleo), Teia (fios balançando, orvalho), Plantas (folhas ao vento), Raízes, Gelo (cintilação e brilho que atravessa), Escuridão (sombra girando) e Personalizado (cor com ondulação). Desligado continua parado e tracejado (só o mestre vê).
+  - **Transformar** (mudança de estado): mesma área, outro tipo, nome, conjurador, duração e concentração. Sugestões primeiro (`EFFECT_TRANSITIONS`: graxa/teia/plantas/raízes → fogo; gelo → solo molhado/água; água e solo molhado → eletrificado/gelo/vapor; fogo → vapor/solo molhado…), mas qualquer tipo vale (ADR-06). **Qualquer um** transforma um efeito ligado (é a magia de quem transforma: o feiticeiro eletrifica a água do clérigo); jogador com o próprio personagem como conjurador; quem transforma passa a controlar o efeito; o log registra ("Lia transformou Lago em Água eletrificada").
+  - **"Quando acabar, volta a ser o anterior"** (exige duração ou concentração): ao acabar, o efeito volta ao estado de antes (`revertTo`) em vez de sumir, com aviso no log. Transformar de novo um estado temporário guarda o original, não o intermediário. Sem a opção, o efeito some quando o novo estado acaba (graxa que pegou fogo).
+  - Arquivo de sessão guarda `revertTo`; arquivos anteriores abrem normalmente.
 
-### E24 — Animações do campo  *(2.4.0)*
-- Efeitos (fogo, água, névoa…) mais vivos, com biblioteca (partículas ou animações em loop) por cima do mapa, alinhada ao zoom e à rotação. Começa com um teste técnico antes de fechar a abordagem.
-
-### E25 — Som  *(2.5.0)*
+### E25 — Som  *(2.4.0)*
 - Música ambiente e efeitos sonoros (trovão…) escolhidos pelo mestre e **tocados no navegador de todos** (a mesa joga cada um em casa). O servidor transmite o comando (tocar, parar, volume) e os arquivos; os navegadores pedem um clique antes de liberar áudio.
+
+### E23 — Celular e tablet  *(2.5.0)*
+- Layout próprio para **jogadores** em telas pequenas (abas como Mapa, Ficha, Dados, Iniciativa). O mestre continua no app do computador; a tela mínima de 1024 × 640 vale para ele.

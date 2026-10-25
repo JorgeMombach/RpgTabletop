@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type MapEffect } from "@rpg/shared";
+import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type MapEffect } from "@rpg/shared";
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
@@ -26,9 +26,20 @@ export function endConcentration(store: Store, casterId: string) {
   for (const s of summons) dismissSummon(store, s, `${s.name}${of} sumiu (concentração perdida).`);
 
   const ended = battle.effects.filter((e) => e.concentration && e.casterId === casterId);
-  if (ended.length === 0) return;
-  battle.effects = battle.effects.filter((e) => !ended.includes(e));
-  for (const e of ended) logSystem(store, `${e.name}${of} acabou (concentração perdida).`);
+  for (const e of ended) finish(store, e, `${e.name}${of} acabou (concentração perdida)`);
+}
+
+/** Efeito acabou: volta ao estado de antes de "Transformar" (se pediram) ou sai do mapa. Avisa no log. */
+function finish(store: Store, e: MapEffect, message: string) {
+  const before = e.revertTo;
+  if (!before) {
+    store.game.battle.effects = store.game.battle.effects.filter((x) => x !== e);
+    logSystem(store, `${message}.`);
+    return;
+  }
+  delete e.revertTo;
+  Object.assign(e, before);
+  logSystem(store, `${message}; voltou a ser ${before.name}.`);
 }
 
 /** Concentração: o conjurador ganha a condição (o vínculo só funciona se ela existir). */
@@ -58,11 +69,9 @@ function tick(store: Store, which: (e: MapEffect) => boolean) {
     e.rounds--;
     if (e.rounds <= 0) expired.push(e);
   }
-  if (expired.length === 0) return;
-  battle.effects = battle.effects.filter((e) => !expired.includes(e));
   for (const e of expired) {
     const caster = e.casterId ? byId(store, e.casterId)?.name : undefined;
-    logSystem(store, `${e.name}${caster ? ` de ${caster}` : ""} acabou.`);
+    finish(store, e, `${e.name}${caster ? ` de ${caster}` : ""} acabou`);
   }
 }
 
@@ -82,6 +91,36 @@ export function tickRoundEffects(store: Store) {
   tick(store, (e) => e.casterId === null);
 }
 
+type EffectFields = Pick<MapEffect, "name" | "preset" | "color" | "casterId" | "rounds" | "concentration">;
+
+/** Tipo, nome, cor, conjurador, duração e concentração (criar e transformar validam igual). */
+function effectFields(store: Store, player: ServerPlayer, payload: Partial<Record<keyof EffectFields, unknown>>): EffectFields {
+  const preset = (typeof payload?.preset === "string" && payload.preset in EFFECT_PRESETS ? payload.preset : fail("Efeito inválido.")) as EffectPreset;
+  const name = typeof payload.name === "string" ? payload.name.replace(/\s+/g, " ").trim().slice(0, LIMITS.effectName) : "";
+  const { min, max } = LIMITS.conditionRounds;
+  const rounds = payload.rounds === undefined || payload.rounds === null ? null : requireInt(payload.rounds, "Duração", min, max);
+
+  // Conjurador: mestre escolhe qualquer combatente (ou nenhum); jogador, um personagem dele.
+  let casterId: string | null = null;
+  if (payload.casterId) {
+    const caster = byId(store, requireString(payload.casterId, "Conjurador")) ?? fail("Conjurador não encontrado.");
+    if (player.role !== "gm" && caster.ownerId !== player.id) fail("Escolha o seu personagem como conjurador.");
+    casterId = caster.id;
+  } else if (player.role !== "gm") {
+    fail("Escolha o seu personagem como conjurador.");
+  }
+  const concentration = payload.concentration === true;
+  if (concentration && !casterId) fail("Efeito de concentração precisa de um conjurador.");
+  return {
+    name: name || EFFECT_PRESETS[preset].label,
+    preset,
+    color: isColor(payload.color) ? payload.color : EFFECT_PRESETS[preset].color,
+    casterId,
+    rounds,
+    concentration,
+  };
+}
+
 function ownEffect(store: Store, player: ServerPlayer, rawId: unknown): MapEffect {
   const id = requireString(rawId, "Efeito");
   const e = store.game.battle.effects.find((x) => x.id === id) ?? fail("Efeito não encontrado.");
@@ -93,34 +132,15 @@ export const effectHandlers: HandlerMap = {
   "effect:add": (store, player, payload) => {
     const { battle } = store.game;
     if (battle.effects.length >= LIMITS.effects) fail(`Limite de ${LIMITS.effects} efeitos no mapa.`);
-    const preset = (payload?.preset in EFFECT_PRESETS ? payload.preset : fail("Efeito inválido.")) as EffectPreset;
-    const name = typeof payload.name === "string" ? payload.name.replace(/\s+/g, " ").trim().slice(0, LIMITS.effectName) : "";
+    const fields = effectFields(store, player, payload);
     const area = validArea(payload.area) ?? fail("Área inválida.");
-    const { min, max } = LIMITS.conditionRounds;
-    const rounds = payload.rounds === undefined || payload.rounds === null ? null : requireInt(payload.rounds, "Duração", min, max);
-
-    // Conjurador: mestre escolhe qualquer combatente (ou nenhum); jogador, um personagem dele.
-    let casterId: string | null = null;
-    if (payload.casterId) {
-      const caster = byId(store, requireString(payload.casterId, "Conjurador")) ?? fail("Conjurador não encontrado.");
-      if (player.role !== "gm" && caster.ownerId !== player.id) fail("Escolha o seu personagem como conjurador.");
-      casterId = caster.id;
-    } else if (player.role !== "gm") {
-      fail("Escolha o seu personagem como conjurador.");
-    }
-    const concentration = payload.concentration === true;
-    if (concentration && !casterId) fail("Efeito de concentração precisa de um conjurador.");
+    const { casterId, concentration } = fields;
 
     const effect: MapEffect = {
       id: randomUUID(),
-      name: name || EFFECT_PRESETS[preset].label,
-      preset,
-      color: isColor(payload.color) ? payload.color : EFFECT_PRESETS[preset].color,
+      ...fields,
       area,
       ownerId: player.id,
-      casterId,
-      rounds,
-      concentration,
       active: true,
     };
     battle.effects.push(effect);
@@ -128,6 +148,34 @@ export const effectHandlers: HandlerMap = {
     const caster = casterId ? byId(store, casterId) : undefined;
     if (concentration && caster) ensureConcentration(caster);
     return [effect.id];
+  },
+
+  "effect:transform": (store, player, payload) => {
+    const id = requireString(payload?.id, "Efeito");
+    const e = store.game.battle.effects.find((x) => x.id === id) ?? fail("Efeito não encontrado.");
+    // Jogador transforma qualquer efeito que esteja vendo (ligado): é a magia dele agindo na área.
+    if (player.role !== "gm" && !e.active) fail("Efeito não encontrado.");
+    const fields = effectFields(store, player, payload);
+    const before: EffectState = {
+      name: e.name,
+      preset: e.preset,
+      color: e.color,
+      ownerId: e.ownerId,
+      casterId: e.casterId,
+      rounds: e.rounds,
+      concentration: e.concentration,
+    };
+    if (payload.revert === true) {
+      if (fields.rounds === null && !fields.concentration) fail("Para voltar ao estado anterior, dê uma duração ou concentração.");
+      // Transformar de novo um estado temporário volta ao original, não ao intermediário.
+      e.revertTo = e.revertTo ?? before;
+    } else {
+      delete e.revertTo;
+    }
+    Object.assign(e, fields, { ownerId: player.id });
+    logSystem(store, `${player.name} transformou ${before.name} em ${e.name}.`);
+    const caster = fields.casterId ? byId(store, fields.casterId) : undefined;
+    if (fields.concentration && caster) ensureConcentration(caster);
   },
 
   "effect:toggle": (store, player, payload) => {

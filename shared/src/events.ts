@@ -165,6 +165,21 @@ export interface ActionPayloads {
     rounds?: number | null;
     concentration?: boolean;
   };
+  /**
+   * Muda o estado de um efeito (E24): mesma área, outro tipo (ex.: Graxa → Fogo, Água → Eletrificado).
+   * Qualquer um pode transformar um efeito ligado (é a magia de quem transforma); quem transforma passa a
+   * controlar o efeito. `revert` = quando o novo estado acabar, volta ao de antes em vez de sumir.
+   */
+  "effect:transform": {
+    id: string;
+    preset: EffectPreset;
+    name?: string;
+    color?: string;
+    casterId?: string | null;
+    rounds?: number | null;
+    concentration?: boolean;
+    revert?: boolean;
+  };
   "effect:toggle": { id: string; active: boolean };
   "effect:remove": { id: string };
   /**

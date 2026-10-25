@@ -137,3 +137,72 @@ describe("efeitos no mapa", () => {
     assert.deepEqual(effects(), []);
   });
 });
+
+const game = () => ctx.server.store.game;
+const fx = (id: string) => battle().effects.find((e) => e.id === id)!;
+const find = (id: string) => [...game().allies, ...battle().mobs, ...battle().npcs].find((c) => c.id === id)!;
+function errorOf(res: ActionResult): string {
+  assert.equal(res.ok, false);
+  return res.ok ? "" : res.error;
+}
+
+describe("transformar efeito (E24)", () => {
+  it("Graxa vira Fogo: mesma área, outro tipo; quem transforma passa a controlar; o log registra", async () => {
+    const { g, ana, bia, lia } = await setup();
+    const [graxa] = idsOf(await act(g, "effect:add", { name: "Graxa", preset: "grease", area: AREA }));
+    const area = { ...fx(graxa).area };
+    assert.ok((await act(bia, "effect:transform", { id: graxa, preset: "fire", name: "Graxa em chamas", casterId: lia, rounds: 3 })).ok);
+    const e = fx(graxa);
+    assert.equal(e.preset, "fire");
+    assert.equal(e.name, "Graxa em chamas");
+    assert.equal(e.color, "#ff6a1a");
+    assert.deepEqual(e.area, area);
+    assert.equal(e.ownerId, find(lia).ownerId, "Bia controla agora");
+    assert.equal(e.revertTo, undefined);
+    assert.ok(game().log.some((l) => l.system && l.text === "Bia transformou Graxa em Graxa em chamas."));
+    // Jogador transforma com o próprio personagem; não com o de outro.
+    assert.match(errorOf(await act(ana, "effect:transform", { id: graxa, preset: "steam", casterId: lia })), /seu personagem/);
+  });
+
+  it("volta a ser o anterior quando a duração acaba (Água → Eletrificado por 1 round → Água)", async () => {
+    const { g, bia, lia, thorin } = await setup();
+    const [lago] = idsOf(await act(g, "effect:add", { name: "Lago", preset: "water", area: AREA }));
+    assert.match(errorOf(await act(bia, "effect:transform", { id: lago, preset: "electric", casterId: lia, revert: true })), /duração ou concentração/);
+    assert.ok((await act(bia, "effect:transform", { id: lago, preset: "electric", name: "Água eletrificada", casterId: lia, rounds: 1, revert: true })).ok);
+    assert.equal(fx(lago).revertTo?.name, "Lago");
+
+    await act(g, "init:set", { id: lia, value: 20 });
+    await act(g, "init:set", { id: thorin, value: 10 });
+    await act(g, "combat:start", {}); // turno da Lia: 1 → 0
+    const e = fx(lago);
+    assert.equal(e.preset, "water");
+    assert.equal(e.name, "Lago");
+    assert.equal(e.casterId, null);
+    assert.equal(e.revertTo, undefined);
+    assert.ok(game().log.some((l) => l.system && l.text === "Água eletrificada de Lia acabou; voltou a ser Lago."));
+  });
+
+  it("volta também quando a concentração cai; transformar de novo volta ao original", async () => {
+    const { g, lia } = await setup();
+    const [gelo] = idsOf(await act(g, "effect:add", { name: "Chão congelado", preset: "ice", area: AREA }));
+    await act(g, "effect:transform", { id: gelo, preset: "wet", casterId: lia, rounds: 2, revert: true });
+    await act(g, "effect:transform", { id: gelo, preset: "electric", casterId: lia, concentration: true, revert: true });
+    assert.equal(fx(gelo).revertTo?.preset, "ice", "o original, não o intermediário");
+    const conc = find(lia).conditions.find((k) => k.name === "Concentração")!;
+    await act(g, "condition:remove", { id: lia, conditionId: conc.id });
+    assert.equal(fx(gelo).preset, "ice");
+  });
+
+  it("sem 'volta a ser', o efeito transformado some ao acabar; jogador não transforma efeito desligado", async () => {
+    const { g, bia, lia } = await setup();
+    const [teia] = idsOf(await act(g, "effect:add", { name: "Teia", preset: "web", area: AREA }));
+    await act(g, "effect:toggle", { id: teia, active: false });
+    assert.equal((await act(bia, "effect:transform", { id: teia, preset: "fire", casterId: lia })).ok, false);
+    await act(g, "effect:toggle", { id: teia, active: true });
+    await act(g, "effect:transform", { id: teia, preset: "fire", rounds: 1 });
+    await act(g, "init:set", { id: lia, value: 20 });
+    await act(g, "combat:start", {});
+    for (let i = 0; i < 3; i++) await act(g, "combat:next", {}); // round novo: efeito de ambiente conta
+    assert.equal(fx(teia), undefined);
+  });
+});
