@@ -379,3 +379,55 @@ abbr.abbr {
   border: 1px solid var(--mantine-color-dark-4);
   color: var(--mantine-color-dark-2);
 }
+
+/* Rolagem no centro do mapa (E22): os dados 3D por cima do mapa, sem bloquear cliques. */
+.dice-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.dice-overlay-box {
+  position: absolute;
+  inset: 0;
+}
+
+.dice-overlay-box canvas {
+  display: block;
+}
+
+.dice-overlay-result {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+}
+
+/* Log de rolagens destacado (E22): arrasta pelo título, redimensiona pelo canto. */
+.floating-log {
+  position: fixed;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  resize: both;
+  overflow: hidden;
+  min-width: 260px;
+  min-height: 160px;
+}
+
+.floating-log-title {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+  flex: none;
+}
+
+.floating-log-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+}

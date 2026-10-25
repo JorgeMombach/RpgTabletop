@@ -12,7 +12,9 @@ import { ClearBattleDialog } from "./ClearBattleDialog";
 import { CloseGuard } from "./CloseGuard";
 import { D20Emblem } from "./D20Emblem";
 import { ColumnResizer, LAYOUT, useColumnWidths } from "./ColumnResizer";
+import { DiceOverlay } from "./DiceOverlay";
 import { DicePanel } from "./DicePanel";
+import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { InvitePanel } from "./InvitePanel";
@@ -45,6 +47,7 @@ function TurnStatus({ state }: { state: ClientState }) {
 
 export function Shell({ state }: { state: ClientState }) {
   const connected = useApp((s) => s.connected);
+  const logDetached = useApp((s) => s.logDetached);
   const [clearing, setClearing] = useState(false);
   const { widths, max, set, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
@@ -114,6 +117,7 @@ export function Shell({ state }: { state: ClientState }) {
 
       <main className="map-area">
         <BattleMap state={state} />
+        <DiceOverlay />
       </main>
 
       <ColumnResizer side="right" width={widths.right} max={max.right} onResize={(w) => set("right", w)} onReset={() => reset("right")} />
@@ -124,6 +128,7 @@ export function Shell({ state }: { state: ClientState }) {
 
       {gm && <ClearBattleDialog open={clearing} onClose={() => setClearing(false)} />}
       {gm && <CloseGuard />}
+      {logDetached && <FloatingLog />}
     </div>
   );
 }

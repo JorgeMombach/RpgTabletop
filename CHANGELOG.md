@@ -6,6 +6,12 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.2.0] - 2026-10-25
+
+### Adicionado
+- **Dados rolando no centro do mapa:** cada rolagem rola em 3D, para todos que podem vê-la, e para no resultado sorteado pelo servidor, com o total em destaque por cima (20 e 1 naturais marcados). Os dados saem **na cor do token de quem rolou** (o personagem do jogador, o combatente do *Rolar como*; o mestre, em bronze). Rolagem oculta do mestre só anima na tela dele. *Animar rolagens*, no painel *Dados*, desliga só no seu navegador. (E22)
+- **Log de rolagens destacável:** o botão ao lado de *Animar rolagens* abre o log numa janela que dá para arrastar e redimensionar; minimizar devolve o log ao painel *Dados*. A posição fica lembrada no navegador. (E22)
+
 ## [2.1.0] - 2026-10-25
 
 ### Adicionado
@@ -108,7 +114,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.1.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v1.1.0...v2.0.0

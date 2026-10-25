@@ -600,6 +600,13 @@ Ordem: **2.0.1 → E21 → E22 → E23 → E24 → E25**. Regras de combate prim
 ### E22 — Dados à vista  *(2.2.0)*
 - **Log de rolagens destacável:** janela flutuante que dá para arrastar; minimizada, volta para o painel da direita.
 - **Rolagem animada no centro da tela**, com biblioteca de dados (3D ou similar). A animação **termina no resultado que o servidor sorteou** (ADR-07); rolagens ocultas do mestre só animam na tela dele. Dá para desligar a animação.
+- Detalhes (E22):
+  - Biblioteca: **@3d-dice/dice-box-threejs** (MIT; three.js + cannon-es embutidos), por ser a que aceita **resultado predeterminado** ("2d6@4,1"): a física é só visual e os dados param no valor do servidor. Alternativas: @3d-dice/dice-box (Babylon, mais nova, sem resultado predeterminado); animação 2D própria (leve, sem o efeito de mesa). Carregada sob demanda (pedaço separado, ~145 KB comprimidos), pré-carregada 2 s depois de abrir a mesa.
+  - Anima toda rolagem nova que a pessoa recebe no log (o filtro do servidor já decide quem vê). O histórico ao entrar/reconectar não anima. Fila: com várias rolagens juntas, ficam só as 3 mais recentes; aba em segundo plano não anima.
+  - Faces desenhadas: d4, d6, d8, d10, d12, d20 e d100 (par dezenas + d10, como na mesa). Outras faces ou mais de 20 dados (contando o d100 como 2): só a faixa com o resultado.
+  - **Cor dos dados** = cor do token de quem rolou, gravada no log pelo servidor (`color`): jogador → o combatente dele na vez (pode ser um conjurado) ou o personagem; mestre com *Rolar como* → aquele combatente; iniciativa → o combatente; mestre sem *Rolar como* → bronze. Número preto ou branco pelo contraste. Textura importada não (a biblioteca só tem a lista própria).
+  - Faixa por cima: quem rolou (ou o combatente, "Rolar como"), o rótulo, o total em destaque, a expressão e 20/1 natural.
+  - *Animar rolagens* e *log destacado* (posição e tamanho) ficam no navegador de cada um (localStorage).
 
 ### E23 — Celular e tablet  *(2.3.0)*
 - Layout próprio para **jogadores** em telas pequenas (abas como Mapa, Ficha, Dados, Iniciativa). O mestre continua no app do computador; a tela mínima de 1024 × 640 vale para ele.
