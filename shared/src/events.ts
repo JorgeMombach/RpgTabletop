@@ -250,6 +250,13 @@ export interface ActionPayloads {
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   "wall:add": { from: GridPos; to: GridPos; door?: boolean };
   "wall:remove": { id: string };
+  /** Mestre: cena nova, vazia (mesmo grid da atual); não troca para ela. */
+  "scene:add": { name: string };
+  "scene:rename": { id: string; name: string };
+  /** Mestre: guarda a cena atual e carrega a outra. Só fora de combate (a iniciativa zera). */
+  "scene:switch": { id: string };
+  /** Mestre: apaga uma cena guardada (a ativa não). */
+  "scene:remove": { id: string };
   /** Mestre: apaga todas as paredes e portas. */
   "wall:clear": Record<string, never>;
   /** Abrir/fechar: qualquer um, se não estiver trancada (nem for secreta). Trancar e secreta: só o mestre. */
@@ -259,7 +266,8 @@ export interface ActionPayloads {
 /** Identifica o arquivo de sessão do app (E18). */
 export const SESSION_FILE_APP = "jamals-tabletop";
 /** Versão do formato do arquivo: sobe quando o formato muda de um jeito que versões antigas não leem. */
-export const SESSION_FILE_FORMAT = 1;
+// 2 (2.8): cenas guardadas. A 2.7 leria o arquivo e perderia as outras cenas sem avisar.
+export const SESSION_FILE_FORMAT = 2;
 
 /**
  * Sessão salva em arquivo (ADR-17, E18). Os jogadores vão só com id e nome: quem entrar com o mesmo
@@ -363,6 +371,9 @@ export const LIMITS = {
   drawingWidth: { min: 1, max: 24 },
   /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
   drawingCoord: 100_000,
+  /** Cenas na sessão e tamanho do nome. */
+  scenes: 20,
+  sceneName: 40,
   /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */
   walls: 600,
   wallLength: 200,

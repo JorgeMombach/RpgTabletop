@@ -27,6 +27,7 @@ export interface ServerPlayer {
 }
 
 export function createGame(): GameState {
+  const sceneId = randomUUID();
   return {
     templates: [],
     allies: [],
@@ -52,6 +53,8 @@ export function createGame(): GameState {
       weather: defaultWeather(),
     },
     log: [],
+    scenes: [{ id: sceneId, name: "Cena 1" }],
+    sceneId,
   };
 }
 

@@ -34,7 +34,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Ping:** segurar o clique/dedo num ponto faz um círculo pulsar para todos, com o nome de quem marcou.
 - [x] **Desenho livre** do mestre (setas, círculos, marcações).
 - [x] **Portas e paredes simples** (linhas que bloqueiam visualmente; prepara a névoa de guerra).
-- [ ] **Vários mapas na sessão:** o mestre prepara e troca com um clique, cada mapa com os seus tokens.
+- [x] **Vários mapas na sessão:** o mestre prepara e troca com um clique, cada mapa com os seus tokens.
 
 ## E. Mestre
 - [ ] **Mostrar para a mesa:** imagem ou texto (carta, retrato, mapa do tesouro) que abre na tela de todos.

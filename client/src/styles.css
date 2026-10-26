@@ -281,6 +281,19 @@ body {
   opacity: 0.5;
 }
 
+/* Cenas (vários mapas): a atual com borda de bronze. */
+.scene-row {
+  padding: 4px 6px;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.scene-row.active {
+  background: var(--mantine-color-dark-5);
+  border-color: var(--mantine-color-bronze-6);
+}
+
 /* Grupo de mobs iguais aberto: cada um embaixo da linha do grupo. */
 .init-sub {
   margin-top: 4px;

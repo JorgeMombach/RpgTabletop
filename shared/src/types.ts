@@ -417,6 +417,32 @@ export interface Wall {
   door?: Door;
 }
 
+/** O que muda de uma cena (mapa) para outra: imagem e grid, mobs, NPCs, efeitos, desenhos, paredes e clima. */
+export interface SceneContent {
+  map: MapConfig & { image: string | null; imageVersion: number };
+  mobs: Combatant[];
+  npcs: Combatant[];
+  effects: MapEffect[];
+  drawings: Drawing[];
+  walls: Wall[];
+  weather: WeatherState;
+}
+
+/** Cena guardada (não ativa): o conteúdo dela e onde cada aliado estava nela. */
+export interface StoredScene extends SceneContent {
+  allyPos: Record<string, GridPos>;
+}
+
+/**
+ * Mapa preparado pelo mestre. A cena ativa vive em `battle` (sem `stored`); as outras ficam guardadas
+ * e voltam inteiras ao trocar. Aliados, iniciativa zerada e log são da mesa, não da cena.
+ */
+export interface Scene {
+  id: string;
+  name: string;
+  stored?: StoredScene;
+}
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];
@@ -434,6 +460,9 @@ export interface GameState {
     weather: WeatherState;
   };
   log: LogEntry[];
+  /** Cenas da sessão, na ordem do painel; a ativa é `sceneId` (o conteúdo dela está em `battle`). */
+  scenes: Scene[];
+  sceneId: string;
 }
 
 export interface HostInfo {
@@ -558,6 +587,9 @@ export interface ClientState {
     weather: WeatherState;
   };
   log: LogEntry[];
+  /** Cena ativa (todos) e a lista de cenas (só o mestre: nome, se tem imagem e quantos mobs). */
+  sceneId: string;
+  scenes?: { id: string; name: string; hasImage: boolean; mobs: number }[];
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */

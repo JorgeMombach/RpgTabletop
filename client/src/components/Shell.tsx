@@ -25,6 +25,7 @@ import { MapPanel } from "./MapPanel";
 import { MobileShell } from "./MobileShell";
 import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
+import { ScenesPanel } from "./ScenesPanel";
 import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
 import { SoundSync } from "./SoundSync";
@@ -133,6 +134,7 @@ function DesktopShell({ state }: { state: ClientState }) {
         {gm && <NpcsPanel npcs={state.battle.npcs as Combatant[]} />}
         <AlliesPanel state={state} />
         <EffectsPanel state={state} />
+        {gm && <ScenesPanel state={state} />}
         {gm && <MapPanel map={state.battle.map} />}
         {gm && <WeatherPanel state={state} />}
         {gm && <SoundPanel state={state} />}

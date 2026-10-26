@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Combatant, Door, Drawing, GameState, Resource, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
+import type { Combatant, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -113,7 +113,27 @@ function fullGame(playerId: string, gmId: string): GameState {
     ],
     weather,
   };
-  const game: Required<GameState> = { templates: [template], allies: [thorin, lia], battle, log: [roll] };
+  // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
+  const cripta: Required<StoredScene> = {
+    // A versão da imagem de uma cena guardada não importa (zera ao carregar).
+    map: { ...battle.map, image: null, imageVersion: 0 },
+    mobs: [{ ...guarda, id: "zumbi", name: "Zumbi", type: "mob", initiative: null, initRoll: null }],
+    npcs: [],
+    effects: [{ ...effect, id: "e2", casterId: "thorin" }],
+    drawings: [],
+    walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
+    weather,
+    allyPos: { thorin: { col: 3, row: 3 } },
+  };
+  const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];
+  const game: Required<GameState> = {
+    templates: [template],
+    allies: [thorin, lia],
+    battle,
+    log: [roll],
+    scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
+    sceneId: "cena-salao",
+  };
   return structuredClone(game);
 }
 

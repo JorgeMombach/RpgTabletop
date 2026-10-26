@@ -55,6 +55,14 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       weather: game.battle.weather,
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
+    sceneId: game.sceneId,
+    // Cenas preparadas são do mestre: os jogadores só veem a que está no mapa.
+    scenes: gm
+      ? game.scenes.map((s) => {
+          const content = s.stored ?? game.battle;
+          return { id: s.id, name: s.name, hasImage: content.map.image !== null, mobs: content.mobs.length };
+        })
+      : undefined,
     sound: store.sound,
     // A lista de arquivos é do mestre; os jogadores só recebem o que estiver tocando.
     soundLibrary: gm ? store.soundLibrary : undefined,

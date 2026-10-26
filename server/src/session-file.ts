@@ -25,6 +25,8 @@ import {
   type GridPos,
   type LogEntry,
   type MapEffect,
+  type Scene,
+  type SceneContent,
   type MobTemplate,
   type OutsideRolls,
   type RollResult,
@@ -383,14 +385,60 @@ export function parseSession(raw: unknown): ParsedSession {
 
   const g = obj(f.game, "jogo");
   const b = obj(g.battle, "batalha");
-  const m = obj(b.map, "mapa");
   const allies = list(g.allies, "aliados", 200).map((c) => combatant(c, "ally"));
+  const active = sceneContent(b, allies);
+
+  // Cenas (2.8+). Arquivo mais antigo: uma cena só, a do mapa salvo.
+  const rawScenes = g.scenes === undefined ? null : list(g.scenes, "cenas", LIMITS.scenes);
+  const sceneId = rawScenes ? requireString(g.sceneId, "Cena") : randomUUID();
+  const allyIds = new Set(allies.map((a) => a.id));
+  const scenes: Scene[] = rawScenes
+    ? rawScenes.map((raw) => {
+        const sc = obj(raw, "cena");
+        const id = requireString(sc.id, "Cena");
+        const name = text(sc.name, "cena", LIMITS.sceneName) || fail("Arquivo inválido: cena sem nome.");
+        // A cena ativa é a que está em `battle`; só as outras vêm guardadas.
+        if (id === sceneId) return { id, name };
+        const st = obj(sc.stored, "cena guardada");
+        return { id, name, stored: { ...sceneContent(st, allies), allyPos: allyPositions(st.allyPos, allyIds) } };
+      })
+    : [{ id: sceneId, name: "Cena 1" }];
+  if (new Set(scenes.map((sc) => sc.id)).size !== scenes.length) fail("Arquivo inválido: cenas repetidas.");
+  if (!scenes.some((sc) => sc.id === sceneId)) fail("Arquivo inválido: cena atual.");
+
+  // Nenhum combatente se repete, nem de uma cena para outra.
+  const everyone = [...allies, ...active.mobs, ...active.npcs, ...scenes.flatMap((sc) => (sc.stored ? [...sc.stored.mobs, ...sc.stored.npcs] : []))];
+  if (new Set(everyone.map((c) => c.id)).size !== everyone.length) fail("Arquivo inválido: combatentes repetidos.");
+
+  const game: GameState = {
+    templates: list(g.templates, "templates", 500).map(template),
+    allies,
+    battle: {
+      ...active,
+      // Oculto não fica na ordem de iniciativa (E21).
+      combat: combat(b.combat, new Set([...allies, ...active.mobs, ...active.npcs].filter((c) => !c.hidden).map((c) => c.id))),
+      rolls: { request: null, reactions: [], outside: outsideRolls(obj(b.rolls ?? {}, "rolagens").outside) },
+    },
+    log: list(g.log, "log", LIMITS.logSize).map(logEntry),
+    scenes,
+    sceneId,
+  };
+
+  const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
+  const mobCounters = new Map<string, number>();
+  for (const [tid, n] of Object.entries(counters)) mobCounters.set(tid, int(n, "numeração dos mobs", 0, 1e6));
+  return { players, mobCounters, game };
+}
+
+/** Conteúdo de uma cena (a ativa ou uma guardada), validado: mapa, mobs, NPCs, efeitos, desenhos, paredes e clima. */
+function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
+  const m = obj(b.map, "mapa");
   const mobs = list(b.mobs, "mobs", 500).map((c) => combatant(c, "mob"));
   const npcs = list(b.npcs ?? [], "NPCs", 500).map((c) => combatant(c, "npc"));
-  const ids = new Set([...allies, ...mobs, ...npcs].map((c) => c.id));
-  if (ids.size !== allies.length + mobs.length + npcs.length) fail("Arquivo inválido: combatentes repetidos.");
-  // Conjurado (E21): o conjurador existe e é do mesmo lado.
   const all = [...allies, ...mobs, ...npcs];
+  const ids = new Set(all.map((c) => c.id));
+  if (ids.size !== all.length) fail("Arquivo inválido: combatentes repetidos.");
+  // Conjurado (E21): o conjurador existe e é do mesmo lado.
   for (const c of all) {
     if (!c.summonerId) continue;
     const by = all.find((o) => o.id === c.summonerId);
@@ -398,40 +446,36 @@ export function parseSession(raw: unknown): ParsedSession {
   }
   const rotation = int(m.rotation ?? 0, "rotação do mapa", 0, 270);
   if (rotation % 90 !== 0) fail("Arquivo inválido: rotação do mapa.");
-
-  const game: GameState = {
-    templates: list(g.templates, "templates", 500).map(template),
-    allies,
-    battle: {
-      map: {
-        image: m.image === null ? null : requireImage(m.image, "Mapa", LIMITS.mapImageChars),
-        imageVersion: 0,
-        showGrid: bool(m.showGrid, "grid"),
-        cellPx: requireNumber(m.cellPx, "Tamanho do quadrado", LIMITS.cellPx.min, LIMITS.cellPx.max),
-        offsetX: offsetOf(m.offsetX, "Deslocamento X"),
-        offsetY: offsetOf(m.offsetY, "Deslocamento Y"),
-        feetPerCell: requireNumber(m.feetPerCell, "Pés por quadrado", 1, 100),
-        rotation,
-        imageScale: requireNumber(m.imageScale ?? 1, "Escala do mapa", LIMITS.imageScale.min, LIMITS.imageScale.max),
-      },
-      mobs,
-      npcs,
-      // Oculto não fica na ordem de iniciativa (E21).
-      combat: combat(b.combat, new Set([...allies, ...mobs, ...npcs].filter((c) => !c.hidden).map((c) => c.id))),
-      rolls: { request: null, reactions: [], outside: outsideRolls(obj(b.rolls ?? {}, "rolagens").outside) },
-      effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
-      // Arquivos anteriores à 2.8 não têm desenhos.
-      drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
-      walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
-      weather: weatherFromFile(b.weather),
+  return {
+    map: {
+      image: m.image === null ? null : requireImage(m.image, "Mapa", LIMITS.mapImageChars),
+      imageVersion: 0,
+      showGrid: bool(m.showGrid, "grid"),
+      cellPx: requireNumber(m.cellPx, "Tamanho do quadrado", LIMITS.cellPx.min, LIMITS.cellPx.max),
+      offsetX: offsetOf(m.offsetX, "Deslocamento X"),
+      offsetY: offsetOf(m.offsetY, "Deslocamento Y"),
+      feetPerCell: requireNumber(m.feetPerCell, "Pés por quadrado", 1, 100),
+      rotation,
+      imageScale: requireNumber(m.imageScale ?? 1, "Escala do mapa", LIMITS.imageScale.min, LIMITS.imageScale.max),
     },
-    log: list(g.log, "log", LIMITS.logSize).map(logEntry),
+    mobs,
+    npcs,
+    effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
+    // Arquivos anteriores à 2.8 não têm desenhos nem paredes.
+    drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
+    walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
+    weather: weatherFromFile(b.weather),
   };
+}
 
-  const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
-  const mobCounters = new Map<string, number>();
-  for (const [tid, n] of Object.entries(counters)) mobCounters.set(tid, int(n, "numeração dos mobs", 0, 1e6));
-  return { players, mobCounters, game };
+/** Onde cada aliado estava numa cena guardada (aliado que não existe mais é ignorado). */
+function allyPositions(raw: unknown, allyIds: Set<string>): Record<string, GridPos> {
+  const out: Record<string, GridPos> = {};
+  for (const [id, p] of Object.entries(obj(raw ?? {}, "posições dos aliados"))) {
+    const at = pos(p);
+    if (allyIds.has(id) && at) out[id] = at;
+  }
+  return out;
 }
 
 function offsetOf(raw: unknown, label: string): number {
@@ -463,7 +507,7 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   const owner = (id: string) => remap.get(id) ?? id;
   const { game } = parsed;
   for (const a of game.allies) if (a.ownerId) a.ownerId = owner(a.ownerId);
-  for (const e of game.battle.effects) {
+  for (const e of [...game.battle.effects, ...game.scenes.flatMap((sc) => sc.stored?.effects ?? [])]) {
     e.ownerId = owner(e.ownerId);
     // O estado de antes de Transformar também tem dono: ao voltar a ele, continua com quem controlava.
     if (e.revertTo) e.revertTo.ownerId = owner(e.revertTo.ownerId);
