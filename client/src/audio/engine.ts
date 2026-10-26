@@ -29,6 +29,11 @@ export function onAudioState(fn: () => void) {
 
 function audio(): AudioContext {
   if (ctx) return ctx;
+  // iPhone/iPad: sem isto o Web Audio obedece à chave de silencioso e a mesa fica muda (os dados,
+  // que tocam por elemento de áudio, continuam soando). "playback" = mídia, como um player de música.
+  // Safari 16.4+; nos outros navegadores a propriedade não existe e nada muda.
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (session) session.type = "playback";
   ctx = new AudioContext();
   master = ctx.createGain();
   // Limitador na saída: vários sons juntos (trovão em cima da tempestade) não estouram.

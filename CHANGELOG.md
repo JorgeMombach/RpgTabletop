@@ -6,6 +6,11 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.8.1] - 2026-10-26
+
+### Corrigido
+- **iPhone e iPad:** música, ambiente e efeitos da mesa não tocavam com a chave de silencioso ligada (só o barulho dos dados soava). Agora o som da mesa toca como mídia, igual a um player de música (iOS 17 ou mais novo).
+
 ## [2.8.0] - 2026-10-26
 
 Melhorias da mesa: ficha mais completa, combate mais fluido, mapa com cenas, desenho, paredes e portas, e o começo da tradução para inglês e espanhol. Arquivos de sessão salvos nesta versão só abrem na 2.8 ou mais nova.
@@ -211,7 +216,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.1...HEAD
+[2.8.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.5.0...v2.6.0
