@@ -32,8 +32,11 @@ export async function startServer(config: Config, clientDist?: string): Promise<
 
   let port: number;
   try {
-    port = await listenWithFallback(app.httpServer, config.port);
+    // Em dev a porta é fixa: o proxy do Vite aponta para ela. Pular para a seguinte faria o Vite falar
+    // com outro servidor (ex.: o app do mestre aberto na 3000).
+    port = await listenWithFallback(app.httpServer, config.port, config.dev ? 1 : 20);
   } catch (err) {
+    if (config.dev) throw new Error(`Porta ${config.port} ocupada. No modo dev ela não muda (é a do proxy do Vite); feche o que estiver nela.`);
     throw new Error(`Não consegui abrir o servidor a partir da porta ${config.port}: ${(err as Error).message}`);
   }
   app.setPort(port);

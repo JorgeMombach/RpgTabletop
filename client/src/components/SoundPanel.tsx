@@ -1,7 +1,7 @@
 import { ActionIcon, Button, Divider, FileButton, Group, Select, SimpleGrid, Slider, Stack, Text, Tooltip } from "@mantine/core";
 import { IconFolderOpen, IconPlayerPlay, IconPlayerStop, IconRefresh, IconUpload } from "@tabler/icons-react";
 import { GEN_SOUNDS, LIMITS, type ClientState, type SoundChannel, type SoundSource } from "@rpg/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { act } from "../actions";
 import { toast } from "../notify";
 import { desktop } from "../sessionFile";
@@ -43,6 +43,11 @@ function VolumeSlider({ channel, value }: { channel: SoundChannel | "sfx"; value
 function LoopChannel({ state, channel, label }: { state: ClientState; channel: SoundChannel; label: string }) {
   const track = state.sound[channel];
   const [choice, setChoice] = useState<string | null>(track ? keyOf(track.source) : null);
+  // Começou a tocar outra coisa (pelo painel Clima, por exemplo): o seletor mostra o que está tocando.
+  const playingKey = track ? keyOf(track.source) : null;
+  useEffect(() => {
+    if (playingKey) setChoice(playingKey);
+  }, [playingKey, track?.startedAt]);
   const files = state.soundLibrary ?? [];
   const now = track ? (track.source.kind === "file" ? track.source.name : GEN_SOUNDS.ambient[track.source.id as keyof typeof GEN_SOUNDS.ambient]) : null;
 

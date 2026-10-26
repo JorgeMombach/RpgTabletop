@@ -51,12 +51,16 @@ function inkFor(hex: string): string {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.25 ? INK : "#ffffff";
 }
 
-/** Dado na cor do token de quem rolou (E22); sem cor, bronze. */
-function themeFor(color = BRONZE) {
+/**
+ * Dado na cor do token de quem rolou (E22); sem cor, bronze. `material` só muda o brilho; o barulho
+ * a biblioteca escolhe no carregamento ("metal" = dado de metal). Por isso a caixa nasce em "plastic"
+ * (barulho de dado de plástico) e as cores de verdade vêm em seguida, por paintBox.
+ */
+function themeFor(color = BRONZE, material = "metal") {
   const bg = /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : BRONZE;
   const fg = inkFor(bg);
-  // O nome é a chave do cache de cores da biblioteca: uma por cor.
-  return { name: `dado-${bg.slice(1)}`, foreground: fg, background: bg, outline: fg === INK ? "#00000055" : "#ffffff55", texture: "none", material: "metal" };
+  // O nome é a chave do cache de cores da biblioteca: uma por cor e material.
+  return { name: `dado-${bg.slice(1)}-${material}`, foreground: fg, background: bg, outline: fg === INK ? "#00000055" : "#ffffff55", texture: "none", material };
 }
 
 interface Box {
@@ -66,9 +70,12 @@ interface Box {
   setDimensions(size: { x: number; y: number }): void;
   updateConfig(config: Record<string, unknown>): Promise<void>;
   renderer: { domElement: HTMLCanvasElement };
+  /** Volume dos sons da biblioteca, de 0 a 100 (0 = mudo). */
+  volume: number;
 }
 
-let currentColor: string | undefined;
+/** Cor já aplicada; `null` = nenhuma ainda (a caixa nasce com o tema de carregamento). */
+let currentColor: string | undefined | null = null;
 
 /** Troca a cor dos próximos dados (só recarrega o tema se a cor mudou). */
 export async function paintBox(box: Box, color?: string) {
@@ -87,28 +94,48 @@ export function fitBox(box: Box, container: HTMLElement) {
   if (canvas.width !== x || canvas.height !== y) box.setDimensions({ x, y });
 }
 
-let loading: Promise<Box> | null = null;
+/**
+ * Volume do barulho dos dados (0–1): o volume de efeitos que o mestre deu à mesa vezes o volume geral
+ * desta pessoa (E25). Os sons tocam a cada batida da física, então ficam no ritmo dos dados na tela.
+ */
+export function setDiceVolume(box: Box, volume: number) {
+  box.volume = Math.round(Math.max(0, Math.min(1, volume)) * 100);
+}
+
+/**
+ * Uma caixa só por página, guardada na janela: no `npm run dev` o Vite recarrega este arquivo a cada
+ * mudança, e uma variável do módulo criaria outra caixa 3D por cima da antiga. Com várias cenas 3D o
+ * navegador derruba as mais velhas (os dados somem e a rolagem fica esperando).
+ */
+const holder = window as unknown as { __diceBox?: Promise<Box> | null };
 
 /** Carrega a biblioteca só na primeira rolagem (three.js é pesado para a abertura da página). */
 export function diceBox(container: HTMLElement): Promise<Box> {
   if (!container.id) container.id = "dice-box";
-  loading ??= import("@3d-dice/dice-box-threejs")
+  holder.__diceBox ??= import("@3d-dice/dice-box-threejs")
     .then(async ({ default: DiceBox }) => {
+      // Sobra de uma caixa anterior (outra montagem do componente): sai antes de criar a nova.
+      container.replaceChildren();
       const box = new DiceBox(`#${container.id}`, {
-        theme_customColorset: themeFor(),
+        theme_customColorset: themeFor(undefined, "plastic"),
         shadows: true,
-        sounds: false,
+        // Barulho dos dados (gravações que vêm com a biblioteca, MIT): dado de plástico em mesa de madeira.
+        // Ficam em client/public/dados/sounds (só os que este tema usa).
+        sounds: true,
+        assetPath: "/dados/",
+        theme_surface: "taverntable",
         light_intensity: 0.9,
         baseScale: 90,
         strength: 1,
         gravity_multiplier: 400,
       }) as Box;
       await box.initialize();
+      currentColor = null;
       return box;
     })
     .catch((err) => {
-      loading = null;
+      holder.__diceBox = null;
       throw err;
     });
-  return loading;
+  return holder.__diceBox;
 }

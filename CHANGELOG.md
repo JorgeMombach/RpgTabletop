@@ -6,6 +6,18 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.7.0] - 2026-10-26
+
+### Adicionado
+- **Barulho dos dados:** ao rolar, os dados batem na mesa e uns nos outros, no ritmo da animação. Segue o volume de efeitos da mesa e o seu volume geral (mudo = sem barulho).
+
+### Alterado
+- Efeitos sonoros mais realistas: **trovão** (estalo que rasga e ronco que rola), **explosão**, **golpe de espada** (lâmina cortando o ar e o aço tinindo), **flecha** (o voo passando e o baque na madeira), **magia**, **raio elétrico** e **moedas**. Cada toque sai um pouco diferente.
+- Ambiente **Tempestade**: trovões mais espaçados, uns perto e outros longe (mais baixos e abafados).
+
+### Corrigido
+- Tocar o ambiente sugerido pelo painel *Clima* não atualizava o seletor de *Ambiente* no painel *Som*.
+
 ## [2.6.0] - 2026-10-26
 
 ### Adicionado
@@ -157,7 +169,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.6.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.7.0...HEAD
+[2.7.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.3.0...v2.4.0

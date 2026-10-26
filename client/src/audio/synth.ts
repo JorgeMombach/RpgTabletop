@@ -174,26 +174,379 @@ function ambient(ctx: BaseAudioContext, build: (out: GainNode) => (AudioSchedule
 
 /* ---------- efeitos de uma vez ---------- */
 
-export const SFX: Record<GenSfxId, (ctx: BaseAudioContext, out: AudioNode, at: number) => void> = {
-  thunder(ctx, out, at) {
-    // Estalo seco e o ronco que rola e vai sumindo, com "ondas".
-    burst(ctx, out, at, "white", "highpass", 1200, 0.6, 0.25);
-    const rumble = burst(ctx, out, at + 0.05, "brown", "lowpass", 180, 1.2, 4, 0.08);
-    rumble.frequency.setValueAtTime(400, at);
-    rumble.frequency.exponentialRampToValueAtTime(90, at + 4);
-    for (let i = 0; i < 4; i++) burst(ctx, out, at + 0.4 + i * (0.4 + Math.random() * 0.6), "brown", "lowpass", 250, 0.6, 1.2, 0.05);
+/*
+ * Trovão, explosão, espada, flecha, magia, raio e moedas são calculados amostra por amostra (ruído com
+ * filtros que mudam no tempo, ressonâncias de metal, corda dedilhada, estalos espalhados), como numa
+ * gravação: soa bem mais natural que só ligar nós do Web Audio. Cada toque sai um pouco diferente.
+ * Contas pesadas (filtro que muda, envelope) andam em blocos de 16 amostras, para gerar em poucos ms.
+ */
+
+const TAU = Math.PI * 2;
+const BLOCK = 16;
+const rand = (a: number, b: number) => a + Math.random() * (b - a);
+const white = () => Math.random() * 2 - 1;
+
+/** Filtro de estado variável (passa-baixa, passa-banda e passa-alta de uma vez). */
+class Svf {
+  private ic1 = 0;
+  private ic2 = 0;
+  private a1 = 0;
+  private g = 0;
+  private k = 1;
+  lp = 0;
+  bp = 0;
+  hp = 0;
+  constructor(private sr: number, fc = 1000, q = 0.7) {
+    this.set(fc, q);
+  }
+  /** Muda frequência e Q (chame no máximo uma vez por bloco: a tangente é cara). */
+  set(fc: number, q = 0.7) {
+    this.g = Math.tan((Math.PI * Math.min(Math.max(fc, 10), this.sr * 0.45)) / this.sr);
+    this.k = 1 / q;
+    this.a1 = 1 / (1 + this.g * (this.g + this.k));
+    return this;
+  }
+  run(x: number) {
+    const v3 = x - this.ic2;
+    const v1 = this.a1 * (this.ic1 + this.g * v3);
+    const v2 = this.ic2 + this.g * v1;
+    this.ic1 = 2 * v1 - this.ic1;
+    this.ic2 = 2 * v2 - this.ic2;
+    this.lp = v2;
+    this.bp = v1;
+    this.hp = x - this.k * v1 - v2;
+    return this;
+  }
+}
+
+/** Ruído marrom (branco integrado com vazamento): ronco grave. */
+function brownStep(state: { v: number }) {
+  state.v = (state.v + 0.02 * white()) / 1.02;
+  return state.v * 3.5;
+}
+
+/**
+ * Gera o som em dois canais. Os acontecimentos (pancadas, tilintares) são sorteados fora, iguais nos dois
+ * canais; o ruído de cada canal é independente, o que abre o som no estéreo. Normaliza o pico em 0,9.
+ */
+function render(ctx: BaseAudioContext, seconds: number, fill: (d: Float32Array, sr: number) => void): AudioBuffer {
+  const sr = ctx.sampleRate;
+  const buf = ctx.createBuffer(2, Math.ceil(seconds * sr), sr);
+  let peak = 0;
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    fill(d, sr);
+    for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  }
+  if (peak > 0) {
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < d.length; i++) d[i] *= 0.9 / peak;
+    }
+  }
+  return buf;
+}
+
+/** Toca um som gerado, com um pouco de eco do ambiente (`wet`). */
+function playRendered(ctx: BaseAudioContext, out: AudioNode, at: number, buf: AudioBuffer, wet = 0) {
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.connect(out);
+  if (wet > 0) {
+    const echo = reverb(ctx);
+    src.connect(echo).connect(gain(ctx, wet)).connect(out);
+  }
+  src.start(at);
+}
+
+/** Roda quando o navegador estiver folgado (gerar um som leva dezenas de ms). */
+function idle(fn: () => void) {
+  // Safari não tem requestIdleCallback.
+  if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(fn, { timeout: 2000 });
+  else setTimeout(fn, 50);
+}
+
+/**
+ * Um som de cada já pronto: tocar não espera a geração. Depois de usar, o próximo (diferente) é gerado
+ * com o navegador ocioso.
+ */
+const ready = new WeakMap<BaseAudioContext, Map<string, AudioBuffer>>();
+function prepared(ctx: BaseAudioContext, key: string, make: () => AudioBuffer): AudioBuffer {
+  let cache = ready.get(ctx);
+  if (!cache) ready.set(ctx, (cache = new Map()));
+  const buf = cache.get(key) ?? make();
+  cache.delete(key);
+  idle(() => cache.set(key, make()));
+  return buf;
+}
+
+/** Envelope de ataque e queda exponencial, a partir de `t0`. */
+const hit = (t: number, t0: number, attack: number, decay: number) =>
+  t < t0 ? 0 : t < t0 + attack ? (t - t0) / attack : Math.exp(-(t - t0 - attack) / decay);
+
+/**
+ * Soma em `d` um metal batendo a partir de `t0`: parciais desafinadas (lâmina, moeda), cada uma com a
+ * própria queda. Oscilador recursivo (gira um fasor), sem seno nem exponencial por amostra.
+ */
+function addMetal(d: Float32Array, sr: number, t0: number, f0: number, amp: number, partials: readonly (readonly [number, number, number])[]) {
+  const start = Math.floor(t0 * sr);
+  for (const [ratio, a, decay] of partials) {
+    const w = (TAU * f0 * ratio) / sr;
+    if (w >= Math.PI) continue;
+    const cw = Math.cos(w);
+    const sw = Math.sin(w);
+    const r = Math.exp(-1 / (decay * sr));
+    const phase = Math.random() * TAU;
+    let c = Math.cos(phase);
+    let s = Math.sin(phase);
+    let level = amp * a;
+    const end = Math.min(d.length, start + Math.ceil(decay * sr * 7));
+    const attack = sr * 0.001;
+    for (let i = start; i < end; i++) {
+      const j = i - start;
+      d[i] += s * level * (j < attack ? j / attack : 1);
+      const nc = c * cw - s * sw;
+      s = s * cw + c * sw;
+      c = nc;
+      level *= r;
+    }
+  }
+}
+
+/** Soma em `d` um estalo de ruído filtrado (passa-alta) em `t0`. */
+function addClick(d: Float32Array, sr: number, t0: number, amp: number, decay: number, fc: number) {
+  const f = new Svf(sr, fc);
+  const start = Math.floor(t0 * sr);
+  const end = Math.min(d.length, start + Math.ceil(decay * sr * 6));
+  let level = amp;
+  const r = Math.exp(-1 / (decay * sr));
+  for (let i = start; i < end; i++) {
+    d[i] += f.run(white() * level).hp;
+    level *= r;
+  }
+}
+
+/**
+ * Trovão: o estalo que rasga (perto) e o ronco que rola em ondas irregulares e some aos poucos.
+ * `distance` 0 = caiu do lado (estalo forte); 1 = longe (só o ronco abafado).
+ */
+function thunderBuffer(ctx: BaseAudioContext, distance: number): AudioBuffer {
+  const seconds = 6 + distance * 1.5;
+  const near = 1 - distance;
+  const sr = ctx.sampleRate;
+  // Ondas do ronco: a principal logo no começo e outras cada vez mais fracas e espaçadas.
+  const rolls = [{ t: 0.12 + distance * 0.5, a: 1, w: 0.45 + distance * 0.4 }];
+  for (let i = 0, n = 9 + Math.floor(Math.random() * 6); i < n; i++) {
+    const t = 0.3 + Math.random() ** 1.4 * (seconds - 1.8);
+    rolls.push({ t, a: rand(0.3, 0.9) * Math.exp(-t / 2.4), w: rand(0.15, 0.7) });
+  }
+  // Envelope calculado uma vez, em blocos (igual nos dois canais).
+  const blocks = Math.ceil((seconds * sr) / BLOCK) + 1;
+  const env = new Float32Array(blocks);
+  for (let b = 0; b < blocks; b++) {
+    const t = (b * BLOCK) / sr;
+    let e = 0.2 * Math.exp(-t / 3);
+    for (const r of rolls) e += r.a * Math.exp(-(((t - r.t) / r.w) ** 2));
+    env[b] = e * Math.min(1, t / 0.08) * Math.min(1, Math.max(0, seconds - t));
+  }
+  // Rasgo do raio: estalos rápidos e encavalados no primeiro quarto de segundo.
+  const cracks = near > 0.15 ? Array.from({ length: 8 + Math.floor(Math.random() * 8) }, () => ({ t: Math.random() ** 2 * 0.28, a: rand(0.4, 1) * near })) : [];
+  return render(ctx, seconds, (d, sr) => {
+    const brown = { v: 0 };
+    const low = new Svf(sr);
+    const mid = new Svf(sr, 380 - 200 * distance, 0.9);
+    const tear = new Svf(sr, 1800);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      // Ronco: grave que fica mais abafado com o tempo e com a distância.
+      if (i % BLOCK === 0) low.set(90 + 260 * near * Math.exp(-t / 1.6), 0.8);
+      const e = env[(i / BLOCK) | 0];
+      const rumble = low.run(brownStep(brown)).lp;
+      const body = mid.run(white()).bp * 0.35 * Math.exp(-t / (1 + distance));
+      let crack = 0;
+      if (t < 0.4) {
+        for (const c of cracks) if (t >= c.t && t < c.t + 0.06) crack += c.a * Math.exp(-(t - c.t) / 0.012) * white();
+        crack += near * Math.exp(-t / 0.08) * 0.2 * white();
+      }
+      d[i] = Math.tanh((rumble * e * 1.6 + body * e + tear.run(crack).hp * 1.4) * 1.5);
+    }
+  });
+}
+
+function explosionBuffer(ctx: BaseAudioContext): AudioBuffer {
+  // Destroços caindo: estalos espalhados, mais no começo.
+  const debris = Array.from({ length: 30 }, () => ({ t: 0.12 + Math.random() ** 1.8 * 2.2, a: rand(0.1, 0.5) }));
+  return render(ctx, 3.8, (d, sr) => {
+    const brown = { v: 0 };
+    const blast = new Svf(sr);
+    const roar = new Svf(sr, 220, 0.9);
+    let phase = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      // Baque grave que afunda (sente-se mais do que se ouve).
+      phase += (TAU * (28 + 40 * Math.exp(-t / 0.18))) / sr;
+      const thump = Math.sin(phase) * hit(t, 0, 0.004, 0.35) * 1.3;
+      // Onda de choque: ruído aberto que vai fechando rápido.
+      if (i % BLOCK === 0) blast.set(140 + 7000 * Math.exp(-t / 0.06) + 900 * Math.exp(-t / 0.5));
+      const shock = blast.run(white()).lp * (hit(t, 0, 0.002, 0.45) + 0.35 * hit(t, 0, 0.05, 1.4));
+      const rumble = roar.run(brownStep(brown)).lp * hit(t, 0.02, 0.08, 1.2) * 0.9;
+      d[i] = thump + shock * 1.4 + rumble;
+    }
+    for (const p of debris) addClick(d, sr, p.t, p.a, 0.004, 2500);
+    for (let i = 0; i < d.length; i++) d[i] = Math.tanh(d[i] * 2);
+  });
+}
+
+/** Lâmina de aço: parciais de barra livre (1; 2,76; 5,40; 8,93), curtas: um "tim" seco, não um sino. */
+const BLADE = [
+  [1, 0.4, 0.35],
+  [2.756, 0.3, 0.22],
+  [5.404, 0.18, 0.12],
+  [8.933, 0.08, 0.07],
+] as const;
+
+/** Golpe de espada: o corte no ar é o principal; a lâmina batendo é curta e contida. */
+function swordBuffer(ctx: BaseAudioContext): AudioBuffer {
+  const strike = 0.22;
+  const f0 = rand(900, 1100);
+  return render(ctx, 0.9, (d, sr) => {
+    const swish = new Svf(sr);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      // Lâmina cortando o ar: sopro rápido que sobe e desce de tom.
+      if (t < strike + 0.04) {
+        const u = t / (strike + 0.04);
+        const arc = Math.sin(Math.PI * u) ** 2;
+        if (i % BLOCK === 0) swish.set(400 + 2200 * arc, 1.8);
+        d[i] = swish.run(white()).bp * arc;
+      }
+    }
+    // Pancada: estalo seco e o aço tinindo de leve.
+    addClick(d, sr, strike, 0.7, 0.006, 2500);
+    addMetal(d, sr, strike, f0, 0.35, BLADE);
+  });
+}
+
+/** Flecha: o "fiu" do voo, passando rápido, e o baque cravando na madeira. Só isso, sem enfeite. */
+function arrowBuffer(ctx: BaseAudioContext): AudioBuffer {
+  const impact = 0.3;
+  return render(ctx, 0.65, (d, sr) => {
+    const air = new Svf(sr);
+    const wood = new Svf(sr, 450, 5);
+    let phase = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      let x = 0;
+      // Voo: sopro que chega forte e cai de tom ao passar (efeito Doppler).
+      if (t < impact) {
+        const u = t / impact;
+        if (i % BLOCK === 0) air.set(3500 - 2200 * u, 2);
+        x += air.run(white()).bp * Math.sin(Math.PI * Math.min(1, u * 1.15)) ** 2 * 1.1;
+      }
+      // Cravou: baque grave curto e a madeira ressoando.
+      if (t >= impact) {
+        phase += (TAU * (75 + 90 * Math.exp(-(t - impact) / 0.025))) / sr;
+        x += Math.sin(phase) * hit(t, impact, 0.001, 0.05) * 0.9;
+        x += wood.run(white()).bp * hit(t, impact, 0.001, 0.06) * 2.2;
+      }
+      d[i] = x;
+    }
+    addClick(d, sr, impact, 0.8, 0.002, 3000);
+  });
+}
+
+function magicBuffer(ctx: BaseAudioContext): AudioBuffer {
+  // Faíscas cintilando em notas de uma escala (soa "encantado", não aleatório).
+  const scale = [1, 1.125, 1.25, 1.5, 1.667, 2, 2.25, 2.5, 3, 3.333, 4];
+  const base = rand(700, 900);
+  const sparks = Array.from({ length: 38 }, () => ({ t: 0.08 + Math.random() ** 1.3 * 1.5, f: base * scale[Math.floor(Math.random() * scale.length)], a: rand(0.04, 0.12), dec: rand(0.12, 0.45) }));
+  return render(ctx, 2.6, (d, sr) => {
+    const swell = new Svf(sr);
+    let whomp = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      // Energia juntando: sopro que sobe de tom até a liberação.
+      const u = Math.min(1, t / 0.75);
+      if (i % BLOCK === 0) swell.set(300 + 4200 * u * u, 3);
+      let x = swell.run(white()).bp * (t < 0.75 ? u * u : Math.exp(-(t - 0.75) / 0.25)) * 0.7;
+      // Pano de fundo: dois tons com vibrato, entrando devagar.
+      x += (Math.sin(TAU * base * 0.5 * t + 0.6 * Math.sin(TAU * 5 * t)) + 0.6 * Math.sin(TAU * base * 0.75 * t)) * hit(t, 0.1, 0.5, 0.9) * 0.08;
+      // Liberação: "vum" grave quando o feitiço sai.
+      if (t >= 0.75) {
+        whomp += (TAU * (55 + 90 * Math.exp(-(t - 0.75) / 0.12))) / sr;
+        x += Math.sin(whomp) * hit(t, 0.75, 0.01, 0.3) * 0.5;
+      }
+      d[i] = x;
+    }
+    for (const s of sparks) addMetal(d, sr, s.t, s.f, s.a, [[1, 1, s.dec]]);
+  });
+}
+
+function zapBuffer(ctx: BaseAudioContext): AudioBuffer {
+  // O arco tremula: nível sorteado a cada poucos milissegundos.
+  const steps = Array.from({ length: 120 }, () => rand(0.25, 1));
+  const pops = Array.from({ length: 45 }, () => ({ t: Math.random() * 0.85, a: rand(0.3, 1) }));
+  return render(ctx, 1.05, (d, sr) => {
+    const hp = new Svf(sr, 180);
+    let phase = 0;
+    let wob = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr;
+      // Zumbido do arco: dente-de-serra grave com a frequência tremendo, rasgado pela saturação.
+      wob = (wob + (Math.random() - 0.5) * 0.02) * 0.999;
+      phase += (100 * (1 + wob)) / sr;
+      const saw = 2 * (phase % 1) - 1;
+      const flicker = steps[Math.min(steps.length - 1, Math.floor(t / 0.009))];
+      const fade = t < 0.02 ? t / 0.02 : t > 0.75 ? Math.max(0, 1 - (t - 0.75) / 0.25) : 1;
+      d[i] = Math.tanh(hp.run(saw * 0.8 + white() * 0.5).hp * flicker * fade * 2.5) * 0.6;
+    }
+    // Estalo da descarga e as faíscas estalando.
+    addClick(d, sr, 0, 2, 0.02, 1500);
+    for (const p of pops) addClick(d, sr, p.t, p.a * 0.9, 0.0012, 2500);
+  });
+}
+
+/** Moeda: disco de metal fino, tilintar agudo com parciais desafinadas. */
+const COIN = [
+  [1, 1, 0.16],
+  [1.52, 0.6, 0.11],
+  [2.14, 0.45, 0.08],
+  [2.83, 0.3, 0.06],
+  [3.6, 0.18, 0.04],
+] as const;
+
+function coinsBuffer(ctx: BaseAudioContext): AudioBuffer {
+  // Punhado caindo: tilintares encavalados e, no fim, uma moeda quicando cada vez mais rápido.
+  const clinks: { t: number; f: number; a: number }[] = [];
+  let t = 0;
+  for (let i = 0; i < 14; i++) {
+    t += -Math.log(1 - Math.random()) * 0.045;
+    clinks.push({ t, f: rand(2600, 5200), a: rand(0.3, 1) });
+  }
+  const last = rand(3000, 4200);
+  for (const gap of [0.16, 0.11, 0.075, 0.05, 0.035, 0.025, 0.018]) {
+    t += gap;
+    clinks.push({ t, f: last * rand(0.99, 1.01), a: 0.35 + gap * 2 });
+  }
+  return render(ctx, t + 0.5, (d, sr) => {
+    for (const c of clinks) {
+      addMetal(d, sr, c.t, c.f, c.a * 0.4, COIN);
+      addClick(d, sr, c.t, c.a * 0.5, 0.002, 5000);
+    }
+  });
+}
+
+export const SFX: Record<GenSfxId, (ctx: BaseAudioContext, out: AudioNode, at: number, distance?: number) => void> = {
+  thunder(ctx, out, at, distance) {
+    // Trovão do efeito (perto) sai pronto; os da tempestade (distância sorteada) são gerados na hora.
+    const buf = distance === undefined ? prepared(ctx, "thunder", () => thunderBuffer(ctx, 0.15)) : thunderBuffer(ctx, distance);
+    playRendered(ctx, out, at, buf, 0.35);
   },
   explosion(ctx, out, at) {
-    const f = burst(ctx, out, at, "white", "lowpass", 3000, 0.8, 1.8, 0.005);
-    f.frequency.setValueAtTime(3000, at);
-    f.frequency.exponentialRampToValueAtTime(120, at + 1.6);
-    tone(ctx, out, at, 90, 0.65, 1.4, { to: 30 });
-    burst(ctx, out, at + 0.1, "brown", "lowpass", 300, 0.5, 2.5, 0.05);
+    playRendered(ctx, out, at, prepared(ctx, "explosion", () => explosionBuffer(ctx)), 0.3);
   },
   sword(ctx, out, at) {
-    // Parciais desafinadas: soa metálico. Um raspão de ruído antes.
-    burst(ctx, out, at, "white", "bandpass", 5000, 0.35, 0.12);
-    for (const [f, a] of [[1180, 0.25], [2630, 0.18], [3910, 0.12], [5170, 0.08], [7020, 0.05]] as const) tone(ctx, out, at + 0.01, f, a, 0.9);
+    playRendered(ctx, out, at, prepared(ctx, "sword", () => swordBuffer(ctx)), 0.15);
   },
   bell(ctx, out, at) {
     const f = 620;
@@ -214,43 +567,16 @@ export const SFX: Record<GenSfxId, (ctx: BaseAudioContext, out: AudioNode, at: n
     }
   },
   arrow(ctx, out, at) {
-    const f = burst(ctx, out, at, "white", "bandpass", 2500, 0.5, 0.35, 0.05);
-    f.frequency.setValueAtTime(3000, at);
-    f.frequency.exponentialRampToValueAtTime(600, at + 0.4);
-    // Fincou.
-    tone(ctx, out, at + 0.42, 180, 0.5, 0.15, { to: 90 });
-    burst(ctx, out, at + 0.42, "brown", "lowpass", 900, 0.4, 0.12);
+    playRendered(ctx, out, at, prepared(ctx, "arrow", () => arrowBuffer(ctx)), 0.12);
   },
   magic(ctx, out, at) {
-    const echo = reverb(ctx);
-    const wet = gain(ctx, 0.6);
-    echo.connect(wet).connect(out);
-    // Arpejo subindo, com brilho.
-    [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => {
-      tone(ctx, out, at + i * 0.07, f, 0.18, 1.2, { type: "triangle" });
-      tone(ctx, echo, at + i * 0.07, f * 2, 0.08, 1, { type: "sine" });
-    });
-    burst(ctx, echo, at, "white", "highpass", 6000, 0.15, 1.5, 0.3);
+    playRendered(ctx, out, at, prepared(ctx, "magic", () => magicBuffer(ctx)), 0.6);
   },
   zap(ctx, out, at) {
-    // Faíscas: dente-de-serra pulando de frequência e estalos de ruído.
-    const o = ctx.createOscillator();
-    o.type = "sawtooth";
-    const g = ctx.createGain();
-    for (let i = 0; i < 18; i++) o.frequency.setValueAtTime(80 + Math.random() * 900, at + i * 0.03);
-    envelope(g.gain, at, 0.25, 0.005, 0.6);
-    o.connect(filter(ctx, "highpass", 300)).connect(g).connect(out);
-    o.start(at);
-    o.stop(at + 0.7);
-    for (let i = 0; i < 8; i++) burst(ctx, out, at + Math.random() * 0.5, "white", "highpass", 3000, 0.35, 0.04);
+    playRendered(ctx, out, at, prepared(ctx, "zap", () => zapBuffer(ctx)), 0.1);
   },
   coins(ctx, out, at) {
-    for (let i = 0; i < 7; i++) {
-      const t = at + i * (0.04 + Math.random() * 0.09);
-      const f = 2800 + Math.random() * 1800;
-      tone(ctx, out, t, f, 0.15, 0.25);
-      tone(ctx, out, t, f * 1.52, 0.08, 0.18);
-    }
+    playRendered(ctx, out, at, prepared(ctx, "coins", () => coinsBuffer(ctx)), 0.12);
   },
 };
 
@@ -259,15 +585,15 @@ export const SFX: Record<GenSfxId, (ctx: BaseAudioContext, out: AudioNode, at: n
  * mexer no volume. Os grilos, por exemplo, saem bem mais baixos que o mar sem isso.
  */
 export const SFX_LEVEL: Record<GenSfxId, number> = {
-  thunder: 1,
+  thunder: 0.85,
   explosion: 0.8,
   sword: 1.5,
   bell: 0.8,
   gong: 0.8,
   drum: 0.85,
-  arrow: 2,
+  arrow: 1.4,
   magic: 1.4,
-  zap: 2.2,
+  zap: 2.1,
   coins: 1.8,
 };
 
@@ -304,12 +630,15 @@ export const AMBIENT: Record<GenAmbientId, (ctx: BaseAudioContext) => Voice> = {
       rain.output.connect(gain(ctx, 1.1)).connect(out);
       const wind = AMBIENT.wind(ctx);
       wind.output.connect(gain(ctx, 0.6)).connect(out);
-      const thunder = every(7, 18, () => {
-        // Trovões mais perto ou mais longe.
-        const level = gain(ctx, 0.5 + Math.random() * 0.4);
-        level.connect(out);
-        SFX.thunder(ctx, level, ctx.currentTime);
-      });
+      // Trovões espaçados, uns perto e outros longe (os de longe, mais baixos e abafados).
+      const thunder = every(12, 30, () =>
+        idle(() => {
+          const distance = Math.random() ** 0.7;
+          const level = gain(ctx, 0.9 - distance * 0.45);
+          level.connect(out);
+          SFX.thunder(ctx, level, ctx.currentTime, distance);
+        }),
+      );
       return [rain.stop, wind.stop, thunder];
     }),
 
