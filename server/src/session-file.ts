@@ -9,6 +9,7 @@ import {
   SESSION_FILE_FORMAT,
   SIZES,
   SPELL_LEVELS,
+  TURN_ACTIONS,
   isColor,
   type Abilities,
   type Coins,
@@ -30,6 +31,7 @@ import {
   type Role,
   type RollTerm,
   type SessionFile,
+  type TurnAction,
   type Size,
   type Spell,
   type SpellLevel,
@@ -159,6 +161,11 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   };
   stats(out, c);
   sheet(out, c);
+  if (c.turnUsed !== undefined) {
+    const used = list(c.turnUsed, "ações do turno", TURN_ACTIONS.length);
+    if (used.some((a) => !(TURN_ACTIONS as readonly unknown[]).includes(a))) fail("Arquivo inválido: ações do turno.");
+    out.turnUsed = used as TurnAction[];
+  }
   if (c.tempHp !== undefined) out.tempHp = int(c.tempHp, "vida temporária", 1, LIMITS.hpMax.max);
   if (c.deathSaves !== undefined) {
     const d = obj(c.deathSaves, "testes contra a morte");

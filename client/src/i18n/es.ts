@@ -157,4 +157,16 @@ export const es: Partial<Messages> = {
   "coin.ep.name": "Piezas de electro",
   "coin.sp.name": "Piezas de plata",
   "coin.cp.name": "Piezas de cobre",
+
+  "turn.of": "Turno de {name}: marca lo que ya gastaste",
+  "turn.action": "Acción",
+  "turn.bonus": "Acción adicional",
+  "turn.move": "Movimiento",
+  "turn.reaction": "Reacción",
+  "turn.pass": "Terminar turno",
+  "turn.passTip": "Termina tu turno: la iniciativa pasa al siguiente",
+  "turn.delay": "Retrasar",
+  "turn.delayTip": "Actuar más tarde en esta ronda, después de alguien que aún va a actuar",
+  "turn.delayNone": "Nadie más actúa en esta ronda",
+  "turn.delayLabel": "Actuar después de…",
 };

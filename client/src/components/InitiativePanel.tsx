@@ -8,6 +8,7 @@ import { allCombatants, fmtCondition } from "../format";
 import { select, useApp } from "../store";
 import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
+import { TurnControls } from "./TurnControls";
 
 const INIT_TIP = "Iniciativa = d20 + bônus de iniciativa";
 
@@ -106,6 +107,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
           )}
         </Group>
       )}
+      {combat.active && currentId && byId.get(currentId) && canEdit(byId.get(currentId)!) && <TurnControls state={state} current={byId.get(currentId)!} />}
       {gm && !combat.active && inField > 0 && (
         <Checkbox
           checked={grouped}

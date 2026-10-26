@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, Coins, Recharge, Size, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, Coins, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -154,6 +154,12 @@ export interface ActionPayloads {
   "combat:prev": Record<string, never>;
   /** Encerra o combate: zera round e iniciativas, mantém os combatentes. */
   "combat:end": Record<string, never>;
+  /** Quem está na vez (dono ou mestre) encerra a própria vez: o turno avança como no Próximo turno. */
+  "combat:pass": Record<string, never>;
+  /** Quem está na vez passa a agir depois de `afterId` (que ainda vai agir neste round). */
+  "combat:delay": { afterId: string };
+  /** Marca ou desmarca uma ação gasta na vez. */
+  "turn:use": { id: string; what: TurnAction; used: boolean };
   /** Slots de um nível: máximo e/ou usados. Só aliados. */
   "slot:set": { id: string; level: number; max?: number; used?: number };
   /** Todos os slots disponíveis de novo. */

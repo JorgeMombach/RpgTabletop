@@ -1,12 +1,12 @@
-import { LIMITS, type Combatant, type RollResult } from "@rpg/shared";
-import { allCombatants, moveInOrder, newTurn, placeInOrder, removeFromOrder, resetCombat } from "../combat";
+import { LIMITS, TURN_ACTIONS, type Combatant, type RollResult, type TurnAction } from "@rpg/shared";
+import { allCombatants, byId, moveInOrder, newTurn, placeInOrder, removeFromOrder, resetCombat } from "../combat";
 import { roll } from "../dice";
-import type { Store } from "../store";
+import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt } from "../validate";
 import { editable, requireGm } from "./combatants";
 import { startTurn } from "./conditions";
 import { tickRoundEffects } from "./effects";
-import { logRoll } from "./dice";
+import { logRoll, logSystem, whoIs } from "./dice";
 import type { HandlerMap } from "./types";
 
 /** Iniciativa = d20 + mod. DES (SPEC F5). */
@@ -49,6 +49,28 @@ function notHidden(c: Combatant): Combatant {
 
 function requireActive(store: Store) {
   if (!store.game.battle.combat.active) fail("O combate não começou.");
+}
+
+/** Avança para o próximo da ordem (round novo no fim da lista) e começa a vez dele. */
+function advance(store: Store) {
+  const combat = store.game.battle.combat;
+  combat.turnIndex++;
+  if (combat.turnIndex >= combat.order.length) {
+    combat.turnIndex = 0;
+    combat.round++;
+    delete combat.delayed;
+    tickRoundEffects(store);
+  }
+  newTurn(store);
+  startTurn(store);
+}
+
+/** Combatente da vez, se quem pede pode agir por ele: o mestre ou o dono (personagem ou conjurado). */
+function currentOf(store: Store, player: ServerPlayer): Combatant {
+  const { combat } = store.game.battle;
+  const c = byId(store, combat.order[combat.turnIndex]) ?? fail("Ninguém está na vez.");
+  if (player.role !== "gm" && !(c.type === "ally" && c.ownerId === player.id)) fail("Não é a sua vez.");
+  return c;
 }
 
 export const initiativeHandlers: HandlerMap = {
@@ -133,15 +155,44 @@ export const initiativeHandlers: HandlerMap = {
   "combat:next": (store, player) => {
     requireGm(player);
     requireActive(store);
-    const combat = store.game.battle.combat;
-    combat.turnIndex++;
-    if (combat.turnIndex >= combat.order.length) {
-      combat.turnIndex = 0;
-      combat.round++;
-      tickRoundEffects(store);
-    }
+    advance(store);
+  },
+
+  "combat:pass": (store, player) => {
+    requireActive(store);
+    currentOf(store, player);
+    if (player.role !== "gm") logSystem(store, `${whoIs(store, player)} passou a vez.`);
+    advance(store);
+  },
+
+  "combat:delay": (store, player, payload) => {
+    requireActive(store);
+    const c = currentOf(store, player);
+    const { combat } = store.game.battle;
+    const from = combat.turnIndex;
+    const to = combat.order.indexOf(payload?.afterId);
+    if (to <= from) fail("Escolha alguém que ainda vai agir neste round.");
+    const after = byId(store, payload.afterId);
+    // Muda de lugar na ordem; a vez passa para quem vinha logo depois.
+    combat.order.splice(from, 1);
+    combat.order.splice(to, 0, c.id);
+    // A iniciativa acompanha o novo lugar (empata com quem ele esperou).
+    if (after?.initiative !== null && after?.initiative !== undefined) c.initiative = after.initiative;
+    combat.delayed = { id: c.id, round: combat.round };
+    logSystem(store, `${c.name} vai agir depois de ${after?.name ?? "?"}.`);
     newTurn(store);
     startTurn(store);
+  },
+
+  "turn:use": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    const what = TURN_ACTIONS.includes(payload?.what as TurnAction) ? (payload.what as TurnAction) : fail("Ação desconhecida.");
+    if (typeof payload.used !== "boolean") fail("Valor inválido.");
+    const used = new Set(c.turnUsed ?? []);
+    if (payload.used) used.add(what);
+    else used.delete(what);
+    if (used.size > 0) c.turnUsed = TURN_ACTIONS.filter((a) => used.has(a));
+    else delete c.turnUsed;
   },
 
   "combat:prev": (store, player) => {

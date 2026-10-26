@@ -113,6 +113,10 @@ export const COINS = ["pp", "gp", "ep", "sp", "cp"] as const;
 export type Coin = (typeof COINS)[number];
 export type Coins = Partial<Record<Coin, number>>;
 
+/** O que se gasta na vez (5e): ação, ação bônus, movimento e reação. Só marcação. */
+export const TURN_ACTIONS = ["action", "bonus", "move", "reaction"] as const;
+export type TurnAction = (typeof TURN_ACTIONS)[number];
+
 export interface DeathSaves {
   successes: number;
   failures: number;
@@ -129,6 +133,8 @@ export interface Combatant {
   hpMax: number;
   /** Vida temporária: o dano tira dela primeiro. Ausente = nenhuma. Jogadores não recebem a de mob/NPC. */
   tempHp?: number;
+  /** Ações já gastas na vez (marcadas por quem joga); zeram no começo da vez dele. */
+  turnUsed?: TurnAction[];
   /** Testes contra a morte de quem está com 0 de vida (só marcação; a mesa decide). Zeram ao voltar a ter vida. */
   deathSaves?: DeathSaves;
   /** Bônus de iniciativa (d20 + este valor; desempata a ordem). Com DES preenchida, o formulário propõe o modificador dela. */
@@ -204,6 +210,11 @@ export interface CombatState {
   order: string[];
   /** Conta cada troca de turno (iniciar, próximo, anterior): identifica "este turno" para pedidos e reações. */
   turn: number;
+  /**
+   * Quem atrasou a vez neste round: quando chegar a vez dele de novo, o começo do turno (descontar
+   * condições e efeitos, zerar as ações) não roda outra vez. Não vai no arquivo de sessão.
+   */
+  delayed?: { id: string; round: number };
 }
 
 /** Pedido do mestre para jogadores rolarem fora da vez (ex.: "Resistência DES"). Cada um rola uma vez. */

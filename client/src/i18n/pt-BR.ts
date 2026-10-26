@@ -170,6 +170,19 @@ export const ptBR = {
   "coin.ep.name": "Peças de electro",
   "coin.sp.name": "Peças de prata",
   "coin.cp.name": "Peças de cobre",
+
+  // Vez de quem está agindo
+  "turn.of": "Vez de {name}: marque o que já gastou",
+  "turn.action": "Ação",
+  "turn.bonus": "Ação bônus",
+  "turn.move": "Movimento",
+  "turn.reaction": "Reação",
+  "turn.pass": "Passar a vez",
+  "turn.passTip": "Termina a sua vez: o turno vai para o próximo da ordem",
+  "turn.delay": "Atrasar",
+  "turn.delayTip": "Agir mais tarde neste round, depois de alguém que ainda vai agir",
+  "turn.delayNone": "Ninguém mais vai agir neste round",
+  "turn.delayLabel": "Agir depois de…",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;

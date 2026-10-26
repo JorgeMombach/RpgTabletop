@@ -157,4 +157,16 @@ export const en: Partial<Messages> = {
   "coin.ep.name": "Electrum pieces",
   "coin.sp.name": "Silver pieces",
   "coin.cp.name": "Copper pieces",
+
+  "turn.of": "{name}'s turn: mark what you've used",
+  "turn.action": "Action",
+  "turn.bonus": "Bonus action",
+  "turn.move": "Movement",
+  "turn.reaction": "Reaction",
+  "turn.pass": "End turn",
+  "turn.passTip": "Ends your turn: initiative moves to the next one",
+  "turn.delay": "Delay",
+  "turn.delayTip": "Act later this round, after someone who still has to act",
+  "turn.delayNone": "Nobody else acts this round",
+  "turn.delayLabel": "Act after…",
 };

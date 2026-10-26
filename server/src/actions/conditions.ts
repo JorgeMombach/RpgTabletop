@@ -18,6 +18,12 @@ export function startTurn(store: Store) {
   if (!combat.active) return;
   const c = byId(store, combat.order[combat.turnIndex]);
   if (!c) return;
+  // Voltou a vez de quem atrasou: o começo do turno dele já rodou neste round.
+  if (combat.delayed?.id === c.id && combat.delayed.round === combat.round) {
+    delete combat.delayed;
+    return;
+  }
+  delete c.turnUsed;
   tickCasterEffects(store, c.id);
   if (c.conditions.length === 0) return;
   const expired: string[] = [];

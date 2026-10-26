@@ -14,6 +14,7 @@ export function byId(store: Store, id: string): Combatant | undefined {
 export function resetCombat(store: Store) {
   const { battle } = store.game;
   Object.assign(battle.combat, { active: false, round: 0, turnIndex: 0, order: [] });
+  delete battle.combat.delayed;
   battle.rolls = { request: null, reactions: [], outside: battle.rolls.outside };
 }
 
