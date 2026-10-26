@@ -1,13 +1,15 @@
 import { Alert, Badge, Button, Center, Loader, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
 import { APP_VERSION, NAME_MAX_LENGTH, type JoinError } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
+import { useT, type MessageKey } from "../i18n";
 import { join, savedName } from "../session";
 import { useApp } from "../store";
 import { D20Emblem } from "./D20Emblem";
+import { LanguageMenu } from "./LanguageMenu";
 
-const ERRORS: Record<JoinError, string> = {
-  invalid_name: "Digite um nome.",
-  room_full: "Sala cheia: o limite de jogadores foi atingido.",
+const ERRORS: Record<JoinError, MessageKey> = {
+  invalid_name: "join.error.invalidName",
+  room_full: "join.error.roomFull",
 };
 
 /**
@@ -20,6 +22,7 @@ const customArt = Object.values(
 
 export function JoinScreen() {
   const { connected, probedRole, joining, joinError } = useApp();
+  const t = useT();
   const [name, setName] = useState(savedName);
   const gm = probedRole === "gm";
 
@@ -37,6 +40,9 @@ export function JoinScreen() {
           : undefined
       }
     >
+      <div className="join-lang">
+        <LanguageMenu />
+      </div>
       <Paper component="form" onSubmit={submit} className="join-card" p="xl" radius="lg" shadow="xl">
         <Stack gap="lg" align="stretch">
           <Center>
@@ -47,20 +53,20 @@ export function JoinScreen() {
               Jamal's Tabletop
             </Title>
             <Text size="sm" c="dimmed" ta="center">
-              A mesa de combate do seu grupo
+              {t("join.tagline")}
             </Text>
           </Stack>
 
           <Center>
             {!connected ? (
               <Badge variant="default" leftSection={<Loader size={10} />}>
-                Conectando ao servidor…
+                {t("join.connecting")}
               </Badge>
             ) : (
               <Text size="sm">
-                Você vai entrar como{" "}
+                {t("join.joiningAs")}{" "}
                 <Badge color={gm ? "bronze" : "player"} variant="light">
-                  {gm ? "Mestre (host)" : "Jogador"}
+                  {gm ? t("join.roleGm") : t("common.player")}
                 </Badge>
               </Text>
             )}
@@ -68,22 +74,22 @@ export function JoinScreen() {
 
           <TextInput
             size="sm"
-            label="Seu nome"
+            label={t("join.name")}
             autoFocus
             value={name}
             maxLength={NAME_MAX_LENGTH}
             onChange={(e) => setName(e.currentTarget.value)}
-            placeholder={gm ? "Ex.: Mestre" : "Ex.: Ana"}
+            placeholder={gm ? t("join.namePlaceholderGm") : t("join.namePlaceholderPlayer")}
           />
 
           {joinError && (
             <Alert color="red" variant="light" p="xs">
-              {ERRORS[joinError]}
+              {t(ERRORS[joinError])}
             </Alert>
           )}
 
           <Button type="submit" size="sm" loading={joining} disabled={!connected || !name.trim()}>
-            Entrar
+            {t("join.submit")}
           </Button>
           <Text size="xs" c="dimmed" ta="center">
             v{APP_VERSION}

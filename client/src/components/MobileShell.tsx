@@ -1,8 +1,9 @@
 import { ActionIcon, Badge, Group, Indicator, Menu, Text, UnstyledButton } from "@mantine/core";
-import { IconDeviceDesktop, IconDice5, IconLogout, IconMap, IconMenu2, IconSwords, IconUser } from "@tabler/icons-react";
+import { IconCheck, IconDeviceDesktop, IconDice5, IconLogout, IconMap, IconMenu2, IconSwords, IconUser } from "@tabler/icons-react";
 import type { ClientState } from "@rpg/shared";
 import { useEffect, useState, type ReactNode } from "react";
 import { BattleMap } from "../map/BattleMap";
+import { LANGS, setLang, useLang, useT, type Lang, type MessageKey } from "../i18n";
 import { setLayoutChoice } from "../layout";
 import { leave } from "../session";
 import { select, useApp } from "../store";
@@ -20,11 +21,11 @@ import { VolumeControl } from "./VolumeControl";
 
 type Tab = "map" | "sheet" | "dice" | "combat";
 
-const TABS: { id: Tab; label: string; icon: typeof IconMap }[] = [
-  { id: "map", label: "Mapa", icon: IconMap },
-  { id: "sheet", label: "Ficha", icon: IconUser },
-  { id: "dice", label: "Dados", icon: IconDice5 },
-  { id: "combat", label: "Combate", icon: IconSwords },
+const TABS: { id: Tab; label: MessageKey; icon: typeof IconMap }[] = [
+  { id: "map", label: "mobile.tab.map", icon: IconMap },
+  { id: "sheet", label: "mobile.tab.sheet", icon: IconUser },
+  { id: "dice", label: "mobile.tab.dice", icon: IconDice5 },
+  { id: "combat", label: "mobile.tab.combat", icon: IconSwords },
 ];
 
 const TAB_KEY = "rpg.mobileTab";
@@ -44,6 +45,8 @@ function readTab(): Tab {
  * O mestre continua no layout de computador.
  */
 export function MobileShell({ state }: { state: ClientState }) {
+  const t = useT();
+  const lang = useLang((s) => s.lang);
   const connected = useApp((s) => s.connected);
   const selectedId = useApp((s) => s.selectedId);
   const [tab, setTab] = useState<Tab>(readTab);
@@ -77,7 +80,7 @@ export function MobileShell({ state }: { state: ClientState }) {
         <D20Emblem size={22} />
         {myTurn ? (
           <Text size="sm" fw={700} c="bronze.4" className="turn-status">
-            Sua vez!
+            {t("top.yourTurn")}
           </Text>
         ) : combat.active ? (
           <TurnStatus state={state} />
@@ -88,25 +91,32 @@ export function MobileShell({ state }: { state: ClientState }) {
         )}
         {!connected && (
           <Badge color="yellow" variant="light" size="sm">
-            Reconectando…
+            {t("top.reconnecting")}
           </Badge>
         )}
         <VolumeControl />
         <Menu position="bottom-end" withinPortal>
           <Menu.Target>
-            <ActionIcon variant="default" size="lg" aria-label="Menu">
+            <ActionIcon variant="default" size="lg" aria-label={t("mobile.menu")}>
               <IconMenu2 size={18} />
             </ActionIcon>
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Label>
-              {state.self.name} · Jogador
+              {state.self.name} · {t("common.player")}
             </Menu.Label>
             <Menu.Item leftSection={<IconDeviceDesktop size={14} />} onClick={() => setLayoutChoice("desktop")}>
-              Usar a tela de computador
+              {t("mobile.desktopLayout")}
             </Menu.Item>
+            <Menu.Label>{t("lang.label")}</Menu.Label>
+            {(Object.keys(LANGS) as Lang[]).map((l) => (
+              <Menu.Item key={l} lang={l} onClick={() => setLang(l)} rightSection={l === lang ? <IconCheck size={14} /> : null}>
+                {LANGS[l]}
+              </Menu.Item>
+            ))}
+            <Menu.Divider />
             <Menu.Item leftSection={<IconLogout size={14} />} onClick={leave}>
-              Sair
+              {t("top.leave")}
             </Menu.Item>
           </Menu.Dropdown>
         </Menu>
@@ -139,14 +149,14 @@ export function MobileShell({ state }: { state: ClientState }) {
         <DiceOverlay />
       </main>
 
-      <nav className="mobile-tabs" aria-label="Seções">
+      <nav className="mobile-tabs" aria-label={t("mobile.sections")}>
         {TABS.map(({ id, label, icon: Icon }) => (
           <UnstyledButton key={id} className={`mobile-tab ${tab === id ? "active" : ""}`} onClick={() => open(id)} aria-current={tab === id ? "page" : undefined}>
             <Indicator disabled={!dots[id] || tab === id} color="bronze" size={8} offset={2} processing>
               <Icon size={22} stroke={1.6} />
             </Indicator>
             <Text size="xs" fw={tab === id ? 700 : 500}>
-              {label}
+              {t(label)}
             </Text>
           </UnstyledButton>
         ))}

@@ -8,7 +8,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 
 ## A. Base
 - [x] **Teste de proteção do save:** preenche todos os campos de combatente, template, efeito, clima etc., salva, carrega e compara. Campo novo esquecido no arquivo de sessão faz o teste falhar. (`server/test/save-guard.test.ts`; já achou um bug: dono do estado de antes de Transformar não era religado ao carregar.)
-- [ ] **Base de i18n:** função de tradução no client com o catálogo pt-BR; textos novos já usam chaves. A migração do que existe vem aos poucos (ver F).
+- [x] **Base de i18n:** `client/src/i18n/` (catálogo pt-BR como fonte, en e es por cima, `t()`/`useT()`, idioma do navegador por padrão, menu de idioma na entrada, no topo e no menu do celular). Já traduzidos: tela de entrada, barra do topo, menu e abas do celular, botões das confirmações. O resto migra aos poucos (ver F).
 
 ## B. Ficha
 - [ ] **CA e atributos** em aliados, mobs, NPCs, conjurados e templates. Obrigatórios: vida, CA e bônus de iniciativa; opcionais: FOR, DES, CON, INT, SAB, CAR (modificador = ⌊(valor − 10) ÷ 2⌋, sem teto). Com DES preenchida, a iniciativa vem dela (sobrescrevível). CA e atributos de mob/NPC **escondidos dos jogadores** (filtro + teste). Arquivo antigo: CA vazia, mostrada "—".

@@ -31,6 +31,13 @@ body {
   background-repeat: no-repeat;
 }
 
+/* Idioma no canto da tela de entrada (antes de entrar, sem barra do topo). */
+.join-lang {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+}
+
 .join-card {
   width: min(380px, 100%);
   background: rgb(31 27 37 / 0.92) !important;

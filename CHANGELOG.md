@@ -6,6 +6,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Adicionado
+- **Idioma da interface:** português, inglês ou espanhol, escolhido no ícone de idioma (tela de entrada, barra do topo e menu do celular); começa no idioma do navegador e vale só para quem escolheu. A tradução está começando: por enquanto a tela de entrada, a barra do topo e o celular.
+
 ### Corrigido
 - Ao carregar uma sessão salva, um efeito transformado com *Quando acabar, volta a ser…* perdia o dono ao voltar ao estado anterior (o jogador deixava de controlá-lo).
 
