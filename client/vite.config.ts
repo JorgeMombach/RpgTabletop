@@ -22,11 +22,13 @@ export default defineConfig({
     // Em dev os jogadores também acessam por aqui (LAN/VPN).
     host: true,
     open: true,
+    // O servidor de dev fica na 3999 (`npm run dev -w server`), não na 3000: assim o app do mestre
+    // pode ficar aberto ao mesmo tempo sem o Vite falar com ele por engano.
     proxy: {
       // xfwd repassa o IP real do cliente; o servidor usa isso para decidir quem é mestre.
-      "/socket.io": { target: "http://localhost:3000", ws: true, xfwd: true },
+      "/socket.io": { target: "http://localhost:3999", ws: true, xfwd: true },
       // Arquivos da pasta de sons do mestre (E25).
-      "/sons": { target: "http://localhost:3000" },
+      "/sons": { target: "http://localhost:3999" },
     },
   },
 });

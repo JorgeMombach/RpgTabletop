@@ -8,7 +8,7 @@ Simulador de combates de RPG de mesa. O mestre roda o servidor (app do mestre, D
 
 ```bash
 npm install          # dependências (workspaces)
-npm run dev          # servidor :3000 + Vite :5173 (mestre: localhost:5173)
+npm run dev          # servidor :3999 + Vite :5173 (mestre: localhost:5173)
 npm run typecheck    # tsc em shared, server, client e desktop
 npm test             # testes de integração do servidor (node:test + socket.io-client)
 npm run build        # dist/server.cjs (esbuild) + dist/public (client)
@@ -88,6 +88,7 @@ A versão e o CHANGELOG **não sobem sozinhos**; o workflow de release só confe
 - **`.exe` portátil do Windows:** a cada abertura o lançador apaga e reextrai o app numa pasta **fixa** de `%TEMP%`; aberto de novo com o app rodando, ele apaga tudo que não está travado. Por isso o front vai **dentro do `app.asar`** (travado em uso) e não em `extraResources`; não ponha arquivos que o app lê depois de aberto soltos em `resources/`. `unpackDirName: false` não resolve (o electron-builder 26 ignora o `false`).
 - **Nome do app no Mac:** `executableName` renomeia também o `.app`; por isso ele fica só em `win`/`linux` em `scripts/package.mjs`.
 - **Electron no npm 11:** o npm bloqueia o script que baixa o binário do Electron; para `npm run app` local, rode uma vez `node node_modules/electron/install.js`. O empacotamento não precisa disso (o electron-builder baixa o Electron). Versões de `electron`/`electron-builder` fixas (sem `^`) em `desktop/package.json`: o electron-builder exige.
+- **Porta do dev:** o servidor de dev fica na **3999** (fixa, sem pular para a seguinte) e o proxy do Vite aponta para ela. Assim o app do mestre pode ficar aberto na 3000 enquanto se testa o código. Se a 3999 estiver ocupada, o dev para com aviso.
 - **Rota HTTP nova no servidor** (ex.: `/sons/…` do E25): acrescente ao `proxy` de `client/vite.config.ts`, senão no `npm run dev` o Vite responde com a página (HTML) em vez de repassar ao servidor. No app e no Docker o próprio servidor serve tudo.
 - **Docker**: dentro do container não há loopback de mestre nem detecção de IP útil (`DETECT_ADDRESSES=0`); convites vêm de `PUBLIC_URLS`.
 - **Ambiente Windows do desenvolvedor**: PowerShell 5.1 (sem `&&`); Git Bash disponível. O Node foi instalado via winget — em shells abertos antes da instalação, recarregue o `PATH`.

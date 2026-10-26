@@ -628,6 +628,7 @@ Ordem: **2.0.1 → E21 → E22 → E24 → E25 → E26 → E23**. Regras de comb
   - **Volumes:** o mestre define o volume de cada canal para a mesa; cada pessoa tem o próprio **volume geral e mudo** (alto-falante na barra do topo, guardado no navegador), aplicado depois do volume do mestre.
   - **Só o mestre** toca, para, ajusta volume e adiciona arquivos (validado no servidor); jogadores só ouvem.
   - Navegador com áudio bloqueado até um clique: com algo tocando, aparece *Ativar som da mesa* (qualquer clique na página também libera).
+  - **Revisto depois da 2.6.0:** trovão, explosão, espada, flecha, magia, raio e moedas passaram a ser calculados amostra por amostra (ruído com filtros que mudam no tempo, ressonâncias de metal, estalos espalhados), gerados com o navegador ocioso para tocar sem espera. Tempestade com trovões a cada 12–30 s, a distâncias sorteadas. **Barulho dos dados 3D:** gravações que vêm com a biblioteca dos dados (MIT; dado de plástico em mesa de madeira, em `client/public/dados/`), tocadas a cada batida da física, no volume de efeitos × volume geral da pessoa.
 - **Ácido** (pedido no fim do E24): poça verde-amarelada corroendo o chão, com bolhas e fumaça; transformações sugeridas: Ácido → Gás tóxico (evapora) / Solo molhado (diluído).
 
 ### E26 — Melhorias da mesa e clima  *(2.5.0)*

@@ -134,7 +134,7 @@ npm install
 
 | Comando | O que faz |
 |---|---|
-| `npm run dev` | Servidor (3000) + Vite (5173) com hot reload. Mestre em `http://localhost:5173`, jogadores em `http://<ip>:5173` |
+| `npm run dev` | Servidor (3999, para não brigar com o app do mestre aberto na 3000) + Vite (5173) com hot reload. Mestre em `http://localhost:5173`, jogadores em `http://<ip>:5173` |
 | `npm run typecheck` | `tsc` em shared, server, client e desktop |
 | `npm test` | Testes de integração do servidor |
 | `npm run build` | Gera `dist/server.cjs` (servidor num arquivo, via esbuild) e `dist/public/` (client) |

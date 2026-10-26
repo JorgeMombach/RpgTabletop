@@ -1,13 +1,15 @@
 import { Paper, Stack, Text } from "@mantine/core";
 import type { LogEntry } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
-import { diceBox, fitBox, notationFor, paintBox } from "../dice3d";
+import { diceBox, fitBox, notationFor, paintBox, setDiceVolume } from "../dice3d";
 import { rollerName } from "../format";
-import { useApp } from "../store";
+import { useApp, useVolume } from "../store";
 import { naturalD20 } from "./RollLog";
 
 /** Tempo do resultado na tela depois que os dados param. */
 const SHOW_MS = 2500;
+/** Primeira carga dos dados 3D (biblioteca e sons): passou disso, rola sem animação desta vez. */
+const LOAD_TIMEOUT_MS = 8000;
 /** Se a física travar (aba em segundo plano…), segue a fila assim mesmo. */
 const ROLL_TIMEOUT_MS = 6000;
 /** Fila longa (várias pessoas rolando juntas): as mais antigas pulam a animação (continuam no log). */
@@ -78,11 +80,15 @@ export function DiceOverlay() {
       let next: LogEntry | undefined;
       while ((next = queue.current.shift())) {
         const notation = notationFor(next.roll!);
-        const box = notation && boxRef.current ? await diceBox(boxRef.current).catch(() => null) : null;
+        // Caixa que não termina de carregar (um som que não chega…): segue sem animação, não trava a fila.
+        const box = notation && boxRef.current ? await Promise.race([diceBox(boxRef.current).catch(() => null), wait(LOAD_TIMEOUT_MS).then(() => null)]) : null;
         if (box && notation && boxRef.current) {
           fitBox(box, boxRef.current);
           // Cor de quem rolou; se falhar, rola com a cor anterior.
-          await paintBox(box, next.color).catch(() => undefined);
+          await Promise.race([paintBox(box, next.color).catch(() => undefined), wait(2000)]);
+          // Barulho dos dados no volume de efeitos da mesa e no volume geral desta pessoa (mudo = sem barulho).
+          const { volume, muted } = useVolume.getState();
+          setDiceVolume(box, muted ? 0 : volume * (useApp.getState().state?.sound.volume.sfx ?? 0.8));
           await Promise.race([box.roll(notation), wait(ROLL_TIMEOUT_MS)]);
         }
         setShown(next);
