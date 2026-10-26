@@ -25,6 +25,8 @@ export default defineConfig({
     proxy: {
       // xfwd repassa o IP real do cliente; o servidor usa isso para decidir quem é mestre.
       "/socket.io": { target: "http://localhost:3000", ws: true, xfwd: true },
+      // Arquivos da pasta de sons do mestre (E25).
+      "/sons": { target: "http://localhost:3000" },
     },
   },
 });

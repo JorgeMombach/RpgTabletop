@@ -81,6 +81,29 @@ export const useApp = create<AppStore>(() => ({
   ...readPrefs(),
 }));
 
+/** Volume geral desta pessoa (E25): só neste navegador, aplicado depois do volume do mestre. */
+const VOLUME_KEY = "rpg.volume";
+
+function readVolume(): { volume: number; muted: boolean } {
+  try {
+    const v = JSON.parse(localStorage.getItem(VOLUME_KEY) ?? "{}");
+    return { volume: typeof v.volume === "number" ? Math.min(1, Math.max(0, v.volume)) : 0.8, muted: v.muted === true };
+  } catch {
+    return { volume: 0.8, muted: false };
+  }
+}
+
+export const useVolume = create<{ volume: number; muted: boolean }>(() => readVolume());
+
+export function setVolume(patch: Partial<{ volume: number; muted: boolean }>) {
+  useVolume.setState(patch);
+  try {
+    localStorage.setItem(VOLUME_KEY, JSON.stringify(useVolume.getState()));
+  } catch {
+    // sem armazenamento: vale só nesta aba
+  }
+}
+
 export function setDicePrefs(patch: Partial<DicePrefs>) {
   useApp.setState(patch);
   const { diceAnim, logDetached } = useApp.getState();

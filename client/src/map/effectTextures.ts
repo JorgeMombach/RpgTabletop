@@ -165,6 +165,21 @@ const painters: Record<Exclude<EffectPreset, "custom">, (ctx: Ctx, r: () => numb
       });
     }
   },
+  acid(ctx, r) {
+    base(ctx, "rgba(120, 160, 20, 0.4)");
+    for (let i = 0; i < 12; i++) {
+      const x = r() * TILE;
+      const y = r() * TILE;
+      const rad = 3 + r() * 7;
+      wrapped(ctx, () => {
+        ctx.strokeStyle = "rgba(230, 255, 120, 0.7)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    }
+  },
   toxic(ctx, r) {
     base(ctx, "rgba(110, 170, 50, 0.22)");
     for (let i = 0; i < 10; i++) {

@@ -469,6 +469,63 @@ const toxic: Painter = (ctx, st, t, dt, area, cell) => {
   ctx.restore();
 };
 
+const acid: Painter = (ctx, st, t, dt, area, cell) => {
+  const { box } = area;
+  // Chão sendo corroído: manchas escuras por baixo da poça.
+  const eaten = noiseTexture("acid-eaten", 179, [4, 8, 16, 32], (v) => [25, 30, 5, smooth(0.45, 0.8, v) * 210]);
+  drawTiled(ctx, eaten, box, cell * 3, 0, 0, 0.55);
+  // Poça verde-amarelada que ondula devagar e brilha.
+  const pool = noiseTexture("acid-pool", 181, [3, 6, 12], (v) => [150, 200, 30, (0.45 + smooth(0.3, 0.8, v) * 0.4) * 255]);
+  drawTiled(ctx, pool, box, cell * 4, Math.sin(t * 0.3) * cell * 0.3, t * cell * 0.05, 0.75);
+  const glare = noiseTexture("acid-glare", 191, [4, 8, 16], (v) => [235, 255, 140, smooth(0.93, 0.985, ridge(v)) * 255]);
+  drawTiled(ctx, glare, box, cell * 4, t * cell * 0.15, -t * cell * 0.08, 0.16, "lighter");
+
+  // Bolhas que crescem e estouram, com um respingo claro.
+  st.a = step(st.a, dt);
+  keep(st.a, budget(area, cell, 0.5, 45), () => ({
+    ...spawnPoint(area),
+    vx: 0,
+    vy: 0,
+    age: 0,
+    life: 0.8 + Math.random() * 1.2,
+    size: cell * (0.06 + Math.random() * 0.12),
+    seed: 0,
+  }));
+  ctx.save();
+  ctx.lineWidth = Math.max(1, cell * 0.025);
+  for (const p of st.a) {
+    const k = p.age / p.life;
+    const r = p.size * Math.min(1, k * 1.3);
+    ctx.globalAlpha = k < 0.85 ? 0.8 : (1 - k) * 5;
+    ctx.fillStyle = "rgba(190, 235, 60, 0.55)";
+    ctx.strokeStyle = "rgba(240, 255, 170, 0.9)";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Fumaça corrosiva subindo, fina e esverdeada.
+  st.b = step(st.b, dt);
+  keep(st.b, budget(area, cell, 0.3, 30), () => ({
+    ...spawnPoint(area),
+    vx: (Math.random() - 0.5) * cell * 0.1,
+    vy: -cell * (0.25 + Math.random() * 0.3),
+    age: 0,
+    life: 1.5 + Math.random() * 1.5,
+    size: cell * (0.4 + Math.random() * 0.4),
+    seed: 0,
+  }));
+  ctx.save();
+  for (const p of st.b) {
+    const k = p.age / p.life;
+    ctx.globalAlpha = Math.sin(Math.PI * k) * 0.25;
+    sprite(ctx, glow(200, 240, 120), p.x, p.y, p.size * (1 + k));
+  }
+  ctx.restore();
+};
+
 const burnt: Painter = (ctx, st, t, dt, area, cell, color) => {
   const { box } = area;
   // Piso queimado: fuligem por cima do mapa, com manchas mais escuras.
@@ -640,6 +697,7 @@ const PAINTERS: Record<EffectPreset, Painter> = {
   mud,
   burnt,
   toxic,
+  acid,
   grease,
   web,
   plants,

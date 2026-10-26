@@ -6,6 +6,7 @@ import { effectHandlers } from "./effects";
 import { initiativeHandlers } from "./initiative";
 import { magicHandlers } from "./magic";
 import { mapHandlers } from "./map";
+import { soundHandlers } from "./sound";
 
 export const handlers: HandlerMap = {
   ...combatantHandlers,
@@ -15,4 +16,5 @@ export const handlers: HandlerMap = {
   ...magicHandlers,
   ...conditionHandlers,
   ...effectHandlers,
+  ...soundHandlers,
 };

@@ -15,6 +15,8 @@ export interface Config {
   publicUrls: string[];
   /** Detectar endereços pelas interfaces de rede. No Docker só se vê o IP interno do container. */
   detectAddresses: boolean;
+  /** Pasta de sons do mestre (E25); `null` = só os sons gerados pelo app (o app do mestre usa Documentos). */
+  soundsDir: string | null;
   help: boolean;
 }
 
@@ -32,6 +34,7 @@ Uso: jamals-tabletop [opções]
   --no-gm-loopback     localhost não vira mestre; só a chave vale            [GM_LOOPBACK=0]
   --public-urls <a,b>  Endereços de convite para os jogadores                [PUBLIC_URLS]
   --no-detect-addresses  Não lista os IPs desta máquina como convite         [DETECT_ADDRESSES=0]
+  --sounds-dir <pasta> Pasta com músicas e sons do mestre                    [SOUNDS_DIR]
   --help               Mostra esta ajuda
 `;
 
@@ -75,6 +78,7 @@ export function parseConfig(argv: string[], env: NodeJS.ProcessEnv): Config {
       .map((u) => u.trim().replace(/\/+$/, ""))
       .filter(Boolean),
     detectAddresses: !has("no-detect-addresses") && !off(env.DETECT_ADDRESSES),
+    soundsDir: (argValue(argv, "sounds-dir") ?? env.SOUNDS_DIR ?? "").trim() || null,
     help: has("help") || has("h"),
   };
 }

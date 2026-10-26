@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode } from "./types";
+import type { ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode, SoundChannel, SoundSource } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -181,6 +181,13 @@ export interface ActionPayloads {
     revert?: boolean;
   };
   "effect:toggle": { id: string; active: boolean };
+  /** Mestre: toca em loop num canal (troca o que estava tocando). */
+  "sound:play": { channel: SoundChannel; source: SoundSource };
+  "sound:stop": { channel: SoundChannel };
+  /** Mestre: volume do canal para a mesa toda (0–1). Cada pessoa ainda tem o próprio volume geral. */
+  "sound:volume": { channel: SoundChannel | "sfx"; value: number };
+  /** Mestre: relê a pasta de sons (arquivos copiados direto para lá). */
+  "sound:refresh": Record<string, never>;
   "effect:remove": { id: string };
   /**
    * Limpa o campo para a próxima batalha: tira mapa, mobs, NPCs, iniciativa e posições.
@@ -233,6 +240,10 @@ export type ClientToServerEvents = ActionEvents & {
   "session:export": (ack: (res: SessionExportResult) => void) => void;
   /** Mestre: substitui o estado atual pelo do arquivo (validado inteiro antes). */
   "session:import": (file: unknown, ack: (res: ActionResult) => void) => void;
+  /** Mestre: efeito sonoro para todos, uma vez (E25). Não fica no estado. */
+  "sound:sfx": (source: SoundSource, ack: (res: ActionResult) => void) => void;
+  /** Mestre: adiciona um arquivo de áudio à pasta de sons (E25). */
+  "sound:upload": (file: { name: string; data: ArrayBuffer }, ack: (res: ActionResult) => void) => void;
 };
 
 export interface ServerToClientEvents {
@@ -242,6 +253,8 @@ export interface ServerToClientEvents {
   ruler: (payload: RulerBroadcast) => void;
   area: (payload: AreaBroadcast) => void;
   toast: (toast: Toast) => void;
+  /** Efeito sonoro de uma vez, para todos (E25). */
+  "sound:sfx": (source: SoundSource) => void;
 }
 
 export const NAME_MAX_LENGTH = 32;
@@ -266,6 +279,10 @@ export const LIMITS = {
   effectName: 32,
   /** Efeitos no mapa ao mesmo tempo. */
   effects: 40,
+  /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
+  soundBytes: 40 * 1024 * 1024,
+  soundName: 120,
+  soundLibrary: 500,
   dice: {
     exprLength: 100,
     terms: 20,
