@@ -1,4 +1,4 @@
-import { LIMITS, type GridPos } from "@rpg/shared";
+import { LIMITS, overlaps, sharesCell, sizeSpan, type GridPos } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { defaultWeather } from "../weather";
@@ -88,14 +88,21 @@ export const mapHandlers: HandlerMap = {
     // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa.
     const c = editable(store, player, payload?.id);
     const pos = gridPosOf(payload.pos);
-    // Dois corpos não ocupam a mesma casa. Para o jogador, um oculto não conta: a recusa entregaria
-    // que há alguém ali (E21). O mestre separa os dois quando revelar.
+    // Dois corpos não ocupam o mesmo espaço; criaturas grandes ocupam várias casas e miúdas dividem a casa.
+    // Para o jogador, um oculto não conta: a recusa entregaria que há alguém ali (E21). O mestre separa os dois quando revelar.
+    const span = sizeSpan(c.size);
     const other =
       pos &&
+      !sharesCell(c.size) &&
       allCombatants(store).find(
-        (o) => o.id !== c.id && o.pos?.col === pos.col && o.pos?.row === pos.row && (player.role === "gm" || !o.hidden),
+        (o) =>
+          o.id !== c.id &&
+          o.pos &&
+          !sharesCell(o.size) &&
+          overlaps(pos, span, o.pos, sizeSpan(o.size)) &&
+          (player.role === "gm" || !o.hidden),
       );
-    if (other) fail(`Essa casa já está ocupada por ${other.name}.`);
+    if (other) fail(span > 1 ? `Não cabe aí: ${other.name} está no caminho.` : `Essa casa já está ocupada por ${other.name}.`);
     c.pos = pos;
   },
 };

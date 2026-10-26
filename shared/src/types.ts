@@ -63,6 +63,13 @@ export const CONDITIONS = [
 /** Aliado = de um jogador (ou do mestre); mob = inimigo; NPC = neutro, controlado pelo mestre. */
 export type CombatantType = "ally" | "mob" | "npc";
 
+/**
+ * Tamanho da criatura: quantas casas de lado ela ocupa no grid. Miúdo divide a casa com outros
+ * (não bloqueia nem é bloqueado). Ausente = médio.
+ */
+export const SIZES = { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 } as const;
+export type Size = keyof typeof SIZES;
+
 /** Os seis atributos (ids estáveis; o nome mostrado vem da tradução). */
 export const ABILITIES = ["str", "dex", "con", "int", "wis", "cha"] as const;
 export type Ability = (typeof ABILITIES)[number];
@@ -89,6 +96,8 @@ export interface Combatant {
   ac?: number;
   /** Atributos opcionais; jogadores não recebem os de mob/NPC. */
   abilities?: Abilities;
+  /** Ausente = médio. `pos` é a casa de cima à esquerda do espaço que ocupa. */
+  size?: Size;
   avatar?: string;
   color: string;
   pos: GridPos | null;
@@ -122,6 +131,7 @@ export interface MobTemplate {
   dexMod: number;
   ac?: number;
   abilities?: Abilities;
+  size?: Size;
   color: string;
   avatar?: string;
   notes?: string;

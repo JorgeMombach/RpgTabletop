@@ -6,7 +6,7 @@ import { act } from "../actions";
 import { removeMob } from "../commands";
 import { confirmAction } from "../confirm";
 import { allCombatants, fmtMod } from "../format";
-import { cellAt, nearestFreeCell } from "../map/geometry";
+import { cellAt, placeFor } from "../map/geometry";
 import { select, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { CombatantAvatar } from "./CombatantAvatar";
@@ -22,8 +22,9 @@ import { Panel } from "./Panel";
 /** Coloca o token no quadrado livre mais perto do centro da visão do mapa. */
 function placeOnMap(state: ClientState, id: string) {
   const { viewCenter } = useApp.getState();
-  const occupied = allCombatants(state).flatMap((c) => (c.pos ? [c.pos] : []));
-  void act("token:move", { id, pos: nearestFreeCell(cellAt(viewCenter, state.battle.map), occupied) });
+  const all = allCombatants(state);
+  const c = all.find((o) => o.id === id);
+  if (c) void act("token:move", { id, pos: placeFor(c, cellAt(viewCenter, state.battle.map), all) });
 }
 
 const PALETTE = { ally: ALLY_COLORS, mob: MOB_COLORS, npc: NPC_COLORS };

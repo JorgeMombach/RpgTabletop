@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Line, Path, Rect, RegularPolygon, Text } from "react-konva";
-import { feetBetween, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
+import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
 import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { useApp } from "../store";
@@ -41,12 +41,25 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
   const dragStart = useRef<GridPos | null>(null);
 
   if (!c.pos) return null;
-  const center = cellCenter(c.pos, grid);
+  // Tamanho (E26+): `pos` é a casa de cima à esquerda; o token cobre `span` × `span` casas.
+  const span = sizeSpan(c.size);
+  // Miúdo fica no canto de baixo à direita da casa: dividindo a casa, não esconde quem já está nela.
+  const off = c.size === "tiny" ? grid.cellPx * 0.22 : ((span - 1) * grid.cellPx) / 2;
+  const centerOf = (p: GridPos) => {
+    const b = cellCenter(p, grid);
+    return { x: b.x + off, y: b.y + off };
+  };
+  /** Casa de cima à esquerda para o token com centro em `p`. */
+  const cornerAt = (p: { x: number; y: number }) => cellAt({ x: p.x - off, y: p.y - off }, grid);
+  const center = centerOf(c.pos);
   // Conjurado: mesmo formato do lado de quem conjurou, um pouco menor e com selo (E21).
   const summon = !!c.summonerId;
-  const size = grid.cellPx * (summon ? 0.7 : 0.86);
+  // Miúdo fica bem menor (divide a casa); conjurado, um pouco menor; grandes cobrem as casas todas.
+  const size = grid.cellPx * span * (c.size === "tiny" ? 0.55 : summon ? 0.7 : 0.86);
+  /** Referência para textos e selos: não crescem com o bicho. */
+  const ref = Math.min(size, grid.cellPx * 0.86);
   const r = size / 2;
-  const ring = Math.max(2, size * 0.07);
+  const ring = Math.max(2, ref * 0.07);
   const isMob = c.type === "mob";
   const isNpc = c.type === "npc";
   // Hexágono com a mesma área visual do círculo: o raio até a ponta é um pouco maior.
@@ -112,12 +125,12 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
     const from = dragStart.current;
     dragStart.current = null;
     setDragFeet(null);
-    const to = cellAt(node.position(), grid);
-    const snapped = cellCenter(to, grid);
+    const to = cornerAt(node.position());
+    const snapped = centerOf(to);
     node.position(snapped);
     if (sameCell(from, to)) return;
     void onMove(to).then((ok) => {
-      if (!ok && from) node.position(cellCenter(from, grid));
+      if (!ok && from) node.position(centerOf(from));
     });
   }
 
@@ -151,11 +164,11 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
         // Segundo dedo na tela (pinça, E23): é zoom, não arrastar o token. Volta para a casa de origem.
         const touches = (e.evt as unknown as TouchEvent).touches;
         if (touches && touches.length > 1 && dragStart.current) {
-          e.target.position(cellCenter(dragStart.current, grid));
+          e.target.position(centerOf(dragStart.current));
           e.target.stopDrag();
           return;
         }
-        if (dragStart.current) setDragFeet(feetBetween(dragStart.current, cellAt(e.target.position(), grid), grid.feetPerCell));
+        if (dragStart.current) setDragFeet(feetBetween(dragStart.current, cornerAt(e.target.position()), grid.feetPerCell));
       }}
       onDragEnd={handleDragEnd}
     >
@@ -203,11 +216,11 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
 
       {c.hp !== undefined && c.hpMax !== undefined && (
         <Group y={r + ring * 1.7} listening={false}>
-          <Rect x={-r} width={size} height={Math.max(3, size * 0.09)} fill="#00000099" cornerRadius={2} />
+          <Rect x={-r} width={size} height={Math.max(3, ref * 0.09)} fill="#00000099" cornerRadius={2} />
           <Rect
             x={-r}
             width={size * hpRatio(c.hp, c.hpMax)}
-            height={Math.max(3, size * 0.09)}
+            height={Math.max(3, ref * 0.09)}
             fill={HP_COLORS[hpLevel(c.hp, c.hpMax)]}
             cornerRadius={2}
           />
@@ -217,10 +230,10 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       {c.conditions.length > 0 && (
         // Selo com o número de condições; os nomes aparecem no rótulo (hover/seleção).
         <Group x={r * 0.78} y={-r * 0.78} listening={false}>
-          <Circle radius={badgeR} fill="#d8b47a" stroke="#141218" strokeWidth={Math.max(1.5, size * 0.03)} />
+          <Circle radius={badgeR} fill="#d8b47a" stroke="#141218" strokeWidth={Math.max(1.5, ref * 0.03)} />
           <Text
             text={String(c.conditions.length)}
-            fontSize={Math.max(9, size * 0.2)}
+            fontSize={Math.max(9, ref * 0.2)}
             fontStyle="bold"
             fill="#141218"
             align="center"
@@ -236,7 +249,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       {c.animal && (
         // Selo de animal no canto oposto ao das condições.
         <Group x={-r * 0.78} y={-r * 0.78} listening={false}>
-          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, size * 0.03)} />
+          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, ref * 0.03)} />
           <Path
             data={PAW}
             x={-badgeR * 0.75}
@@ -253,7 +266,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
 
       {summon && (
         <Group x={-r * 0.78} y={r * 0.78} listening={false}>
-          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, size * 0.03)} />
+          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, ref * 0.03)} />
           <Path
             data={WAND}
             x={-badgeR * 0.75}
@@ -269,7 +282,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       )}
 
       {(hover || selected || dragFeet !== null) && (
-        <Group y={-r - ring * 2 - size * (conditionText ? 0.6 : 0.3)} listening={false}>
+        <Group y={-r - ring * 2 - ref * (conditionText ? 0.6 : 0.3)} listening={false}>
           <Text
             text={
               (dragFeet !== null ? `${c.name} · ${dragFeet} ft` : c.name) +
@@ -277,14 +290,14 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
               (conditionText ? `\n${conditionText}` : "")
             }
             lineHeight={1.2}
-            fontSize={Math.max(11, size * 0.24)}
+            fontSize={Math.max(11, ref * 0.24)}
             fill="#ffffff"
             stroke="#000000"
-            strokeWidth={Math.max(2, size * 0.05)}
+            strokeWidth={Math.max(2, ref * 0.05)}
             fillAfterStrokeEnabled
             align="center"
-            width={size * 4}
-            x={-size * 2}
+            width={Math.max(size, ref * 4)}
+            x={-Math.max(size, ref * 4) / 2}
           />
         </Group>
       )}

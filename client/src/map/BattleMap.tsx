@@ -4,13 +4,13 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconCloudOff, IconFocusCentered, IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
+import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
 import { act } from "../actions";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
 import { allCombatants } from "../format";
 import { FixEffectModal } from "../components/FixEffectModal";
-import { cellAt, cellCenter, nearestFreeCell, sameCell, type Point } from "./geometry";
+import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
@@ -204,9 +204,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     const p = worldPointer();
     if (!p) return;
     if (placing && placingNext) {
-      const occupied = allCombatants(state).flatMap((c) => (c.pos && c.id !== placingNext.id ? [c.pos] : []));
       const rest = placing.ids.filter((id) => id !== placingNext.id);
-      void act("token:move", { id: placingNext.id, pos: nearestFreeCell(cellAt(p, grid), occupied) }).then((r) => {
+      void act("token:move", { id: placingNext.id, pos: placeFor(placingNext, cellAt(p, grid), allCombatants(state)) }).then((r) => {
         if (r.ok) setPlacing(rest.length ? { ...placing, ids: rest } : null);
       });
       return;
@@ -307,8 +306,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     const p = stage.getRelativePointerPosition();
     if (!p) return;
     // Soltar da lista é "colocar": se a casa estiver ocupada, vai para a livre mais perto.
-    const occupied = allCombatants(state).flatMap((c) => (c.pos && c.id !== id ? [c.pos] : []));
-    void act("token:move", { id, pos: nearestFreeCell(cellAt(p, grid), occupied) });
+    const all = allCombatants(state);
+    const c = all.find((o) => o.id === id);
+    if (c) void act("token:move", { id, pos: placeFor(c, cellAt(p, grid), all) });
   }
 
   // Aliados por cima (desenhados por último).
@@ -408,7 +408,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
             {placing && hoverCell && (
               // Distância até quem conjurou; sem ele no mapa, só a casa.
-              <RulerShape ruler={{ from: placingFrom?.pos ?? hoverCell, to: hoverCell }} grid={grid} scale={view.scale} label={placingNext?.name} color="#d8b47a" />
+              // Mede da borda de quem conjurou (criatura grande ocupa várias casas).
+              <RulerShape
+                ruler={{ from: placingFrom?.pos ? nearestCellOf(placingFrom.pos, sizeSpan(placingFrom.size), hoverCell) : hoverCell, to: hoverCell }}
+                grid={grid}
+                scale={view.scale}
+                label={placingNext?.name}
+                color="#d8b47a"
+              />
             )}
             {calibRect && (
               <Rect

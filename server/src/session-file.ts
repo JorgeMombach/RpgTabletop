@@ -6,6 +6,7 @@ import {
   LIMITS,
   SESSION_FILE_APP,
   SESSION_FILE_FORMAT,
+  SIZES,
   SPELL_LEVELS,
   isColor,
   type Abilities,
@@ -24,6 +25,7 @@ import {
   type Role,
   type RollTerm,
   type SessionFile,
+  type Size,
   type Spell,
   type SpellLevel,
   type SpellSlot,
@@ -165,8 +167,12 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   return out;
 }
 
-/** CA e atributos; arquivos de antes não têm (ficam sem). */
-function stats(out: { ac?: number; abilities?: Abilities }, raw: Obj) {
+/** CA, atributos e tamanho; arquivos de antes não têm (ficam sem: médio). */
+function stats(out: { ac?: number; abilities?: Abilities; size?: Size }, raw: Obj) {
+  if (raw.size !== undefined) {
+    if (typeof raw.size !== "string" || !(raw.size in SIZES)) fail("Arquivo inválido: tamanho.");
+    if (raw.size !== "medium") out.size = raw.size as Size;
+  }
   if (raw.ac !== undefined) out.ac = int(raw.ac, "CA", LIMITS.ac.min, LIMITS.ac.max);
   if (raw.abilities === undefined) return;
   const a = obj(raw.abilities, "atributos");

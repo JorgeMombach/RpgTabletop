@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, Size, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -29,6 +29,8 @@ export interface CombatantInput {
   ac?: number | null;
   /** Atributos preenchidos (os que faltarem ficam vazios); `{}` apaga todos. */
   abilities?: Abilities;
+  /** Tamanho (padrão: médio). */
+  size?: Size;
   color?: string;
   /** dataURL já reduzido no cliente; `null` remove o avatar. */
   avatar?: string | null;

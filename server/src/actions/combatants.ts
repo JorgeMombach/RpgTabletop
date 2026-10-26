@@ -7,12 +7,17 @@ import {
   NAME_MAX_LENGTH,
   NPC_COLORS,
   isColor,
-  nearestFreeCell,
+  SIZES,
+  blockedCells,
+  nearestFreeSpot,
+  sharesCell,
+  sizeSpan,
   type Abilities,
   type Ability,
   type Combatant,
   type CombatantInput,
   type MobTemplate,
+  type Size,
 } from "@rpg/shared";
 import { allCombatants, byId, placeInOrder, removeFromOrder } from "../combat";
 import { endConcentration, ensureConcentration } from "./effects";
@@ -54,6 +59,18 @@ function abilitiesOf(raw: unknown): Abilities | undefined {
     out[key as Ability] = requireInt(value, "Atributo", LIMITS.abilityScore.min, LIMITS.abilityScore.max);
   }
   return out;
+}
+
+/** Tamanho: `undefined` = não mexe; "medium" vira ausente (o padrão). */
+function sizeOf(raw: unknown): Size | undefined {
+  if (raw === undefined) return undefined;
+  return typeof raw === "string" && raw in SIZES ? (raw as Size) : fail("Tamanho inválido.");
+}
+
+function applySize(target: { size?: Size }, size: Size | undefined) {
+  if (size === undefined) return;
+  if (size === "medium") delete target.size;
+  else target.size = size;
 }
 
 /** Aplica CA e atributos já validados (acOf/abilitiesOf). */
@@ -110,6 +127,7 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
   const hpMax = hpMaxOf(input?.hpMax);
   const ac = acOf(input?.ac);
   const abilities = abilitiesOf(input?.abilities);
+  const size = sizeOf(input?.size);
   const c: Combatant = {
     id: randomUUID(),
     name: requireName(input?.name),
@@ -124,6 +142,7 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
     conditions: [],
   };
   applyStats(c, ac, abilities);
+  applySize(c, size);
   applyAvatar(c, input?.avatar);
   applyFlags(c, input);
   return c;
@@ -131,7 +150,7 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
 
 /** Dados de um template para criar mob/NPC (cópia dos atributos: cada um muda o seu depois). */
 function fromTemplate(t: MobTemplate) {
-  return { hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities ? { ...t.abilities } : undefined, animal: t.animal };
+  return { hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities ? { ...t.abilities } : undefined, size: t.size, animal: t.animal };
 }
 
 /** Lista onde o combatente mora, pelo tipo. */
@@ -197,6 +216,7 @@ export const combatantHandlers: HandlerMap = {
     };
     const ac = acOf(input?.ac);
     const abilities = abilitiesOf(input?.abilities);
+    const size = sizeOf(input?.size);
     avatarOf(input.avatar); // valida antes de alterar
 
     if (input.id) {
@@ -204,11 +224,13 @@ export const combatantHandlers: HandlerMap = {
       Object.assign(t, fields);
       if (isColor(input.color)) t.color = input.color;
       applyStats(t, ac, abilities);
+      applySize(t, size);
       applyAvatar(t, input.avatar);
       return [t.id];
     }
     const t: MobTemplate = { id: randomUUID(), ...fields, color: colorOf(input.color, MOB_COLORS, templates.length) };
     applyStats(t, ac, abilities);
+    applySize(t, size);
     applyAvatar(t, input.avatar);
     templates.push(t);
     return [t.id];
@@ -288,7 +310,7 @@ export const combatantHandlers: HandlerMap = {
     const color = colorOf(payload.color, palette, list.length);
     newCombatant(summoner.type, { ...payload, name: base }, color);
 
-    const occupied = () => allCombatants(store).flatMap((c) => (c.pos ? [c.pos] : []));
+    const occupied = () => blockedCells(allCombatants(store));
     const ids: string[] = [];
     for (let i = 1; i <= qty; i++) {
       // Vários iguais: "Esqueleto 1", "Esqueleto 2"… (o número nunca é cortado).
@@ -300,7 +322,7 @@ export const combatantHandlers: HandlerMap = {
       if (payload.concentration === true) s.summonConcentration = true;
       if (rounds !== null) s.summonRounds = rounds;
       // Aparece do lado de quem conjurou (ou fora do mapa, para escolher onde).
-      if (summoner.pos && payload.near !== false) s.pos = nearestFreeCell(summoner.pos, occupied());
+      if (summoner.pos && payload.near !== false) s.pos = nearestFreeSpot(summoner.pos, occupied(), sizeSpan(s.size), sharesCell(s.size));
       list.push(s);
       ids.push(s.id);
     }
@@ -358,9 +380,12 @@ export const combatantHandlers: HandlerMap = {
     const hpMax = payload.hpMax !== undefined ? hpMaxOf(payload.hpMax) : c.hpMax;
     const ac = acOf(payload.ac);
     const abilities = abilitiesOf(payload.abilities);
+    const size = sizeOf(payload.size);
     avatarOf(payload.avatar);
     Object.assign(c, { name, dexMod, hpMax });
     applyStats(c, ac, abilities);
+    // Crescer no mapa pode encostar em alguém: o app não empurra ninguém (a mesa ajeita os tokens).
+    applySize(c, size);
     if (isColor(payload.color)) c.color = payload.color;
     applyAvatar(c, payload.avatar);
     // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só a marca de animal.

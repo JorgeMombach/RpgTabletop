@@ -1,6 +1,6 @@
-import { Box, Button, Checkbox, Collapse, ColorInput, Group, NumberInput, Paper, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import { Box, Button, Checkbox, Collapse, ColorInput, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import { IconChevronDown } from "@tabler/icons-react";
-import { ABILITIES, abilityMod, LIMITS, NAME_MAX_LENGTH, type Abilities, type Ability, type CombatantInput } from "@rpg/shared";
+import { ABILITIES, abilityMod, LIMITS, NAME_MAX_LENGTH, SIZES, type Abilities, type Ability, type CombatantInput, type Size } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { fmtMod } from "../format";
 import { useT } from "../i18n";
@@ -46,6 +46,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
     () => initial?.abilities?.dex === undefined || abilityMod(initial.abilities.dex) === initial.dexMod,
   );
   const [showAbilities, setShowAbilities] = useState(() => !!initial?.abilities && Object.keys(initial.abilities).length > 0);
+  const [size, setSize] = useState<Size>(initial?.size ?? "medium");
   const [color, setColor] = useState(initial?.color ?? palette[0]);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null);
@@ -70,6 +71,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       ac: ac === "" ? null : Number(ac),
       dexMod: Number(dexMod),
       abilities,
+      size,
       color,
       notes: withNotes ? notes : undefined,
       animal,
@@ -85,6 +87,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       setDexMod(0);
       setScores(emptyScores());
       setInitFollowsDex(true);
+      setSize("medium");
       setNotes("");
       setAvatar(null);
       setAvatarChanged(false);
@@ -171,6 +174,16 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
           </Text>
         </Collapse>
 
+        <Tooltip label={t("form.sizeTip")}>
+          <Select
+            label={t("form.size")}
+            data={(Object.keys(SIZES) as Size[]).map((s) => ({ value: s, label: t(`size.${s}`) }))}
+            value={size}
+            onChange={(v) => v && setSize(v as Size)}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+          />
+        </Tooltip>
         <ColorInput
           label={t("form.color")}
           format="hex"

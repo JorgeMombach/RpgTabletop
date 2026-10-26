@@ -77,6 +77,14 @@ export const ptBR = {
   "form.hidden": "Já entra oculto",
   "form.hiddenTip": "Só você vê (furtividade, sala escura); fica fora da iniciativa até você revelar",
   "form.notes": "Notas (opcional)",
+  "form.size": "Tamanho",
+  "form.sizeTip": "Quantas casas ocupa no mapa: Grande 2×2, Enorme 3×3, Imenso 4×4. Miúdo divide a casa com outros.",
+  "size.tiny": "Miúdo (divide a casa)",
+  "size.small": "Pequeno (1×1)",
+  "size.medium": "Médio (1×1)",
+  "size.large": "Grande (2×2)",
+  "size.huge": "Enorme (3×3)",
+  "size.gargantuan": "Imenso (4×4)",
 
   // Ficha: CA e atributos
   "stats.acTitle": "Classe de armadura",

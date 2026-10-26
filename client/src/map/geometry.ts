@@ -1,7 +1,16 @@
 import type { GridPos, MapConfig } from "@rpg/shared";
 
-// Casa livre mais próxima: no shared, o servidor também usa (conjurados, E21).
-export { nearestFreeCell } from "@rpg/shared";
+// Lugar livre: as contas ficam no shared (o servidor também usa, nos conjurados).
+import { blockedCells, centeredOn, nearestFreeSpot, sharesCell, sizeSpan, type CombatantView } from "@rpg/shared";
+
+/**
+ * Onde `c` entra quando a pessoa aponta a casa `cell` (clique, soltar da lista, centro da visão):
+ * o espaço dele centrado ali, ou o lugar livre mais perto em que caiba inteiro.
+ */
+export function placeFor(c: Pick<CombatantView, "id" | "size">, cell: GridPos, all: CombatantView[]): GridPos {
+  const span = sizeSpan(c.size);
+  return nearestFreeSpot(centeredOn(cell, span), blockedCells(all.filter((o) => o.id !== c.id)), span, sharesCell(c.size));
+}
 
 export interface Point {
   x: number;
