@@ -39,7 +39,8 @@ export async function startServer(config: Config, clientDist?: string): Promise<
     if (config.dev) throw new Error(`Porta ${config.port} ocupada. No modo dev ela não muda (é a do proxy do Vite); feche o que estiver nela.`);
     throw new Error(`Não consegui abrir o servidor a partir da porta ${config.port}: ${(err as Error).message}`);
   }
-  app.setPort(port);
+  // Convites (endereços e QR code): em dev a página vem do Vite (5173); a porta do servidor só fala Socket.IO.
+  app.setPort(config.dev ? 5173 : port);
 
   const local = config.dev ? "http://localhost:5173" : `http://localhost:${port}`;
   const { addresses } = app.host;
