@@ -22,6 +22,9 @@ import { MapPanel } from "./MapPanel";
 import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { SessionPanel } from "./SessionPanel";
+import { SoundPanel } from "./SoundPanel";
+import { SoundSync } from "./SoundSync";
+import { VolumeControl } from "./VolumeControl";
 import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
@@ -85,6 +88,7 @@ export function Shell({ state }: { state: ClientState }) {
               </Button>
             </Tooltip>
           )}
+          <VolumeControl />
           <Group gap={6} wrap="nowrap">
             <Text size="sm" truncate maw={180}>
               {state.self.name}
@@ -108,6 +112,7 @@ export function Shell({ state }: { state: ClientState }) {
         <AlliesPanel state={state} />
         <EffectsPanel state={state} />
         {gm && <MapPanel map={state.battle.map} />}
+        {gm && <SoundPanel state={state} />}
         {gm && <BestiaryPanel templates={state.templates} />}
         <PlayersPanel state={state} />
         {gm && <SessionPanel />}
@@ -129,6 +134,7 @@ export function Shell({ state }: { state: ClientState }) {
       {gm && <ClearBattleDialog open={clearing} onClose={() => setClearing(false)} />}
       {gm && <CloseGuard />}
       {logDetached && <FloatingLog />}
+      <SoundSync sound={state.sound} />
     </div>
   );
 }

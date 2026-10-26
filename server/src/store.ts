@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Combatant, GameState, PublicPlayer, Role } from "@rpg/shared";
+import type { Combatant, GameState, PublicPlayer, Role, SoundState } from "@rpg/shared";
 
 /** Mob ou NPC removido recentemente, guardado para o "Desfazer". */
 export interface RemovedMob {
@@ -56,6 +56,12 @@ export class Store {
   removedMobs = new Map<string, RemovedMob>();
   /** Último número usado por template ("Goblin 4" → 4), para não repetir nomes. */
   mobCounters = new Map<string, number>();
+  /** Som da mesa (E25). Fica fora do jogo: não vai no arquivo de sessão nem some ao limpar o campo. */
+  sound: SoundState = { music: null, ambient: null, volume: { music: 0.6, ambient: 0.5, sfx: 0.8 } };
+  /** Pasta de sons do mestre (E25); `null` = não configurada. */
+  soundsDir: string | null = null;
+  /** Arquivos de áudio da pasta (lista lida no começo e quando o mestre atualiza). */
+  soundLibrary: string[] | null = null;
 
   constructor(readonly maxPlayers: number) {}
 

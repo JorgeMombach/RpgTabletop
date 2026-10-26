@@ -46,6 +46,9 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       effects: gm ? game.battle.effects : game.battle.effects.filter((e) => e.active),
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
+    sound: store.sound,
+    // A lista de arquivos é do mestre; os jogadores só recebem o que estiver tocando.
+    soundLibrary: gm ? store.soundLibrary : undefined,
     host: gm ? host : undefined,
   };
 }

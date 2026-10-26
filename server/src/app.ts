@@ -22,6 +22,8 @@ import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
 import { serveClient } from "./static";
+import { refreshLibrary, soundSource } from "./actions/sound";
+import { audioType, saveSound, soundPath } from "./sounds";
 import { viewFor } from "./view";
 
 interface SocketData {
@@ -44,6 +46,8 @@ export interface AppOptions {
   publicUrls?: string[];
   /** Listar os IPs desta máquina como convite (padrão: sim; no Docker, não). */
   detectAddresses?: boolean;
+  /** Pasta de sons do mestre (E25); sem ela, só os sons gerados pelo app. */
+  soundsDir?: string | null;
 }
 
 function validRuler(raw: unknown): Ruler | null {
@@ -70,6 +74,8 @@ export function createApp(opts: AppOptions) {
   const detect = opts.detectAddresses ?? true;
   let host = hostInfo(opts.port, rules.gmKey, opts.publicUrls, detect);
   const startedAt = Date.now();
+  store.soundsDir = opts.soundsDir ?? null;
+  refreshLibrary(store);
 
   // Healthcheck (Docker) e diagnóstico rápido.
   app.get("/healthz", (_req, res) => {
@@ -78,6 +84,18 @@ export function createApp(opts: AppOptions) {
       version: APP_VERSION,
       uptimeSec: Math.round((Date.now() - startedAt) / 1000),
       players: store.connectedPlayerCount(),
+    });
+  });
+
+  // Arquivos da pasta de sons (E25): só para quem está na sessão (token de quem entrou).
+  app.get("/sons/:name", (req, res) => {
+    const token = typeof req.query.t === "string" ? req.query.t : "";
+    if (!store.soundsDir || !store.findByToken(token)) return void res.status(403).end();
+    const file = soundPath(store.soundsDir, req.params.name);
+    if (!file || !store.soundLibrary?.includes(req.params.name)) return void res.status(404).end();
+    res.type(audioType(file) ?? "application/octet-stream");
+    res.sendFile(file, { maxAge: 0 }, (err) => {
+      if (err && !res.headersSent) res.status(404).end();
     });
   });
 
@@ -215,6 +233,37 @@ export function createApp(opts: AppOptions) {
         console.error("[session:import]", err);
         return ack({ ok: false, error: "Arquivo inválido." });
       }
+      broadcast();
+      ack({ ok: true });
+    });
+
+    // Som (E25): efeito de uma vez para todos e upload de arquivo para a pasta. Só o mestre.
+    socket.on("sound:sfx", (source, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Só o mestre toca sons." });
+      try {
+        io.to(SESSION_ROOM).emit("sound:sfx", soundSource(store, source, false));
+      } catch (err) {
+        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        throw err;
+      }
+      ack({ ok: true });
+    });
+
+    socket.on("sound:upload", (file, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Só o mestre adiciona sons." });
+      if (!store.soundsDir) return ack({ ok: false, error: "A pasta de sons não está configurada (opção --sounds-dir)." });
+      try {
+        saveSound(store.soundsDir, file?.name, file?.data);
+      } catch (err) {
+        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        console.error("[sound:upload]", err);
+        return ack({ ok: false, error: "Não consegui gravar o arquivo na pasta de sons." });
+      }
+      refreshLibrary(store);
       broadcast();
       ack({ ok: true });
     });

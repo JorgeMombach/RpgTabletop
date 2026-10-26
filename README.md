@@ -59,7 +59,14 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 **Dados**: botões d4–d100 com quantidade e modificador, expressão livre (`2d6+1d4+3`), vantagem/desvantagem; o log é compartilhado e o mestre pode rolar oculto.
 
-**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. *✦ Área* mostra a área de uma magia para todos (cone, esfera, cilindro, linha ou cubo, tamanho em pés): clique na origem e arraste para apontar; Esc apaga. No painel *Mapa*, o mestre gira a imagem em 90° e muda o tamanho dela (para casar os quadrados do desenho com o grid) sem mexer nos tokens. Dois tokens não ficam na mesma casa. Com uma área desenhada, *📌 Fixar como efeito* deixa ela no mapa, animada e com a borda esfumaçada (Fogo, Água, Solo molhado, Eletrificado, Vapor, Lama, Chão chamuscado, Gás tóxico, Graxa, Teia, Plantas, Raízes, Névoa, Gelo, Escuridão ou uma cor), com quem conjurou, duração em rounds (desconta no turno de quem conjurou) e concentração (some quando o conjurador perde a *Concentração*). O painel *Efeitos no mapa* liga, desliga e remove (cada um os próprios efeitos, o mestre todos) e **transforma**: a mesma área muda de estado (graxa pega fogo, água fica eletrificada, gelo derrete…), com as transformações comuns sugeridas primeiro. Qualquer um transforma um efeito que está vendo (é a magia dele) e passa a controlá-lo; com *Quando acabar, volta a ser…*, o estado novo dura o tempo dado e depois a área volta ao que era. Painéis laterais recolhem clicando no título e mudam de largura arrastando a borda entre a coluna e o mapa (duplo clique volta ao padrão). A tela do app tem no mínimo 1024 × 640 px: numa janela menor aparece barra de rolagem.
+**Mapa**: roda do mouse = zoom; arrastar o fundo = mover a visão; *Ajustar* enquadra o mapa; *Régua* (ou **Shift** + arrastar) mede em pés, visível para todos. *✦ Área* mostra a área de uma magia para todos (cone, esfera, cilindro, linha ou cubo, tamanho em pés): clique na origem e arraste para apontar; Esc apaga. No painel *Mapa*, o mestre gira a imagem em 90° e muda o tamanho dela (para casar os quadrados do desenho com o grid) sem mexer nos tokens. Dois tokens não ficam na mesma casa. Com uma área desenhada, *📌 Fixar como efeito* deixa ela no mapa, animada e com a borda esfumaçada (Fogo, Água, Solo molhado, Eletrificado, Vapor, Lama, Chão chamuscado, Gás tóxico, Ácido, Graxa, Teia, Plantas, Raízes, Névoa, Gelo, Escuridão ou uma cor), com quem conjurou, duração em rounds (desconta no turno de quem conjurou) e concentração (some quando o conjurador perde a *Concentração*). O painel *Efeitos no mapa* liga, desliga e remove (cada um os próprios efeitos, o mestre todos) e **transforma**: a mesma área muda de estado (graxa pega fogo, água fica eletrificada, gelo derrete…), com as transformações comuns sugeridas primeiro. Qualquer um transforma um efeito que está vendo (é a magia dele) e passa a controlá-lo; com *Quando acabar, volta a ser…*, o estado novo dura o tempo dado e depois a área volta ao que era. Painéis laterais recolhem clicando no título e mudam de largura arrastando a borda entre a coluna e o mapa (duplo clique volta ao padrão). A tela do app tem no mínimo 1024 × 640 px: numa janela menor aparece barra de rolagem.
+
+**Som**: o mestre comanda, no painel *Som*, o que **toda a mesa ouve**, no navegador de cada um:
+- **Música** e **Ambiente** tocam em loop, juntos (ex.: música de taverna por cima de chuva), com troca suave. Quem entra no meio ouve no mesmo ponto.
+- **Efeitos** tocam uma vez para todos (trovão, explosão, golpe de espada, sino, gongo, tambores, flecha, magia, raio elétrico, moedas).
+- O app já traz **sons gerados por ele mesmo**, sem arquivo: chuva, tempestade, vento, fogueira, caverna, mar, riacho, noite (grilos), masmorra e batimento cardíaco, além dos efeitos acima.
+- **Seus arquivos** (MP3, OGG, WAV, M4A, FLAC…) ficam na **pasta de sons**: no app do mestre, *Documentos/Jamal's Tabletop/Sons* (botão *Adicionar* no painel, ou copie para a pasta e clique em atualizar). Os jogadores não baixam nada: recebem o arquivo da sua máquina.
+- O mestre ajusta o volume de cada canal para a mesa; **cada pessoa** ajusta o próprio volume geral (e o mudo) no **alto-falante da barra do topo**, que vale só no computador dela. Navegadores só liberam áudio depois de um clique: se aparecer **Ativar som da mesa**, é só clicar.
 
 ## Opções
 
@@ -74,6 +81,7 @@ Para quem quer ajustar algo. Passe como argumento ao app (ex.: `jamals-tabletop-
 | `--no-gm-loopback` | `GM_LOOPBACK=0` | ligado | localhost deixa de ser mestre; só a chave vale (Docker) |
 | `--public-urls` | `PUBLIC_URLS` | detectados | Endereços de convite, separados por vírgula |
 | `--no-detect-addresses` | `DETECT_ADDRESSES=0` | ligado | Não lista os IPs da máquina como convite (Docker) |
+| `--sounds-dir` | `SOUNDS_DIR` | app do mestre: *Documentos/Jamal's Tabletop/Sons*; servidor: nenhuma | Pasta com as músicas e sons do mestre. Sem ela, só os sons gerados pelo app |
 
 `GET /healthz` responde `{"ok":true,"version":…}` (usado no healthcheck do Docker).
 
@@ -97,6 +105,7 @@ Com o [`docker-compose.yml`](docker-compose.yml) do repositório (edite `GM_KEY`
 
 - `GM_KEY`: fixe uma chave (mín. 8 caracteres) para o link do mestre não mudar a cada reinício; sem ela, uma nova é gerada a cada início.
 - `PUBLIC_URLS`: o(s) endereço(s) pelos quais os jogadores chegam nesta máquina (IP da LAN e/ou do Tailscale). Se publicar em outra porta (`-p 8080:3000`), use essa porta nos endereços.
+- `SOUNDS_DIR`: pasta de músicas e sons do mestre dentro do container; monte uma pasta sua nela (ex.: `-v ./sons:/sons -e SOUNDS_DIR=/sons`). Sem ela, só os sons gerados pelo app.
 - A imagem roda como usuário sem privilégios, tem healthcheck em `/healthz` e encerra limpo com `docker stop`.
 
 ## Problemas comuns
@@ -198,5 +207,5 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E21 — Quem está na luta (iniciativa em campo, ocultos, animais, conjurados) | ✅ v2.1.0 |
 | E22 — Dados à vista (log destacável, rolagem animada) | ✅ v2.2.0 |
 | E24 — Animações do campo e mudança de estado dos efeitos | ✅ v2.3.0 |
-| E25 — Som (música e efeitos para todos) | ⏳ 2.4.0 |
+| E25 — Som (música, ambiente e efeitos para todos) e efeito Ácido | ✅ v2.4.0 |
 | E23 — Celular e tablet (jogadores) | ⏳ 2.5.0 |

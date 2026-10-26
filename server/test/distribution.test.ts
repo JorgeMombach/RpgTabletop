@@ -133,6 +133,12 @@ describe("configuração", () => {
     assert.deepEqual([c.port, c.maxPlayers, c.openBrowser, c.gmLoopback], [5000, 8, false, false]);
   });
 
+  it("pasta de sons (E25): sem padrão na linha de comando; --sounds-dir vence SOUNDS_DIR", () => {
+    assert.equal(parseConfig([], {}).soundsDir, null);
+    assert.equal(parseConfig([], { SOUNDS_DIR: "/sons" }).soundsDir, "/sons");
+    assert.equal(parseConfig(["--sounds-dir", "C:/Sons"], { SOUNDS_DIR: "/sons" }).soundsDir, "C:/Sons");
+  });
+
   it("valores inválidos dão erro legível", () => {
     assert.throws(() => parseConfig(["--port", "abc"], {}), ConfigError);
     assert.throws(() => parseConfig(["--port", "70000"], {}), ConfigError);

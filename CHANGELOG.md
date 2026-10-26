@@ -6,6 +6,15 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.4.0] - 2026-10-25
+
+### Adicionado
+- **Som da mesa:** no painel *Som*, o mestre toca **música** e **ambiente** em loop (juntos, com troca suave) e **efeitos** de uma vez, e todo mundo ouve no próprio navegador, no mesmo ponto. (E25)
+- **Sons gerados pelo app**, sem arquivo nenhum: chuva, tempestade, vento, fogueira, caverna, mar, riacho, noite (grilos), masmorra e batimento cardíaco; efeitos de trovão, explosão, golpe de espada, sino, gongo, tambores, flecha, magia, raio elétrico e moedas. (E25)
+- **Pasta de sons do mestre:** músicas e efeitos próprios (MP3, OGG, WAV, M4A, FLAC…) em *Documentos/Jamal's Tabletop/Sons*, adicionados pelo painel ou copiados direto para a pasta. Opção `--sounds-dir` / `SOUNDS_DIR` para o servidor e o Docker. (E25)
+- **Volume de cada um:** alto-falante na barra do topo com volume geral e mudo, só no seu computador (o mestre controla o volume de cada som para a mesa). (E25)
+- Efeito no mapa **Ácido**: poça borbulhando que corrói o chão; sugestões de transformação para gás tóxico e solo molhado. (E25)
+
 ## [2.3.0] - 2026-10-25
 
 ### Adicionado
@@ -124,7 +133,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.3.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.0.1...v2.1.0

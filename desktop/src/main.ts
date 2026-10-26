@@ -22,8 +22,14 @@ function clientDir(): string {
 }
 
 function readConfig(): Config {
+  const config = parseConfig(args, process.env);
   // Só o servidor desta máquina: o mestre já está na janela, não abre navegador.
-  return { ...parseConfig(args, process.env), openBrowser: false, dev: false };
+  // Sons do mestre (E25): por padrão, uma pasta ao lado das sessões salvas.
+  return { ...config, openBrowser: false, dev: false, soundsDir: config.soundsDir ?? soundsDir() };
+}
+
+function soundsDir(): string {
+  return path.join(sessionsDir(), "Sons");
 }
 
 async function bootServer(): Promise<RunningServer> {
@@ -98,6 +104,12 @@ ipcMain.on("close-confirmed", () => {
   win?.close();
 });
 ipcMain.on("retry", () => void openTable());
+// Abre a pasta de sons no explorador de arquivos (criando, se ainda não existir).
+ipcMain.on("open-sounds-folder", () => {
+  const dir = readConfig().soundsDir ?? soundsDir();
+  fs.mkdirSync(dir, { recursive: true });
+  void shell.openPath(dir);
+});
 ipcMain.handle("save-session", async (_e, json: unknown, fileName: unknown) => {
   if (typeof json !== "string" || typeof fileName !== "string" || !win) return { ok: false };
   const dir = sessionsDir();

@@ -18,4 +18,8 @@ contextBridge.exposeInMainWorld("desktop", {
   retry() {
     ipcRenderer.send("retry");
   },
+  /** Abre a pasta de sons do mestre no explorador de arquivos (E25). */
+  openSoundsFolder() {
+    ipcRenderer.send("open-sounds-folder");
+  },
 });

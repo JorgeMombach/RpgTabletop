@@ -27,6 +27,7 @@ export async function startServer(config: Config, clientDist?: string): Promise<
     gmLoopback: config.gmLoopback,
     publicUrls: config.publicUrls,
     detectAddresses: config.detectAddresses,
+    soundsDir: config.soundsDir,
   });
 
   let port: number;

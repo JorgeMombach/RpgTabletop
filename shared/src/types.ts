@@ -212,6 +212,7 @@ export const EFFECT_PRESETS = {
   mud: { label: "Lama", color: "#6b4a2b" },
   burnt: { label: "Chão chamuscado", color: "#3a2a22" },
   toxic: { label: "Gás tóxico", color: "#8fd14f" },
+  acid: { label: "Ácido", color: "#b6e03a" },
   grease: { label: "Graxa", color: "#5a4a32" },
   web: { label: "Teia", color: "#e6e6e6" },
   plants: { label: "Plantas", color: "#3f9a3a" },
@@ -239,6 +240,7 @@ export const EFFECT_TRANSITIONS: Partial<Record<EffectPreset, EffectPreset[]>> =
   mud: ["wet", "ice"],
   fire: ["burnt", "steam", "wet"],
   toxic: ["fog"],
+  acid: ["toxic", "wet"],
   electric: ["water", "wet"],
   steam: ["fog", "wet"],
 };
@@ -300,6 +302,59 @@ export interface HostInfo {
 }
 
 /** Estado já filtrado para um cliente específico. */
+/**
+ * Sons gerados pelo próprio app (E25), sem arquivo: ambientes em loop e efeitos de uma vez.
+ * O id é o que viaja; o nome aparece para o mestre.
+ */
+export const GEN_SOUNDS = {
+  ambient: {
+    rain: "Chuva",
+    storm: "Tempestade",
+    wind: "Vento",
+    campfire: "Fogueira",
+    cave: "Caverna (gotas)",
+    sea: "Mar",
+    stream: "Riacho",
+    night: "Noite (grilos)",
+    dungeon: "Masmorra",
+    heartbeat: "Batimento cardíaco",
+  },
+  sfx: {
+    thunder: "Trovão",
+    explosion: "Explosão",
+    sword: "Golpe de espada",
+    bell: "Sino",
+    gong: "Gongo",
+    drum: "Tambores",
+    arrow: "Flecha",
+    magic: "Magia",
+    zap: "Raio elétrico",
+    coins: "Moedas",
+  },
+} as const;
+
+export type GenAmbientId = keyof typeof GEN_SOUNDS.ambient;
+export type GenSfxId = keyof typeof GEN_SOUNDS.sfx;
+
+/** De onde vem o som: arquivo da biblioteca do mestre ou gerado pelo app. */
+export type SoundSource = { kind: "file"; name: string } | { kind: "gen"; id: GenAmbientId | GenSfxId };
+
+/** Canais que ficam tocando (em loop). Efeitos (`sfx`) tocam uma vez e não ficam no estado. */
+export type SoundChannel = "music" | "ambient";
+
+export interface SoundTrack {
+  source: SoundSource;
+  /** Hora do servidor (ms) em que começou: quem entra depois começa no mesmo ponto. */
+  startedAt: number;
+}
+
+/** O que a mesa está ouvindo (E25). Só o mestre muda; volumes de 0 a 1, aplicados para todos. */
+export interface SoundState {
+  music: SoundTrack | null;
+  ambient: SoundTrack | null;
+  volume: { music: number; ambient: number; sfx: number };
+}
+
 export interface ClientState {
   self: PublicPlayer;
   players: PublicPlayer[];
@@ -316,6 +371,10 @@ export interface ClientState {
     effects: MapEffect[];
   };
   log: LogEntry[];
+  /** Som da mesa (E25): o mesmo para todos. */
+  sound: SoundState;
+  /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */
+  soundLibrary?: string[] | null;
   /** Só para o mestre: endereços para passar aos jogadores. */
   host?: HostInfo;
 }

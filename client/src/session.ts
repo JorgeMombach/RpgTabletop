@@ -42,6 +42,11 @@ function gmKey(): string | undefined {
   return read(GM_KEY) ?? undefined;
 }
 
+/** Token desta pessoa na sessão: também libera os arquivos da pasta de sons (E25). */
+export function sessionToken(): string {
+  return read(TOKEN_KEY) ?? "";
+}
+
 export function savedName(): string {
   return read(NAME_KEY) ?? useApp.getState().lastName;
 }

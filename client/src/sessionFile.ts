@@ -9,6 +9,7 @@ export interface DesktopBridge {
   guardClose(onRequest: () => void): void;
   confirmClose(): void;
   saveSession(json: string, fileName: string): Promise<{ ok: boolean }>;
+  openSoundsFolder(): void;
 }
 
 export const desktop = (window as unknown as { desktop?: DesktopBridge }).desktop;
