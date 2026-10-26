@@ -10,6 +10,7 @@ import {
   type GridPos,
   type JoinPayload,
   type JoinResult,
+  type MapPoint,
   type Ruler,
   type ServerToClientEvents,
   APP_VERSION,
@@ -29,6 +30,8 @@ import { viewFor } from "./view";
 
 interface SocketData {
   playerId?: string;
+  /** Hora do último ping (limite de frequência). */
+  lastPing?: number;
 }
 
 export type AppServer = Server<ClientToServerEvents, ServerToClientEvents, object, SocketData>;
@@ -57,6 +60,15 @@ function validRuler(raw: unknown): Ruler | null {
     !!p && Number.isInteger(p.col) && Number.isInteger(p.row) && Math.abs(p.col) <= LIMITS.gridCoord && Math.abs(p.row) <= LIMITS.gridCoord;
   return r && ok(r.from) && ok(r.to) ? { from: { col: r.from.col, row: r.from.row }, to: { col: r.to.col, row: r.to.row } } : null;
 }
+
+function validPoint(raw: unknown): MapPoint | null {
+  const p = raw as MapPoint | null;
+  const ok = (n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord;
+  return p && ok(p.col) && ok(p.row) ? { col: p.col, row: p.row } : null;
+}
+
+/** Intervalo mínimo entre dois pings da mesma conexão (evita enxurrada). */
+const PING_GAP_MS = 400;
 
 export function createApp(opts: AppOptions) {
   const app = express();
@@ -207,6 +219,16 @@ export function createApp(opts: AppOptions) {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (!player) return;
       socket.to(SESSION_ROOM).emit("ruler", { playerId: player.id, name: whoIs(store, player), ruler: validRuler(ruler) });
+    });
+
+    // Ping: efêmero, para todos (quem pingou também vê o próprio).
+    socket.on("map:ping", (raw) => {
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      const at = validPoint(raw);
+      const now = Date.now();
+      if (!player || !at || now - (socket.data.lastPing ?? 0) < PING_GAP_MS) return;
+      socket.data.lastPing = now;
+      io.to(SESSION_ROOM).emit("ping", { playerId: player.id, name: whoIs(store, player), at });
     });
 
     socket.on("area:update", (area) => {

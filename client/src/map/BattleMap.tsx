@@ -6,6 +6,7 @@ import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
 import { act } from "../actions";
+import { useT } from "../i18n";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
 import { allCombatants, currentGroup } from "../format";
@@ -13,6 +14,7 @@ import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
+import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
@@ -34,6 +36,10 @@ interface View {
  * Posição da imagem girada (sentido horário) e escalada para ocupar [0, largura] × [0, altura]
  * do mapa a partir da origem: o grid e os tokens não se mexem (E17).
  */
+/** Segurar parado este tempo (ms) faz um ping; mexer mais que PRESS_SLOP px na tela cancela. */
+const LONG_PRESS_MS = 550;
+const PRESS_SLOP = 6;
+
 function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
   const w = image.width * scale;
   const h = image.height * scale;
@@ -56,7 +62,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { tool, selectedId, hoverId, rulers, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
   const image = useImage(mapImage.image);
@@ -149,6 +155,20 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     return stageRef.current?.getRelativePointerPosition() ?? null;
   }
 
+  // Ping: segurar parado (mouse ou dedo) ou Alt+clique. Mexeu o ponteiro antes do tempo, vira arrasto normal.
+  const press = useRef<{ timer: number; screen: Point } | null>(null);
+  /** Acabou de pingar: o clique que vem junto não tira a seleção. */
+  const pinged = useRef(false);
+  function sendPing(p: Point) {
+    pinged.current = true;
+    socket.emit("map:ping", { col: (p.x - grid.offsetX) / grid.cellPx, row: (p.y - grid.offsetY) / grid.cellPx });
+  }
+  function cancelPress() {
+    if (!press.current) return;
+    clearTimeout(press.current.timer);
+    press.current = null;
+  }
+
   // Ref espelha a régua para os handlers de mouse não dependerem do último render.
   const rulerRef = useRef<Ruler | null>(null);
   function updateRuler(next: Ruler | null) {
@@ -213,6 +233,18 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     }
     // Todos já estão no mapa (ex.: arrastados da lista): a colocação acabou.
     if (placing) setPlacing(null);
+    pinged.current = false;
+    if (e.evt.altKey) return sendPing(p);
+    const screen = stageRef.current?.getPointerPosition();
+    if (tool === "move" && screen) {
+      cancelPress();
+      const timer = window.setTimeout(() => {
+        press.current = null;
+        stageRef.current?.stopDrag();
+        sendPing(p);
+      }, LONG_PRESS_MS);
+      press.current = { timer, screen };
+    }
     if (tool === "calibrate") {
       calibStart.current = p;
       useApp.setState({ calibRect: { x: p.x, y: p.y, width: 0, height: 0 } });
@@ -226,6 +258,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseMove() {
+    const screen = stageRef.current?.getPointerPosition();
+    if (press.current && screen && Math.hypot(screen.x - press.current.screen.x, screen.y - press.current.screen.y) > PRESS_SLOP) cancelPress();
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
@@ -250,6 +284,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseUp() {
+    cancelPress();
     calibStart.current = null;
     areaDragging.current = false;
     updateRuler(null);
@@ -266,7 +301,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (t.length !== 2 || !stage) return;
       e.preventDefault();
       if (stage.isDragging()) stage.stopDrag();
-      // Segundo dedo no meio de uma régua ou área: a medição para.
+      // Segundo dedo no meio de uma régua ou área: a medição para (e não vira ping).
+      cancelPress();
       if (!pinch.current) {
         updateRuler(null);
         areaDragging.current = false;
@@ -354,10 +390,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           onPointerUp={onMouseUp}
           onPointerLeave={onMouseUp}
           onClick={(e) => {
-            if (e.target === e.target.getStage() && tool === "move" && !placing) select(null);
+            if (e.target === e.target.getStage() && tool === "move" && !placing && !pinged.current) select(null);
           }}
           onTap={(e) => {
-            if (e.target === e.target.getStage() && tool === "move" && !placing) select(null);
+            if (e.target === e.target.getStage() && tool === "move" && !placing && !pinged.current) select(null);
           }}
         >
           <Layer listening={false}>
@@ -407,6 +443,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
               <AreaShape key={pid} area={a.area} grid={grid} scale={view.scale} label={a.name} color="#5ba3e6" />
             ))}
             {myArea && <AreaShape area={myArea} grid={grid} scale={view.scale} color="#d8b47a" />}
+          </Layer>
+
+          <Layer listening={false}>
+            {pings.map((p) => (
+              <PingShape key={p.id} at={p.at} name={p.name} color={p.playerId === state.self.id ? "#d8b47a" : "#5ba3e6"} grid={grid} scale={view.scale} />
+            ))}
           </Layer>
 
           <Layer listening={false}>
@@ -594,6 +636,7 @@ function MapToolbar({
   onZoom: (factor: number) => void;
   onFit: () => void;
 }) {
+  const t = useT();
   const reduceFx = useApp((s) => s.reduceFx);
   const reduceButton = weather && (
     <Tooltip label={reduceFx ? "Clima completo (só neste navegador)" : "Reduzir o clima: menos partículas e sem clarão (só neste navegador)"}>
@@ -613,7 +656,7 @@ function MapToolbar({
   if (compact) {
     // Celular (E23): só ícones, alvos de toque maiores; zoom é com pinça.
     const tools = [
-      { id: "move", label: "Mover tokens e a visão do mapa", icon: IconHandStop },
+      { id: "move", label: t("map.moveTip"), icon: IconHandStop },
       { id: "ruler", label: "Régua: arraste para medir em pés", icon: IconRuler2 },
       { id: "area", label: "Área de magia para todos", icon: IconSparkles },
     ] as const;
@@ -649,7 +692,7 @@ function MapToolbar({
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
-        <Tooltip label="Mover tokens e a visão do mapa">
+        <Tooltip label={t("map.moveTip")}>
           <Button variant={tool === "move" ? "filled" : "subtle"} color={tool === "move" ? undefined : "gray"} leftSection={<IconHandStop size={14} />} onClick={() => setTool("move")}>
             Mover
           </Button>

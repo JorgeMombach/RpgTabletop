@@ -26,6 +26,9 @@ export const es: Partial<Messages> = {
   "init.groupOpen": "Mostrar cada uno",
   "init.groupClose": "Agrupar de nuevo",
 
+  // Mapa
+  "map.moveTip": "Mover tokens y la vista del mapa. Para señalar un punto a todos (ping), mantén pulsado o usa Alt+clic.",
+
   // Alcance / aura
   "aura.label": "Alcance",
   "aura.labelOn": "Alcance {feet} ft",

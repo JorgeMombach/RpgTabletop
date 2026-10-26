@@ -46,6 +46,18 @@ export interface Ruler {
   to: GridPos;
 }
 
+/** Ping no mapa: ponto em células (com fração), efêmero, para todos verem por uns segundos. */
+export interface MapPoint {
+  col: number;
+  row: number;
+}
+
+export interface PingBroadcast {
+  playerId: string;
+  name: string;
+  at: MapPoint;
+}
+
 export interface RulerBroadcast {
   playerId: string;
   name: string;
@@ -270,6 +282,8 @@ export type ClientToServerEvents = ActionEvents & {
   "ruler:update": (ruler: Ruler | null) => void;
   /** Efêmero, como a régua. */
   "area:update": (area: Area | null) => void;
+  /** Efêmero: "olhem aqui" no mapa, para todos (inclusive quem pingou). */
+  "map:ping": (at: MapPoint) => void;
   /** Sai da sessão (fica offline). A identidade continua: voltar com o mesmo token recupera o personagem. */
   "session:leave": () => void;
   /** Mestre: estado atual em formato de arquivo (E18). */
@@ -288,6 +302,7 @@ export interface ServerToClientEvents {
   "map:image": (payload: MapImagePayload) => void;
   ruler: (payload: RulerBroadcast) => void;
   area: (payload: AreaBroadcast) => void;
+  ping: (payload: PingBroadcast) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;

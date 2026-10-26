@@ -32,6 +32,9 @@ export const ptBR = {
   "init.groupOpen": "Mostrar cada um",
   "init.groupClose": "Juntar de novo",
 
+  // Mapa
+  "map.moveTip": "Mover tokens e a visão do mapa. Para chamar a atenção de todos num ponto (ping), segure parado ou use Alt+clique.",
+
   // Alcance / aura
   "aura.label": "Alcance",
   "aura.labelOn": "Alcance {feet} ft",

@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, Role, Ruler } from "@rpg/shared";
+import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
+
+/** Quanto tempo um ping fica no mapa. */
+export const PING_MS = 2600;
 
 export type MapTool = "move" | "ruler" | "area" | "calibrate";
 
@@ -38,6 +41,8 @@ interface AppStore extends DicePrefs {
   mapImage: MapImagePayload;
   /** Réguas que outras pessoas estão medindo agora. */
   rulers: Record<string, { name: string; ruler: Ruler }>;
+  /** Pings no mapa dos últimos segundos (de todos, inclusive os meus). */
+  pings: { id: number; playerId: string; name: string; at: MapPoint }[];
   /** Áreas de magia que outras pessoas estão mostrando agora. */
   areas: Record<string, { name: string; area: Area }>;
   /** Forma e tamanho escolhidos na ferramenta de área. */
@@ -74,6 +79,7 @@ export const useApp = create<AppStore>(() => ({
   state: null,
   mapImage: { version: 0, image: null },
   rulers: {},
+  pings: [],
   areas: {},
   areaKind: "cone",
   areaFeet: AREA_DEFAULT_FEET.cone,

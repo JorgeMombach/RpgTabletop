@@ -26,6 +26,9 @@ export const en: Partial<Messages> = {
   "init.groupOpen": "Show each one",
   "init.groupClose": "Group again",
 
+  // Map
+  "map.moveTip": "Move tokens and the map view. To point something out to everyone (ping), press and hold or Alt+click.",
+
   // Reach / aura
   "aura.label": "Reach",
   "aura.labelOn": "Reach {feet} ft",

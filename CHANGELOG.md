@@ -13,6 +13,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Chefes:** recursos que voltam **no começo da vez** (ações lendárias) e com **recarga no d6** ("Sopro de fogo, recarga 5–6": no começo da vez do chefe, se estiver gasto, o app rola o d6 oculto e devolve o uso com 5 ou 6). Resistência lendária usa a volta no descanso longo.
 - **Grupos de mobs na iniciativa:** mobs do mesmo template com a mesma iniciativa (como na *rolagem por template*) viram uma linha só, "Goblin 1–6", e **agem na mesma vez**: o *Próximo turno* passa pelo grupo inteiro, o começo da vez vale para cada um e *Atrasar* leva todos juntos. A linha abre para ver e editar cada um.
 - **Alcance / aura:** botão *Alcance* no painel *Selecionado* (5, 10, 15, 30 ft ou outro valor) desenha um círculo leve em volta do token, a partir da borda dele, visível para todos. Enquanto o token é arrastado, o círculo fica onde ele estava. Só visual: o app não confere quem está dentro.
+- **Ping no mapa:** segure o clique ou o dedo parado num ponto (ou use Alt+clique) e ondas pulsam ali por uns segundos para todos, com o nome de quem marcou. O seu aparece em bronze; o dos outros, em azul.
 - **A vez de cada um** (painel *Iniciativa*, para quem está na vez e para o mestre):
   - **Passar a vez:** o jogador encerra a própria vez e o turno avança ("Thorin (Ana) passou a vez" no log).
   - **Atrasar:** agir mais tarde no mesmo round, depois de alguém que ainda vai agir; o começo do turno (condições, efeitos) não desconta duas vezes.
