@@ -646,3 +646,10 @@ Ordem: **2.0.1 → E21 → E22 → E24 → E25 → E26 → E23**. Regras de comb
 
 ### E23 — Celular e tablet  *(2.6.0)*
 - Layout próprio para **jogadores** em telas pequenas (abas como Mapa, Ficha, Dados, Iniciativa). O mestre continua no app do computador; a tela mínima de 1024 × 640 vale para ele.
+- Detalhes (E23):
+  - **Quando:** jogador numa tela que não comporta 1024 × 640 (largura < 1024 ou altura < 560: celular, tablet em pé, celular deitado). Tablet deitado (≥ 1024) fica com a tela de computador. A pessoa pode forçar uma ou outra no menu (guardado no navegador); o mestre usa sempre a de computador. Sem servidor novo: é só o client.
+  - **Abas embaixo** (alcance do polegar): **Mapa**, **Ficha** (o selecionado; sem seleção, abre o próprio personagem; lista de aliados para criar/escolher), **Dados** (o log fica sempre no painel, sem janela flutuante) e **Combate** (iniciativa, efeitos, jogadores). O mapa fica montado ao trocar de aba (guarda zoom e posição). Os dados 3D aparecem por cima de qualquer aba.
+  - **Topo compacto:** "Sua vez!" (ou "Round 2 · vez de…"), reconectando, volume e menu (trocar para a tela de computador, Sair). Na vez do jogador ou com pedido de rolagem, marca na aba Dados.
+  - **Mapa no toque:** dois dedos aproximam/afastam e arrastam a visão (pinça ouvida antes do Konva, que engole o toque enquanto arrasta a visão); se a pinça começar em cima de um token, o token volta para a casa e não anda. Régua e área com o dedo (eventos de ponteiro, valem para mouse também). Barra só com ícones; sem +/− (é a pinça). A pinça também funciona na tela de computador (tablet deitado).
+  - **Celular deitado:** abas numa coluna à esquerda e topo menor. **Tablet em pé:** painéis com no máximo 640 px de largura, centralizados.
+  - Detalhes de toque: sem dicas flutuantes em aparelho só de toque (grudam depois do toque; os botões têm texto ou `aria-label`); atalhos de teclado escondidos; áreas seguras do iPhone (`viewport-fit=cover`, `env(safe-area-inset-*)`); altura com `dvh` (a barra do navegador não corta as abas); som liberado também no `touchend` (iPhone).

@@ -445,3 +445,133 @@ abbr.abbr {
   overflow-y: auto;
   padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
 }
+
+/* ---------- Celular e tablet (E23): só jogadores ---------- */
+
+.mobile-shell {
+  /* dvh: a barra do navegador do celular aparece e some sem cortar a barra de abas. */
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "top" "content" "nav";
+  overflow: hidden;
+}
+
+.mobile-top {
+  grid-area: top;
+  height: 48px;
+  padding-top: env(safe-area-inset-top);
+  box-sizing: content-box;
+  background: #1a161f;
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+  box-shadow: 0 1px 0 rgb(169 132 79 / 0.25);
+  position: relative;
+  z-index: 2;
+}
+
+.mobile-content {
+  grid-area: content;
+  position: relative;
+  min-height: 0;
+}
+
+.mobile-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* Escondido sem desmontar: o mapa guarda zoom e posição ao trocar de aba. */
+.mobile-map.hidden {
+  visibility: hidden;
+}
+
+.mobile-pane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-tabs {
+  grid-area: nav;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #1a161f;
+  border-top: 1px solid var(--mantine-color-dark-4);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 2;
+}
+
+.mobile-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0 6px;
+  min-height: 56px;
+  color: var(--mantine-color-dark-2);
+}
+
+.mobile-tab.active {
+  color: var(--mantine-color-bronze-4);
+  box-shadow: inset 0 2px 0 var(--mantine-color-bronze-5);
+}
+
+/* Tablet em pé: os painéis não esticam na largura toda. */
+.mobile-pane > * {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  flex: none;
+}
+
+/* Celular deitado: abas viram uma coluna à esquerda e o topo encolhe, sobrando altura para o conteúdo. */
+@media (orientation: landscape) and (max-height: 559px) {
+  .mobile-shell {
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "nav top" "nav content";
+  }
+
+  .mobile-top {
+    height: 40px;
+  }
+
+  .mobile-tabs {
+    grid-template-columns: none;
+    grid-template-rows: repeat(4, 1fr);
+    width: 72px;
+    border-top: none;
+    border-right: 1px solid var(--mantine-color-dark-4);
+    padding-bottom: 0;
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .mobile-tab {
+    justify-content: center;
+    min-height: 0;
+    padding: 4px 0;
+  }
+
+  .mobile-tab.active {
+    box-shadow: inset 2px 0 0 var(--mantine-color-bronze-5);
+  }
+}
+
+/* Toque no mapa: o navegador não rola nem dá zoom na página; quem cuida é o mapa (pinça). */
+.battle-map {
+  touch-action: none;
+}
+
+/* Atalhos de teclado não servem em tela de toque. */
+@media (hover: none) {
+  .keyboard-hint {
+    display: none;
+  }
+}

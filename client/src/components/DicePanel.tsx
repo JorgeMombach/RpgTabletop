@@ -76,8 +76,9 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-export function DicePanel({ state }: { state: ClientState }) {
-  const logDetached = useApp((s) => s.logDetached);
+/** `inline` = tela de celular (E23): o log fica sempre no painel, sem janela flutuante. */
+export function DicePanel({ state, inline = false }: { state: ClientState; inline?: boolean }) {
+  const logDetached = useApp((s) => s.logDetached) && !inline;
   const gm = state.self.role === "gm";
   const { combat, rolls } = state.battle;
   const saved = useState(readAttack)[0];
@@ -259,7 +260,7 @@ export function DicePanel({ state }: { state: ClientState }) {
       {gm && <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label="Rolagem oculta (só você vê)" />}
 
       <Divider />
-      <LogHeader />
+      <LogHeader canDetach={!inline} />
       {logDetached ? (
         <Text size="xs" c="dimmed">
           O log está numa janela flutuante. Minimize a janela para ele voltar aqui.
@@ -272,9 +273,9 @@ export function DicePanel({ state }: { state: ClientState }) {
 }
 
 /** Cabeçalho do log (E22): animação dos dados no centro e destacar o log numa janela. Valem só para este navegador. */
-function LogHeader() {
+function LogHeader({ canDetach }: { canDetach: boolean }) {
   const diceAnim = useApp((s) => s.diceAnim);
-  const logDetached = useApp((s) => s.logDetached);
+  const logDetached = useApp((s) => s.logDetached) || !canDetach;
   return (
     <Group justify="space-between" wrap="nowrap" gap="xs">
       <Tooltip label="Dados rolando no centro do mapa a cada rolagem (só neste navegador)">

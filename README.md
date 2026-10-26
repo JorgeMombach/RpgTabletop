@@ -39,6 +39,8 @@ Só precisa de um navegador.
 
 Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade e o mesmo personagem.
 
+**Pelo celular ou tablet:** é só abrir o mesmo endereço. Em tela pequena (celular, tablet em pé) o jogador vê uma tela própria, com abas embaixo: **Mapa** (dois dedos para aproximar/afastar, um dedo arrasta a visão ou o seu token), **Ficha** (seu personagem: vida, condições, magias, *Colocar no mapa*), **Dados** (ataque, dano, dados livres e o log) e **Combate** (iniciativa, efeitos e quem está na sessão). Na sua vez aparece **Sua vez!** no topo e uma marca na aba Dados. Com o celular deitado, as abas vão para a lateral. No menu (☰) dá para trocar para a tela de computador (e voltar). O mestre usa sempre a tela de computador.
+
 ## Roteiro de uma sessão
 
 1. **Jogadores** criam o próprio personagem em *Aliados* (nome, vida máx., mod. DES, cor, avatar).
@@ -211,4 +213,4 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E24 — Animações do campo e mudança de estado dos efeitos | ✅ v2.3.0 |
 | E25 — Som (música, ambiente e efeitos para todos) e efeito Ácido | ✅ v2.4.0 |
 | E26 — Melhorias da mesa (nomes, rolagens, log sincronizado) e clima no mapa | ✅ v2.5.0 |
-| E23 — Celular e tablet (jogadores) | ⏳ 2.6.0 |
+| E23 — Celular e tablet (jogadores) | ✅ v2.6.0 |

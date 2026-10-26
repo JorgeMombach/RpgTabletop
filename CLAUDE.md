@@ -52,6 +52,7 @@ Toda tela nova usa os componentes do **Mantine** e o tema em `client/src/theme.t
 - **Combatente:** `CombatantAvatar` (anel na cor do token; círculo = aliado, quadrado = mob, hexágono = NPC) e `CombatantRow` nas listas.
 - **CSS próprio** (`styles.css`) só para layout da tela, mapa e peças sem equivalente no Mantine (placa, linhas das listas, bolinhas de slot, alças de redimensionar). Use as variáveis `--mantine-*`.
 - **Tamanho mínimo:** a tela do app tem no mínimo **1024 × 640 px** (`LAYOUT` em `components/ColumnResizer.tsx`); numa janela menor a página rola em vez de encolher. O mapa nunca fica com menos de 480 px: as colunas laterais (260–520 px, arrastáveis) é que cedem. Verifique telas novas com as colunas na largura mínima — nada pode vazar.
+- **Celular e tablet (E23):** jogador em tela pequena usa `MobileShell` (abas; decisão em `client/src/layout.ts`). Painel novo de jogador precisa caber em 375 px de largura; teste também em `MobileShell` (no navegador, entre como jogador pelo IP da rede, não por `localhost`, que vira mestre).
 
 ## Fluxo de git
 
