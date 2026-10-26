@@ -81,8 +81,11 @@ export function abilityMod(score: number): number {
   return Math.floor((score - 10) / 2);
 }
 
-/** Quando um recurso volta: descanso curto (volta também no longo), só no longo, ou só à mão. */
-export type Recharge = "short" | "long" | "none";
+/**
+ * Quando um recurso volta: descanso curto (volta também no longo), só no longo, só à mão,
+ * no começo da vez de quem tem (ações lendárias) ou rolando um d6 no começo da vez (recarga 5–6).
+ */
+export type Recharge = "short" | "long" | "none" | "turn" | "dice";
 
 /** Recurso com usos ("Fúria 3/3", "Ki 5/5", "Inspiração de Bardo 4/4"): só contagem, sem regra. */
 export interface Resource {
@@ -91,6 +94,8 @@ export interface Resource {
   max: number;
   used: number;
   recharge: Recharge;
+  /** Recarga no d6 (`recharge: "dice"`): volta tirando este valor ou mais (5 = "recarga 5–6"). */
+  rechargeOn?: number;
 }
 
 /** Ataque salvo ("Espada longa: +5 / 1d8+3"): rola com um clique. `bonus` ausente = sem rolagem de ataque (ex.: só dano). */

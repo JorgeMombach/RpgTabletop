@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Combatant, GameState, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
+import type { Combatant, GameState, Resource, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -38,7 +38,10 @@ function fullGame(playerId: string, gmId: string): GameState {
     initRoll: 17,
     spellSlots: { 1: { max: 3, used: 1 }, 2: { max: 2, used: 0 }, 3: { max: 0, used: 0 }, 4: { max: 0, used: 0 }, 5: { max: 0, used: 0 }, 6: { max: 0, used: 0 }, 7: { max: 0, used: 0 }, 8: { max: 0, used: 0 }, 9: { max: 0, used: 0 } },
     spells: [spell],
-    resources: [{ id: "r1", name: "Fúria", max: 3, used: 1, recharge: "long" }],
+    resources: [
+      { id: "r1", name: "Fúria", max: 3, used: 1, recharge: "long" },
+      { id: "r2", name: "Sopro de fogo", max: 1, used: 1, recharge: "dice", rechargeOn: 5 } satisfies Required<Resource>,
+    ],
     attacks: [{ id: "a1", name: "Machado grande", bonus: 5, damage: "1d12+3" }],
     inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }],
     coins: { pp: 1, gp: 25, ep: 0, sp: 7, cp: 30 },

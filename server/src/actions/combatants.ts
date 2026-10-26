@@ -20,7 +20,8 @@ import {
   type Size,
 } from "@rpg/shared";
 import { allCombatants, byId, placeInOrder, removeFromOrder } from "../combat";
-import { endConcentration, ensureConcentration } from "./effects";
+import { endConcentration, ensureConcentration, isConcentration } from "./effects";
+import { logSystem } from "./dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireImage, requireInt, requireName, requireString } from "../validate";
 import type { HandlerMap } from "./types";
@@ -410,6 +411,12 @@ export const combatantHandlers: HandlerMap = {
     const c = editable(store, player, payload?.id);
     const delta = requireInt(payload.delta, "Valor", -LIMITS.hpMax.max * 10, LIMITS.hpMax.max * 10);
     let rest = delta;
+    // Quem concentra e toma dano: lembrete do teste de Concentração (CD = metade do dano, mínimo 10).
+    // Só lembra; quem joga rola e decide. Mob/NPC: só o mestre vê o aviso.
+    if (delta < 0 && c.conditions.some((k) => isConcentration(k.name))) {
+      const dc = Math.max(10, Math.floor(-delta / 2));
+      logSystem(store, `Teste de Concentração para ${c.name}: CD ${dc} (resistência de CON).`, c.type !== "ally");
+    }
     // Dano tira primeiro da vida temporária; a cura não mexe nela.
     if (delta < 0 && c.tempHp) {
       const absorbed = Math.min(c.tempHp, -delta);

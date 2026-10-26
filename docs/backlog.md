@@ -24,9 +24,9 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Jogador passa a vez:** botão para quem está na vez (dono do personagem ou do conjurado); o servidor avança como o *Próximo turno*; log "Thorin (Jorge) passou a vez".
 - [x] **Atrasar a vez:** "agir depois de…" e reentrar na ordem.
 - [x] **Ações do turno:** Ação, Ação bônus, Movimento e Reação marcáveis, zerando na vez de cada um.
-- [ ] **Lembrete de Concentração:** quem concentra e toma dano recebe o aviso "Teste de Concentração: CD X" (metade do dano, mínimo 10). Só lembra.
+- [x] **Lembrete de Concentração:** quem concentra e toma dano recebe o aviso "Teste de Concentração: CD X" (metade do dano, mínimo 10). Só lembra.
 - [ ] **Grupos de mobs na iniciativa:** "Goblin 1–6" numa linha só.
-- [ ] **Chefes:** ações lendárias, resistências lendárias e habilidades de Recarga (d6 no começo do turno), só para o mestre.
+- [x] **Chefes:** ações lendárias, resistências lendárias e habilidades de Recarga (d6 no começo do turno), só para o mestre.
 - [ ] **Alcance / aura visível:** círculo leve em volta do token (ex.: 10 ft, aura de 30 ft).
 
 ## D. Mapa

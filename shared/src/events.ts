@@ -169,7 +169,7 @@ export interface ActionPayloads {
   "spell:add": { id: string; name: string; level: number; note?: string };
   "spell:remove": { id: string; spellId: string };
   /** Recurso com usos: sem `resourceId` cria; com, edita. */
-  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge };
+  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge; rechargeOn?: number };
   /** Gasta (`delta` > 0) ou recupera (`delta` < 0) usos. */
   "resource:use": { id: string; resourceId: string; delta: number };
   "resource:remove": { id: string; resourceId: string };

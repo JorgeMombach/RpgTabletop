@@ -53,9 +53,9 @@ export function logRoll(
   });
 }
 
-/** Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. */
-export function logSystem(store: Store, text: string) {
-  pushLog(store, { authorId: "system", author: "Mesa", text, system: true });
+/** Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. `hidden` = só o mestre. */
+export function logSystem(store: Store, text: string, hidden = false) {
+  pushLog(store, { authorId: "system", author: "Mesa", text, system: true, hidden: hidden || undefined });
 }
 
 /**

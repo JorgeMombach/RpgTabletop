@@ -64,12 +64,16 @@ const RECHARGE_LABEL: Record<Recharge, MessageKey> = {
   short: "sheet.recharge.short",
   long: "sheet.recharge.long",
   none: "sheet.recharge.none",
+  turn: "sheet.recharge.turn",
+  dice: "sheet.recharge.dice",
 };
 /** Versão curta, embaixo do nome na lista. */
 const RECHARGE_TAG: Record<Recharge, MessageKey> = {
   short: "sheet.rechargeTag.short",
   long: "sheet.rechargeTag.long",
   none: "sheet.rechargeTag.none",
+  turn: "sheet.rechargeTag.turn",
+  dice: "sheet.rechargeTag.dice",
 };
 
 function ResourcesSection({ c, editable }: { c: Combatant; editable: boolean }) {
@@ -81,55 +85,43 @@ function ResourcesSection({ c, editable }: { c: Combatant; editable: boolean }) 
     <Stack gap="xs">
       {resources.length === 0 && !adding && (
         <Text size="xs" c="dimmed">
-          {t("sheet.resources.empty")}
+          {t(c.type === "ally" ? "sheet.resources.empty" : "sheet.resources.emptyMob")}
         </Text>
       )}
       {resources.map((r) => (
-        <Group key={r.id} gap="xs" wrap="nowrap">
-          <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-            <Text size="sm" fw={600} truncate title={r.name}>
+        // Nome numa linha (com o remover) e, embaixo, quando volta e o contador: o nome não corta na coluna estreita.
+        <Stack key={r.id} gap={2}>
+          <Group gap={6} wrap="nowrap">
+            <Text size="sm" fw={600} truncate title={r.name} style={{ flex: 1, minWidth: 0 }}>
               {r.name}
             </Text>
-            <Text size="xs" c="dimmed">
-              {t(RECHARGE_TAG[r.recharge])}
-            </Text>
-          </Stack>
-          {editable && (
-            <ActionIcon
-              variant="default"
-              onClick={() => act("resource:use", { id: c.id, resourceId: r.id, delta: 1 })}
-              disabled={r.used >= r.max}
-              aria-label={t("sheet.resources.use")}
-            >
-              <IconMinus size={14} />
-            </ActionIcon>
-          )}
-          <Text fw={700} w={44} ta="center">
-            {r.max - r.used}/{r.max}
-          </Text>
-          {editable && (
-            <>
-              <ActionIcon
-                variant="default"
-                onClick={() => act("resource:use", { id: c.id, resourceId: r.id, delta: -1 })}
-                disabled={r.used === 0}
-                aria-label={t("sheet.resources.recover")}
-              >
-                <IconPlus size={14} />
-              </ActionIcon>
+            {editable && (
               <Tooltip label={t("common.remove")}>
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  onClick={() => act("resource:remove", { id: c.id, resourceId: r.id })}
-                  aria-label={t("common.remove")}
-                >
+                <ActionIcon variant="subtle" color="red" size="sm" onClick={() => act("resource:remove", { id: c.id, resourceId: r.id })} aria-label={t("common.remove")}>
                   <IconX size={14} />
                 </ActionIcon>
               </Tooltip>
-            </>
-          )}
-        </Group>
+            )}
+          </Group>
+          <Group gap="xs" wrap="nowrap">
+            <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }} truncate>
+              {t(RECHARGE_TAG[r.recharge], { from: r.rechargeOn ?? 6 })}
+            </Text>
+            {editable && (
+              <ActionIcon variant="default" onClick={() => act("resource:use", { id: c.id, resourceId: r.id, delta: 1 })} disabled={r.used >= r.max} aria-label={t("sheet.resources.use")}>
+                <IconMinus size={14} />
+              </ActionIcon>
+            )}
+            <Text fw={700} w={44} ta="center">
+              {r.max - r.used}/{r.max}
+            </Text>
+            {editable && (
+              <ActionIcon variant="default" onClick={() => act("resource:use", { id: c.id, resourceId: r.id, delta: -1 })} disabled={r.used === 0} aria-label={t("sheet.resources.recover")}>
+                <IconPlus size={14} />
+              </ActionIcon>
+            )}
+          </Group>
+        </Stack>
       ))}
       {adding && <ResourceForm c={c} onDone={() => setAdding(false)} />}
       {editable && (
@@ -159,7 +151,8 @@ function ResourceForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
   const t = useT();
   const [name, setName] = useState("");
   const [max, setMax] = useState<string | number>(1);
-  const [recharge, setRecharge] = useState<Recharge>("long");
+  const [recharge, setRecharge] = useState<Recharge>(c.type === "ally" ? "long" : "turn");
+  const [rechargeOn, setRechargeOn] = useState<string | number>(5);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -170,6 +163,7 @@ function ResourceForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
           name,
           max: Number(max),
           recharge,
+          rechargeOn: recharge === "dice" ? Number(rechargeOn) : undefined,
         })
       ).ok
     )
@@ -211,6 +205,18 @@ function ResourceForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
             comboboxProps={{ withinPortal: true }}
           />
         </Group>
+        {recharge === "dice" && (
+          <NumberInput
+            label={t("sheet.resources.rechargeOn")}
+            description={t("sheet.resources.rechargeOnHint")}
+            min={2}
+            max={6}
+            allowDecimal={false}
+            allowNegative={false}
+            value={rechargeOn}
+            onChange={setRechargeOn}
+          />
+        )}
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={onDone}>
             {t("common.cancel")}

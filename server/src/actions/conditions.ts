@@ -6,6 +6,7 @@ import { fail, requireInt, requireString } from "../validate";
 import { editable } from "./combatants";
 import { logSystem } from "./dice";
 import { endConcentration, isConcentration, tickCasterEffects } from "./effects";
+import { rechargeOnTurn } from "./sheet";
 import type { HandlerMap } from "./types";
 
 /**
@@ -24,6 +25,7 @@ export function startTurn(store: Store) {
     return;
   }
   delete c.turnUsed;
+  rechargeOnTurn(store, c);
   tickCasterEffects(store, c.id);
   if (c.conditions.length === 0) return;
   const expired: string[] = [];

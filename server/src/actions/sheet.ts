@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { COINS, LIMITS, type Coins, type Combatant, type Recharge } from "@rpg/shared";
+import { roll } from "../dice";
+import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString } from "../validate";
 import { editable } from "./combatants";
+import { logRoll } from "./dice";
 import type { HandlerMap } from "./types";
 
 /*
@@ -10,7 +13,7 @@ import type { HandlerMap } from "./types";
  * Quem edita: o dono e o mestre (que também usa em mobs e NPCs, ex.: "Mordida +5 / 2d6+3").
  */
 
-const RECHARGES: Recharge[] = ["short", "long", "none"];
+const RECHARGES: Recharge[] = ["short", "long", "none", "turn", "dice"];
 
 /** Texto de uma linha, aparado e cortado; vazio recusa com a mensagem. */
 function line(raw: unknown, max: number, empty: string): string {
@@ -49,20 +52,47 @@ function recharge(c: Combatant, kind: "short" | "long") {
   for (const r of c.resources ?? []) if (r.recharge === "short" || (kind === "long" && r.recharge === "long")) r.used = 0;
 }
 
+/**
+ * Começo da vez de quem tem os recursos: os de "começo da vez" (ações lendárias) voltam; os de recarga
+ * gastos rolam o d6 (no log, oculto se for mob/NPC) e voltam tirando o valor pedido ou mais.
+ */
+export function rechargeOnTurn(store: Store, c: Combatant) {
+  for (const r of c.resources ?? []) {
+    if (r.recharge === "turn") r.used = 0;
+    if (r.recharge !== "dice" || r.used === 0) continue;
+    const result = roll("1d6", "normal");
+    const back = result.total >= (r.rechargeOn ?? 6);
+    if (back) r.used = 0;
+    logRoll(store, gmOf(store), result, {
+      label: `Recarga de ${r.name} (${r.rechargeOn ?? 6}–6)${back ? ": voltou" : ""}`,
+      as: c.name,
+      hidden: c.type !== "ally",
+      color: c.color,
+    });
+  }
+}
+
+/** Autor das rolagens automáticas da mesa (recarga): o mestre, como se ele tivesse rolado. */
+function gmOf(store: Store): ServerPlayer {
+  return store.findGm() ?? ({ id: "system", name: "Mesa", role: "gm", token: "", sockets: new Set() } as ServerPlayer);
+}
+
 export const sheetHandlers: HandlerMap = {
   "resource:upsert": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
     const name = line(payload.name, LIMITS.spellName, "Informe o nome do recurso.");
     const max = requireInt(payload.max, "Usos", 1, LIMITS.resourceMax);
     const kind = RECHARGES.includes(payload.recharge) ? payload.recharge : fail("Quando o recurso volta?");
+    const rechargeOn = kind === "dice" ? requireInt(payload.rechargeOn, "Recarga", 2, 6) : undefined;
     if (payload.resourceId !== undefined) {
       const r = findIn(c.resources, payload.resourceId, "Recurso");
-      Object.assign(r, { name, max, recharge: kind, used: Math.min(r.used, max) });
+      delete r.rechargeOn;
+      Object.assign(r, { name, max, recharge: kind, used: Math.min(r.used, max) }, rechargeOn && { rechargeOn });
       return [r.id];
     }
     const resources = (c.resources ??= []);
     if (resources.length >= LIMITS.resources) fail(`Limite de ${LIMITS.resources} recursos.`);
-    const r = { id: randomUUID(), name, max, used: 0, recharge: kind };
+    const r = { id: randomUUID(), name, max, used: 0, recharge: kind, ...(rechargeOn && { rechargeOn }) };
     resources.push(r);
     return [r.id];
   },

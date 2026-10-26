@@ -187,7 +187,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
 
 /** Ficha pessoal: recursos, ataques salvos, inventário e moedas (arquivos de antes não têm). */
 function sheet(out: Combatant, c: Obj) {
-  const recharges = ["short", "long", "none"];
+  const recharges = ["short", "long", "none", "turn", "dice"];
   if (c.resources !== undefined) {
     out.resources = list(c.resources, "recursos", LIMITS.resources).map((raw) => {
       const r = obj(raw, "recurso");
@@ -199,6 +199,7 @@ function sheet(out: Combatant, c: Obj) {
         max,
         used: int(r.used, "recurso", 0, max),
         recharge: r.recharge as Recharge,
+        ...(r.rechargeOn !== undefined && { rechargeOn: int(r.rechargeOn, "recarga", 2, 6) }),
       };
     });
   }
