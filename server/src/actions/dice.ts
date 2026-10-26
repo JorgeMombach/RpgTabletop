@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult } from "@rpg/shared";
+import { ABILITIES, LIMITS, type Ability, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult } from "@rpg/shared";
 import { byId } from "../combat";
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
@@ -9,6 +9,8 @@ import type { HandlerMap } from "./types";
 
 const MODES: RollMode[] = ["normal", "adv", "dis"];
 const KINDS: RollKind[] = ["attack", "damage"];
+/** Siglas dos atributos no log (o log ainda é escrito em português pelo servidor). */
+const CHECK_LABEL: Record<Ability, string> = { str: "FOR", dex: "DES", con: "CON", int: "INT", wis: "SAB", cha: "CAR" };
 
 /**
  * Acrescenta ao log compartilhado (mantém só as últimas entradas). Com combate ativo,
@@ -120,6 +122,8 @@ export const diceHandlers: HandlerMap = {
     const mode = MODES.includes(payload?.mode as RollMode) ? (payload.mode as RollMode) : "normal";
     const kind = KINDS.includes(payload?.kind as RollKind) ? (payload.kind as RollKind) : undefined;
     const crit = kind === "damage" && payload.crit === true;
+    // Teste de atributo pela ficha: "Teste de SAB".
+    const check = ABILITIES.includes(payload?.check as Ability) ? (payload.check as Ability) : undefined;
     // "Rolar como": o mestre assina a rolagem com o nome de um combatente (o selecionado ou o da vez, no cliente).
     // O jogador assina com o personagem que está usando.
     const by = gm
@@ -138,7 +142,7 @@ export const diceHandlers: HandlerMap = {
     // Só depois de validar a expressão: rolagem inválida não gasta o pedido do mestre.
     const context = outOfTurn(store, player);
     const kindLabel = kind === "attack" ? "Ataque" : kind === "damage" ? (crit ? "Dano (crítico)" : "Dano") : undefined;
-    const label = [context, kindLabel].filter(Boolean).join(" · ") || undefined;
+    const label = [context, kindLabel, check && `Teste de ${CHECK_LABEL[check]}`].filter(Boolean).join(" · ") || undefined;
     if (!gm) player.lastRollAt = now;
     return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit, color })];
   },

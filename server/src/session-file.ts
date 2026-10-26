@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  ABILITIES,
   APP_VERSION,
   EFFECT_PRESETS,
   LIMITS,
@@ -7,6 +8,7 @@ import {
   SESSION_FILE_FORMAT,
   SPELL_LEVELS,
   isColor,
+  type Abilities,
   type Combatant,
   type CombatState,
   type Condition,
@@ -148,6 +150,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
     initRoll: nullableInt(c.initRoll, "dado da iniciativa", 1, 20),
     conditions: list(c.conditions ?? [], "condições", LIMITS.conditions).map(condition),
   };
+  stats(out, c);
   if (c.ownerId !== undefined) out.ownerId = requireString(c.ownerId, "Dono");
   if (c.templateId !== undefined) out.templateId = requireString(c.templateId, "Template");
   if (c.avatar !== undefined) out.avatar = requireImage(c.avatar, "Avatar", LIMITS.avatarChars);
@@ -162,6 +165,16 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   return out;
 }
 
+/** CA e atributos; arquivos de antes não têm (ficam sem). */
+function stats(out: { ac?: number; abilities?: Abilities }, raw: Obj) {
+  if (raw.ac !== undefined) out.ac = int(raw.ac, "CA", LIMITS.ac.min, LIMITS.ac.max);
+  if (raw.abilities === undefined) return;
+  const a = obj(raw.abilities, "atributos");
+  const abilities: Abilities = {};
+  for (const key of ABILITIES) if (a[key] !== undefined) abilities[key] = int(a[key], "atributo", LIMITS.abilityScore.min, LIMITS.abilityScore.max);
+  if (Object.keys(abilities).length > 0) out.abilities = abilities;
+}
+
 function template(raw: unknown): MobTemplate {
   const t = obj(raw, "template");
   const out: MobTemplate = {
@@ -171,6 +184,7 @@ function template(raw: unknown): MobTemplate {
     dexMod: int(t.dexMod, "mod. DES", LIMITS.dexMod.min, LIMITS.dexMod.max),
     color: isColor(t.color) ? t.color : fail("Arquivo inválido: cor."),
   };
+  stats(out, t);
   if (t.avatar !== undefined) out.avatar = requireImage(t.avatar, "Avatar", LIMITS.avatarChars);
   const notes = optText(t.notes, "notas", LIMITS.notes);
   if (notes) out.notes = notes;

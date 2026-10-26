@@ -119,7 +119,15 @@ function TemplateRow({ t, onEdit }: { t: MobTemplate; onEdit: () => void }) {
               {t.name}
             </Text>
             <Text size="xs" c="dimmed">
-              Vida {t.hpMax} · <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr> {fmtMod(t.dexMod)}
+              Vida {t.hpMax}
+              {t.ac !== undefined && (
+                <>
+                  {" · "}
+                  <Abbr title="Classe de armadura">CA</Abbr> {t.ac}
+                </>
+              )}
+              {" · "}
+              <Abbr title="Bônus de iniciativa (d20 + este valor)">Inic.</Abbr> {fmtMod(t.dexMod)}
             </Text>
           </div>
           <Tooltip label="Editar template">

@@ -63,6 +63,17 @@ export const CONDITIONS = [
 /** Aliado = de um jogador (ou do mestre); mob = inimigo; NPC = neutro, controlado pelo mestre. */
 export type CombatantType = "ally" | "mob" | "npc";
 
+/** Os seis atributos (ids estáveis; o nome mostrado vem da tradução). */
+export const ABILITIES = ["str", "dex", "con", "int", "wis", "cha"] as const;
+export type Ability = (typeof ABILITIES)[number];
+/** Valores dos atributos; o que faltar não foi preenchido (atributos são opcionais). */
+export type Abilities = Partial<Record<Ability, number>>;
+
+/** Modificador de um atributo, como no 5e: (valor − 10) ÷ 2, para baixo. 10 → +0; 12 → +1; 20 → +5. Sem teto. */
+export function abilityMod(score: number): number {
+  return Math.floor((score - 10) / 2);
+}
+
 export interface Combatant {
   id: string;
   name: string;
@@ -72,8 +83,12 @@ export interface Combatant {
   templateId?: string;
   hp: number;
   hpMax: number;
-  /** Usado só na iniciativa. */
+  /** Bônus de iniciativa (d20 + este valor; desempata a ordem). Com DES preenchida, o formulário propõe o modificador dela. */
   dexMod: number;
+  /** Classe de armadura. Ausente = não informada (arquivos antigos); jogadores não recebem a de mob/NPC. */
+  ac?: number;
+  /** Atributos opcionais; jogadores não recebem os de mob/NPC. */
+  abilities?: Abilities;
   avatar?: string;
   color: string;
   pos: GridPos | null;
@@ -94,7 +109,7 @@ export interface Combatant {
   summonRounds?: number;
 }
 
-/** Como um combatente chega ao cliente: jogadores não recebem a vida de mobs e NPCs. */
+/** Como um combatente chega ao cliente: jogadores não recebem vida, CA nem atributos de mobs e NPCs. */
 export type CombatantView = Omit<Combatant, "hp" | "hpMax"> & {
   hp?: number;
   hpMax?: number;
@@ -105,6 +120,8 @@ export interface MobTemplate {
   name: string;
   hpMax: number;
   dexMod: number;
+  ac?: number;
+  abilities?: Abilities;
   color: string;
   avatar?: string;
   notes?: string;

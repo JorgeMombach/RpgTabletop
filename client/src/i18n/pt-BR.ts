@@ -46,6 +46,42 @@ export const ptBR = {
   "mobile.sections": "Seções",
   "mobile.menu": "Menu",
   "mobile.desktopLayout": "Usar a tela de computador",
+
+  // Atributos (siglas e nomes)
+  "ability.str": "FOR",
+  "ability.dex": "DES",
+  "ability.con": "CON",
+  "ability.int": "INT",
+  "ability.wis": "SAB",
+  "ability.cha": "CAR",
+  "ability.str.name": "Força",
+  "ability.dex.name": "Destreza",
+  "ability.con.name": "Constituição",
+  "ability.int.name": "Inteligência",
+  "ability.wis.name": "Sabedoria",
+  "ability.cha.name": "Carisma",
+
+  // Formulário de combatente
+  "form.name": "Nome",
+  "form.hpMax": "Vida máx.",
+  "form.hpMaxTitle": "Vida máxima (pontos de vida)",
+  "form.ac": "CA",
+  "form.acTitle": "Classe de armadura",
+  "form.init": "Inic.",
+  "form.initTitle": "Bônus de iniciativa (d20 + este valor). Com Destreza preenchida, acompanha o modificador dela até você mudar à mão.",
+  "form.abilities": "Atributos (opcional)",
+  "form.abilitiesHint": "Valor do atributo; o modificador aparece ao lado (10 = +0, 12 = +1, 20 = +5).",
+  "form.color": "Cor",
+  "form.animal": "Animal",
+  "form.animalTip": "Mostra uma pata no token e na lista. O formato continua dizendo o lado (aliado, inimigo ou neutro).",
+  "form.hidden": "Já entra oculto",
+  "form.hiddenTip": "Só você vê (furtividade, sala escura); fica fora da iniciativa até você revelar",
+  "form.notes": "Notas (opcional)",
+
+  // Ficha: CA e atributos
+  "stats.acTitle": "Classe de armadura",
+  "stats.noAcTitle": "Classe de armadura ainda não informada: use Editar",
+  "stats.roll": "Rolar teste de {ability}: d20 {mod}",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;

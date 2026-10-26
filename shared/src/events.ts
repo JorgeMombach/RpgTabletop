@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -23,7 +23,12 @@ export interface Toast {
 export interface CombatantInput {
   name: string;
   hpMax: number;
+  /** Bônus de iniciativa. */
   dexMod: number;
+  /** Classe de armadura; `null` apaga. */
+  ac?: number | null;
+  /** Atributos preenchidos (os que faltarem ficam vazios); `{}` apaga todos. */
+  abilities?: Abilities;
   color?: string;
   /** dataURL já reduzido no cliente; `null` remove o avatar. */
   avatar?: string | null;
@@ -116,7 +121,7 @@ export interface ActionPayloads {
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
    */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean };
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability };
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
   "roll:cancel": Record<string, never>;
@@ -272,6 +277,9 @@ export const LIMITS = {
   spellName: 60,
   spellNote: 200,
   dexMod: { min: -10, max: 20 },
+  /** Classe de armadura e valor de atributo: sem teto de regra, só um limite de sanidade. */
+  ac: { min: 0, max: 99 },
+  abilityScore: { min: 1, max: 99 },
   /** Quantidade de mobs criados de uma vez a partir de um template. */
   qty: { min: 1, max: 30 },
   notes: 500,

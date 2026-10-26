@@ -582,3 +582,15 @@ abbr.abbr {
     display: none;
   }
 }
+
+/* Atributos na ficha: cada um numa caixinha; clicável rola o teste. */
+.ability-cell {
+  padding: 4px 0;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-dark-7);
+}
+
+button:hover > .ability-cell {
+  border-color: var(--mantine-color-bronze-6);
+}

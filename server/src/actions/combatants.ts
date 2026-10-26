@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  ABILITIES,
   ALLY_COLORS,
   LIMITS,
   MOB_COLORS,
@@ -7,6 +8,8 @@ import {
   NPC_COLORS,
   isColor,
   nearestFreeCell,
+  type Abilities,
+  type Ability,
   type Combatant,
   type CombatantInput,
   type MobTemplate,
@@ -32,6 +35,34 @@ function hpMaxOf(raw: unknown) {
 
 function dexModOf(raw: unknown) {
   return requireInt(raw, "Mod. de Destreza", LIMITS.dexMod.min, LIMITS.dexMod.max);
+}
+
+/** CA: `undefined` = não mexe; `null` = apaga. */
+function acOf(raw: unknown): number | null | undefined {
+  if (raw === undefined || raw === null) return raw;
+  return requireInt(raw, "CA", LIMITS.ac.min, LIMITS.ac.max);
+}
+
+/** Atributos: `undefined` = não mexe; objeto = passa a valer só o que veio preenchido (`{}` apaga todos). */
+function abilitiesOf(raw: unknown): Abilities | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("Atributos inválidos.");
+  const out: Abilities = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!(ABILITIES as readonly string[]).includes(key)) fail("Atributo desconhecido.");
+    if (value === null || value === undefined) continue;
+    out[key as Ability] = requireInt(value, "Atributo", LIMITS.abilityScore.min, LIMITS.abilityScore.max);
+  }
+  return out;
+}
+
+/** Aplica CA e atributos já validados (acOf/abilitiesOf). */
+function applyStats(target: { ac?: number; abilities?: Abilities }, ac: number | null | undefined, abilities: Abilities | undefined) {
+  if (ac === null) delete target.ac;
+  else if (ac !== undefined) target.ac = ac;
+  if (abilities === undefined) return;
+  if (Object.keys(abilities).length > 0) target.abilities = abilities;
+  else delete target.abilities;
 }
 
 function colorOf(raw: unknown, palette: string[], index: number) {
@@ -77,6 +108,8 @@ function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown } 
 
 function newCombatant(type: Combatant["type"], input: CombatantInput, color: string): Combatant {
   const hpMax = hpMaxOf(input?.hpMax);
+  const ac = acOf(input?.ac);
+  const abilities = abilitiesOf(input?.abilities);
   const c: Combatant = {
     id: randomUUID(),
     name: requireName(input?.name),
@@ -90,9 +123,15 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
     initRoll: null,
     conditions: [],
   };
+  applyStats(c, ac, abilities);
   applyAvatar(c, input?.avatar);
   applyFlags(c, input);
   return c;
+}
+
+/** Dados de um template para criar mob/NPC (cópia dos atributos: cada um muda o seu depois). */
+function fromTemplate(t: MobTemplate) {
+  return { hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities ? { ...t.abilities } : undefined, animal: t.animal };
 }
 
 /** Lista onde o combatente mora, pelo tipo. */
@@ -156,16 +195,20 @@ export const combatantHandlers: HandlerMap = {
       notes: typeof input?.notes === "string" ? input.notes.trim().slice(0, LIMITS.notes) || undefined : undefined,
       animal: input?.animal === true || undefined,
     };
+    const ac = acOf(input?.ac);
+    const abilities = abilitiesOf(input?.abilities);
     avatarOf(input.avatar); // valida antes de alterar
 
     if (input.id) {
       const t = templates.find((t) => t.id === input.id) ?? fail("Template não encontrado.");
       Object.assign(t, fields);
       if (isColor(input.color)) t.color = input.color;
+      applyStats(t, ac, abilities);
       applyAvatar(t, input.avatar);
       return [t.id];
     }
     const t: MobTemplate = { id: randomUUID(), ...fields, color: colorOf(input.color, MOB_COLORS, templates.length) };
+    applyStats(t, ac, abilities);
     applyAvatar(t, input.avatar);
     templates.push(t);
     return [t.id];
@@ -192,7 +235,7 @@ export const combatantHandlers: HandlerMap = {
       // O número diferencia os mobs: se o nome passar do limite, encurta o nome base, nunca o número.
       const suffix = ` ${n}`;
       const base = t.name.slice(0, NAME_MAX_LENGTH - suffix.length).trimEnd();
-      const mob = newCombatant("mob", { name: base + suffix, hpMax: t.hpMax, dexMod: t.dexMod, animal: t.animal, hidden: payload.hidden }, t.color);
+      const mob = newCombatant("mob", { name: base + suffix, ...fromTemplate(t), hidden: payload.hidden }, t.color);
       mob.templateId = t.id;
       if (t.avatar) mob.avatar = t.avatar;
       store.game.battle.mobs.push(mob);
@@ -280,7 +323,7 @@ export const combatantHandlers: HandlerMap = {
     // A cor do template é de mob (tons quentes): o NPC usa a paleta neutra.
     const npc = newCombatant(
       "npc",
-      { name: t.name, hpMax: t.hpMax, dexMod: t.dexMod, animal: t.animal, hidden: payload.hidden },
+      { name: t.name, ...fromTemplate(t), hidden: payload.hidden },
       colorOf(undefined, NPC_COLORS, npcs.length),
     );
     npc.templateId = t.id;
@@ -313,8 +356,11 @@ export const combatantHandlers: HandlerMap = {
     const name = payload.name !== undefined ? requireName(payload.name) : c.name;
     const dexMod = payload.dexMod !== undefined ? dexModOf(payload.dexMod) : c.dexMod;
     const hpMax = payload.hpMax !== undefined ? hpMaxOf(payload.hpMax) : c.hpMax;
+    const ac = acOf(payload.ac);
+    const abilities = abilitiesOf(payload.abilities);
     avatarOf(payload.avatar);
     Object.assign(c, { name, dexMod, hpMax });
+    applyStats(c, ac, abilities);
     if (isColor(payload.color)) c.color = payload.color;
     applyAvatar(c, payload.avatar);
     // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só a marca de animal.

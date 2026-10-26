@@ -25,6 +25,8 @@ function fullGame(playerId: string, gmId: string): GameState {
     hp: 22,
     hpMax: 30,
     dexMod: 1,
+    ac: 18,
+    abilities: { str: 16, dex: 12, con: 14, int: 8, wis: 13, cha: 10 },
     avatar: PNG,
     color: "#5ba3e6",
     pos: { col: 2, row: 3 },
@@ -45,7 +47,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   const lich: Combatant = { id: "lich", name: "Lich", type: "mob", templateId: "t1", hp: 90, hpMax: 135, dexMod: 3, color: "#7a5ba3", pos: { col: 8, row: 8 }, initiative: 20, initRoll: 17, conditions: [] };
   const sombra: Required<Combatant> = { ...thorin, id: "sombra", name: "Sombra", type: "mob", ownerId: gmId, hidden: true, summonerId: "lich", pos: { col: 9, row: 8 }, initiative: null, initRoll: null };
   const guarda: Combatant = { id: "guarda", name: "Guarda", type: "npc", hp: 11, hpMax: 11, dexMod: 0, color: "#4fae8c", pos: { col: 1, row: 1 }, initiative: 5, initRoll: 5, conditions: [], hidden: true };
-  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, color: "#7a5ba3", avatar: PNG, notes: "Filactéria escondida", animal: true };
+  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, color: "#7a5ba3", avatar: PNG, notes: "Filactéria escondida", animal: true };
   const effect: Required<MapEffect> = {
     id: "e1",
     name: "Graxa em chamas",

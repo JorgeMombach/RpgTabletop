@@ -9,7 +9,7 @@ import { select, useApp } from "../store";
 import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
 
-const INIT_TIP = "Iniciativa = d20 + mod. DES";
+const INIT_TIP = "Iniciativa = d20 + bônus de iniciativa";
 
 export function InitiativePanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
@@ -280,7 +280,7 @@ function PendingRow({ c }: { c: CombatantView }) {
       <Text size="sm" truncate title={c.name} style={{ flex: 1, minWidth: 0 }}>
         {c.name}
       </Text>
-      <Tooltip label="Valor do dado físico (d20 + mod. DES). Enter confirma.">
+      <Tooltip label="Valor do dado físico (d20 + bônus de iniciativa). Enter confirma.">
         <NumberInput
           w={60}
           placeholder="Valor"

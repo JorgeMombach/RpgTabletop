@@ -11,8 +11,8 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Base de i18n:** `client/src/i18n/` (catálogo pt-BR como fonte, en e es por cima, `t()`/`useT()`, idioma do navegador por padrão, menu de idioma na entrada, no topo e no menu do celular). Já traduzidos: tela de entrada, barra do topo, menu e abas do celular, botões das confirmações. O resto migra aos poucos (ver F).
 
 ## B. Ficha
-- [ ] **CA e atributos** em aliados, mobs, NPCs, conjurados e templates. Obrigatórios: vida, CA e bônus de iniciativa; opcionais: FOR, DES, CON, INT, SAB, CAR (modificador = ⌊(valor − 10) ÷ 2⌋, sem teto). Com DES preenchida, a iniciativa vem dela (sobrescrevível). CA e atributos de mob/NPC **escondidos dos jogadores** (filtro + teste). Arquivo antigo: CA vazia, mostrada "—".
-- [ ] **Testes de atributo pela ficha:** clicar em "SAB +3" rola d20 + 3 ("Thorin (Jorge) · Teste de SAB").
+- [x] **CA e atributos** em aliados, mobs, NPCs, conjurados e templates. Obrigatórios: vida, CA e bônus de iniciativa; opcionais: FOR, DES, CON, INT, SAB, CAR (modificador = ⌊(valor − 10) ÷ 2⌋, sem teto). Com DES preenchida, a iniciativa vem dela (sobrescrevível). CA e atributos de mob/NPC **escondidos dos jogadores** (filtro + teste). Arquivo antigo: CA vazia, mostrada "—".
+- [x] **Testes de atributo pela ficha:** clicar em "SAB +3" rola d20 + 3 ("Thorin (Jorge) · Teste de SAB").
 - [ ] **Tamanho das criaturas:** Miúdo (divide a casa), Pequeno/Médio 1×1, Grande 2×2, Enorme 3×3, Imenso 4×4. Token cobre as casas; o servidor confere todas as casas ocupadas; régua conta da borda. Padrão Médio (arquivo antigo também).
 - [ ] **Vida temporária:** campo à parte; o dano consome primeiro.
 - [ ] **Testes contra a morte:** aliado a 0 de vida ganha 3 sucessos / 3 falhas e botão de rolar o d20 (só marca; a mesa decide).

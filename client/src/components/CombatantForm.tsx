@@ -1,6 +1,9 @@
-import { Box, Button, Checkbox, ColorInput, Group, NumberInput, Paper, Stack, Textarea, TextInput, Tooltip } from "@mantine/core";
-import { LIMITS, NAME_MAX_LENGTH, type CombatantInput } from "@rpg/shared";
+import { Box, Button, Checkbox, Collapse, ColorInput, Group, NumberInput, Paper, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import { IconChevronDown } from "@tabler/icons-react";
+import { ABILITIES, abilityMod, LIMITS, NAME_MAX_LENGTH, type Abilities, type Ability, type CombatantInput } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
+import { fmtMod } from "../format";
+import { useT } from "../i18n";
 import { Abbr } from "./Abbr";
 import { AvatarPicker } from "./AvatarPicker";
 
@@ -9,7 +12,7 @@ export interface FormValues extends CombatantInput {
 }
 
 interface Props {
-  initial?: Partial<FormValues>;
+  initial?: Partial<FormValues> & { ac?: number | null };
   palette: string[];
   submitLabel: string;
   withNotes?: boolean;
@@ -21,11 +24,28 @@ interface Props {
   onCancel?: () => void;
 }
 
-/** Formulário de nome, vida máxima, mod. de Destreza, cor, avatar e marca de animal (mob, NPC, template ou aliado). */
+type ScoreInputs = Record<Ability, string | number>;
+
+const emptyScores = (a?: Abilities): ScoreInputs =>
+  Object.fromEntries(ABILITIES.map((k) => [k, a?.[k] ?? ""])) as ScoreInputs;
+
+/**
+ * Formulário de mob, NPC, template, aliado ou conjurado: nome, vida máxima, CA, bônus de iniciativa,
+ * atributos (opcionais), cor, avatar e marca de animal. Com DES preenchida, o bônus de iniciativa
+ * acompanha o modificador dela até a pessoa mexer nele à mão (talento, item mágico…).
+ */
 export function CombatantForm({ initial, palette, submitLabel, withNotes, withHidden, extra, onSubmit, onCancel }: Props) {
+  const t = useT();
   const [name, setName] = useState(initial?.name ?? "");
   const [hpMax, setHpMax] = useState<string | number>(initial?.hpMax ?? "");
+  const [ac, setAc] = useState<string | number>(initial?.ac ?? "");
   const [dexMod, setDexMod] = useState<string | number>(initial?.dexMod ?? 0);
+  const [scores, setScores] = useState<ScoreInputs>(() => emptyScores(initial?.abilities));
+  // Iniciativa segue a DES só enquanto ninguém a digitou (e se ela já batia com a DES ao abrir).
+  const [initFollowsDex, setInitFollowsDex] = useState(
+    () => initial?.abilities?.dex === undefined || abilityMod(initial.abilities.dex) === initial.dexMod,
+  );
+  const [showAbilities, setShowAbilities] = useState(() => !!initial?.abilities && Object.keys(initial.abilities).length > 0);
   const [color, setColor] = useState(initial?.color ?? palette[0]);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null);
@@ -34,13 +54,22 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  function setScore(key: Ability, value: string | number) {
+    setScores((s) => ({ ...s, [key]: value }));
+    if (key === "dex" && initFollowsDex && value !== "" && Number.isFinite(Number(value))) setDexMod(abilityMod(Number(value)));
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
+    const abilities: Abilities = {};
+    for (const k of ABILITIES) if (scores[k] !== "") abilities[k] = Number(scores[k]);
     const ok = await onSubmit({
       name,
       hpMax: Number(hpMax),
+      ac: ac === "" ? null : Number(ac),
       dexMod: Number(dexMod),
+      abilities,
       color,
       notes: withNotes ? notes : undefined,
       animal,
@@ -52,7 +81,10 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
     if (ok && !initial) {
       setName("");
       setHpMax("");
+      setAc("");
       setDexMod(0);
+      setScores(emptyScores());
+      setInitFollowsDex(true);
       setNotes("");
       setAvatar(null);
       setAvatarChanged(false);
@@ -64,7 +96,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
     <Paper component="form" onSubmit={submit} p="sm" bg="dark.7">
       <Stack gap="sm">
         <TextInput
-          label="Nome"
+          label={t("form.name")}
           autoFocus
           required
           value={name}
@@ -73,7 +105,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
         />
         <Group grow gap="sm" align="flex-start">
           <NumberInput
-            label={<Abbr title="Vida máxima (pontos de vida)">Vida máx.</Abbr>}
+            label={<Abbr title={t("form.hpMaxTitle")}>{t("form.hpMax")}</Abbr>}
             required
             min={LIMITS.hpMax.min}
             max={LIMITS.hpMax.max}
@@ -82,17 +114,65 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
             onChange={setHpMax}
           />
           <NumberInput
-            label={<Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">Mod. DES</Abbr>}
+            label={<Abbr title={t("form.acTitle")}>{t("form.ac")}</Abbr>}
+            required
+            min={LIMITS.ac.min}
+            max={LIMITS.ac.max}
+            allowDecimal={false}
+            allowNegative={false}
+            value={ac}
+            onChange={setAc}
+          />
+          <NumberInput
+            label={<Abbr title={t("form.initTitle")}>{t("form.init")}</Abbr>}
             required
             min={LIMITS.dexMod.min}
             max={LIMITS.dexMod.max}
             allowDecimal={false}
             value={dexMod}
-            onChange={setDexMod}
+            onChange={(v) => {
+              setDexMod(v);
+              setInitFollowsDex(false);
+            }}
           />
         </Group>
+
+        <UnstyledButton onClick={() => setShowAbilities((s) => !s)} aria-expanded={showAbilities}>
+          <Group gap={4}>
+            <IconChevronDown size={14} className={`chevron ${showAbilities ? "" : "collapsed"}`} aria-hidden />
+            <Text size="sm" fw={500}>
+              {t("form.abilities")}
+            </Text>
+          </Group>
+        </UnstyledButton>
+        <Collapse expanded={showAbilities}>
+          <SimpleGrid cols={3} spacing="xs" verticalSpacing="xs">
+            {ABILITIES.map((k) => {
+              const v = scores[k];
+              const mod = v === "" || !Number.isFinite(Number(v)) ? null : abilityMod(Number(v));
+              return (
+                <NumberInput
+                  key={k}
+                  label={<Abbr title={t(`ability.${k}.name`)}>{t(`ability.${k}`)}</Abbr>}
+                  min={LIMITS.abilityScore.min}
+                  max={LIMITS.abilityScore.max}
+                  allowDecimal={false}
+                  allowNegative={false}
+                  value={v}
+                  onChange={(value) => setScore(k, value)}
+                  rightSection={mod === null ? null : <Text size="xs" c="dimmed">{fmtMod(mod)}</Text>}
+                  rightSectionWidth={32}
+                />
+              );
+            })}
+          </SimpleGrid>
+          <Text size="xs" c="dimmed" mt={4}>
+            {t("form.abilitiesHint")}
+          </Text>
+        </Collapse>
+
         <ColorInput
-          label="Cor"
+          label={t("form.color")}
           format="hex"
           value={color}
           onChange={setColor}
@@ -109,22 +189,22 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
           }}
         />
         <Group gap="md">
-          <Tooltip label="Mostra uma pata no token e na lista. O formato continua dizendo o lado (aliado, inimigo ou neutro).">
+          <Tooltip label={t("form.animalTip")}>
             <Box>
-              <Checkbox label="Animal" checked={animal} onChange={(e) => setAnimal(e.currentTarget.checked)} />
+              <Checkbox label={t("form.animal")} checked={animal} onChange={(e) => setAnimal(e.currentTarget.checked)} />
             </Box>
           </Tooltip>
           {withHidden && (
-            <Tooltip label="Só você vê (furtividade, sala escura); fica fora da iniciativa até você revelar">
+            <Tooltip label={t("form.hiddenTip")}>
               <Box>
-                <Checkbox label="Já entra oculto" checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} />
+                <Checkbox label={t("form.hidden")} checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} />
               </Box>
             </Tooltip>
           )}
         </Group>
         {withNotes && (
           <Textarea
-            label="Notas (opcional)"
+            label={t("form.notes")}
             maxLength={LIMITS.notes}
             value={notes}
             onChange={(e) => setNotes(e.currentTarget.value)}
@@ -134,7 +214,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
         <Group justify="flex-end" gap="xs">
           {onCancel && (
             <Button variant="default" onClick={onCancel}>
-              Cancelar
+              {t("common.cancel")}
             </Button>
           )}
           <Button type="submit" loading={busy}>

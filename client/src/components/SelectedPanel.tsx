@@ -10,6 +10,7 @@ import { cellAt, nearestFreeCell } from "../map/geometry";
 import { select, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { CombatantAvatar } from "./CombatantAvatar";
+import { StatsSection } from "./StatsSection";
 import { SummonForm } from "./SummonForm";
 import { CombatantForm } from "./CombatantForm";
 import { ConditionsSection } from "./ConditionsSection";
@@ -27,7 +28,7 @@ function placeOnMap(state: ClientState, id: string) {
 
 const PALETTE = { ally: ALLY_COLORS, mob: MOB_COLORS, npc: NPC_COLORS };
 
-const DES = <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr>;
+const INIT = <Abbr title="Bônus de iniciativa (d20 + este valor)">Inic.</Abbr>;
 
 export function SelectedPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
@@ -103,12 +104,12 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           <Text fw={600} truncate title={c.name}>
             {c.name}
           </Text>
-          <Text size="xs" c="dimmed" truncate title={`${kind} · mod. DES ${fmtMod(c.dexMod)}`}>
-            {kind} · {DES} {fmtMod(c.dexMod)}
+          <Text size="xs" c="dimmed" truncate title={`${kind} · iniciativa ${fmtMod(c.dexMod)}`}>
+            {kind} · {INIT} {fmtMod(c.dexMod)}
           </Text>
         </div>
         {canEdit && !editing && !summoning && (
-          <Tooltip label="Mudar nome, vida máxima, mod. DES, cor e avatar">
+          <Tooltip label="Mudar nome, vida, CA, iniciativa, atributos, cor e avatar">
             <Button variant="default" leftSection={<IconPencil size={14} />} onClick={() => setEditingId(c.id)}>
               Editar
             </Button>
@@ -143,6 +144,8 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           <HpBar hp={c.hp} hpMax={c.hpMax} thick />
         </Stack>
       )}
+
+      {!editing && !summoning && <StatsSection c={c} canRoll={canEdit} gm={gm} />}
 
       {!editing && !summoning && <ConditionsSection c={c} editable={canEdit} />}
 
