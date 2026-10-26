@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { Combatant, GameState, PublicPlayer, Role, SoundState } from "@rpg/shared";
+import { LIMITS, type Combatant, type GameState, type PublicPlayer, type Role, type SoundState } from "@rpg/shared";
+import { defaultWeather } from "./weather";
 
 /** Mob ou NPC removido recentemente, guardado para o "Desfazer". */
 export interface RemovedMob {
@@ -21,6 +22,8 @@ export interface ServerPlayer {
   sockets: Set<string>;
   /** Veio de um arquivo de sessão (E18): o primeiro jogador que entrar com este nome assume. */
   claimByName?: boolean;
+  /** Hora da última rolagem (antispam dos jogadores, E26). */
+  lastRollAt?: number;
 }
 
 export function createGame(): GameState {
@@ -42,8 +45,9 @@ export function createGame(): GameState {
       mobs: [],
       npcs: [],
       combat: { active: false, round: 0, turnIndex: 0, order: [], turn: 0 },
-      rolls: { request: null, reactions: [] },
+      rolls: { request: null, reactions: [], outside: "free" },
       effects: [],
+      weather: defaultWeather(),
     },
     log: [],
   };
@@ -62,6 +66,8 @@ export class Store {
   soundsDir: string | null = null;
   /** Arquivos de áudio da pasta (lista lida no começo e quando o mestre atualiza). */
   soundLibrary: string[] | null = null;
+  /** Antispam dos jogadores (E26); os testes zeram para rolar em sequência. */
+  rollCooldownMs: number = LIMITS.rollCooldownMs;
 
   constructor(readonly maxPlayers: number) {}
 

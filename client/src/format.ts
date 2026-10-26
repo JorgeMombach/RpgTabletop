@@ -1,4 +1,4 @@
-import type { ClientState, CombatantView, Condition } from "@rpg/shared";
+import type { ClientState, CombatantView, Condition, LogEntry } from "@rpg/shared";
 
 export function fmtMod(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -18,6 +18,11 @@ export function hpLevel(hp: number, hpMax: number): "full" | "mid" | "low" | "ze
 /** Todos os combatentes da sessão: aliados, mobs e NPCs. */
 export function allCombatants(state: ClientState): CombatantView[] {
   return [...state.allies, ...state.battle.mobs, ...state.battle.npcs];
+}
+
+/** Quem rolou, no padrão da mesa (E26): "Thorin (Jorge)", "Goblin 2 (Mestre)", "Mestre". */
+export function rollerName(e: LogEntry): string {
+  return e.as ? `${e.as} (${e.author})` : e.author;
 }
 
 /** "Atordoado (2)" ou só "Envenenado" (sem duração). */

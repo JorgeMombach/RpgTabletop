@@ -380,6 +380,20 @@ abbr.abbr {
   color: var(--mantine-color-dark-2);
 }
 
+/* Clima e luz sobre o mapa (E26): não recebem cliques. A luz multiplica as cores do mapa. */
+.map-light,
+.map-weather {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.map-light {
+  mix-blend-mode: multiply;
+}
+
 /* Rolagem no centro do mapa (E22): os dados 3D por cima do mapa, sem bloquear cliques. */
 .dice-overlay {
   position: absolute;

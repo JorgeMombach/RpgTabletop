@@ -1,5 +1,7 @@
-import { Badge, Code, Group, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import type { LogEntry, RollTerm } from "@rpg/shared";
+import { rollerName } from "../format";
+import { useApp } from "../store";
 
 interface TurnGroup {
   key: string;
@@ -25,6 +27,7 @@ function groupByTurn(log: LogEntry[]): TurnGroup[] {
 }
 
 export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
+  const rolling = useApp((s) => s.rolling);
   if (log.length === 0)
     return (
       <Text size="xs" c="dimmed">
@@ -43,7 +46,7 @@ export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
               </Text>
             )}
             {g.entries.map((e) => (
-              <Entry key={e.id} e={e} selfId={selfId} />
+              <Entry key={e.id} e={e} selfId={selfId} rolling={rolling.includes(e.id)} />
             ))}
           </Stack>
         </li>
@@ -52,9 +55,9 @@ export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
   );
 }
 
-function Entry({ e, selfId }: { e: LogEntry; selfId: string }) {
-  // Mestre rolando como um combatente: o log mostra o combatente (SPEC E16).
-  const author = e.as ?? e.author;
+function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: boolean }) {
+  // "Personagem (jogador)"; do lado do mestre, "Goblin 2 (Mestre)" (E26).
+  const author = rollerName(e);
   return (
     <Paper p="xs" bg="dark.7" style={e.hidden ? { borderStyle: "dashed" } : undefined}>
       <Group gap={6} wrap="nowrap" mb={4}>
@@ -70,7 +73,19 @@ function Entry({ e, selfId }: { e: LogEntry; selfId: string }) {
           {new Date(e.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
         </Text>
       </Group>
-      {e.roll ? <RollBody entry={e} /> : <Text size="sm">{e.text}</Text>}
+      {rolling ? (
+        // Os dados ainda estão caindo na tela: o resultado aparece junto com eles (E26).
+        <Group gap={6} wrap="nowrap">
+          <Loader size={12} color="bronze" />
+          <Text size="sm" c="dimmed">
+            {e.label ? `${e.label}: rolando…` : "Rolando…"}
+          </Text>
+        </Group>
+      ) : e.roll ? (
+        <RollBody entry={e} />
+      ) : (
+        <Text size="sm">{e.text}</Text>
+      )}
     </Paper>
   );
 }

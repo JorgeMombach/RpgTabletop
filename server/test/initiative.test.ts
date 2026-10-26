@@ -69,7 +69,8 @@ describe("ordem de iniciativa", () => {
     assert.ok(ally.initRoll! >= 1 && ally.initRoll! <= 20);
     assert.equal(ally.initiative, ally.initRoll! + 3);
     const s = await seen;
-    assert.equal(s.log[0].label, "Iniciativa · Thorin");
+    assert.equal(s.log[0].label, "Iniciativa");
+    assert.equal(s.log[0].as, "Thorin");
     assert.equal(s.log[0].roll?.total, ally.initiative);
   });
 

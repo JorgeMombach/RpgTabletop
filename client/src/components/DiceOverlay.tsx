@@ -2,6 +2,7 @@ import { Paper, Stack, Text } from "@mantine/core";
 import type { LogEntry } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { diceBox, fitBox, notationFor, paintBox } from "../dice3d";
+import { rollerName } from "../format";
 import { useApp } from "../store";
 import { naturalD20 } from "./RollLog";
 
@@ -13,6 +14,12 @@ const ROLL_TIMEOUT_MS = 6000;
 const MAX_QUEUE = 3;
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** O log revela estas rolagens (E26): os dados pararam, ou a animação foi pulada. */
+function reveal(ids: string[]) {
+  if (ids.length === 0) return;
+  useApp.setState((s) => ({ rolling: s.rolling.filter((id) => !ids.includes(id)) }));
+}
 
 /**
  * Rolagem no centro do mapa (E22): cada rolagem nova que chega no log (as que esta pessoa pode ver)
@@ -38,13 +45,24 @@ export function DiceOverlay() {
     for (const e of fresh) seen.current.add(e.id);
     // Desligada, ou aba em segundo plano (o navegador pausa a animação): só o log.
     if (!enabled || document.hidden) {
+      reveal(queue.current.map((e) => e.id));
       queue.current = [];
       return;
     }
-    queue.current.push(...fresh.filter((e) => e.roll));
-    if (queue.current.length > MAX_QUEUE) queue.current.splice(0, queue.current.length - MAX_QUEUE);
+    const rolls = fresh.filter((e) => e.roll);
+    if (rolls.length === 0) return;
+    queue.current.push(...rolls);
+    useApp.setState((s) => ({ rolling: [...s.rolling, ...rolls.map((e) => e.id)] }));
+    if (queue.current.length > MAX_QUEUE) reveal(queue.current.splice(0, queue.current.length - MAX_QUEUE).map((e) => e.id));
     void run();
   }, [log]);
+
+  // Desligou a animação: o que estava na fila aparece no log na hora.
+  useEffect(() => {
+    if (enabled) return;
+    reveal(queue.current.map((e) => e.id));
+    queue.current = [];
+  }, [enabled]);
 
   // Carrega os dados 3D logo depois de abrir a mesa, para a primeira rolagem não esperar o download.
   useEffect(() => {
@@ -68,6 +86,7 @@ export function DiceOverlay() {
           await Promise.race([box.roll(notation), wait(ROLL_TIMEOUT_MS)]);
         }
         setShown(next);
+        reveal([next.id]);
         await wait(SHOW_MS);
         setShown(null);
         box?.clearDice();
@@ -95,8 +114,8 @@ function ResultBanner({ e }: { e: LogEntry }) {
     <div className="dice-overlay-result">
       <Paper className="plaque" withBorder px="lg" py="sm" shadow="xl" role="status">
         <Stack gap={0} align="center">
-          <Text size="sm" fw={600} truncate maw={360} title={e.as ?? e.author}>
-            {e.as ?? e.author}
+          <Text size="sm" fw={600} truncate maw={360} title={rollerName(e)}>
+            {rollerName(e)}
             {e.label && (
               <Text span size="sm" c="dimmed" fw={400}>
                 {" · "}

@@ -4,6 +4,7 @@ import { Circle, Group, Image as KImage, Line, Path, Rect, RegularPolygon, Text 
 import { feetBetween, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
 import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
+import { useApp } from "../store";
 import { useImage } from "./useImage";
 
 // Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
@@ -128,11 +129,14 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       opacity={hidden ? 0.45 : down ? 0.5 : 1}
       onMouseEnter={(e) => {
         setHover(true);
+        // O mapa desenha este token por último: o nome fica por cima dos vizinhos (E26).
+        useApp.setState({ hoverId: c.id });
         const stage = e.target.getStage();
         if (stage) stage.container().style.cursor = draggable ? "grab" : "pointer";
       }}
       onMouseLeave={(e) => {
         setHover(false);
+        if (useApp.getState().hoverId === c.id) useApp.setState({ hoverId: null });
         const stage = e.target.getStage();
         if (stage) stage.container().style.cursor = "";
       }}

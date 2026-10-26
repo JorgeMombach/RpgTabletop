@@ -76,19 +76,31 @@ describe("rolar como", () => {
     assert.ok((await act(g, "dice:roll", { expr: "1d6+2", asId: goblin, kind: "damage" })).ok);
     const [atk, dmg] = game().log.slice(-2);
     assert.equal(atk.as, "Goblin 2");
+    assert.equal(atk.author, "Mestre", "log mostra Goblin 2 (Mestre)");
     assert.equal(atk.label, "Ataque");
     assert.equal(dmg.label, "Dano");
     assert.deepEqual(atk.turn, dmg.turn, "ataque e dano no mesmo turno");
     assert.deepEqual(atk.turn, { seq: game().battle.combat.turn, round: 1, name: "Goblin 2" });
   });
 
-  it("dano de crítico fica marcado; jogador não usa 'rolar como'", async () => {
+  it("dano de crítico fica marcado; jogador não usa 'rolar como': assina com o próprio personagem", async () => {
     const { ana, goblin } = await setup();
     assert.ok((await act(ana, "dice:roll", { expr: "4d6+3", kind: "damage", crit: true, asId: goblin })).ok);
     assert.equal(lastLog().label, "Dano (crítico)");
     assert.equal(lastLog().crit, true);
-    assert.equal(lastLog().as, undefined);
+    assert.equal(lastLog().as, "Thorin");
     assert.equal(lastLog().author, "Ana");
+  });
+
+  it("mestre sem 'rolar como' aparece só como Mestre; jogador sem personagem, só o nome", async () => {
+    const g = await gm();
+    const ana = await player("Ana");
+    assert.ok((await act(g, "dice:roll", { expr: "1d20" })).ok);
+    assert.equal(lastLog().author, "Mestre");
+    assert.equal(lastLog().as, undefined);
+    assert.ok((await act(ana, "dice:roll", { expr: "1d20" })).ok);
+    assert.equal(lastLog().author, "Ana");
+    assert.equal(lastLog().as, undefined);
   });
 });
 
@@ -116,7 +128,7 @@ describe("pedido de rolagem (resistência)", () => {
     assert.equal(game().battle.rolls.request, null);
   });
 
-  it("rolagem inválida não gasta o pedido; só o mestre pede e só em combate", async () => {
+  it("rolagem inválida não gasta o pedido; só o mestre pede", async () => {
     const { g, ana, bia } = await setup();
     await act(g, "combat:next", {});
     await act(g, "roll:request", { label: "Resistência FOR", playerIds: [] });
@@ -126,8 +138,55 @@ describe("pedido de rolagem (resistência)", () => {
     assert.equal((await act(g, "roll:request", { label: "  ", playerIds: [] })).ok, false);
     assert.ok((await act(g, "roll:cancel", {})).ok);
     assert.equal(game().battle.rolls.request, null);
+  });
+});
+
+describe("rolagens fora de combate (E26)", () => {
+  it("livres por padrão; travadas: só o mestre rola", async () => {
+    const g = await gm();
+    const ana = await player("Ana");
+    assert.equal(game().battle.rolls.outside, "free");
+    assert.ok((await act(g, "roll:outside", { mode: "locked" })).ok);
+    assert.match(errorOf(await act(ana, "dice:roll", { expr: "1d20" })), /travou as rolagens/);
+    assert.ok((await act(g, "dice:roll", { expr: "1d20" })).ok);
+    assert.equal((await act(ana, "roll:outside", { mode: "free" })).ok, false, "só o mestre muda");
+    assert.equal((await act(g, "roll:outside", { mode: "talvez" as never })).ok, false);
+  });
+
+  it("só com pedido: cada jogador pedido rola uma vez, com o rótulo do pedido", async () => {
+    const g = await gm();
+    const ana = await player("Ana");
+    const bia = await player("Bia");
+    await act(g, "roll:outside", { mode: "request" });
+    assert.match(errorOf(await act(ana, "dice:roll", { expr: "1d20" })), /quando o mestre pedir/);
+    idsOf(await act(g, "roll:request", { label: "Percepção", playerIds: [playerId("Ana")] }));
+    assert.ok((await act(ana, "dice:roll", { expr: "1d20+2" })).ok);
+    assert.equal(lastLog().label, "Percepção");
+    assert.equal(game().battle.rolls.request, null, "todos os pedidos rolaram");
+    assert.equal((await act(ana, "dice:roll", { expr: "1d20" })).ok, false, "só uma vez");
+    assert.equal((await act(bia, "dice:roll", { expr: "1d20" })).ok, false, "pedido não era para Bia");
+  });
+
+  it("o modo continua depois do combate", async () => {
+    const { g, ana } = await setup();
+    await act(g, "roll:outside", { mode: "locked" });
     await act(g, "combat:end", {});
-    assert.match(errorOf(await act(g, "roll:request", { label: "X", playerIds: [] })), /Fora de combate/);
+    assert.equal(game().battle.rolls.outside, "locked");
+    assert.equal((await act(ana, "dice:roll", { expr: "1d20" })).ok, false);
+  });
+});
+
+describe("antispam (E26)", () => {
+  it("jogador espera entre rolagens; mestre não; rolagem recusada não conta", async () => {
+    const g = await gm();
+    const ana = await player("Ana");
+    ctx.server.store.rollCooldownMs = 300;
+    assert.ok((await act(ana, "dice:roll", { expr: "1d20" })).ok);
+    assert.match(errorOf(await act(ana, "dice:roll", { expr: "1d20" })), /espere os dados/);
+    assert.ok((await act(g, "dice:roll", { expr: "1d20" })).ok);
+    assert.ok((await act(g, "dice:roll", { expr: "1d20" })).ok);
+    await new Promise((r) => setTimeout(r, 320));
+    assert.ok((await act(ana, "dice:roll", { expr: "1d20" })).ok);
   });
 });
 
@@ -135,7 +194,7 @@ describe("reação", () => {
   it("libera a rolagem até o turno mudar, uma vez por round", async () => {
     const { g, bia } = await setup(); // vez de Thorin (Ana)
     assert.ok((await act(bia, "reaction:use", {})).ok);
-    assert.equal(lastLog().text, "Bia usou a reação.");
+    assert.equal(lastLog().text, "Lia (Bia) usou a reação.");
     assert.ok((await act(bia, "dice:roll", { expr: "1d20+5", kind: "attack" })).ok);
     assert.equal(lastLog().label, "Reação · Ataque");
     assert.ok((await act(bia, "dice:roll", { expr: "1d8+3", kind: "damage" })).ok, "ataque e dano na mesma reação");

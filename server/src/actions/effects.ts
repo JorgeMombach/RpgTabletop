@@ -3,7 +3,7 @@ import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, typ
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
-import { logSystem } from "./dice";
+import { logSystem, whoIs } from "./dice";
 import type { HandlerMap } from "./types";
 
 export const CONCENTRATION = "Concentração";
@@ -173,7 +173,7 @@ export const effectHandlers: HandlerMap = {
       delete e.revertTo;
     }
     Object.assign(e, fields, { ownerId: player.id });
-    logSystem(store, `${player.name} transformou ${before.name} em ${e.name}.`);
+    logSystem(store, `${whoIs(store, player)} transformou ${before.name} em ${e.name}.`);
     const caster = fields.casterId ? byId(store, fields.casterId) : undefined;
     if (fields.concentration && caster) ensureConcentration(caster);
   },

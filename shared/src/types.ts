@@ -149,9 +149,16 @@ export interface ReactionUse {
   turn: number;
 }
 
+/**
+ * Rolagens dos jogadores fora de combate (E26): livres, só com pedido do mestre ou travadas.
+ * Em combate vale a trava por turno de sempre.
+ */
+export type OutsideRolls = "free" | "request" | "locked";
+
 export interface RollsState {
   request: RollRequest | null;
   reactions: ReactionUse[];
+  outside: OutsideRolls;
 }
 
 /** Bloco de rolagem usado no combate (E16). */
@@ -191,7 +198,10 @@ export interface LogEntry {
   /** Contexto da rolagem, ex.: "Iniciativa · Thorin". */
   label?: string;
   roll?: RollResult;
-  /** Mestre rolando como um combatente: o log mostra este nome em vez do autor. */
+  /**
+   * Personagem que rolou: o combatente escolhido pelo mestre ou o personagem do jogador.
+   * O log mostra "Personagem (autor)" (E26); o autor do mestre é sempre "Mestre".
+   */
   as?: string;
   /** Cor de quem rolou (token do combatente), usada nos dados 3D (E22); ausente = bronze do mestre. */
   color?: string;
@@ -290,6 +300,7 @@ export interface GameState {
     combat: CombatState;
     rolls: RollsState;
     effects: MapEffect[];
+    weather: WeatherState;
   };
   log: LogEntry[];
 }
@@ -355,6 +366,48 @@ export interface SoundState {
   volume: { music: number; ambient: number; sfx: number };
 }
 
+/**
+ * Clima sobre o mapa inteiro (E26), escolhido pelo mestre e visto por todos. O id é o que viaja.
+ * `sound`: ambiente gerado (E25) sugerido no painel para combinar com o clima.
+ */
+export const WEATHERS = {
+  rain: { label: "Chuva", group: "Água e frio", sound: "rain" },
+  heavyRain: { label: "Chuva forte", group: "Água e frio", sound: "rain" },
+  // Tempestade e granizo sugerem a chuva: o trovão vem com os relâmpagos do clima, no mesmo instante para todos.
+  storm: { label: "Tempestade (relâmpagos)", group: "Água e frio", sound: "rain" },
+  hail: { label: "Granizo", group: "Água e frio", sound: "rain" },
+  snow: { label: "Neve", group: "Água e frio", sound: "wind" },
+  blizzard: { label: "Nevasca", group: "Água e frio", sound: "wind" },
+  fog: { label: "Névoa", group: "Ar", sound: null },
+  leaves: { label: "Vento com folhas", group: "Ar", sound: "wind" },
+  sand: { label: "Tempestade de areia", group: "Ar", sound: "wind" },
+  ash: { label: "Cinzas caindo", group: "Fogo e terra", sound: "campfire" },
+  embers: { label: "Brasas subindo", group: "Fogo e terra", sound: "campfire" },
+  heat: { label: "Calor (miragem)", group: "Fogo e terra", sound: null },
+  fireflies: { label: "Vagalumes", group: "Mágico e sombrio", sound: "night" },
+  magic: { label: "Luzes mágicas", group: "Mágico e sombrio", sound: null },
+  spores: { label: "Esporos", group: "Mágico e sombrio", sound: "cave" },
+  petals: { label: "Pétalas", group: "Mágico e sombrio", sound: "wind" },
+  bloodRain: { label: "Chuva de sangue", group: "Mágico e sombrio", sound: "rain" },
+} as const satisfies Record<string, { label: string; group: string; sound: GenAmbientId | null }>;
+
+export type WeatherId = keyof typeof WEATHERS;
+
+/** Luz da cena (E26), separada do clima e combinável com ele. */
+export const LIGHTS = { day: "Dia", dusk: "Entardecer", night: "Noite", moon: "Luar" } as const;
+export type LightId = keyof typeof LIGHTS;
+
+export interface WeatherState {
+  kind: WeatherId | null;
+  /** 0,2 a 1: quantidade de partículas, densidade da névoa… */
+  intensity: number;
+  /** Direção do vento em graus: 0 = cai reto; negativo = para a esquerda; positivo = para a direita. */
+  wind: number;
+  light: LightId;
+  /** Hora do servidor em que o clima começou: semente dos relâmpagos, iguais para todos. */
+  startedAt: number;
+}
+
 export interface ClientState {
   self: PublicPlayer;
   players: PublicPlayer[];
@@ -369,6 +422,7 @@ export interface ClientState {
     combat: CombatState;
     rolls: RollsState;
     effects: MapEffect[];
+    weather: WeatherState;
   };
   log: LogEntry[];
   /** Som da mesa (E25): o mesmo para todos. */

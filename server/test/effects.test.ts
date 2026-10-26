@@ -159,7 +159,7 @@ describe("transformar efeito (E24)", () => {
     assert.deepEqual(e.area, area);
     assert.equal(e.ownerId, find(lia).ownerId, "Bia controla agora");
     assert.equal(e.revertTo, undefined);
-    assert.ok(game().log.some((l) => l.system && l.text === "Bia transformou Graxa em Graxa em chamas."));
+    assert.ok(game().log.some((l) => l.system && l.text === "Lia (Bia) transformou Graxa em Graxa em chamas."));
     // Jogador transforma com o próprio personagem; não com o de outro.
     assert.match(errorOf(await act(ana, "effect:transform", { id: graxa, preset: "steam", casterId: lia })), /seu personagem/);
   });

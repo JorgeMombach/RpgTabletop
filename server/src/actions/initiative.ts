@@ -57,7 +57,7 @@ export const initiativeHandlers: HandlerMap = {
     const result = rollInitiative(c.dexMod);
     applyRoll(store, c, result);
     // Iniciativa de mob e NPC fica só para o mestre no log; a de aliado, para todos.
-    logRoll(store, player, result, { label: `Iniciativa · ${c.name}`, hidden: c.type !== "ally", color: c.color });
+    logRoll(store, player, result, { label: "Iniciativa", as: c.name, hidden: c.type !== "ally", color: c.color });
   },
 
   "init:rollMobs": (store, player, payload) => {
@@ -110,7 +110,7 @@ export const initiativeHandlers: HandlerMap = {
     if (combat.active || combat.order.length > 0) {
       const result = rollInitiative(c.dexMod);
       applyRoll(store, c, result);
-      logRoll(store, player, result, { label: `Iniciativa · ${c.name} (revelado)`, hidden: true, color: c.color });
+      logRoll(store, player, result, { label: "Iniciativa (revelado)", as: c.name, hidden: true, color: c.color });
     }
   },
 
