@@ -6,22 +6,14 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.8.0] - 2026-10-26
+
+Melhorias da mesa: ficha mais completa, combate mais fluido, mapa com cenas, desenho, paredes e portas, e o começo da tradução para inglês e espanhol. Arquivos de sessão salvos nesta versão só abrem na 2.8 ou mais nova.
+
 ### Adicionado
+**Ficha**
 - **CA e atributos** em aliados, mobs, NPCs, conjurados e no bestiário. Vida, CA e bônus de iniciativa são obrigatórios; FOR, DES, CON, INT, SAB e CAR são opcionais, com o modificador calculado (10 = +0, 12 = +1, 20 = +5). Com DES preenchida, o bônus de iniciativa acompanha o modificador dela (dá para mudar à mão). Jogadores não veem a CA nem os atributos de inimigos e NPCs.
 - **Tamanho das criaturas:** Miúdo, Pequeno, Médio, Grande (2×2), Enorme (3×3) e Imenso (4×4), no formulário e no bestiário. O token cobre as casas, ninguém entra no espaço de uma criatura grande e ela não pousa em cima de ninguém; o miúdo divide a casa (fica no canto dela). Ao posicionar um conjurado, a régua mede da borda de quem conjurou.
-- **Lembrete de Concentração:** quem está com *Concentração* e toma dano gera o aviso "Teste de Concentração para Lia: CD 13" (metade do dano, mínimo 10), no log e na tela. De mob ou NPC, só o mestre vê. Só lembra: quem joga rola e decide.
-- **Chefes:** recursos que voltam **no começo da vez** (ações lendárias) e com **recarga no d6** ("Sopro de fogo, recarga 5–6": no começo da vez do chefe, se estiver gasto, o app rola o d6 oculto e devolve o uso com 5 ou 6). Resistência lendária usa a volta no descanso longo.
-- **Grupos de mobs na iniciativa:** mobs do mesmo template com a mesma iniciativa (como na *rolagem por template*) viram uma linha só, "Goblin 1–6", e **agem na mesma vez**: o *Próximo turno* passa pelo grupo inteiro, o começo da vez vale para cada um e *Atrasar* leva todos juntos. A linha abre para ver e editar cada um.
-- **Alcance / aura:** botão *Alcance* no painel *Selecionado* (5, 10, 15, 30 ft ou outro valor) desenha um círculo leve em volta do token, a partir da borda dele, visível para todos. Enquanto o token é arrastado, o círculo fica onde ele estava. Só visual: o app não confere quem está dentro.
-- **Desenho do mestre no mapa:** ferramenta *Desenho* (só o mestre) com traço livre, seta e círculo, cinco cores e três espessuras. Fica no mapa para todos até ser apagado (*Borracha* num desenho, *Desfazer* o último ou *Apagar tudo*), vai no arquivo de sessão e sai com *Limpar campo*. Com *Só eu vejo*, o desenho fica tracejado e os jogadores não recebem (anotação de armadilha, porta secreta).
-- **Vários mapas (cenas):** painel *Cenas* (só o mestre) para preparar outros mapas e trocar com um clique. Cada cena guarda imagem e grid, mobs, NPCs, efeitos, desenhos, paredes, clima e onde os aliados estavam; trocar guarda a atual como está e carrega a outra (só fora de combate; a iniciativa zera). Cena nova começa vazia com o mesmo grid. As cenas vão no arquivo de sessão; arquivos antigos abrem como uma cena só. O formato do arquivo passa a ser o 2: a 2.7 recusa abrir um arquivo da 2.8 (pede para atualizar) em vez de perder as outras cenas.
-- **Paredes e portas:** ferramenta *Paredes* (só o mestre) traça paredes e portas nas linhas do grid, de canto a canto. Qualquer um abre e fecha uma porta com um clique (ferramenta *Mover*); o mestre pode **trancar** (só ele abre) ou deixar **secreta** (os jogadores não veem até ele revelar). Só visual: não bloqueia movimento. Vão no arquivo de sessão e saem com *Limpar campo*.
-- **Ping no mapa:** segure o clique ou o dedo parado num ponto (ou use Alt+clique) e ondas pulsam ali por uns segundos para todos, com o nome de quem marcou. O seu aparece em bronze; o dos outros, em azul.
-- **Colocar no mapa pelo celular:** *Colocar no mapa* na Ficha troca para a aba Mapa; o primeiro toque marca a casa e o segundo confirma (*Cancelar* no aviso). Conjurados com *Escolher no mapa* também vão direto para o Mapa, com a régua até quem conjurou.
-- **A vez de cada um** (painel *Iniciativa*, para quem está na vez e para o mestre):
-  - **Passar a vez:** o jogador encerra a própria vez e o turno avança ("Thorin (Ana) passou a vez" no log).
-  - **Atrasar:** agir mais tarde no mesmo round, depois de alguém que ainda vai agir; o começo do turno (condições, efeitos) não desconta duas vezes.
-  - **Ações do turno:** Ação, Ação bônus, Movimento e Reação para marcar o que já gastou; zeram no começo da vez seguinte.
 - **Ficha em abas** no painel *Selecionado*: Magia, Recursos, Ataques e Itens (mob e NPC: Recursos e Ataques, só para o mestre). É pessoal: outros jogadores não veem.
   - **Recursos com usos** ("Fúria 3/3", "Ki 5/5"), que voltam no descanso curto, no longo ou só à mão, com os botões *Descanso curto* e *Descanso longo* (vida cheia, slots e recursos de volta, sem vida temporária). O *Restaurar tudo* virou *Descanso longo*.
   - **Ataques salvos** ("Machado grande +5 / 1d12+3"): um clique rola o ataque, o dano ou o dano de crítico.
@@ -29,7 +21,26 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Vida temporária:** botão *Temp.* na vida (o valor substitui o anterior, não soma). O dano tira dela primeiro; aparece como "+5 temp." e num trecho claro da barra de vida. Jogadores não veem a dos inimigos.
 - **Testes contra a morte:** personagem com 0 de vida ganha três marcas de sucesso e três de falha (quem joga marca) e o botão *Rolar teste contra a morte*. Voltar a ter vida zera as marcas.
 - **Teste de atributo pela ficha:** clicar num atributo rola d20 + modificador no log ("Thorin (Ana) · Teste de SAB").
-- **Idioma da interface:** português, inglês ou espanhol, escolhido no ícone de idioma (tela de entrada, barra do topo e menu do celular); começa no idioma do navegador e vale só para quem escolheu. A tradução está começando: por enquanto a tela de entrada, a barra do topo e o celular.
+
+**Combate**
+- **A vez de cada um** (painel *Iniciativa*, para quem está na vez e para o mestre):
+  - **Passar a vez:** o jogador encerra a própria vez e o turno avança ("Thorin (Ana) passou a vez" no log).
+  - **Atrasar:** agir mais tarde no mesmo round, depois de alguém que ainda vai agir; o começo do turno (condições, efeitos) não desconta duas vezes.
+  - **Ações do turno:** Ação, Ação bônus, Movimento e Reação para marcar o que já gastou; zeram no começo da vez seguinte.
+- **Grupos de mobs na iniciativa:** mobs do mesmo template com a mesma iniciativa (como na *rolagem por template*) viram uma linha só, "Goblin 1–6", e **agem na mesma vez**: o *Próximo turno* passa pelo grupo inteiro, o começo da vez vale para cada um e *Atrasar* leva todos juntos. A linha abre para ver e editar cada um.
+- **Lembrete de Concentração:** quem está com *Concentração* e toma dano gera o aviso "Teste de Concentração para Lia: CD 13" (metade do dano, mínimo 10), no log e na tela. De mob ou NPC, só o mestre vê. Só lembra: quem joga rola e decide.
+- **Chefes:** recursos que voltam **no começo da vez** (ações lendárias) e com **recarga no d6** ("Sopro de fogo, recarga 5–6": no começo da vez do chefe, se estiver gasto, o app rola o d6 oculto e devolve o uso com 5 ou 6). Resistência lendária usa a volta no descanso longo.
+- **Alcance / aura:** botão *Alcance* no painel *Selecionado* (5, 10, 15, 30 ft ou outro valor) desenha um círculo leve em volta do token, a partir da borda dele, visível para todos. Enquanto o token é arrastado, o círculo fica onde ele estava. Só visual: o app não confere quem está dentro.
+
+**Mapa**
+- **Vários mapas (cenas):** painel *Cenas* (só o mestre) para preparar outros mapas e trocar com um clique. Cada cena guarda imagem e grid, mobs, NPCs, efeitos, desenhos, paredes, clima e onde os aliados estavam; trocar guarda a atual como está e carrega a outra (só fora de combate; a iniciativa zera). Cena nova começa vazia com o mesmo grid. As cenas vão no arquivo de sessão; arquivos antigos abrem como uma cena só. O formato do arquivo passa a ser o 2: a 2.7 recusa abrir um arquivo da 2.8 (pede para atualizar) em vez de perder as outras cenas.
+- **Desenho do mestre no mapa:** ferramenta *Desenho* (só o mestre) com traço livre, seta e círculo, cinco cores e três espessuras. Fica no mapa para todos até ser apagado (*Borracha* num desenho, *Desfazer* o último ou *Apagar tudo*), vai no arquivo de sessão e sai com *Limpar campo*. Com *Só eu vejo*, o desenho fica tracejado e os jogadores não recebem (anotação de armadilha, porta secreta).
+- **Paredes e portas:** ferramenta *Paredes* (só o mestre) traça paredes e portas nas linhas do grid, de canto a canto. Qualquer um abre e fecha uma porta com um clique (ferramenta *Mover*); o mestre pode **trancar** (só ele abre) ou deixar **secreta** (os jogadores não veem até ele revelar). Só visual: não bloqueia movimento. Vão no arquivo de sessão e saem com *Limpar campo*.
+- **Ping no mapa:** segure o clique ou o dedo parado num ponto (ou use Alt+clique) e ondas pulsam ali por uns segundos para todos, com o nome de quem marcou. O seu aparece em bronze; o dos outros, em azul.
+- **Colocar no mapa pelo celular:** *Colocar no mapa* na Ficha troca para a aba Mapa; o primeiro toque marca a casa e o segundo confirma (*Cancelar* no aviso). Conjurados com *Escolher no mapa* também vão direto para o Mapa, com a régua até quem conjurou.
+
+**Idioma**
+- **Idioma da interface:** português, inglês ou espanhol, escolhido no ícone de idioma (tela de entrada, barra do topo e menu do celular); começa no idioma do navegador e vale só para quem escolheu. A tradução está começando: a tela de entrada, a barra do topo, o celular e as telas novas desta versão; o resto segue em português por enquanto.
 
 ### Alterado
 - Com o mapa estreito (colunas laterais largas), a barra de ferramentas do mapa mostra só os ícones, para caber inteira.
@@ -200,7 +211,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.7.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.6.0...v2.7.0
 [2.6.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.4.0...v2.5.0

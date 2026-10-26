@@ -570,6 +570,7 @@ Objetivo: depois de jogar com a 2.0, ir somando melhorias pequenas, **uma versã
 
 - **Correção** sobe o PATCH (2.0.1, 2.0.2…). **Entregável novo** sobe o MINOR (2.1.0, 2.2.0…; depois da 2.9.0 vem a 2.10.0). MAJOR (3.0.0) só se quebrar compatibilidade (ex.: arquivo de sessão antigo que deixa de abrir).
 - O PR que fecha o entregável já leva a versão no `package.json` e a seção datada no CHANGELOG: depois do merge, é só criar a tag (checklist no CLAUDE.md).
+- **Depois da 2.7.0:** as melhorias passam a entrar aos poucos numa branch contínua (`feat/melhorias-da-mesa`), com a lista viva em [docs/backlog.md](docs/backlog.md), e saem em versões que juntam vários itens quando o pacote fica bom (2.8.0 = blocos A–D do backlog; E e F na próxima).
 
 ## 18. Entregáveis da Fase 4
 
@@ -654,3 +655,15 @@ Ordem: **2.0.1 → E21 → E22 → E24 → E25 → E26 → E23**. Regras de comb
   - **Mapa no toque:** dois dedos aproximam/afastam e arrastam a visão (pinça ouvida antes do Konva, que engole o toque enquanto arrasta a visão); se a pinça começar em cima de um token, o token volta para a casa e não anda. Régua e área com o dedo (eventos de ponteiro, valem para mouse também). Barra só com ícones; sem +/− (é a pinça). A pinça também funciona na tela de computador (tablet deitado).
   - **Celular deitado:** abas numa coluna à esquerda e topo menor. **Tablet em pé:** painéis com no máximo 640 px de largura, centralizados.
   - Detalhes de toque: sem dicas flutuantes em aparelho só de toque (grudam depois do toque; os botões têm texto ou `aria-label`); atalhos de teclado escondidos; áreas seguras do iPhone (`viewport-fit=cover`, `env(safe-area-inset-*)`); altura com `dvh` (a barra do navegador não corta as abas); som liberado também no `touchend` (iPhone).
+
+### 2.8.0 — Melhorias da mesa (backlog A–D)
+Os itens e o detalhe de cada um estão em [docs/backlog.md](docs/backlog.md) e no CHANGELOG. Decisões que valem daqui em diante:
+- **Proteção do arquivo de sessão:** `server/test/save-guard.test.ts` monta um jogo com todos os campos (`Required<…>`), salva, carrega e compara. Campo novo esquecido no teste quebra o typecheck; esquecido no arquivo de sessão, quebra o teste.
+- **Formato do arquivo 2:** as cenas guardadas entram no arquivo; a 2.7 recusaria em silêncio o que não conhece (perderia as outras cenas), então o formato sobe e versões antigas pedem para atualizar. Arquivos de formato 1 continuam abrindo (uma cena só, sem desenhos nem paredes).
+- **i18n (base):** catálogo em `client/src/i18n/` (pt-BR é a fonte; en e es por cima, o que faltar aparece em português), idioma do navegador por padrão e escolhido por pessoa. Texto novo de interface já nasce no catálogo; o antigo e as mensagens do servidor migram no backlog F.
+- **Ficha:** CA, bônus de iniciativa e vida são obrigatórios; atributos opcionais, com modificador calculado e DES puxando a iniciativa. CA, atributos, vida temporária e a ficha pessoal (recursos, ataques, itens, moedas) de mob/NPC não vão para os jogadores (`view.ts`, com teste).
+- **Tamanho:** `pos` é a casa de cima à esquerda; o servidor confere todas as casas ocupadas (Miúdo divide a casa). A régua mede da borda.
+- **Registro, não regra (ADR-06):** o lembrete de Concentração só avisa a CD; testes contra a morte só marcam; ações do turno só marcam; alcance/aura, paredes e portas são só visuais (não bloqueiam movimento nem calculam quem está dentro). A recarga no d6 é a única rolagem automática nova, sempre no log (oculta para mob/NPC).
+- **Vez em grupo:** mobs do mesmo template com a mesma iniciativa e o mesmo d20, lado a lado na ordem, são um grupo (`shared/src/initiative.ts`): uma linha, uma vez; o começo da vez roda para cada um e *Atrasar* leva o grupo.
+- **Ping** é efêmero (como a régua), com limite de frequência por conexão. **Desenhos** ficam em pixels do mapa (acompanham a imagem, não o grid); os ocultos não vão para os jogadores. **Portas secretas** também não.
+- **Cenas:** a ativa vive em `battle`; as outras guardam o conteúdo do mapa (`SceneContent`) e as posições dos aliados. Trocar só fora de combate e zera a iniciativa; bestiário, personagens, log e som são da mesa. A lista de cenas é só do mestre.

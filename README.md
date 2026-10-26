@@ -216,3 +216,5 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | E25 — Som (música, ambiente e efeitos para todos) e efeito Ácido | ✅ v2.4.0 |
 | E26 — Melhorias da mesa (nomes, rolagens, log sincronizado) e clima no mapa | ✅ v2.5.0 |
 | E23 — Celular e tablet (jogadores) | ✅ v2.6.0 |
+| Som mais realista e barulho dos dados | ✅ v2.7.0 |
+| Melhorias da mesa: ficha, combate, mapa (cenas, desenho, paredes e portas), base de tradução | ✅ v2.8.0 |
