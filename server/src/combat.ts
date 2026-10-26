@@ -1,4 +1,4 @@
-import type { Combatant } from "@rpg/shared";
+import { groupRange, type Combatant } from "@rpg/shared";
 import type { Store } from "./store";
 
 export function allCombatants(store: Store): Combatant[] {
@@ -10,10 +10,24 @@ export function byId(store: Store, id: string): Combatant | undefined {
   return allCombatants(store).find((c) => c.id === id);
 }
 
+/** Faixa `[início, fim)` da ordem com o grupo de mobs iguais em `index` (só ele, se não tiver grupo). */
+export function groupAt(store: Store, index: number): [number, number] {
+  return groupRange(store.game.battle.combat.order, index, (id) => byId(store, id));
+}
+
+/** Quem está na vez: o combatente da vez ou, num grupo de mobs iguais, todos eles (agem juntos). */
+export function currentGroup(store: Store): Combatant[] {
+  const { combat } = store.game.battle;
+  if (!combat.active || combat.order.length === 0) return [];
+  const [start, end] = groupAt(store, combat.turnIndex);
+  return combat.order.slice(start, end).flatMap((id) => byId(store, id) ?? []);
+}
+
 /** Para o combate e esquece pedidos e reações (o modo fora de combate continua). `turn` continua contando, para nunca repetir o número de um turno antigo. */
 export function resetCombat(store: Store) {
   const { battle } = store.game;
   Object.assign(battle.combat, { active: false, round: 0, turnIndex: 0, order: [] });
+  delete battle.combat.delayed;
   battle.rolls = { request: null, reactions: [], outside: battle.rolls.outside };
 }
 

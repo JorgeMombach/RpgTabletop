@@ -6,28 +6,33 @@ import { act } from "../actions";
 import { removeMob } from "../commands";
 import { confirmAction } from "../confirm";
 import { allCombatants, fmtMod } from "../format";
-import { cellAt, nearestFreeCell } from "../map/geometry";
-import { select, useApp } from "../store";
+import { cellAt, placeFor } from "../map/geometry";
+import { useMobileLayout } from "../layout";
+import { select, setPlacing, useApp } from "../store";
 import { Abbr } from "./Abbr";
+import { AuraControl } from "./AuraControl";
 import { CombatantAvatar } from "./CombatantAvatar";
+import { StatsSection } from "./StatsSection";
 import { SummonForm } from "./SummonForm";
 import { CombatantForm } from "./CombatantForm";
+import { DeathSaves } from "./DeathSaves";
 import { ConditionsSection } from "./ConditionsSection";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
-import { MagicSection } from "./MagicSection";
+import { SheetTabs } from "./SheetTabs";
 import { Panel } from "./Panel";
 
 /** Coloca o token no quadrado livre mais perto do centro da visão do mapa. */
 function placeOnMap(state: ClientState, id: string) {
   const { viewCenter } = useApp.getState();
-  const occupied = allCombatants(state).flatMap((c) => (c.pos ? [c.pos] : []));
-  void act("token:move", { id, pos: nearestFreeCell(cellAt(viewCenter, state.battle.map), occupied) });
+  const all = allCombatants(state);
+  const c = all.find((o) => o.id === id);
+  if (c) void act("token:move", { id, pos: placeFor(c, cellAt(viewCenter, state.battle.map), all) });
 }
 
 const PALETTE = { ally: ALLY_COLORS, mob: MOB_COLORS, npc: NPC_COLORS };
 
-const DES = <Abbr title="Modificador de Destreza (usado na iniciativa: d20 + mod. DES)">DES</Abbr>;
+const INIT = <Abbr title="Bônus de iniciativa (d20 + este valor)">Inic.</Abbr>;
 
 export function SelectedPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
@@ -35,6 +40,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const [summoningId, setSummoningId] = useState<string | null>(null);
 
   const gm = state.self.role === "gm";
+  const mobile = useMobileLayout(gm);
   const ally = state.allies.find((a) => a.id === selectedId);
   const mobView = [...state.battle.mobs, ...state.battle.npcs].find((m) => m.id === selectedId);
   // Jogadores não recebem vida de mob nem de NPC, então só o mestre tem o combatente completo.
@@ -103,12 +109,12 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           <Text fw={600} truncate title={c.name}>
             {c.name}
           </Text>
-          <Text size="xs" c="dimmed" truncate title={`${kind} · mod. DES ${fmtMod(c.dexMod)}`}>
-            {kind} · {DES} {fmtMod(c.dexMod)}
+          <Text size="xs" c="dimmed" truncate title={`${kind} · iniciativa ${fmtMod(c.dexMod)}`}>
+            {kind} · {INIT} {fmtMod(c.dexMod)}
           </Text>
         </div>
         {canEdit && !editing && !summoning && (
-          <Tooltip label="Mudar nome, vida máxima, mod. DES, cor e avatar">
+          <Tooltip label="Mudar nome, vida, CA, iniciativa, atributos, cor e avatar">
             <Button variant="default" leftSection={<IconPencil size={14} />} onClick={() => setEditingId(c.id)}>
               Editar
             </Button>
@@ -140,13 +146,17 @@ export function SelectedPanel({ state }: { state: ClientState }) {
               / {c.hpMax}
             </Text>
           </Text>
-          <HpBar hp={c.hp} hpMax={c.hpMax} thick />
+          <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
         </Stack>
       )}
 
+      {!editing && !summoning && c.type === "ally" && c.hp <= 0 && <DeathSaves c={c} editable={canEdit} gm={gm} />}
+
+      {!editing && !summoning && <StatsSection c={c} canRoll={canEdit} gm={gm} />}
+
       {!editing && !summoning && <ConditionsSection c={c} editable={canEdit} />}
 
-      {c.type === "ally" && !editing && !summoning && <MagicSection c={c} editable={canEdit} />}
+      {!editing && !summoning && (c.type === "ally" || gm) && <SheetTabs c={c} editable={canEdit} gm={gm} />}
 
       {canEdit && !editing && !summoning && (
         <>
@@ -157,7 +167,8 @@ export function SelectedPanel({ state }: { state: ClientState }) {
                 Tirar do mapa
               </Button>
             ) : (
-              <Button variant="default" onClick={() => placeOnMap(state, c.id)}>
+              // Celular: troca para a aba Mapa e espera o toque onde ele entra.
+              <Button variant="default" onClick={() => (mobile ? setPlacing({ ids: [c.id], fromId: c.summonerId }) : placeOnMap(state, c.id))}>
                 Colocar no mapa
               </Button>
             )}
@@ -168,6 +179,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
                 </Button>
               </Tooltip>
             )}
+            <AuraControl c={c} />
             {gm && c.type !== "ally" && (
               <Tooltip label={c.hidden ? "Os jogadores passam a ver; rola a iniciativa se ela já estiver em andamento" : "Só você vê; sai da iniciativa até revelar"}>
                 <Button

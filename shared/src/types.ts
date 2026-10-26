@@ -63,6 +63,70 @@ export const CONDITIONS = [
 /** Aliado = de um jogador (ou do mestre); mob = inimigo; NPC = neutro, controlado pelo mestre. */
 export type CombatantType = "ally" | "mob" | "npc";
 
+/**
+ * Tamanho da criatura: quantas casas de lado ela ocupa no grid. Miúdo divide a casa com outros
+ * (não bloqueia nem é bloqueado). Ausente = médio.
+ */
+export const SIZES = { tiny: 1, small: 1, medium: 1, large: 2, huge: 3, gargantuan: 4 } as const;
+export type Size = keyof typeof SIZES;
+
+/** Os seis atributos (ids estáveis; o nome mostrado vem da tradução). */
+export const ABILITIES = ["str", "dex", "con", "int", "wis", "cha"] as const;
+export type Ability = (typeof ABILITIES)[number];
+/** Valores dos atributos; o que faltar não foi preenchido (atributos são opcionais). */
+export type Abilities = Partial<Record<Ability, number>>;
+
+/** Modificador de um atributo, como no 5e: (valor − 10) ÷ 2, para baixo. 10 → +0; 12 → +1; 20 → +5. Sem teto. */
+export function abilityMod(score: number): number {
+  return Math.floor((score - 10) / 2);
+}
+
+/**
+ * Quando um recurso volta: descanso curto (volta também no longo), só no longo, só à mão,
+ * no começo da vez de quem tem (ações lendárias) ou rolando um d6 no começo da vez (recarga 5–6).
+ */
+export type Recharge = "short" | "long" | "none" | "turn" | "dice";
+
+/** Recurso com usos ("Fúria 3/3", "Ki 5/5", "Inspiração de Bardo 4/4"): só contagem, sem regra. */
+export interface Resource {
+  id: string;
+  name: string;
+  max: number;
+  used: number;
+  recharge: Recharge;
+  /** Recarga no d6 (`recharge: "dice"`): volta tirando este valor ou mais (5 = "recarga 5–6"). */
+  rechargeOn?: number;
+}
+
+/** Ataque salvo ("Espada longa: +5 / 1d8+3"): rola com um clique. `bonus` ausente = sem rolagem de ataque (ex.: só dano). */
+export interface SavedAttack {
+  id: string;
+  name: string;
+  bonus?: number;
+  damage?: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  qty: number;
+  note?: string;
+}
+
+/** Moedas: platina, ouro, electro, prata e cobre (o padrão do 5e). */
+export const COINS = ["pp", "gp", "ep", "sp", "cp"] as const;
+export type Coin = (typeof COINS)[number];
+export type Coins = Partial<Record<Coin, number>>;
+
+/** O que se gasta na vez (5e): ação, ação bônus, movimento e reação. Só marcação. */
+export const TURN_ACTIONS = ["action", "bonus", "move", "reaction"] as const;
+export type TurnAction = (typeof TURN_ACTIONS)[number];
+
+export interface DeathSaves {
+  successes: number;
+  failures: number;
+}
+
 export interface Combatant {
   id: string;
   name: string;
@@ -72,8 +136,22 @@ export interface Combatant {
   templateId?: string;
   hp: number;
   hpMax: number;
-  /** Usado só na iniciativa. */
+  /** Vida temporária: o dano tira dela primeiro. Ausente = nenhuma. Jogadores não recebem a de mob/NPC. */
+  tempHp?: number;
+  /** Ações já gastas na vez (marcadas por quem joga); zeram no começo da vez dele. */
+  turnUsed?: TurnAction[];
+  /** Testes contra a morte de quem está com 0 de vida (só marcação; a mesa decide). Zeram ao voltar a ter vida. */
+  deathSaves?: DeathSaves;
+  /** Bônus de iniciativa (d20 + este valor; desempata a ordem). Com DES preenchida, o formulário propõe o modificador dela. */
   dexMod: number;
+  /** Classe de armadura. Ausente = não informada (arquivos antigos); jogadores não recebem a de mob/NPC. */
+  ac?: number;
+  /** Atributos opcionais; jogadores não recebem os de mob/NPC. */
+  abilities?: Abilities;
+  /** Ausente = médio. `pos` é a casa de cima à esquerda do espaço que ocupa. */
+  size?: Size;
+  /** Alcance ou aura em pés (ex.: 10 ft de alcance, aura de 30 ft): círculo leve em volta do token, só visual. */
+  aura?: number;
   avatar?: string;
   color: string;
   pos: GridPos | null;
@@ -81,6 +159,11 @@ export interface Combatant {
   initRoll: number | null;
   spellSlots?: Record<SpellLevel, SpellSlot>;
   spells?: Spell[];
+  /** Ficha pessoal: só o dono e o mestre veem (como as magias). */
+  resources?: Resource[];
+  attacks?: SavedAttack[];
+  inventory?: InventoryItem[];
+  coins?: Coins;
   conditions: Condition[];
   /** Marca de animal (ícone de pata); o formato continua dizendo o lado (E21). */
   animal?: boolean;
@@ -94,7 +177,7 @@ export interface Combatant {
   summonRounds?: number;
 }
 
-/** Como um combatente chega ao cliente: jogadores não recebem a vida de mobs e NPCs. */
+/** Como um combatente chega ao cliente: jogadores não recebem vida, CA nem atributos de mobs e NPCs. */
 export type CombatantView = Omit<Combatant, "hp" | "hpMax"> & {
   hp?: number;
   hpMax?: number;
@@ -105,6 +188,9 @@ export interface MobTemplate {
   name: string;
   hpMax: number;
   dexMod: number;
+  ac?: number;
+  abilities?: Abilities;
+  size?: Size;
   color: string;
   avatar?: string;
   notes?: string;
@@ -131,6 +217,12 @@ export interface CombatState {
   order: string[];
   /** Conta cada troca de turno (iniciar, próximo, anterior): identifica "este turno" para pedidos e reações. */
   turn: number;
+  /**
+   * Quem atrasou a vez neste round: quando chegar a vez dele de novo, o começo do turno (descontar
+   * condições e efeitos, zerar as ações) não roda outra vez. Grupo de mobs iguais atrasa junto (vários ids).
+   * Não vai no arquivo de sessão.
+   */
+  delayed?: { ids: string[]; round: number };
 }
 
 /** Pedido do mestre para jogadores rolarem fora da vez (ex.: "Resistência DES"). Cada um rola uma vez. */
@@ -288,6 +380,69 @@ export interface MapEffect {
   revertTo?: EffectState;
 }
 
+export const DRAWING_KINDS = ["free", "arrow", "circle"] as const;
+/** Traço à mão livre, seta ou círculo. */
+export type DrawingKind = (typeof DRAWING_KINDS)[number];
+
+/**
+ * Desenho do mestre no mapa (setas, círculos, marcações): fica até ele apagar.
+ * Pontos em pixels do mapa (acompanham a imagem, não o grid): x0, y0, x1, y1…;
+ * na seta e no círculo, só o começo e o fim (centro e borda).
+ */
+export interface Drawing {
+  id: string;
+  kind: DrawingKind;
+  points: number[];
+  color: string;
+  width: number;
+  /** Só o mestre vê (anotação de preparo: armadilha, porta secreta). */
+  hidden?: boolean;
+}
+
+/** Porta numa parede: abre e fecha com um clique; trancada só o mestre abre; secreta só o mestre vê. */
+export interface Door {
+  open: boolean;
+  locked?: boolean;
+  secret?: boolean;
+}
+
+/**
+ * Parede ou porta traçada pelo mestre, de um canto do grid a outro (`col`/`row` contam cantos:
+ * o canto de cima à esquerda da casa (c, r) é (c, r)). Só visual: não bloqueia movimento (ADR-06).
+ */
+export interface Wall {
+  id: string;
+  from: GridPos;
+  to: GridPos;
+  door?: Door;
+}
+
+/** O que muda de uma cena (mapa) para outra: imagem e grid, mobs, NPCs, efeitos, desenhos, paredes e clima. */
+export interface SceneContent {
+  map: MapConfig & { image: string | null; imageVersion: number };
+  mobs: Combatant[];
+  npcs: Combatant[];
+  effects: MapEffect[];
+  drawings: Drawing[];
+  walls: Wall[];
+  weather: WeatherState;
+}
+
+/** Cena guardada (não ativa): o conteúdo dela e onde cada aliado estava nela. */
+export interface StoredScene extends SceneContent {
+  allyPos: Record<string, GridPos>;
+}
+
+/**
+ * Mapa preparado pelo mestre. A cena ativa vive em `battle` (sem `stored`); as outras ficam guardadas
+ * e voltam inteiras ao trocar. Aliados, iniciativa zerada e log são da mesa, não da cena.
+ */
+export interface Scene {
+  id: string;
+  name: string;
+  stored?: StoredScene;
+}
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];
@@ -300,9 +455,14 @@ export interface GameState {
     combat: CombatState;
     rolls: RollsState;
     effects: MapEffect[];
+    drawings: Drawing[];
+    walls: Wall[];
     weather: WeatherState;
   };
   log: LogEntry[];
+  /** Cenas da sessão, na ordem do painel; a ativa é `sceneId` (o conteúdo dela está em `battle`). */
+  scenes: Scene[];
+  sceneId: string;
 }
 
 export interface HostInfo {
@@ -422,9 +582,14 @@ export interface ClientState {
     combat: CombatState;
     rolls: RollsState;
     effects: MapEffect[];
+    drawings: Drawing[];
+    walls: Wall[];
     weather: WeatherState;
   };
   log: LogEntry[];
+  /** Cena ativa (todos) e a lista de cenas (só o mestre: nome, se tem imagem e quantos mobs). */
+  sceneId: string;
+  scenes?: { id: string; name: string; hasImage: boolean; mobs: number }[];
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */

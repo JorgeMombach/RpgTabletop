@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult } from "@rpg/shared";
-import { byId } from "../combat";
+import { ABILITIES, LIMITS, groupName, type Ability, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult } from "@rpg/shared";
+import { byId, currentGroup } from "../combat";
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireString } from "../validate";
@@ -9,6 +9,8 @@ import type { HandlerMap } from "./types";
 
 const MODES: RollMode[] = ["normal", "adv", "dis"];
 const KINDS: RollKind[] = ["attack", "damage"];
+/** Siglas dos atributos no log (o log ainda é escrito em português pelo servidor). */
+const CHECK_LABEL: Record<Ability, string> = { str: "FOR", dex: "DES", con: "CON", int: "INT", wis: "SAB", cha: "CAR" };
 
 /**
  * Acrescenta ao log compartilhado (mantém só as últimas entradas). Com combate ativo,
@@ -17,13 +19,13 @@ const KINDS: RollKind[] = ["attack", "damage"];
 function pushLog(store: Store, entry: Omit<LogEntry, "id" | "ts">): string {
   const { log, battle } = store.game;
   const { combat } = battle;
-  const current = combat.active ? byId(store, combat.order[combat.turnIndex]) : undefined;
+  const group = currentGroup(store);
   const id = randomUUID();
   log.push({
     id,
     ts: Date.now(),
     ...entry,
-    turn: current ? { seq: combat.turn, round: combat.round, name: current.name } : undefined,
+    turn: group.length > 0 ? { seq: combat.turn, round: combat.round, name: groupName(group.map((c) => c.name)) } : undefined,
   });
   if (log.length > LIMITS.logSize) log.splice(0, log.length - LIMITS.logSize);
   return id;
@@ -51,9 +53,9 @@ export function logRoll(
   });
 }
 
-/** Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. */
-export function logSystem(store: Store, text: string) {
-  pushLog(store, { authorId: "system", author: "Mesa", text, system: true });
+/** Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. `hidden` = só o mestre. */
+export function logSystem(store: Store, text: string, hidden = false) {
+  pushLog(store, { authorId: "system", author: "Mesa", text, system: true, hidden: hidden || undefined });
 }
 
 /**
@@ -120,6 +122,8 @@ export const diceHandlers: HandlerMap = {
     const mode = MODES.includes(payload?.mode as RollMode) ? (payload.mode as RollMode) : "normal";
     const kind = KINDS.includes(payload?.kind as RollKind) ? (payload.kind as RollKind) : undefined;
     const crit = kind === "damage" && payload.crit === true;
+    // Teste de atributo pela ficha: "Teste de SAB".
+    const check = ABILITIES.includes(payload?.check as Ability) ? (payload.check as Ability) : undefined;
     // "Rolar como": o mestre assina a rolagem com o nome de um combatente (o selecionado ou o da vez, no cliente).
     // O jogador assina com o personagem que está usando.
     const by = gm
@@ -138,7 +142,8 @@ export const diceHandlers: HandlerMap = {
     // Só depois de validar a expressão: rolagem inválida não gasta o pedido do mestre.
     const context = outOfTurn(store, player);
     const kindLabel = kind === "attack" ? "Ataque" : kind === "damage" ? (crit ? "Dano (crítico)" : "Dano") : undefined;
-    const label = [context, kindLabel].filter(Boolean).join(" · ") || undefined;
+    const death = payload?.death === true ? "Teste contra a morte" : undefined;
+    const label = [context, kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death].filter(Boolean).join(" · ") || undefined;
     if (!gm) player.lastRollAt = now;
     return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit, color })];
   },

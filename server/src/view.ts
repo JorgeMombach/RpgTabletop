@@ -1,15 +1,19 @@
 import type { ClientState, Combatant, CombatantView, HostInfo } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 
-function hideHp({ hp: _hp, hpMax: _hpMax, ...rest }: Combatant): CombatantView {
+/** Ficha pessoal (magias, recursos, ataques, inventário, moedas): só o dono e o mestre veem (SPEC E6). */
+function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resources: _r, attacks: _a, inventory: _i, coins: _c, ...rest }: T) {
   return rest;
 }
 
-/** A lista de magias é referência pessoal: só o dono e o mestre veem (SPEC E6). */
+/** Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando). */
+function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, ...rest }: Combatant): CombatantView {
+  return withoutSheet(rest);
+}
+
 function allyFor(player: ServerPlayer, c: Combatant): Combatant {
-  if (player.role === "gm" || c.ownerId === player.id || !c.spells) return c;
-  const { spells: _spells, ...rest } = c;
-  return rest;
+  if (player.role === "gm" || c.ownerId === player.id) return c;
+  return withoutSheet(c);
 }
 
 /** Para jogadores: sem os ocultos (E21) e sem a vida. */
@@ -44,9 +48,21 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       rolls: game.battle.rolls,
       // Efeito desligado fica guardado só para o mestre (E19).
       effects: gm ? game.battle.effects : game.battle.effects.filter((e) => e.active),
+      // Anotação só do mestre não vai para os jogadores.
+      drawings: gm ? game.battle.drawings : game.battle.drawings.filter((d) => !d.hidden),
+      // Porta secreta: o jogador nem recebe (parece parede nenhuma) até o mestre revelar.
+      walls: gm ? game.battle.walls : game.battle.walls.filter((w) => !w.door?.secret),
       weather: game.battle.weather,
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
+    sceneId: game.sceneId,
+    // Cenas preparadas são do mestre: os jogadores só veem a que está no mapa.
+    scenes: gm
+      ? game.scenes.map((s) => {
+          const content = s.stored ?? game.battle;
+          return { id: s.id, name: s.name, hasImage: content.map.image !== null, mobs: content.mobs.length };
+        })
+      : undefined,
     sound: store.sound,
     // A lista de arquivos é do mestre; os jogadores só recebem o que estiver tocando.
     soundLibrary: gm ? store.soundLibrary : undefined,

@@ -35,7 +35,7 @@ export function SummonForm({ summoner, templates, onClose }: { summoner: Combata
       <CombatantForm
         // Trocar o template refaz o formulário com os dados dele.
         key={templateId ?? "novo"}
-        initial={t ? { name: t.name, hpMax: t.hpMax, dexMod: t.dexMod, avatar: t.avatar, animal: t.animal } : undefined}
+        initial={t ? { name: t.name, hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities, size: t.size, avatar: t.avatar, animal: t.animal } : undefined}
         palette={PALETTE[summoner.type]}
         submitLabel="Conjurar"
         onCancel={onClose}

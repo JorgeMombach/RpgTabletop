@@ -1,6 +1,6 @@
 import { socket } from "./socket";
 import { toast } from "./notify";
-import { useApp } from "./store";
+import { PING_MS, useApp } from "./store";
 
 const TOKEN_KEY = "rpg.sessionToken";
 const NAME_KEY = "rpg.name";
@@ -122,6 +122,13 @@ socket.on("ruler", ({ playerId, name, ruler }) => {
     else delete rulers[playerId];
     return { rulers };
   });
+});
+
+let pingSeq = 0;
+socket.on("ping", ({ playerId, name, at }) => {
+  const id = ++pingSeq;
+  useApp.setState((s) => ({ pings: [...s.pings, { id, playerId, name, at }].slice(-12) }));
+  setTimeout(() => useApp.setState((s) => ({ pings: s.pings.filter((p) => p.id !== id) })), PING_MS);
 });
 
 socket.on("area", ({ playerId, name, area }) => {

@@ -27,6 +27,7 @@ export interface ServerPlayer {
 }
 
 export function createGame(): GameState {
+  const sceneId = randomUUID();
   return {
     templates: [],
     allies: [],
@@ -47,9 +48,13 @@ export function createGame(): GameState {
       combat: { active: false, round: 0, turnIndex: 0, order: [], turn: 0 },
       rolls: { request: null, reactions: [], outside: "free" },
       effects: [],
+      drawings: [],
+      walls: [],
       weather: defaultWeather(),
     },
     log: [],
+    scenes: [{ id: sceneId, name: "Cena 1" }],
+    sceneId,
   };
 }
 

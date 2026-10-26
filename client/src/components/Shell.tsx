@@ -1,11 +1,12 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { IconBrush, IconDeviceMobile, IconLogout } from "@tabler/icons-react";
-import { APP_VERSION, type ClientState, type Combatant } from "@rpg/shared";
+import { APP_VERSION, groupName, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
-import { allCombatants } from "../format";
+import { currentGroup } from "../format";
 import { setLayoutChoice, useMobileLayout, useSmallScreen } from "../layout";
 import { leave } from "../session";
+import { useT } from "../i18n";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
 import { BestiaryPanel } from "./BestiaryPanel";
@@ -19,10 +20,12 @@ import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { InvitePanel } from "./InvitePanel";
+import { LanguageMenu } from "./LanguageMenu";
 import { MapPanel } from "./MapPanel";
 import { MobileShell } from "./MobileShell";
 import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
+import { ScenesPanel } from "./ScenesPanel";
 import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
 import { SoundSync } from "./SoundSync";
@@ -32,16 +35,17 @@ import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
 export function TurnStatus({ state }: { state: ClientState }) {
+  const t = useT();
   const { combat } = state.battle;
   if (!combat.active) return null;
-  const id = combat.order[combat.turnIndex];
-  const who = allCombatants(state).find((c) => c.id === id);
+  const group = currentGroup(state);
+  const who = group.length > 0 ? { name: groupName(group.map((c) => c.name)) } : undefined;
   return (
     <Text size="sm" c="dimmed" className="turn-status" truncate>
-      Round {combat.round}
+      {t("top.round", { round: combat.round })}
       {who && (
         <>
-          {" · vez de "}
+          {t("top.turnOf")}
           <Text component="strong" size="sm" c="bronze.4" fw={600}>
             {who.name}
           </Text>
@@ -58,6 +62,7 @@ export function Shell({ state }: { state: ClientState }) {
 }
 
 function DesktopShell({ state }: { state: ClientState }) {
+  const t = useT();
   const small = useSmallScreen();
   const connected = useApp((s) => s.connected);
   const logDetached = useApp((s) => s.logDetached);
@@ -88,35 +93,36 @@ function DesktopShell({ state }: { state: ClientState }) {
         <Group gap="sm" wrap="nowrap">
           {!connected && (
             <Badge color="yellow" variant="light">
-              Reconectando…
+              {t("top.reconnecting")}
             </Badge>
           )}
           {gm && (
-            <Tooltip label="Prepara o campo para a próxima batalha">
+            <Tooltip label={t("top.clearFieldTip")}>
               <Button variant="default" leftSection={<IconBrush size={14} />} onClick={() => setClearing(true)}>
-                Limpar campo
+                {t("top.clearField")}
               </Button>
             </Tooltip>
           )}
           {!gm && small && (
-            <Tooltip label="Voltar para a tela de celular e tablet">
+            <Tooltip label={t("top.mobileLayoutTip")}>
               <Button variant="default" leftSection={<IconDeviceMobile size={14} />} onClick={() => setLayoutChoice("auto")}>
-                Tela de celular
+                {t("top.mobileLayout")}
               </Button>
             </Tooltip>
           )}
+          <LanguageMenu size="md" />
           <VolumeControl />
           <Group gap={6} wrap="nowrap">
             <Text size="sm" truncate maw={180}>
               {state.self.name}
             </Text>
             <Badge color={gm ? "bronze" : "player"} variant="light" size="sm">
-              {gm ? "Mestre" : "Jogador"}
+              {gm ? t("common.gm") : t("common.player")}
             </Badge>
           </Group>
-          <Tooltip label="Sair da sessão ou trocar de nome. Ao voltar, você reencontra o seu personagem.">
+          <Tooltip label={t("top.leaveTip")}>
             <Button variant="default" leftSection={<IconLogout size={14} />} onClick={leave}>
-              Sair
+              {t("top.leave")}
             </Button>
           </Tooltip>
         </Group>
@@ -128,6 +134,7 @@ function DesktopShell({ state }: { state: ClientState }) {
         {gm && <NpcsPanel npcs={state.battle.npcs as Combatant[]} />}
         <AlliesPanel state={state} />
         <EffectsPanel state={state} />
+        {gm && <ScenesPanel state={state} />}
         {gm && <MapPanel map={state.battle.map} />}
         {gm && <WeatherPanel state={state} />}
         {gm && <SoundPanel state={state} />}

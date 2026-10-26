@@ -1,18 +1,27 @@
 import { randomUUID } from "node:crypto";
 import {
+  ABILITIES,
   ALLY_COLORS,
   LIMITS,
   MOB_COLORS,
   NAME_MAX_LENGTH,
   NPC_COLORS,
   isColor,
-  nearestFreeCell,
+  SIZES,
+  blockedCells,
+  nearestFreeSpot,
+  sharesCell,
+  sizeSpan,
+  type Abilities,
+  type Ability,
   type Combatant,
   type CombatantInput,
   type MobTemplate,
+  type Size,
 } from "@rpg/shared";
 import { allCombatants, byId, placeInOrder, removeFromOrder } from "../combat";
-import { endConcentration, ensureConcentration } from "./effects";
+import { endConcentration, ensureConcentration, isConcentration } from "./effects";
+import { logSystem } from "./dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireImage, requireInt, requireName, requireString } from "../validate";
 import type { HandlerMap } from "./types";
@@ -34,6 +43,46 @@ function dexModOf(raw: unknown) {
   return requireInt(raw, "Mod. de Destreza", LIMITS.dexMod.min, LIMITS.dexMod.max);
 }
 
+/** CA: `undefined` = não mexe; `null` = apaga. */
+function acOf(raw: unknown): number | null | undefined {
+  if (raw === undefined || raw === null) return raw;
+  return requireInt(raw, "CA", LIMITS.ac.min, LIMITS.ac.max);
+}
+
+/** Atributos: `undefined` = não mexe; objeto = passa a valer só o que veio preenchido (`{}` apaga todos). */
+function abilitiesOf(raw: unknown): Abilities | undefined {
+  if (raw === undefined) return undefined;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("Atributos inválidos.");
+  const out: Abilities = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!(ABILITIES as readonly string[]).includes(key)) fail("Atributo desconhecido.");
+    if (value === null || value === undefined) continue;
+    out[key as Ability] = requireInt(value, "Atributo", LIMITS.abilityScore.min, LIMITS.abilityScore.max);
+  }
+  return out;
+}
+
+/** Tamanho: `undefined` = não mexe; "medium" vira ausente (o padrão). */
+function sizeOf(raw: unknown): Size | undefined {
+  if (raw === undefined) return undefined;
+  return typeof raw === "string" && raw in SIZES ? (raw as Size) : fail("Tamanho inválido.");
+}
+
+function applySize(target: { size?: Size }, size: Size | undefined) {
+  if (size === undefined) return;
+  if (size === "medium") delete target.size;
+  else target.size = size;
+}
+
+/** Aplica CA e atributos já validados (acOf/abilitiesOf). */
+function applyStats(target: { ac?: number; abilities?: Abilities }, ac: number | null | undefined, abilities: Abilities | undefined) {
+  if (ac === null) delete target.ac;
+  else if (ac !== undefined) target.ac = ac;
+  if (abilities === undefined) return;
+  if (Object.keys(abilities).length > 0) target.abilities = abilities;
+  else delete target.abilities;
+}
+
 function colorOf(raw: unknown, palette: string[], index: number) {
   return isColor(raw) ? raw : palette[index % palette.length];
 }
@@ -52,6 +101,17 @@ function applyAvatar(target: { avatar?: string }, raw: unknown) {
 
 function clampHp(c: Combatant, value: number) {
   c.hp = Math.max(0, Math.min(c.hpMax, value));
+}
+
+/** Muda a vida; voltar a ter vida zera os testes contra a morte. */
+function setHp(c: Combatant, value: number) {
+  clampHp(c, value);
+  if (c.hp > 0) delete c.deathSaves;
+}
+
+function setTempHp(c: Combatant, value: number) {
+  if (value > 0) c.tempHp = value;
+  else delete c.tempHp;
 }
 
 function findCombatant(store: Store, rawId: unknown): Combatant {
@@ -77,6 +137,9 @@ function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown } 
 
 function newCombatant(type: Combatant["type"], input: CombatantInput, color: string): Combatant {
   const hpMax = hpMaxOf(input?.hpMax);
+  const ac = acOf(input?.ac);
+  const abilities = abilitiesOf(input?.abilities);
+  const size = sizeOf(input?.size);
   const c: Combatant = {
     id: randomUUID(),
     name: requireName(input?.name),
@@ -90,9 +153,16 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
     initRoll: null,
     conditions: [],
   };
+  applyStats(c, ac, abilities);
+  applySize(c, size);
   applyAvatar(c, input?.avatar);
   applyFlags(c, input);
   return c;
+}
+
+/** Dados de um template para criar mob/NPC (cópia dos atributos: cada um muda o seu depois). */
+function fromTemplate(t: MobTemplate) {
+  return { hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities ? { ...t.abilities } : undefined, size: t.size, animal: t.animal };
 }
 
 /** Lista onde o combatente mora, pelo tipo. */
@@ -156,16 +226,23 @@ export const combatantHandlers: HandlerMap = {
       notes: typeof input?.notes === "string" ? input.notes.trim().slice(0, LIMITS.notes) || undefined : undefined,
       animal: input?.animal === true || undefined,
     };
+    const ac = acOf(input?.ac);
+    const abilities = abilitiesOf(input?.abilities);
+    const size = sizeOf(input?.size);
     avatarOf(input.avatar); // valida antes de alterar
 
     if (input.id) {
       const t = templates.find((t) => t.id === input.id) ?? fail("Template não encontrado.");
       Object.assign(t, fields);
       if (isColor(input.color)) t.color = input.color;
+      applyStats(t, ac, abilities);
+      applySize(t, size);
       applyAvatar(t, input.avatar);
       return [t.id];
     }
     const t: MobTemplate = { id: randomUUID(), ...fields, color: colorOf(input.color, MOB_COLORS, templates.length) };
+    applyStats(t, ac, abilities);
+    applySize(t, size);
     applyAvatar(t, input.avatar);
     templates.push(t);
     return [t.id];
@@ -192,7 +269,7 @@ export const combatantHandlers: HandlerMap = {
       // O número diferencia os mobs: se o nome passar do limite, encurta o nome base, nunca o número.
       const suffix = ` ${n}`;
       const base = t.name.slice(0, NAME_MAX_LENGTH - suffix.length).trimEnd();
-      const mob = newCombatant("mob", { name: base + suffix, hpMax: t.hpMax, dexMod: t.dexMod, animal: t.animal, hidden: payload.hidden }, t.color);
+      const mob = newCombatant("mob", { name: base + suffix, ...fromTemplate(t), hidden: payload.hidden }, t.color);
       mob.templateId = t.id;
       if (t.avatar) mob.avatar = t.avatar;
       store.game.battle.mobs.push(mob);
@@ -245,7 +322,7 @@ export const combatantHandlers: HandlerMap = {
     const color = colorOf(payload.color, palette, list.length);
     newCombatant(summoner.type, { ...payload, name: base }, color);
 
-    const occupied = () => allCombatants(store).flatMap((c) => (c.pos ? [c.pos] : []));
+    const occupied = () => blockedCells(allCombatants(store));
     const ids: string[] = [];
     for (let i = 1; i <= qty; i++) {
       // Vários iguais: "Esqueleto 1", "Esqueleto 2"… (o número nunca é cortado).
@@ -257,7 +334,7 @@ export const combatantHandlers: HandlerMap = {
       if (payload.concentration === true) s.summonConcentration = true;
       if (rounds !== null) s.summonRounds = rounds;
       // Aparece do lado de quem conjurou (ou fora do mapa, para escolher onde).
-      if (summoner.pos && payload.near !== false) s.pos = nearestFreeCell(summoner.pos, occupied());
+      if (summoner.pos && payload.near !== false) s.pos = nearestFreeSpot(summoner.pos, occupied(), sizeSpan(s.size), sharesCell(s.size));
       list.push(s);
       ids.push(s.id);
     }
@@ -280,7 +357,7 @@ export const combatantHandlers: HandlerMap = {
     // A cor do template é de mob (tons quentes): o NPC usa a paleta neutra.
     const npc = newCombatant(
       "npc",
-      { name: t.name, hpMax: t.hpMax, dexMod: t.dexMod, animal: t.animal, hidden: payload.hidden },
+      { name: t.name, ...fromTemplate(t), hidden: payload.hidden },
       colorOf(undefined, NPC_COLORS, npcs.length),
     );
     npc.templateId = t.id;
@@ -313,8 +390,14 @@ export const combatantHandlers: HandlerMap = {
     const name = payload.name !== undefined ? requireName(payload.name) : c.name;
     const dexMod = payload.dexMod !== undefined ? dexModOf(payload.dexMod) : c.dexMod;
     const hpMax = payload.hpMax !== undefined ? hpMaxOf(payload.hpMax) : c.hpMax;
+    const ac = acOf(payload.ac);
+    const abilities = abilitiesOf(payload.abilities);
+    const size = sizeOf(payload.size);
     avatarOf(payload.avatar);
     Object.assign(c, { name, dexMod, hpMax });
+    applyStats(c, ac, abilities);
+    // Crescer no mapa pode encostar em alguém: o app não empurra ninguém (a mesa ajeita os tokens).
+    applySize(c, size);
     if (isColor(payload.color)) c.color = payload.color;
     applyAvatar(c, payload.avatar);
     // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só a marca de animal.
@@ -327,16 +410,50 @@ export const combatantHandlers: HandlerMap = {
   "hp:change": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
     const delta = requireInt(payload.delta, "Valor", -LIMITS.hpMax.max * 10, LIMITS.hpMax.max * 10);
-    clampHp(c, c.hp + delta);
+    let rest = delta;
+    // Quem concentra e toma dano: lembrete do teste de Concentração (CD = metade do dano, mínimo 10).
+    // Só lembra; quem joga rola e decide. Mob/NPC: só o mestre vê o aviso.
+    if (delta < 0 && c.conditions.some((k) => isConcentration(k.name))) {
+      const dc = Math.max(10, Math.floor(-delta / 2));
+      logSystem(store, `Teste de Concentração para ${c.name}: CD ${dc} (resistência de CON).`, c.type !== "ally");
+    }
+    // Dano tira primeiro da vida temporária; a cura não mexe nela.
+    if (delta < 0 && c.tempHp) {
+      const absorbed = Math.min(c.tempHp, -delta);
+      setTempHp(c, c.tempHp - absorbed);
+      rest = delta + absorbed;
+    }
+    setHp(c, c.hp + rest);
   },
 
   "hp:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    clampHp(c, requireInt(payload.value, "Vida", 0, LIMITS.hpMax.max));
+    setHp(c, requireInt(payload.value, "Vida", 0, LIMITS.hpMax.max));
   },
 
   "hp:full": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    c.hp = c.hpMax;
+    setHp(c, c.hpMax);
+  },
+
+  "hp:temp": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    setTempHp(c, requireInt(payload.value, "Vida temporária", 0, LIMITS.hpMax.max));
+  },
+
+  "aura:set": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    if (payload.feet === null) delete c.aura;
+    else c.aura = requireInt(payload.feet, "Alcance", LIMITS.aura.min, LIMITS.aura.max);
+  },
+
+  "death:set": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    const successes = requireInt(payload.successes, "Sucessos", 0, 3);
+    const failures = requireInt(payload.failures, "Falhas", 0, 3);
+    if (c.type !== "ally") fail("Testes contra a morte são dos personagens.");
+    if (c.hp > 0) fail("Testes contra a morte só com 0 de vida.");
+    if (successes === 0 && failures === 0) delete c.deathSaves;
+    else c.deathSaves = { successes, failures };
   },
 };

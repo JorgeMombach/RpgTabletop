@@ -1,14 +1,23 @@
 import { randomUUID } from "node:crypto";
 import {
+  ABILITIES,
   APP_VERSION,
+  COINS,
   EFFECT_PRESETS,
   LIMITS,
   SESSION_FILE_APP,
   SESSION_FILE_FORMAT,
+  SIZES,
   SPELL_LEVELS,
+  TURN_ACTIONS,
   isColor,
+  type Abilities,
+  type Coins,
   type Combatant,
   type CombatState,
+  type InventoryItem,
+  type Recharge,
+  type SavedAttack,
   type Condition,
   type EffectPreset,
   type EffectState,
@@ -16,16 +25,22 @@ import {
   type GridPos,
   type LogEntry,
   type MapEffect,
+  type Scene,
+  type SceneContent,
   type MobTemplate,
   type OutsideRolls,
   type RollResult,
   type Role,
   type RollTerm,
   type SessionFile,
+  type TurnAction,
+  type Size,
   type Spell,
   type SpellLevel,
   type SpellSlot,
 } from "@rpg/shared";
+import { parseDrawing } from "./actions/drawings";
+import { parseWall } from "./actions/walls";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
 import { fail, requireImage, requireInt, requireName, requireNumber, requireString, validArea } from "./validate";
@@ -148,6 +163,19 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
     initRoll: nullableInt(c.initRoll, "dado da iniciativa", 1, 20),
     conditions: list(c.conditions ?? [], "condições", LIMITS.conditions).map(condition),
   };
+  stats(out, c);
+  sheet(out, c);
+  if (c.turnUsed !== undefined) {
+    const used = list(c.turnUsed, "ações do turno", TURN_ACTIONS.length);
+    if (used.some((a) => !(TURN_ACTIONS as readonly unknown[]).includes(a))) fail("Arquivo inválido: ações do turno.");
+    out.turnUsed = used as TurnAction[];
+  }
+  if (c.tempHp !== undefined) out.tempHp = int(c.tempHp, "vida temporária", 1, LIMITS.hpMax.max);
+  if (c.aura !== undefined) out.aura = int(c.aura, "alcance", LIMITS.aura.min, LIMITS.aura.max);
+  if (c.deathSaves !== undefined) {
+    const d = obj(c.deathSaves, "testes contra a morte");
+    out.deathSaves = { successes: int(d.successes, "testes contra a morte", 0, 3), failures: int(d.failures, "testes contra a morte", 0, 3) };
+  }
   if (c.ownerId !== undefined) out.ownerId = requireString(c.ownerId, "Dono");
   if (c.templateId !== undefined) out.templateId = requireString(c.templateId, "Template");
   if (c.avatar !== undefined) out.avatar = requireImage(c.avatar, "Avatar", LIMITS.avatarChars);
@@ -162,6 +190,69 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   return out;
 }
 
+/** Ficha pessoal: recursos, ataques salvos, inventário e moedas (arquivos de antes não têm). */
+function sheet(out: Combatant, c: Obj) {
+  const recharges = ["short", "long", "none", "turn", "dice"];
+  if (c.resources !== undefined) {
+    out.resources = list(c.resources, "recursos", LIMITS.resources).map((raw) => {
+      const r = obj(raw, "recurso");
+      const max = int(r.max, "recurso", 1, LIMITS.resourceMax);
+      if (typeof r.recharge !== "string" || !recharges.includes(r.recharge)) fail("Arquivo inválido: recurso.");
+      return {
+        id: requireString(r.id, "Recurso"),
+        name: text(r.name, "recurso", LIMITS.spellName) || fail("Arquivo inválido: recurso sem nome."),
+        max,
+        used: int(r.used, "recurso", 0, max),
+        recharge: r.recharge as Recharge,
+        ...(r.rechargeOn !== undefined && { rechargeOn: int(r.rechargeOn, "recarga", 2, 6) }),
+      };
+    });
+  }
+  if (c.attacks !== undefined) {
+    out.attacks = list(c.attacks, "ataques", LIMITS.attacks).map((raw) => {
+      const a = obj(raw, "ataque");
+      const out: SavedAttack = { id: requireString(a.id, "Ataque"), name: text(a.name, "ataque", LIMITS.spellName) || fail("Arquivo inválido: ataque sem nome.") };
+      if (a.bonus !== undefined) out.bonus = int(a.bonus, "ataque", -20, 40);
+      const damage = optText(a.damage, "ataque", LIMITS.dice.exprLength);
+      if (damage) out.damage = damage;
+      return out;
+    });
+  }
+  if (c.inventory !== undefined) {
+    out.inventory = list(c.inventory, "inventário", LIMITS.items).map((raw) => {
+      const i = obj(raw, "item");
+      const out: InventoryItem = {
+        id: requireString(i.id, "Item"),
+        name: text(i.name, "item", LIMITS.spellName) || fail("Arquivo inválido: item sem nome."),
+        qty: int(i.qty, "item", 0, LIMITS.itemQty),
+      };
+      const note = optText(i.note, "item", LIMITS.spellNote);
+      if (note) out.note = note;
+      return out;
+    });
+  }
+  if (c.coins !== undefined) {
+    const raw = obj(c.coins, "moedas");
+    const coins: Coins = {};
+    for (const k of COINS) if (raw[k] !== undefined) coins[k] = int(raw[k], "moedas", 0, LIMITS.coins);
+    out.coins = coins;
+  }
+}
+
+/** CA, atributos e tamanho; arquivos de antes não têm (ficam sem: médio). */
+function stats(out: { ac?: number; abilities?: Abilities; size?: Size }, raw: Obj) {
+  if (raw.size !== undefined) {
+    if (typeof raw.size !== "string" || !(raw.size in SIZES)) fail("Arquivo inválido: tamanho.");
+    if (raw.size !== "medium") out.size = raw.size as Size;
+  }
+  if (raw.ac !== undefined) out.ac = int(raw.ac, "CA", LIMITS.ac.min, LIMITS.ac.max);
+  if (raw.abilities === undefined) return;
+  const a = obj(raw.abilities, "atributos");
+  const abilities: Abilities = {};
+  for (const key of ABILITIES) if (a[key] !== undefined) abilities[key] = int(a[key], "atributo", LIMITS.abilityScore.min, LIMITS.abilityScore.max);
+  if (Object.keys(abilities).length > 0) out.abilities = abilities;
+}
+
 function template(raw: unknown): MobTemplate {
   const t = obj(raw, "template");
   const out: MobTemplate = {
@@ -171,6 +262,7 @@ function template(raw: unknown): MobTemplate {
     dexMod: int(t.dexMod, "mod. DES", LIMITS.dexMod.min, LIMITS.dexMod.max),
     color: isColor(t.color) ? t.color : fail("Arquivo inválido: cor."),
   };
+  stats(out, t);
   if (t.avatar !== undefined) out.avatar = requireImage(t.avatar, "Avatar", LIMITS.avatarChars);
   const notes = optText(t.notes, "notas", LIMITS.notes);
   if (notes) out.notes = notes;
@@ -293,14 +385,60 @@ export function parseSession(raw: unknown): ParsedSession {
 
   const g = obj(f.game, "jogo");
   const b = obj(g.battle, "batalha");
-  const m = obj(b.map, "mapa");
   const allies = list(g.allies, "aliados", 200).map((c) => combatant(c, "ally"));
+  const active = sceneContent(b, allies);
+
+  // Cenas (2.8+). Arquivo mais antigo: uma cena só, a do mapa salvo.
+  const rawScenes = g.scenes === undefined ? null : list(g.scenes, "cenas", LIMITS.scenes);
+  const sceneId = rawScenes ? requireString(g.sceneId, "Cena") : randomUUID();
+  const allyIds = new Set(allies.map((a) => a.id));
+  const scenes: Scene[] = rawScenes
+    ? rawScenes.map((raw) => {
+        const sc = obj(raw, "cena");
+        const id = requireString(sc.id, "Cena");
+        const name = text(sc.name, "cena", LIMITS.sceneName) || fail("Arquivo inválido: cena sem nome.");
+        // A cena ativa é a que está em `battle`; só as outras vêm guardadas.
+        if (id === sceneId) return { id, name };
+        const st = obj(sc.stored, "cena guardada");
+        return { id, name, stored: { ...sceneContent(st, allies), allyPos: allyPositions(st.allyPos, allyIds) } };
+      })
+    : [{ id: sceneId, name: "Cena 1" }];
+  if (new Set(scenes.map((sc) => sc.id)).size !== scenes.length) fail("Arquivo inválido: cenas repetidas.");
+  if (!scenes.some((sc) => sc.id === sceneId)) fail("Arquivo inválido: cena atual.");
+
+  // Nenhum combatente se repete, nem de uma cena para outra.
+  const everyone = [...allies, ...active.mobs, ...active.npcs, ...scenes.flatMap((sc) => (sc.stored ? [...sc.stored.mobs, ...sc.stored.npcs] : []))];
+  if (new Set(everyone.map((c) => c.id)).size !== everyone.length) fail("Arquivo inválido: combatentes repetidos.");
+
+  const game: GameState = {
+    templates: list(g.templates, "templates", 500).map(template),
+    allies,
+    battle: {
+      ...active,
+      // Oculto não fica na ordem de iniciativa (E21).
+      combat: combat(b.combat, new Set([...allies, ...active.mobs, ...active.npcs].filter((c) => !c.hidden).map((c) => c.id))),
+      rolls: { request: null, reactions: [], outside: outsideRolls(obj(b.rolls ?? {}, "rolagens").outside) },
+    },
+    log: list(g.log, "log", LIMITS.logSize).map(logEntry),
+    scenes,
+    sceneId,
+  };
+
+  const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
+  const mobCounters = new Map<string, number>();
+  for (const [tid, n] of Object.entries(counters)) mobCounters.set(tid, int(n, "numeração dos mobs", 0, 1e6));
+  return { players, mobCounters, game };
+}
+
+/** Conteúdo de uma cena (a ativa ou uma guardada), validado: mapa, mobs, NPCs, efeitos, desenhos, paredes e clima. */
+function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
+  const m = obj(b.map, "mapa");
   const mobs = list(b.mobs, "mobs", 500).map((c) => combatant(c, "mob"));
   const npcs = list(b.npcs ?? [], "NPCs", 500).map((c) => combatant(c, "npc"));
-  const ids = new Set([...allies, ...mobs, ...npcs].map((c) => c.id));
-  if (ids.size !== allies.length + mobs.length + npcs.length) fail("Arquivo inválido: combatentes repetidos.");
-  // Conjurado (E21): o conjurador existe e é do mesmo lado.
   const all = [...allies, ...mobs, ...npcs];
+  const ids = new Set(all.map((c) => c.id));
+  if (ids.size !== all.length) fail("Arquivo inválido: combatentes repetidos.");
+  // Conjurado (E21): o conjurador existe e é do mesmo lado.
   for (const c of all) {
     if (!c.summonerId) continue;
     const by = all.find((o) => o.id === c.summonerId);
@@ -308,37 +446,36 @@ export function parseSession(raw: unknown): ParsedSession {
   }
   const rotation = int(m.rotation ?? 0, "rotação do mapa", 0, 270);
   if (rotation % 90 !== 0) fail("Arquivo inválido: rotação do mapa.");
-
-  const game: GameState = {
-    templates: list(g.templates, "templates", 500).map(template),
-    allies,
-    battle: {
-      map: {
-        image: m.image === null ? null : requireImage(m.image, "Mapa", LIMITS.mapImageChars),
-        imageVersion: 0,
-        showGrid: bool(m.showGrid, "grid"),
-        cellPx: requireNumber(m.cellPx, "Tamanho do quadrado", LIMITS.cellPx.min, LIMITS.cellPx.max),
-        offsetX: offsetOf(m.offsetX, "Deslocamento X"),
-        offsetY: offsetOf(m.offsetY, "Deslocamento Y"),
-        feetPerCell: requireNumber(m.feetPerCell, "Pés por quadrado", 1, 100),
-        rotation,
-        imageScale: requireNumber(m.imageScale ?? 1, "Escala do mapa", LIMITS.imageScale.min, LIMITS.imageScale.max),
-      },
-      mobs,
-      npcs,
-      // Oculto não fica na ordem de iniciativa (E21).
-      combat: combat(b.combat, new Set([...allies, ...mobs, ...npcs].filter((c) => !c.hidden).map((c) => c.id))),
-      rolls: { request: null, reactions: [], outside: outsideRolls(obj(b.rolls ?? {}, "rolagens").outside) },
-      effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
-      weather: weatherFromFile(b.weather),
+  return {
+    map: {
+      image: m.image === null ? null : requireImage(m.image, "Mapa", LIMITS.mapImageChars),
+      imageVersion: 0,
+      showGrid: bool(m.showGrid, "grid"),
+      cellPx: requireNumber(m.cellPx, "Tamanho do quadrado", LIMITS.cellPx.min, LIMITS.cellPx.max),
+      offsetX: offsetOf(m.offsetX, "Deslocamento X"),
+      offsetY: offsetOf(m.offsetY, "Deslocamento Y"),
+      feetPerCell: requireNumber(m.feetPerCell, "Pés por quadrado", 1, 100),
+      rotation,
+      imageScale: requireNumber(m.imageScale ?? 1, "Escala do mapa", LIMITS.imageScale.min, LIMITS.imageScale.max),
     },
-    log: list(g.log, "log", LIMITS.logSize).map(logEntry),
+    mobs,
+    npcs,
+    effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
+    // Arquivos anteriores à 2.8 não têm desenhos nem paredes.
+    drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
+    walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
+    weather: weatherFromFile(b.weather),
   };
+}
 
-  const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
-  const mobCounters = new Map<string, number>();
-  for (const [tid, n] of Object.entries(counters)) mobCounters.set(tid, int(n, "numeração dos mobs", 0, 1e6));
-  return { players, mobCounters, game };
+/** Onde cada aliado estava numa cena guardada (aliado que não existe mais é ignorado). */
+function allyPositions(raw: unknown, allyIds: Set<string>): Record<string, GridPos> {
+  const out: Record<string, GridPos> = {};
+  for (const [id, p] of Object.entries(obj(raw ?? {}, "posições dos aliados"))) {
+    const at = pos(p);
+    if (allyIds.has(id) && at) out[id] = at;
+  }
+  return out;
 }
 
 function offsetOf(raw: unknown, label: string): number {
@@ -370,7 +507,11 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   const owner = (id: string) => remap.get(id) ?? id;
   const { game } = parsed;
   for (const a of game.allies) if (a.ownerId) a.ownerId = owner(a.ownerId);
-  for (const e of game.battle.effects) e.ownerId = owner(e.ownerId);
+  for (const e of [...game.battle.effects, ...game.scenes.flatMap((sc) => sc.stored?.effects ?? [])]) {
+    e.ownerId = owner(e.ownerId);
+    // O estado de antes de Transformar também tem dono: ao voltar a ele, continua com quem controlava.
+    if (e.revertTo) e.revertTo.ownerId = owner(e.revertTo.ownerId);
+  }
   for (const e of game.log) e.authorId = owner(e.authorId);
 
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.

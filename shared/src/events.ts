@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, Coins, Drawing, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -23,7 +23,14 @@ export interface Toast {
 export interface CombatantInput {
   name: string;
   hpMax: number;
+  /** Bônus de iniciativa. */
   dexMod: number;
+  /** Classe de armadura; `null` apaga. */
+  ac?: number | null;
+  /** Atributos preenchidos (os que faltarem ficam vazios); `{}` apaga todos. */
+  abilities?: Abilities;
+  /** Tamanho (padrão: médio). */
+  size?: Size;
   color?: string;
   /** dataURL já reduzido no cliente; `null` remove o avatar. */
   avatar?: string | null;
@@ -37,6 +44,18 @@ export interface CombatantInput {
 export interface Ruler {
   from: GridPos;
   to: GridPos;
+}
+
+/** Ping no mapa: ponto em células (com fração), efêmero, para todos verem por uns segundos. */
+export interface MapPoint {
+  col: number;
+  row: number;
+}
+
+export interface PingBroadcast {
+  playerId: string;
+  name: string;
+  at: MapPoint;
 }
 
 export interface RulerBroadcast {
@@ -112,11 +131,17 @@ export interface ActionPayloads {
   "hp:change": { id: string; delta: number };
   "hp:set": { id: string; value: number };
   "hp:full": { id: string };
+  /** Vida temporária: o valor novo substitui o anterior (não soma); 0 apaga. */
+  "hp:temp": { id: string; value: number };
+  /** Marca os testes contra a morte (0 a 3 cada) de quem está com 0 de vida. */
+  "death:set": { id: string; successes: number; failures: number };
+  /** Alcance/aura em pés em volta do token; null apaga. */
+  "aura:set": { id: string; feet: number | null };
   /**
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
    */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean };
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean };
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
   "roll:cancel": Record<string, never>;
@@ -143,6 +168,12 @@ export interface ActionPayloads {
   "combat:prev": Record<string, never>;
   /** Encerra o combate: zera round e iniciativas, mantém os combatentes. */
   "combat:end": Record<string, never>;
+  /** Quem está na vez (dono ou mestre) encerra a própria vez: o turno avança como no Próximo turno. */
+  "combat:pass": Record<string, never>;
+  /** Quem está na vez passa a agir depois de `afterId` (que ainda vai agir neste round). */
+  "combat:delay": { afterId: string };
+  /** Marca ou desmarca uma ação gasta na vez. */
+  "turn:use": { id: string; what: TurnAction; used: boolean };
   /** Slots de um nível: máximo e/ou usados. Só aliados. */
   "slot:set": { id: string; level: number; max?: number; used?: number };
   /** Todos os slots disponíveis de novo. */
@@ -151,6 +182,19 @@ export interface ActionPayloads {
   "ally:restoreAll": { id: string };
   "spell:add": { id: string; name: string; level: number; note?: string };
   "spell:remove": { id: string; spellId: string };
+  /** Recurso com usos: sem `resourceId` cria; com, edita. */
+  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge; rechargeOn?: number };
+  /** Gasta (`delta` > 0) ou recupera (`delta` < 0) usos. */
+  "resource:use": { id: string; resourceId: string; delta: number };
+  "resource:remove": { id: string; resourceId: string };
+  /** Descanso: curto recupera os recursos de descanso curto; longo recupera tudo (vida, slots, recursos) e zera a vida temporária. */
+  rest: { id: string; kind: "short" | "long" };
+  "attack:upsert": { id: string; attackId?: string; name: string; bonus?: number | null; damage?: string };
+  "attack:remove": { id: string; attackId: string };
+  "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string };
+  "item:remove": { id: string; itemId: string };
+  /** Moedas: substitui as quantidades (vazio = 0). */
+  "coins:set": { id: string; coins: Coins };
   /** `rounds` ausente ou `null` = sem duração (fica até alguém tirar). */
   "condition:add": { id: string; name: string; rounds?: number | null };
   "condition:remove": { id: string; conditionId: string };
@@ -198,12 +242,32 @@ export interface ActionPayloads {
    * Mantém jogadores, aliados (vida/slots/magias), grid e log; templates se `keepTemplates`.
    */
   "battle:clear": { keepTemplates: boolean };
+  /** Mestre: desenho no mapa (traço, seta, círculo). */
+  "draw:add": Omit<Drawing, "id">;
+  "draw:remove": { id: string };
+  /** Mestre: apaga todos os desenhos. */
+  "draw:clear": Record<string, never>;
+  /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean };
+  "wall:remove": { id: string };
+  /** Mestre: cena nova, vazia (mesmo grid da atual); não troca para ela. */
+  "scene:add": { name: string };
+  "scene:rename": { id: string; name: string };
+  /** Mestre: guarda a cena atual e carrega a outra. Só fora de combate (a iniciativa zera). */
+  "scene:switch": { id: string };
+  /** Mestre: apaga uma cena guardada (a ativa não). */
+  "scene:remove": { id: string };
+  /** Mestre: apaga todas as paredes e portas. */
+  "wall:clear": Record<string, never>;
+  /** Abrir/fechar: qualquer um, se não estiver trancada (nem for secreta). Trancar e secreta: só o mestre. */
+  "door:set": { id: string; open?: boolean; locked?: boolean; secret?: boolean };
 }
 
 /** Identifica o arquivo de sessão do app (E18). */
 export const SESSION_FILE_APP = "jamals-tabletop";
 /** Versão do formato do arquivo: sobe quando o formato muda de um jeito que versões antigas não leem. */
-export const SESSION_FILE_FORMAT = 1;
+// 2 (2.8): cenas guardadas. A 2.7 leria o arquivo e perderia as outras cenas sem avisar.
+export const SESSION_FILE_FORMAT = 2;
 
 /**
  * Sessão salva em arquivo (ADR-17, E18). Os jogadores vão só com id e nome: quem entrar com o mesmo
@@ -238,6 +302,8 @@ export type ClientToServerEvents = ActionEvents & {
   "ruler:update": (ruler: Ruler | null) => void;
   /** Efêmero, como a régua. */
   "area:update": (area: Area | null) => void;
+  /** Efêmero: "olhem aqui" no mapa, para todos (inclusive quem pingou). */
+  "map:ping": (at: MapPoint) => void;
   /** Sai da sessão (fica offline). A identidade continua: voltar com o mesmo token recupera o personagem. */
   "session:leave": () => void;
   /** Mestre: estado atual em formato de arquivo (E18). */
@@ -256,6 +322,7 @@ export interface ServerToClientEvents {
   "map:image": (payload: MapImagePayload) => void;
   ruler: (payload: RulerBroadcast) => void;
   area: (payload: AreaBroadcast) => void;
+  ping: (payload: PingBroadcast) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
@@ -271,7 +338,18 @@ export const LIMITS = {
   spells: 100,
   spellName: 60,
   spellNote: 200,
+  /** Ficha: recursos, ataques salvos e inventário. */
+  resources: 20,
+  resourceMax: 99,
+  attacks: 30,
+  items: 100,
+  itemQty: 9999,
+  coins: 9_999_999,
   dexMod: { min: -10, max: 20 },
+  /** Classe de armadura e valor de atributo: sem teto de regra, só um limite de sanidade. */
+  ac: { min: 0, max: 99 },
+  abilityScore: { min: 1, max: 99 },
+  aura: { min: 5, max: 300 },
   /** Quantidade de mobs criados de uma vez a partir de um template. */
   qty: { min: 1, max: 30 },
   notes: 500,
@@ -287,6 +365,18 @@ export const LIMITS = {
   effectName: 32,
   /** Efeitos no mapa ao mesmo tempo. */
   effects: 40,
+  /** Desenhos do mestre no mapa ao mesmo tempo, números por desenho (x e y) e espessura do traço. */
+  drawings: 150,
+  drawingNumbers: 1200,
+  drawingWidth: { min: 1, max: 24 },
+  /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
+  drawingCoord: 100_000,
+  /** Cenas na sessão e tamanho do nome. */
+  scenes: 20,
+  sceneName: 40,
+  /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */
+  walls: 600,
+  wallLength: 200,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,
   soundName: 120,

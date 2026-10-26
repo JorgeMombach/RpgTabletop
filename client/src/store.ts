@@ -1,7 +1,12 @@
 import { create } from "zustand";
-import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, Role, Ruler } from "@rpg/shared";
+import type { DrawMode } from "./map/DrawingShape";
+import type { WallMode } from "./map/WallShape";
+import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate";
+/** Quanto tempo um ping fica no mapa. */
+export const PING_MS = 2600;
+
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -38,11 +43,21 @@ interface AppStore extends DicePrefs {
   mapImage: MapImagePayload;
   /** Réguas que outras pessoas estão medindo agora. */
   rulers: Record<string, { name: string; ruler: Ruler }>;
+  /** Pings no mapa dos últimos segundos (de todos, inclusive os meus). */
+  pings: { id: number; playerId: string; name: string; at: MapPoint }[];
   /** Áreas de magia que outras pessoas estão mostrando agora. */
   areas: Record<string, { name: string; area: Area }>;
   /** Forma e tamanho escolhidos na ferramenta de área. */
   areaKind: AreaKind;
   areaFeet: number;
+  /** Ferramenta de desenho do mestre: formato (ou borracha), cor, espessura e "só eu vejo". */
+  drawMode: DrawMode;
+  drawColor: string;
+  drawWidth: number;
+  drawHidden: boolean;
+  /** Ferramenta Paredes do mestre: modo e a porta escolhida (para trancar, esconder ou apagar). */
+  wallMode: WallMode;
+  selectedDoorId: string | null;
   /** Combatente aberto no painel "Selecionado" (local, não sincroniza). */
   selectedId: string | null;
   /** Nome usado antes de "Sair", para preencher a tela de entrada. */
@@ -55,8 +70,11 @@ interface AppStore extends DicePrefs {
   /** Estado da mesa no último salvamento ou carregamento de arquivo (E18); `null` = nunca salvou. */
   savedSnapshot: string | null;
   savedAt: Date | null;
-  /** Conjurados esperando um clique no mapa (E21): um por clique, com a distância até quem conjurou. */
-  placing: { ids: string[]; fromId: string } | null;
+  /**
+   * Tokens esperando um clique no mapa: conjurados (E21), um por clique, com a distância até quem conjurou
+   * (`fromId`), ou o personagem posto pelo celular (sem `fromId`).
+   */
+  placing: { ids: string[]; fromId?: string } | null;
   /**
    * Rolagens que ainda estão caindo na animação deste navegador (E26): o log mostra "rolando…"
    * e só revela o resultado quando os dados param.
@@ -74,9 +92,16 @@ export const useApp = create<AppStore>(() => ({
   state: null,
   mapImage: { version: 0, image: null },
   rulers: {},
+  pings: [],
   areas: {},
   areaKind: "cone",
   areaFeet: AREA_DEFAULT_FEET.cone,
+  drawMode: "free",
+  drawColor: "#d8b47a",
+  drawWidth: 6,
+  drawHidden: false,
+  wallMode: "wall",
+  selectedDoorId: null,
   selectedId: null,
   lastName: "",
   tool: "move",
@@ -128,7 +153,7 @@ export function select(id: string | null) {
 }
 
 export function setTool(tool: MapTool) {
-  useApp.setState({ tool, calibRect: null, placing: null });
+  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null });
 }
 
 /** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */

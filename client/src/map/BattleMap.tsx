@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudOff, IconFocusCentered, IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudOff, IconFocusCentered, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
+import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type Wall } from "@rpg/shared";
 import { act } from "../actions";
+import { useT } from "../i18n";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
-import { allCombatants } from "../format";
+import { allCombatants, currentGroup } from "../format";
 import { FixEffectModal } from "../components/FixEffectModal";
-import { cellAt, cellCenter, nearestFreeCell, sameCell, type Point } from "./geometry";
+import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
+import { AuraShape } from "./AuraShape";
+import { DrawingShape, DrawOptions } from "./DrawingShape";
+import { cornerAt, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
@@ -33,6 +38,10 @@ interface View {
  * Posição da imagem girada (sentido horário) e escalada para ocupar [0, largura] × [0, altura]
  * do mapa a partir da origem: o grid e os tokens não se mexem (E17).
  */
+/** Segurar parado este tempo (ms) faz um ping; mexer mais que PRESS_SLOP px na tela cancela. */
+const LONG_PRESS_MS = 550;
+const PRESS_SLOP = 6;
+
 function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
   const w = image.width * scale;
   const h = image.height * scale;
@@ -43,6 +52,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 export function BattleMap({ state, compact = false }: { state: ClientState; compact?: boolean }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -55,7 +65,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { tool, selectedId, hoverId, rulers, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
   const image = useImage(mapImage.image);
@@ -72,6 +83,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Esc encerra a colocação: quem sobrou fica fora do mapa (dá para arrastar da lista depois).
   useEffect(() => {
+    // Casa marcada de antes não confirma sozinha o primeiro toque (celular).
+    setHoverCell(null);
     if (!placing) return;
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setPlacing(null);
     window.addEventListener("keydown", esc);
@@ -148,6 +161,53 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     return stageRef.current?.getRelativePointerPosition() ?? null;
   }
 
+  // Ping: segurar parado (mouse ou dedo) ou Alt+clique. Mexeu o ponteiro antes do tempo, vira arrasto normal.
+  const press = useRef<{ timer: number; screen: Point } | null>(null);
+  /** Acabou de pingar: o clique que vem junto não tira a seleção. */
+  const pinged = useRef(false);
+  function sendPing(p: Point) {
+    pinged.current = true;
+    socket.emit("map:ping", { col: (p.x - grid.offsetX) / grid.cellPx, row: (p.y - grid.offsetY) / grid.cellPx });
+  }
+  // Desenho do mestre: o traço fica só aqui enquanto o botão está apertado; ao soltar vai para todos.
+  const strokeRef = useRef<number[] | null>(null);
+  const [stroke, setStroke] = useState<number[] | null>(null);
+  function finishStroke() {
+    // O último trecho (entre o último movimento e o soltar) também entra.
+    const end = worldPointer();
+    const cur = strokeRef.current;
+    const pts = cur && end ? (drawMode === "free" ? [...cur, end.x, end.y] : [cur[0], cur[1], end.x, end.y]) : cur;
+    strokeRef.current = null;
+    setStroke(null);
+    if (!pts || drawMode === "erase") return;
+    const long = drawMode === "free" ? pts.length >= 4 : Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) > 4 / view.scale;
+    if (long) void act("draw:add", { kind: drawMode, points: pts, color: drawColor, width: drawWidth, ...(drawHidden && { hidden: true }) });
+  }
+
+  // Parede sendo traçada pelo mestre: de canto a canto do grid; ao soltar vai para todos.
+  const wallRef = useRef<{ from: GridPos; to: GridPos } | null>(null);
+  const [wallDraft, setWallDraft] = useState<{ from: GridPos; to: GridPos } | null>(null);
+  function finishWall() {
+    const w = wallRef.current;
+    wallRef.current = null;
+    setWallDraft(null);
+    if (w && !sameCell(w.from, w.to)) void act("wall:add", { from: w.from, to: w.to, door: wallMode === "door" });
+  }
+
+  /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
+  function onWallClick(w: Wall) {
+    if (tool === "walls" && wallMode === "erase") return void act("wall:remove", { id: w.id });
+    if (!w.door) return;
+    if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
+    if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
+  }
+
+  function cancelPress() {
+    if (!press.current) return;
+    clearTimeout(press.current.timer);
+    press.current = null;
+  }
+
   // Ref espelha a régua para os handlers de mouse não dependerem do último render.
   const rulerRef = useRef<Ruler | null>(null);
   function updateRuler(next: Ruler | null) {
@@ -204,15 +264,45 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     const p = worldPointer();
     if (!p) return;
     if (placing && placingNext) {
-      const occupied = allCombatants(state).flatMap((c) => (c.pos && c.id !== placingNext.id ? [c.pos] : []));
+      const cell = cellAt(p, grid);
+      // Dedo não tem "passar por cima": o primeiro toque mostra a casa (e a régua); tocar de novo nela confirma.
+      if (e.evt.pointerType === "touch" && !sameCell(hoverCell, cell)) {
+        setHoverCell(cell);
+        return;
+      }
       const rest = placing.ids.filter((id) => id !== placingNext.id);
-      void act("token:move", { id: placingNext.id, pos: nearestFreeCell(cellAt(p, grid), occupied) }).then((r) => {
+      void act("token:move", { id: placingNext.id, pos: placeFor(placingNext, cell, allCombatants(state)) }).then((r) => {
         if (r.ok) setPlacing(rest.length ? { ...placing, ids: rest } : null);
       });
       return;
     }
     // Todos já estão no mapa (ex.: arrastados da lista): a colocação acabou.
     if (placing) setPlacing(null);
+    pinged.current = false;
+    if (e.evt.altKey) return sendPing(p);
+    if (tool === "walls") {
+      if (wallMode === "erase") return;
+      const c = cornerAt(p, grid);
+      wallRef.current = { from: c, to: c };
+      setWallDraft(wallRef.current);
+      return;
+    }
+    if (tool === "draw") {
+      if (drawMode === "erase") return;
+      strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
+      setStroke(strokeRef.current);
+      return;
+    }
+    const screen = stageRef.current?.getPointerPosition();
+    if (tool === "move" && screen) {
+      cancelPress();
+      const timer = window.setTimeout(() => {
+        press.current = null;
+        stageRef.current?.stopDrag();
+        sendPing(p);
+      }, LONG_PRESS_MS);
+      press.current = { timer, screen };
+    }
     if (tool === "calibrate") {
       calibStart.current = p;
       useApp.setState({ calibRect: { x: p.x, y: p.y, width: 0, height: 0 } });
@@ -226,9 +316,28 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseMove() {
+    const screen = stageRef.current?.getPointerPosition();
+    if (press.current && screen && Math.hypot(screen.x - press.current.screen.x, screen.y - press.current.screen.y) > PRESS_SLOP) cancelPress();
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    if (wallRef.current) {
+      const to = cornerAt(p, grid);
+      if (!sameCell(to, wallRef.current.to)) {
+        wallRef.current = { ...wallRef.current, to };
+        setWallDraft(wallRef.current);
+      }
+      return;
+    }
+    if (strokeRef.current) {
+      const s = strokeRef.current;
+      if (drawMode !== "free") strokeRef.current = [s[0], s[1], p.x, p.y];
+      // Ponto novo só depois de andar um pouco (na tela), para o traço não ficar pesado.
+      else if (Math.hypot(p.x - s[s.length - 2], p.y - s[s.length - 1]) > 3 / view.scale && s.length < LIMITS.drawingNumbers - 2) strokeRef.current = [...s, p.x, p.y];
+      else return;
+      setStroke(strokeRef.current);
+      return;
+    }
     if (placing) {
       const cell = cellAt(p, grid);
       setHoverCell((h) => (sameCell(h, cell) ? h : cell));
@@ -250,6 +359,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseUp() {
+    cancelPress();
+    finishStroke();
+    finishWall();
     calibStart.current = null;
     areaDragging.current = false;
     updateRuler(null);
@@ -266,7 +378,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (t.length !== 2 || !stage) return;
       e.preventDefault();
       if (stage.isDragging()) stage.stopDrag();
-      // Segundo dedo no meio de uma régua ou área: a medição para.
+      // Segundo dedo no meio de uma régua ou área: a medição para (e não vira ping).
+      cancelPress();
       if (!pinch.current) {
         updateRuler(null);
         areaDragging.current = false;
@@ -307,14 +420,15 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     const p = stage.getRelativePointerPosition();
     if (!p) return;
     // Soltar da lista é "colocar": se a casa estiver ocupada, vai para a livre mais perto.
-    const occupied = allCombatants(state).flatMap((c) => (c.pos && c.id !== id ? [c.pos] : []));
-    void act("token:move", { id, pos: nearestFreeCell(cellAt(p, grid), occupied) });
+    const all = allCombatants(state);
+    const c = all.find((o) => o.id === id);
+    if (c) void act("token:move", { id, pos: placeFor(c, cellAt(p, grid), all) });
   }
 
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
-  const combat = state.battle.combat;
-  const activeId = combat.active ? combat.order[combat.turnIndex] : null;
+  // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
+  const activeIds = new Set(currentGroup(state).map((c) => c.id));
   const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
   // Por cima de todos: o token com o mouse em cima e, abaixo dele, o selecionado. Assim o nome
   // (que aparece em cima do token) nunca fica escondido atrás do vizinho (E26).
@@ -353,10 +467,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           onPointerUp={onMouseUp}
           onPointerLeave={onMouseUp}
           onClick={(e) => {
-            if (e.target === e.target.getStage() && tool === "move" && !placing) select(null);
+            if (e.target === e.target.getStage() && tool === "move" && !placing && !pinged.current) select(null);
           }}
           onTap={(e) => {
-            if (e.target === e.target.getStage() && tool === "move" && !placing) select(null);
+            if (e.target === e.target.getStage() && tool === "move" && !placing && !pinged.current) select(null);
           }}
         >
           <Layer listening={false}>
@@ -379,6 +493,29 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             ))}
           </Layer>
 
+          {/* Desenhos do mestre: acima dos efeitos, abaixo dos tokens. Borracha: clicar num desenho apaga. */}
+          <Layer listening={gm && tool === "draw" && drawMode === "erase"}>
+            {state.battle.drawings.map((d) => (
+              <DrawingShape key={d.id} d={d} onErase={() => void act("draw:remove", { id: d.id })} />
+            ))}
+            {stroke && <DrawingShape d={{ kind: drawMode === "erase" ? "free" : drawMode, points: stroke, color: drawColor, width: drawWidth, hidden: drawHidden }} />}
+          </Layer>
+
+          {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga. */}
+          <Layer listening={tool === "move" || (gm && tool === "walls")}>
+            {state.battle.walls.map((w) => (
+              <WallShape key={w.id} w={w} grid={grid} gm={gm} selected={w.id === selectedDoorId} onClick={() => onWallClick(w)} />
+            ))}
+            {wallDraft && !sameCell(wallDraft.from, wallDraft.to) && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
+          </Layer>
+
+          {/* Alcance e aura: abaixo dos tokens. */}
+          <Layer listening={false}>
+            {tokens.map((c) => (
+              <AuraShape key={c.id} c={c} grid={grid} />
+            ))}
+          </Layer>
+
           <Layer>
             {tokens.map((c) => (
               <Token
@@ -386,7 +523,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 c={c}
                 grid={grid}
                 selected={c.id === selectedId}
-                active={c.id === activeId}
+                active={activeIds.has(c.id)}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}
@@ -402,13 +539,27 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           </Layer>
 
           <Layer listening={false}>
+            {pings.map((p) => (
+              <PingShape key={p.id} at={p.at} name={p.name} color={p.playerId === state.self.id ? "#d8b47a" : "#5ba3e6"} grid={grid} scale={view.scale} />
+            ))}
+          </Layer>
+
+          <Layer listening={false}>
             {Object.entries(rulers).map(([pid, r]) => (
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
             {placing && hoverCell && (
               // Distância até quem conjurou; sem ele no mapa, só a casa.
-              <RulerShape ruler={{ from: placingFrom?.pos ?? hoverCell, to: hoverCell }} grid={grid} scale={view.scale} label={placingNext?.name} color="#d8b47a" />
+              // Mede da borda de quem conjurou (criatura grande ocupa várias casas).
+              <RulerShape
+                ruler={{ from: placingFrom?.pos ? nearestCellOf(placingFrom.pos, sizeSpan(placingFrom.size), hoverCell) : hoverCell, to: hoverCell }}
+                grid={grid}
+                scale={view.scale}
+                label={placingNext?.name}
+                color="#d8b47a"
+                cellOnly={!placingFrom?.pos}
+              />
             )}
             {calibRect && (
               <Rect
@@ -430,6 +581,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         tool={tool}
         gm={gm}
         compact={compact}
+        narrow={size.width < 720}
         weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
@@ -449,13 +601,22 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {placing && placingNext && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">
-            Clique onde aparece <strong>{placingNext.name}</strong>
-            {placingLeft > 1 && ` (faltam ${placingLeft})`}
-            {placingFrom?.pos ? `; a régua mede a distância até ${placingFrom.name}` : ""}. Esc deixa o resto fora do mapa.
+            {t(compact ? "place.tap" : "place.click", { name: placingNext.name })}
+            {placingLeft > 1 && ` ${t("place.left", { n: placingLeft })}`}
+            {placingFrom?.pos ? ` ${t("place.ruler", { name: placingFrom.name })}` : ""} {!compact && t("place.esc")}
           </MText>
+          {compact && (
+            <MGroup justify="center" mt={6}>
+              <Button size="compact-sm" variant="default" onClick={() => setPlacing(null)}>
+                {t("place.cancel")}
+              </Button>
+            </MGroup>
+          )}
         </Paper>
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
+      {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
+      {gm && tool === "walls" && <WallOptions walls={state.battle.walls} />}
       {fixing && myArea && (
         <FixEffectModal
           state={state}
@@ -523,19 +684,22 @@ function RulerShape({
   scale,
   label,
   color,
+  cellOnly = false,
 }: {
   ruler: Ruler;
   grid: MapConfig;
   scale: number;
   label?: string;
   color: string;
+  /** Só a casa de destino com o nome, sem medir (colocar no mapa sem ninguém de referência). */
+  cellOnly?: boolean;
 }) {
   const a = cellCenter(ruler.from, grid);
   const b = cellCenter(ruler.to, grid);
   const cells = cellDistance(ruler.from, ruler.to);
   const feet = cells * grid.feetPerCell;
   const fs = 14 / scale;
-  const text = `${feet} ft · ${cells} ${cells === 1 ? "quadrado" : "quadrados"}${label ? ` (${label})` : ""}`;
+  const text = cellOnly ? (label ?? "") : `${feet} ft · ${cells} ${cells === 1 ? "quadrado" : "quadrados"}${label ? ` (${label})` : ""}`;
 
   return (
     <Group>
@@ -546,8 +710,8 @@ function RulerShape({
         height={grid.cellPx}
         fill={`${color}33`}
       />
-      <Line points={[a.x, a.y, b.x, b.y]} stroke={color} strokeWidth={3 / scale} dash={[10 / scale, 6 / scale]} />
-      <Circle x={a.x} y={a.y} radius={5 / scale} fill={color} />
+      {!cellOnly && <Line points={[a.x, a.y, b.x, b.y]} stroke={color} strokeWidth={3 / scale} dash={[10 / scale, 6 / scale]} />}
+      {!cellOnly && <Circle x={a.x} y={a.y} radius={5 / scale} fill={color} />}
       <Circle x={b.x} y={b.y} radius={5 / scale} fill={color} />
       <Text
         x={b.x + 10 / scale}
@@ -568,6 +732,7 @@ function MapToolbar({
   tool,
   gm,
   compact,
+  narrow,
   weather,
   onZoom,
   onFit,
@@ -575,10 +740,13 @@ function MapToolbar({
   tool: string;
   gm: boolean;
   compact: boolean;
+  /** Mapa estreito: ferramentas só com ícone. */
+  narrow: boolean;
   weather: boolean;
   onZoom: (factor: number) => void;
   onFit: () => void;
 }) {
+  const t = useT();
   const reduceFx = useApp((s) => s.reduceFx);
   const reduceButton = weather && (
     <Tooltip label={reduceFx ? "Clima completo (só neste navegador)" : "Reduzir o clima: menos partículas e sem clarão (só neste navegador)"}>
@@ -598,7 +766,7 @@ function MapToolbar({
   if (compact) {
     // Celular (E23): só ícones, alvos de toque maiores; zoom é com pinça.
     const tools = [
-      { id: "move", label: "Mover tokens e a visão do mapa", icon: IconHandStop },
+      { id: "move", label: t("map.moveTip"), icon: IconHandStop },
       { id: "ruler", label: "Régua: arraste para medir em pés", icon: IconRuler2 },
       { id: "area", label: "Área de magia para todos", icon: IconSparkles },
     ] as const;
@@ -631,34 +799,46 @@ function MapToolbar({
     );
   }
 
+  // Mapa estreito (colunas largas): as ferramentas ficam só com o ícone, para a barra caber.
+  const tools = [
+    { id: "move", text: "Mover", label: t("map.moveTip"), icon: IconHandStop },
+    { id: "ruler", text: "Régua", label: "Medir distância em pés (ou segure Shift e arraste)", icon: IconRuler2 },
+    { id: "area", text: "Área", label: "Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)", icon: IconSparkles },
+    ...(gm
+      ? ([
+          { id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil },
+          { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
+        ] as const)
+      : []),
+  ] as const;
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
-        <Tooltip label="Mover tokens e a visão do mapa">
-          <Button variant={tool === "move" ? "filled" : "subtle"} color={tool === "move" ? undefined : "gray"} leftSection={<IconHandStop size={14} />} onClick={() => setTool("move")}>
-            Mover
-          </Button>
-        </Tooltip>
-        <Tooltip label="Medir distância em pés (ou segure Shift e arraste)">
-          <Button
-            variant={tool === "ruler" ? "filled" : "subtle"}
-            color={tool === "ruler" ? undefined : "gray"}
-            onClick={() => setTool(tool === "ruler" ? "move" : "ruler")}
-            leftSection={<IconRuler2 size={14} />}
-          >
-            Régua
-          </Button>
-        </Tooltip>
-        <Tooltip label="Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)">
-          <Button
-            variant={tool === "area" ? "filled" : "subtle"}
-            color={tool === "area" ? undefined : "gray"}
-            onClick={() => setTool(tool === "area" ? "move" : "area")}
-            leftSection={<IconSparkles size={14} />}
-          >
-            Área
-          </Button>
-        </Tooltip>
+        {tools.map(({ id, text, label, icon: Icon }) => (
+          <Tooltip key={id} label={label}>
+            {narrow ? (
+              <ActionIcon
+                size="lg"
+                variant={tool === id ? "filled" : "subtle"}
+                color={tool === id ? undefined : "gray"}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                aria-label={text}
+                aria-pressed={tool === id}
+              >
+                <Icon size={16} />
+              </ActionIcon>
+            ) : (
+              <Button
+                variant={tool === id ? "filled" : "subtle"}
+                color={tool === id ? undefined : "gray"}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                leftSection={<Icon size={14} />}
+              >
+                {text}
+              </Button>
+            )}
+          </Tooltip>
+        ))}
         {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>Cancelar calibração</Button>}
         <Divider orientation="vertical" mx={2} />
         <Tooltip label="Afastar">
@@ -672,9 +852,15 @@ function MapToolbar({
           </ActionIcon>
         </Tooltip>
         <Tooltip label="Enquadrar o mapa inteiro">
-          <Button variant="subtle" color="gray" onClick={onFit}>
-            Ajustar
-          </Button>
+          {narrow ? (
+            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label="Enquadrar o mapa inteiro">
+              <IconFocusCentered size={16} />
+            </ActionIcon>
+          ) : (
+            <Button variant="subtle" color="gray" onClick={onFit}>
+              Ajustar
+            </Button>
+          )}
         </Tooltip>
         {reduceButton}
       </MGroup>

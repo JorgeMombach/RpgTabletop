@@ -31,6 +31,13 @@ body {
   background-repeat: no-repeat;
 }
 
+/* Idioma no canto da tela de entrada (antes de entrar, sem barra do topo). */
+.join-lang {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+}
+
 .join-card {
   width: min(380px, 100%);
   background: rgb(31 27 37 / 0.92) !important;
@@ -274,6 +281,25 @@ body {
   opacity: 0.5;
 }
 
+/* Cenas (vários mapas): a atual com borda de bronze. */
+.scene-row {
+  padding: 4px 6px;
+  border-radius: var(--mantine-radius-sm);
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.scene-row.active {
+  background: var(--mantine-color-dark-5);
+  border-color: var(--mantine-color-bronze-6);
+}
+
+/* Grupo de mobs iguais aberto: cada um embaixo da linha do grupo. */
+.init-sub {
+  margin-top: 4px;
+  padding-left: 12px;
+}
+
 /* Vida clicável para editar (painel Selecionado). */
 .hp-value {
   border-radius: var(--mantine-radius-xs);
@@ -326,6 +352,8 @@ abbr.abbr {
 }
 
 .battle-map.tool-ruler,
+.battle-map.tool-draw,
+.battle-map.tool-walls,
 .battle-map.tool-calibrate {
   cursor: crosshair;
 }
@@ -574,4 +602,39 @@ abbr.abbr {
   .keyboard-hint {
     display: none;
   }
+}
+
+/* Testes contra a morte: bolinhas acesas na cor do resultado. */
+.death-saves {
+  padding: 8px;
+  border: 1px solid var(--mantine-color-red-9);
+  border-radius: var(--mantine-radius-sm);
+  background: rgb(201 74 82 / 0.06);
+}
+
+.death-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--mark);
+}
+
+.death-mark.on {
+  background: var(--mark);
+}
+
+.death-mark:disabled {
+  cursor: default;
+}
+
+/* Atributos na ficha: cada um numa caixinha; clicável rola o teste. */
+.ability-cell {
+  padding: 4px 0;
+  border: 1px solid var(--mantine-color-dark-4);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mantine-color-dark-7);
+}
+
+button:hover > .ability-cell {
+  border-color: var(--mantine-color-bronze-6);
 }

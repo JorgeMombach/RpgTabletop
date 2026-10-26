@@ -32,10 +32,12 @@ Antes de dizer que algo está pronto: `npm run typecheck` e `npm test` passando.
 - Contrato em `shared/src/events.ts` (`ActionPayloads`, `LIMITS`) e `shared/src/types.ts`.
 - **Ação nova** = tipo em `ActionPayloads` → handler em `server/src/actions/*.ts` (registrado em `actions/index.ts`; validar entrada com `server/src/validate.ts`; recusar com `fail()`, mensagem em pt-BR pronta para o usuário) → chamada no client via `act()` (`client/src/actions.ts`) → teste em `server/test/`.
 - Handlers devem **validar tudo antes de alterar o estado** (não aplicar edição pela metade).
+- **Campo novo no jogo** (combatente, template, efeito, log, clima…) tem que ir no arquivo de sessão (`server/src/session-file.ts`, ida e volta). O `server/test/save-guard.test.ts` usa exemplos `Required<…>`: campo novo esquecido nele quebra o typecheck; esquecido no arquivo de sessão quebra o teste.
 - Testes: `useServer()` em `server/test/helpers.ts` sobe um servidor por arquivo. Conexão local = mestre; `client("10.x.x.x")` simula jogador remoto via `X-Forwarded-For`.
 - **Subir o servidor** é sempre `startServer()` (`server/src/start.ts`): linha de comando (`index.ts`), Docker e o app Electron (`desktop/src/main.ts`) usam a mesma função.
 - **App do mestre (Electron):** a página conversa com o app só pela ponte `window.desktop` (`desktop/src/preload.ts`; no client, `desktop` em `client/src/sessionFile.ts`, `undefined` no navegador). O preload roda em sandbox: só `require("electron")`.
 - Textos de interface, mensagens de erro e comentários em **português**. Siga o estilo e a densidade de comentários do código ao redor.
+- **Tradução (i18n):** texto novo de interface vai no catálogo `client/src/i18n/pt-BR.ts` (chave agrupada pela tela, ex.: `"dice.rollAttack"`) e entra com `useT()` em componentes ou `t()` fora deles; traduza a mesma chave em `en.ts` e `es.ts` (o que faltar aparece em português). Texto antigo ainda direto no código migra aos poucos (backlog F). Mensagens do servidor continuam em português por enquanto.
 - Quebras de linha **LF** (`.gitattributes`). No Windows o `core.autocrlf` está ligado; o `.gitattributes` garante LF no checkout.
 
 ## Padrões de interface (Mantine, ADR-15)
