@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, Size, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, Coins, Recharge, Size, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -162,6 +162,19 @@ export interface ActionPayloads {
   "ally:restoreAll": { id: string };
   "spell:add": { id: string; name: string; level: number; note?: string };
   "spell:remove": { id: string; spellId: string };
+  /** Recurso com usos: sem `resourceId` cria; com, edita. */
+  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge };
+  /** Gasta (`delta` > 0) ou recupera (`delta` < 0) usos. */
+  "resource:use": { id: string; resourceId: string; delta: number };
+  "resource:remove": { id: string; resourceId: string };
+  /** Descanso: curto recupera os recursos de descanso curto; longo recupera tudo (vida, slots, recursos) e zera a vida temporária. */
+  rest: { id: string; kind: "short" | "long" };
+  "attack:upsert": { id: string; attackId?: string; name: string; bonus?: number | null; damage?: string };
+  "attack:remove": { id: string; attackId: string };
+  "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string };
+  "item:remove": { id: string; itemId: string };
+  /** Moedas: substitui as quantidades (vazio = 0). */
+  "coins:set": { id: string; coins: Coins };
   /** `rounds` ausente ou `null` = sem duração (fica até alguém tirar). */
   "condition:add": { id: string; name: string; rounds?: number | null };
   "condition:remove": { id: string; conditionId: string };
@@ -282,6 +295,13 @@ export const LIMITS = {
   spells: 100,
   spellName: 60,
   spellNote: 200,
+  /** Ficha: recursos, ataques salvos e inventário. */
+  resources: 20,
+  resourceMax: 99,
+  attacks: 30,
+  items: 100,
+  itemQty: 9999,
+  coins: 9_999_999,
   dexMod: { min: -10, max: 20 },
   /** Classe de armadura e valor de atributo: sem teto de regra, só um limite de sanidade. */
   ac: { min: 0, max: 99 },

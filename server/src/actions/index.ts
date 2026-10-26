@@ -6,6 +6,7 @@ import { effectHandlers } from "./effects";
 import { initiativeHandlers } from "./initiative";
 import { magicHandlers } from "./magic";
 import { mapHandlers } from "./map";
+import { sheetHandlers } from "./sheet";
 import { soundHandlers } from "./sound";
 import { weatherHandlers } from "./weather";
 
@@ -18,5 +19,6 @@ export const handlers: HandlerMap = {
   ...conditionHandlers,
   ...effectHandlers,
   ...soundHandlers,
+  ...sheetHandlers,
   ...weatherHandlers,
 };

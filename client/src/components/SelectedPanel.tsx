@@ -17,7 +17,7 @@ import { DeathSaves } from "./DeathSaves";
 import { ConditionsSection } from "./ConditionsSection";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
-import { MagicSection } from "./MagicSection";
+import { SheetTabs } from "./SheetTabs";
 import { Panel } from "./Panel";
 
 /** Coloca o token no quadrado livre mais perto do centro da visão do mapa. */
@@ -153,7 +153,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
 
       {!editing && !summoning && <ConditionsSection c={c} editable={canEdit} />}
 
-      {c.type === "ally" && !editing && !summoning && <MagicSection c={c} editable={canEdit} />}
+      {!editing && !summoning && (c.type === "ally" || gm) && <SheetTabs c={c} editable={canEdit} gm={gm} />}
 
       {canEdit && !editing && !summoning && (
         <>

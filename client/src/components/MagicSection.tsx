@@ -101,9 +101,9 @@ export function MagicSection({ c, editable }: { c: Combatant; editable: boolean 
           <Button variant="default" style={{ flex: "1 1 auto" }} disabled={!anyUsed} onClick={() => act("slots:restore", { id: c.id })}>
             Recuperar slots
           </Button>
-          <Tooltip label="Vida cheia + todos os slots">
-            <Button variant="default" style={{ flex: "1 1 auto" }} disabled={!anyUsed && c.hp === c.hpMax} onClick={() => act("ally:restoreAll", { id: c.id })}>
-              Restaurar tudo
+          <Tooltip label="Vida cheia, todos os slots e os recursos de volta; sem vida temporária">
+            <Button variant="default" style={{ flex: "1 1 auto" }} onClick={() => act("rest", { id: c.id, kind: "long" })}>
+              Descanso longo
             </Button>
           </Tooltip>
         </Group>

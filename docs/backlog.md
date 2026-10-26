@@ -16,9 +16,9 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Tamanho das criaturas:** Miúdo (divide a casa), Pequeno/Médio 1×1, Grande 2×2, Enorme 3×3, Imenso 4×4. Token cobre as casas; o servidor confere todas as casas ocupadas; régua conta da borda. Padrão Médio (arquivo antigo também).
 - [x] **Vida temporária:** campo à parte; o dano consome primeiro.
 - [x] **Testes contra a morte:** aliado a 0 de vida ganha 3 sucessos / 3 falhas e botão de rolar o d20 (só marca; a mesa decide).
-- [ ] **Recursos por descanso:** contadores livres ("Fúria 3/3", "Ki 5/5") com descanso curto/longo enchendo.
-- [ ] **Rolagens salvas:** "Espada longa: +5 / 1d8+3" guardado no personagem e rolado com um clique.
-- [ ] **Inventário e moedas** simples (PO, PP, PC), só registro.
+- [x] **Recursos por descanso:** contadores livres ("Fúria 3/3", "Ki 5/5") com descanso curto/longo enchendo.
+- [x] **Rolagens salvas:** "Espada longa: +5 / 1d8+3" guardado no personagem e rolado com um clique.
+- [x] **Inventário e moedas** simples (PO, PP, PC), só registro.
 
 ## C. Combate
 - [ ] **Jogador passa a vez:** botão para quem está na vez (dono do personagem ou do conjurado); o servidor avança como o *Próximo turno*; log "Thorin (Jorge) passou a vez".

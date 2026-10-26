@@ -9,6 +9,10 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ### Adicionado
 - **CA e atributos** em aliados, mobs, NPCs, conjurados e no bestiário. Vida, CA e bônus de iniciativa são obrigatórios; FOR, DES, CON, INT, SAB e CAR são opcionais, com o modificador calculado (10 = +0, 12 = +1, 20 = +5). Com DES preenchida, o bônus de iniciativa acompanha o modificador dela (dá para mudar à mão). Jogadores não veem a CA nem os atributos de inimigos e NPCs.
 - **Tamanho das criaturas:** Miúdo, Pequeno, Médio, Grande (2×2), Enorme (3×3) e Imenso (4×4), no formulário e no bestiário. O token cobre as casas, ninguém entra no espaço de uma criatura grande e ela não pousa em cima de ninguém; o miúdo divide a casa (fica no canto dela). Ao posicionar um conjurado, a régua mede da borda de quem conjurou.
+- **Ficha em abas** no painel *Selecionado*: Magia, Recursos, Ataques e Itens (mob e NPC: Recursos e Ataques, só para o mestre). É pessoal: outros jogadores não veem.
+  - **Recursos com usos** ("Fúria 3/3", "Ki 5/5"), que voltam no descanso curto, no longo ou só à mão, com os botões *Descanso curto* e *Descanso longo* (vida cheia, slots e recursos de volta, sem vida temporária). O *Restaurar tudo* virou *Descanso longo*.
+  - **Ataques salvos** ("Machado grande +5 / 1d12+3"): um clique rola o ataque, o dano ou o dano de crítico.
+  - **Inventário** com quantidade e nota, e **moedas** (PL, PO, PE, PP, PC).
 - **Vida temporária:** botão *Temp.* na vida (o valor substitui o anterior, não soma). O dano tira dela primeiro; aparece como "+5 temp." e num trecho claro da barra de vida. Jogadores não veem a dos inimigos.
 - **Testes contra a morte:** personagem com 0 de vida ganha três marcas de sucesso e três de falha (quem joga marca) e o botão *Rolar teste contra a morte*. Voltar a ter vida zera as marcas.
 - **Teste de atributo pela ficha:** clicar num atributo rola d20 + modificador no log ("Thorin (Ana) · Teste de SAB").

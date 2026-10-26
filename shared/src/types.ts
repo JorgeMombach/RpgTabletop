@@ -81,6 +81,38 @@ export function abilityMod(score: number): number {
   return Math.floor((score - 10) / 2);
 }
 
+/** Quando um recurso volta: descanso curto (volta também no longo), só no longo, ou só à mão. */
+export type Recharge = "short" | "long" | "none";
+
+/** Recurso com usos ("Fúria 3/3", "Ki 5/5", "Inspiração de Bardo 4/4"): só contagem, sem regra. */
+export interface Resource {
+  id: string;
+  name: string;
+  max: number;
+  used: number;
+  recharge: Recharge;
+}
+
+/** Ataque salvo ("Espada longa: +5 / 1d8+3"): rola com um clique. `bonus` ausente = sem rolagem de ataque (ex.: só dano). */
+export interface SavedAttack {
+  id: string;
+  name: string;
+  bonus?: number;
+  damage?: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  qty: number;
+  note?: string;
+}
+
+/** Moedas: platina, ouro, electro, prata e cobre (o padrão do 5e). */
+export const COINS = ["pp", "gp", "ep", "sp", "cp"] as const;
+export type Coin = (typeof COINS)[number];
+export type Coins = Partial<Record<Coin, number>>;
+
 export interface DeathSaves {
   successes: number;
   failures: number;
@@ -114,6 +146,11 @@ export interface Combatant {
   initRoll: number | null;
   spellSlots?: Record<SpellLevel, SpellSlot>;
   spells?: Spell[];
+  /** Ficha pessoal: só o dono e o mestre veem (como as magias). */
+  resources?: Resource[];
+  attacks?: SavedAttack[];
+  inventory?: InventoryItem[];
+  coins?: Coins;
   conditions: Condition[];
   /** Marca de animal (ícone de pata); o formato continua dizendo o lado (E21). */
   animal?: boolean;

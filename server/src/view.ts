@@ -1,16 +1,19 @@
 import type { ClientState, Combatant, CombatantView, HostInfo } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 
-/** Mob/NPC para jogadores: sem vida (nem a temporária), CA e atributos (a mesa descobre jogando). */
-function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, ...rest }: Combatant): CombatantView {
+/** Ficha pessoal (magias, recursos, ataques, inventário, moedas): só o dono e o mestre veem (SPEC E6). */
+function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resources: _r, attacks: _a, inventory: _i, coins: _c, ...rest }: T) {
   return rest;
 }
 
-/** A lista de magias é referência pessoal: só o dono e o mestre veem (SPEC E6). */
+/** Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando). */
+function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, ...rest }: Combatant): CombatantView {
+  return withoutSheet(rest);
+}
+
 function allyFor(player: ServerPlayer, c: Combatant): Combatant {
-  if (player.role === "gm" || c.ownerId === player.id || !c.spells) return c;
-  const { spells: _spells, ...rest } = c;
-  return rest;
+  if (player.role === "gm" || c.ownerId === player.id) return c;
+  return withoutSheet(c);
 }
 
 /** Para jogadores: sem os ocultos (E21) e sem a vida. */

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   ABILITIES,
   APP_VERSION,
+  COINS,
   EFFECT_PRESETS,
   LIMITS,
   SESSION_FILE_APP,
@@ -10,8 +11,12 @@ import {
   SPELL_LEVELS,
   isColor,
   type Abilities,
+  type Coins,
   type Combatant,
   type CombatState,
+  type InventoryItem,
+  type Recharge,
+  type SavedAttack,
   type Condition,
   type EffectPreset,
   type EffectState,
@@ -153,6 +158,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
     conditions: list(c.conditions ?? [], "condições", LIMITS.conditions).map(condition),
   };
   stats(out, c);
+  sheet(out, c);
   if (c.tempHp !== undefined) out.tempHp = int(c.tempHp, "vida temporária", 1, LIMITS.hpMax.max);
   if (c.deathSaves !== undefined) {
     const d = obj(c.deathSaves, "testes contra a morte");
@@ -170,6 +176,54 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.summonConcentration !== undefined && bool(c.summonConcentration, "concentração do conjurado")) out.summonConcentration = true;
   if (c.summonRounds !== undefined) out.summonRounds = int(c.summonRounds, "duração do conjurado", LIMITS.conditionRounds.min, LIMITS.conditionRounds.max);
   return out;
+}
+
+/** Ficha pessoal: recursos, ataques salvos, inventário e moedas (arquivos de antes não têm). */
+function sheet(out: Combatant, c: Obj) {
+  const recharges = ["short", "long", "none"];
+  if (c.resources !== undefined) {
+    out.resources = list(c.resources, "recursos", LIMITS.resources).map((raw) => {
+      const r = obj(raw, "recurso");
+      const max = int(r.max, "recurso", 1, LIMITS.resourceMax);
+      if (typeof r.recharge !== "string" || !recharges.includes(r.recharge)) fail("Arquivo inválido: recurso.");
+      return {
+        id: requireString(r.id, "Recurso"),
+        name: text(r.name, "recurso", LIMITS.spellName) || fail("Arquivo inválido: recurso sem nome."),
+        max,
+        used: int(r.used, "recurso", 0, max),
+        recharge: r.recharge as Recharge,
+      };
+    });
+  }
+  if (c.attacks !== undefined) {
+    out.attacks = list(c.attacks, "ataques", LIMITS.attacks).map((raw) => {
+      const a = obj(raw, "ataque");
+      const out: SavedAttack = { id: requireString(a.id, "Ataque"), name: text(a.name, "ataque", LIMITS.spellName) || fail("Arquivo inválido: ataque sem nome.") };
+      if (a.bonus !== undefined) out.bonus = int(a.bonus, "ataque", -20, 40);
+      const damage = optText(a.damage, "ataque", LIMITS.dice.exprLength);
+      if (damage) out.damage = damage;
+      return out;
+    });
+  }
+  if (c.inventory !== undefined) {
+    out.inventory = list(c.inventory, "inventário", LIMITS.items).map((raw) => {
+      const i = obj(raw, "item");
+      const out: InventoryItem = {
+        id: requireString(i.id, "Item"),
+        name: text(i.name, "item", LIMITS.spellName) || fail("Arquivo inválido: item sem nome."),
+        qty: int(i.qty, "item", 0, LIMITS.itemQty),
+      };
+      const note = optText(i.note, "item", LIMITS.spellNote);
+      if (note) out.note = note;
+      return out;
+    });
+  }
+  if (c.coins !== undefined) {
+    const raw = obj(c.coins, "moedas");
+    const coins: Coins = {};
+    for (const k of COINS) if (raw[k] !== undefined) coins[k] = int(raw[k], "moedas", 0, LIMITS.coins);
+    out.coins = coins;
+  }
 }
 
 /** CA, atributos e tamanho; arquivos de antes não têm (ficam sem: médio). */
