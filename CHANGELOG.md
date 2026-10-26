@@ -6,6 +6,15 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.6.0] - 2026-10-26
+
+### Adicionado
+- **Tela de celular e tablet para jogadores:** abas embaixo (Mapa, Ficha, Dados, Combate), topo compacto com "Sua vez!", abas na lateral com o celular deitado e opção de trocar para a tela de computador. O mestre continua na tela de computador. (E23)
+- **Mapa no toque:** dois dedos aproximam e afastam (também no tablet deitado); régua e área funcionam com o dedo. (E23)
+
+### Corrigido
+- No iPhone, tocar na tela agora também libera o som da mesa. (E23)
+
 ## [2.5.0] - 2026-10-25
 
 ### Adicionado
@@ -148,7 +157,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.5.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.2.0...v2.3.0

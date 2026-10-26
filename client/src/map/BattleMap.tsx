@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudOff, IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudOff, IconFocusCentered, IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
@@ -41,7 +41,8 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
   return { ...(at[rotation] ?? at[0]), w, h, bounds: { width: turned ? h : w, height: turned ? w : h } };
 }
 
-export function BattleMap({ state }: { state: ClientState }) {
+/** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
+export function BattleMap({ state, compact = false }: { state: ClientState; compact?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -51,6 +52,8 @@ export function BattleMap({ state }: { state: ClientState }) {
   const [myArea, setMyArea] = useState<Area | null>(null);
   const [fixing, setFixing] = useState(false);
   const calibStart = useRef<Point | null>(null);
+  // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
+  const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
   const { tool, selectedId, hoverId, rulers, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
@@ -193,8 +196,9 @@ export function BattleMap({ state }: { state: ClientState }) {
     return Math.round(Math.atan2(p.y - o.y, p.x - o.x) / step) * step;
   }
 
-  function onMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
-    if (e.evt.button !== 0) return;
+  // Eventos de ponteiro: valem para mouse, dedo e caneta (E23).
+  function onMouseDown(e: Konva.KonvaEventObject<PointerEvent>) {
+    if (e.evt.button !== 0 || pinch.current) return;
     // Clique sem mover o mouse antes: garante que o Konva saiba onde está o ponteiro.
     stageRef.current?.setPointersPositions(e.evt);
     const p = worldPointer();
@@ -222,6 +226,7 @@ export function BattleMap({ state }: { state: ClientState }) {
   }
 
   function onMouseMove() {
+    if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
     if (placing) {
@@ -249,6 +254,49 @@ export function BattleMap({ state }: { state: ClientState }) {
     areaDragging.current = false;
     updateRuler(null);
   }
+
+  // Dois dedos: aproxima/afasta em volta do meio deles e arrasta a visão junto (E23).
+  // Ouvido direto no elemento (antes do Konva): com a visão sendo arrastada, o Konva engole o toque.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const move = (e: TouchEvent) => {
+      const t = e.touches;
+      const stage = stageRef.current;
+      if (t.length !== 2 || !stage) return;
+      e.preventDefault();
+      if (stage.isDragging()) stage.stopDrag();
+      // Segundo dedo no meio de uma régua ou área: a medição para.
+      if (!pinch.current) {
+        updateRuler(null);
+        areaDragging.current = false;
+      }
+      const box = el.getBoundingClientRect();
+      const a = { x: t[0].clientX - box.left, y: t[0].clientY - box.top };
+      const b = { x: t[1].clientX - box.left, y: t[1].clientY - box.top };
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const last = pinch.current;
+      pinch.current = { dist, center };
+      if (!last || last.dist === 0) return;
+      setView((v) => {
+        const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, (v.scale * dist) / last.dist));
+        const world = { x: (last.center.x - v.x) / v.scale, y: (last.center.y - v.y) / v.scale };
+        return { scale, x: center.x - world.x * scale, y: center.y - world.y * scale };
+      });
+    };
+    const end = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch.current = null;
+    };
+    el.addEventListener("touchmove", move, { capture: true, passive: false });
+    el.addEventListener("touchend", end, { capture: true });
+    el.addEventListener("touchcancel", end, { capture: true });
+    return () => {
+      el.removeEventListener("touchmove", move, { capture: true });
+      el.removeEventListener("touchend", end, { capture: true });
+      el.removeEventListener("touchcancel", end, { capture: true });
+    };
+  }, []);
 
   function onDrop(e: ReactDragEvent<HTMLDivElement>) {
     const id = e.dataTransfer.getData(DRAG_MIME);
@@ -300,11 +348,14 @@ export function BattleMap({ state }: { state: ClientState }) {
             const pointer = e.target.getStage()?.getPointerPosition();
             if (pointer) zoomAt(pointer, e.evt.deltaY < 0 ? 1.12 : 1 / 1.12);
           }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
+          onPointerDown={onMouseDown}
+          onPointerMove={onMouseMove}
+          onPointerUp={onMouseUp}
+          onPointerLeave={onMouseUp}
           onClick={(e) => {
+            if (e.target === e.target.getStage() && tool === "move" && !placing) select(null);
+          }}
+          onTap={(e) => {
             if (e.target === e.target.getStage() && tool === "move" && !placing) select(null);
           }}
         >
@@ -378,6 +429,7 @@ export function BattleMap({ state }: { state: ClientState }) {
       <MapToolbar
         tool={tool}
         gm={gm}
+        compact={compact}
         weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
@@ -388,7 +440,9 @@ export function BattleMap({ state }: { state: ClientState }) {
           <MText size="sm" c="dimmed" ta="center">
             {gm
               ? "Suba a imagem do mapa no painel Mapa, ou use só o grid. Arraste aliados e mobs da lista para cá."
-              : "Aguardando o mestre montar o campo. Arraste seu personagem da lista para o mapa."}
+              : compact
+                ? "Aguardando o mestre montar o campo. Na aba Ficha, use Colocar no mapa para pôr seu personagem."
+                : "Aguardando o mestre montar o campo. Arraste seu personagem da lista para o mapa."}
           </MText>
         </Paper>
       )}
@@ -513,17 +567,70 @@ function RulerShape({
 function MapToolbar({
   tool,
   gm,
+  compact,
   weather,
   onZoom,
   onFit,
 }: {
   tool: string;
   gm: boolean;
+  compact: boolean;
   weather: boolean;
   onZoom: (factor: number) => void;
   onFit: () => void;
 }) {
   const reduceFx = useApp((s) => s.reduceFx);
+  const reduceButton = weather && (
+    <Tooltip label={reduceFx ? "Clima completo (só neste navegador)" : "Reduzir o clima: menos partículas e sem clarão (só neste navegador)"}>
+      <ActionIcon
+        size={compact ? "lg" : undefined}
+        variant={reduceFx ? "filled" : "subtle"}
+        color={reduceFx ? undefined : "gray"}
+        onClick={() => setDicePrefs({ reduceFx: !reduceFx })}
+        aria-label="Reduzir o clima"
+        aria-pressed={reduceFx}
+      >
+        <IconCloudOff size={compact ? 18 : 16} />
+      </ActionIcon>
+    </Tooltip>
+  );
+
+  if (compact) {
+    // Celular (E23): só ícones, alvos de toque maiores; zoom é com pinça.
+    const tools = [
+      { id: "move", label: "Mover tokens e a visão do mapa", icon: IconHandStop },
+      { id: "ruler", label: "Régua: arraste para medir em pés", icon: IconRuler2 },
+      { id: "area", label: "Área de magia para todos", icon: IconSparkles },
+    ] as const;
+    return (
+      <Paper className="map-toolbar" p={4} shadow="md" radius="md">
+        <MGroup gap={4} wrap="nowrap">
+          {tools.map(({ id, label, icon: Icon }) => (
+            <Tooltip key={id} label={label}>
+              <ActionIcon
+                size="lg"
+                variant={tool === id ? "filled" : "subtle"}
+                color={tool === id ? undefined : "gray"}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                aria-label={label}
+                aria-pressed={tool === id}
+              >
+                <Icon size={18} />
+              </ActionIcon>
+            </Tooltip>
+          ))}
+          <Divider orientation="vertical" mx={2} />
+          <Tooltip label="Enquadrar o mapa inteiro">
+            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label="Enquadrar o mapa inteiro">
+              <IconFocusCentered size={18} />
+            </ActionIcon>
+          </Tooltip>
+          {reduceButton}
+        </MGroup>
+      </Paper>
+    );
+  }
+
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
@@ -569,19 +676,7 @@ function MapToolbar({
             Ajustar
           </Button>
         </Tooltip>
-        {weather && (
-          <Tooltip label={reduceFx ? "Clima completo (só neste navegador)" : "Reduzir o clima: menos partículas e sem clarão (só neste navegador)"}>
-            <ActionIcon
-              variant={reduceFx ? "filled" : "subtle"}
-              color={reduceFx ? undefined : "gray"}
-              onClick={() => setDicePrefs({ reduceFx: !reduceFx })}
-              aria-label="Reduzir o clima"
-              aria-pressed={reduceFx}
-            >
-              <IconCloudOff size={16} />
-            </ActionIcon>
-          </Tooltip>
-        )}
+        {reduceButton}
       </MGroup>
     </Paper>
   );

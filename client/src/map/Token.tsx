@@ -148,6 +148,13 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
         setDragFeet(0);
       }}
       onDragMove={(e) => {
+        // Segundo dedo na tela (pinça, E23): é zoom, não arrastar o token. Volta para a casa de origem.
+        const touches = (e.evt as unknown as TouchEvent).touches;
+        if (touches && touches.length > 1 && dragStart.current) {
+          e.target.position(cellCenter(dragStart.current, grid));
+          e.target.stopDrag();
+          return;
+        }
         if (dragStart.current) setDragFeet(feetBetween(dragStart.current, cellAt(e.target.position(), grid), grid.feetPerCell));
       }}
       onDragEnd={handleDragEnd}

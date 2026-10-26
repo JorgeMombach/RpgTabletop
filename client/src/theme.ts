@@ -23,6 +23,9 @@ import {
   type MantineColorsTuple,
 } from "@mantine/core";
 
+/** Aparelho só de toque (celular, tablet): sem mouse para passar por cima. */
+const TOUCH_ONLY = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
+
 /** Bronze envelhecido: [6] ação principal e bordas de destaque, [4] títulos e "na vez". */
 const bronze: MantineColorsTuple = [
   "#fbf5ea",
@@ -152,7 +155,8 @@ export const theme = createTheme({
     SegmentedControl: SegmentedControl.extend({ defaultProps: { size: "xs", fullWidth: true } }),
     Slider: Slider.extend({ defaultProps: { size: "sm", label: null } }),
     Text: Text.extend({ defaultProps: { size: "sm" } }),
-    Tooltip: Tooltip.extend({ defaultProps: { withArrow: true, openDelay: 300, multiline: true, maw: 280 } }),
+    // Tela de toque (E23): sem dica flutuante, que gruda na tela depois do toque. Os botões têm texto ou aria-label.
+    Tooltip: Tooltip.extend({ defaultProps: { withArrow: true, openDelay: 300, multiline: true, maw: 280, disabled: TOUCH_ONLY } }),
     Paper: Paper.extend({ defaultProps: { withBorder: true, radius: "sm", p: "md", bg: "dark.6" } }),
     Modal: Modal.extend({
       defaultProps: { centered: true, radius: "md" },

@@ -20,16 +20,15 @@ export function SoundSync({ sound }: { sound: SoundState }) {
 
   useEffect(() => {
     const off = onAudioState(() => setLocked(audioLocked()));
-    // Qualquer clique ou tecla na página já libera o som.
+    // Qualquer clique, toque ou tecla na página já libera o som. No iPhone o toque só conta ao soltar (touchend).
     const unlock = () => unlockAudio();
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
+    const events = ["pointerdown", "touchend", "click", "keydown"] as const;
+    for (const ev of events) window.addEventListener(ev, unlock);
     const sfx = (source: Parameters<typeof playSfx>[0]) => void playSfx(source, sessionToken());
     socket.on("sound:sfx", sfx);
     return () => {
       off();
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      for (const ev of events) window.removeEventListener(ev, unlock);
       socket.off("sound:sfx", sfx);
     };
   }, []);

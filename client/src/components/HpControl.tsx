@@ -86,7 +86,7 @@ export function HpControl({ c }: { c: Combatant }) {
         </Button>
       </Group>
       <Group justify="space-between" gap="xs" wrap="wrap">
-        <Text size="xs" c="dimmed">
+        <Text size="xs" c="dimmed" className="keyboard-hint">
           Enter = dano · Shift+Enter = cura
         </Text>
         <Button variant="default" onClick={() => act("hp:full", { id: c.id })} disabled={c.hp === c.hpMax}>

@@ -1,9 +1,10 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
-import { IconBrush, IconLogout } from "@tabler/icons-react";
+import { IconBrush, IconDeviceMobile, IconLogout } from "@tabler/icons-react";
 import { APP_VERSION, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
 import { allCombatants } from "../format";
+import { setLayoutChoice, useMobileLayout, useSmallScreen } from "../layout";
 import { leave } from "../session";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
@@ -19,6 +20,7 @@ import { EffectsPanel } from "./EffectsPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { InvitePanel } from "./InvitePanel";
 import { MapPanel } from "./MapPanel";
+import { MobileShell } from "./MobileShell";
 import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { SessionPanel } from "./SessionPanel";
@@ -29,7 +31,7 @@ import { WeatherPanel } from "./WeatherPanel";
 import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
-function TurnStatus({ state }: { state: ClientState }) {
+export function TurnStatus({ state }: { state: ClientState }) {
   const { combat } = state.battle;
   if (!combat.active) return null;
   const id = combat.order[combat.turnIndex];
@@ -49,7 +51,14 @@ function TurnStatus({ state }: { state: ClientState }) {
   );
 }
 
+/** Jogador em tela pequena vai para o layout de celular (E23); o mestre fica sempre neste. */
 export function Shell({ state }: { state: ClientState }) {
+  const mobile = useMobileLayout(state.self.role === "gm");
+  return mobile ? <MobileShell state={state} /> : <DesktopShell state={state} />;
+}
+
+function DesktopShell({ state }: { state: ClientState }) {
+  const small = useSmallScreen();
   const connected = useApp((s) => s.connected);
   const logDetached = useApp((s) => s.logDetached);
   const [clearing, setClearing] = useState(false);
@@ -86,6 +95,13 @@ export function Shell({ state }: { state: ClientState }) {
             <Tooltip label="Prepara o campo para a próxima batalha">
               <Button variant="default" leftSection={<IconBrush size={14} />} onClick={() => setClearing(true)}>
                 Limpar campo
+              </Button>
+            </Tooltip>
+          )}
+          {!gm && small && (
+            <Tooltip label="Voltar para a tela de celular e tablet">
+              <Button variant="default" leftSection={<IconDeviceMobile size={14} />} onClick={() => setLayoutChoice("auto")}>
+                Tela de celular
               </Button>
             </Tooltip>
           )}
