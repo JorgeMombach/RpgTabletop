@@ -13,6 +13,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Chefes:** recursos que voltam **no começo da vez** (ações lendárias) e com **recarga no d6** ("Sopro de fogo, recarga 5–6": no começo da vez do chefe, se estiver gasto, o app rola o d6 oculto e devolve o uso com 5 ou 6). Resistência lendária usa a volta no descanso longo.
 - **Grupos de mobs na iniciativa:** mobs do mesmo template com a mesma iniciativa (como na *rolagem por template*) viram uma linha só, "Goblin 1–6", e **agem na mesma vez**: o *Próximo turno* passa pelo grupo inteiro, o começo da vez vale para cada um e *Atrasar* leva todos juntos. A linha abre para ver e editar cada um.
 - **Alcance / aura:** botão *Alcance* no painel *Selecionado* (5, 10, 15, 30 ft ou outro valor) desenha um círculo leve em volta do token, a partir da borda dele, visível para todos. Enquanto o token é arrastado, o círculo fica onde ele estava. Só visual: o app não confere quem está dentro.
+- **Desenho do mestre no mapa:** ferramenta *Desenho* (só o mestre) com traço livre, seta e círculo, cinco cores e três espessuras. Fica no mapa para todos até ser apagado (*Borracha* num desenho, *Desfazer* o último ou *Apagar tudo*), vai no arquivo de sessão e sai com *Limpar campo*. Com *Só eu vejo*, o desenho fica tracejado e os jogadores não recebem (anotação de armadilha, porta secreta).
 - **Ping no mapa:** segure o clique ou o dedo parado num ponto (ou use Alt+clique) e ondas pulsam ali por uns segundos para todos, com o nome de quem marcou. O seu aparece em bronze; o dos outros, em azul.
 - **Colocar no mapa pelo celular:** *Colocar no mapa* na Ficha troca para a aba Mapa; o primeiro toque marca a casa e o segundo confirma (*Cancelar* no aviso). Conjurados com *Escolher no mapa* também vão direto para o Mapa, com a régua até quem conjurou.
 - **A vez de cada um** (painel *Iniciativa*, para quem está na vez e para o mestre):
@@ -27,6 +28,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Testes contra a morte:** personagem com 0 de vida ganha três marcas de sucesso e três de falha (quem joga marca) e o botão *Rolar teste contra a morte*. Voltar a ter vida zera as marcas.
 - **Teste de atributo pela ficha:** clicar num atributo rola d20 + modificador no log ("Thorin (Ana) · Teste de SAB").
 - **Idioma da interface:** português, inglês ou espanhol, escolhido no ícone de idioma (tela de entrada, barra do topo e menu do celular); começa no idioma do navegador e vale só para quem escolheu. A tradução está começando: por enquanto a tela de entrada, a barra do topo e o celular.
+
+### Alterado
+- Com o mapa estreito (colunas laterais largas), a barra de ferramentas do mapa mostra só os ícones, para caber inteira.
 
 ### Corrigido
 - Ao carregar uma sessão salva, um efeito transformado com *Quando acabar, volta a ser…* perdia o dono ao voltar ao estado anterior (o jogador deixava de controlá-lo).

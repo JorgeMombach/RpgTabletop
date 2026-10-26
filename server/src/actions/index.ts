@@ -2,6 +2,7 @@ import type { HandlerMap } from "./types";
 import { combatantHandlers } from "./combatants";
 import { conditionHandlers } from "./conditions";
 import { diceHandlers } from "./dice";
+import { drawingHandlers } from "./drawings";
 import { effectHandlers } from "./effects";
 import { initiativeHandlers } from "./initiative";
 import { magicHandlers } from "./magic";
@@ -18,6 +19,7 @@ export const handlers: HandlerMap = {
   ...magicHandlers,
   ...conditionHandlers,
   ...effectHandlers,
+  ...drawingHandlers,
   ...soundHandlers,
   ...sheetHandlers,
   ...weatherHandlers,

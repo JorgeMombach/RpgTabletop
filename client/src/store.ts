@@ -1,10 +1,11 @@
 import { create } from "zustand";
+import type { DrawMode } from "./map/DrawingShape";
 import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -48,6 +49,11 @@ interface AppStore extends DicePrefs {
   /** Forma e tamanho escolhidos na ferramenta de área. */
   areaKind: AreaKind;
   areaFeet: number;
+  /** Ferramenta de desenho do mestre: formato (ou borracha), cor, espessura e "só eu vejo". */
+  drawMode: DrawMode;
+  drawColor: string;
+  drawWidth: number;
+  drawHidden: boolean;
   /** Combatente aberto no painel "Selecionado" (local, não sincroniza). */
   selectedId: string | null;
   /** Nome usado antes de "Sair", para preencher a tela de entrada. */
@@ -86,6 +92,10 @@ export const useApp = create<AppStore>(() => ({
   areas: {},
   areaKind: "cone",
   areaFeet: AREA_DEFAULT_FEET.cone,
+  drawMode: "free",
+  drawColor: "#d8b47a",
+  drawWidth: 6,
+  drawHidden: false,
   selectedId: null,
   lastName: "",
   tool: "move",

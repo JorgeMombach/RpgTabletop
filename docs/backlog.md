@@ -32,7 +32,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 ## D. Mapa
 - [x] **Colocar no mapa pelo celular:** *Colocar no mapa* na Ficha troca para a aba Mapa e espera o toque onde entra (modo de posicionar dos conjurados, com régua). Serve para personagem e invocações.
 - [x] **Ping:** segurar o clique/dedo num ponto faz um círculo pulsar para todos, com o nome de quem marcou.
-- [ ] **Desenho livre** do mestre (setas, círculos, marcações).
+- [x] **Desenho livre** do mestre (setas, círculos, marcações).
 - [ ] **Portas e paredes simples** (linhas que bloqueiam visualmente; prepara a névoa de guerra).
 - [ ] **Vários mapas na sessão:** o mestre prepara e troca com um clique, cada mapa com os seus tokens.
 

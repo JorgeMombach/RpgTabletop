@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Combatant, GameState, Resource, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
+import type { Combatant, Drawing, GameState, Resource, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -106,6 +106,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     // Pedido e reações valem só no turno: não vão no arquivo. O modo fora de combate vai.
     rolls: { request: null, reactions: [], outside: "locked" },
     effects: [effect],
+    drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true } satisfies Required<Drawing>],
     weather,
   };
   const game: Required<GameState> = { templates: [template], allies: [thorin, lia], battle, log: [roll] };

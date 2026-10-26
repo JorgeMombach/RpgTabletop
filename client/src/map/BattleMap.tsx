@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudOff, IconFocusCentered, IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudOff, IconFocusCentered, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
@@ -14,6 +14,7 @@ import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
+import { DrawingShape, DrawOptions } from "./DrawingShape";
 import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
@@ -63,6 +64,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
+  const { drawMode, drawColor, drawWidth, drawHidden } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -166,6 +168,21 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     pinged.current = true;
     socket.emit("map:ping", { col: (p.x - grid.offsetX) / grid.cellPx, row: (p.y - grid.offsetY) / grid.cellPx });
   }
+  // Desenho do mestre: o traço fica só aqui enquanto o botão está apertado; ao soltar vai para todos.
+  const strokeRef = useRef<number[] | null>(null);
+  const [stroke, setStroke] = useState<number[] | null>(null);
+  function finishStroke() {
+    // O último trecho (entre o último movimento e o soltar) também entra.
+    const end = worldPointer();
+    const cur = strokeRef.current;
+    const pts = cur && end ? (drawMode === "free" ? [...cur, end.x, end.y] : [cur[0], cur[1], end.x, end.y]) : cur;
+    strokeRef.current = null;
+    setStroke(null);
+    if (!pts || drawMode === "erase") return;
+    const long = drawMode === "free" ? pts.length >= 4 : Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) > 4 / view.scale;
+    if (long) void act("draw:add", { kind: drawMode, points: pts, color: drawColor, width: drawWidth, ...(drawHidden && { hidden: true }) });
+  }
+
   function cancelPress() {
     if (!press.current) return;
     clearTimeout(press.current.timer);
@@ -244,6 +261,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (placing) setPlacing(null);
     pinged.current = false;
     if (e.evt.altKey) return sendPing(p);
+    if (tool === "draw") {
+      if (drawMode === "erase") return;
+      strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
+      setStroke(strokeRef.current);
+      return;
+    }
     const screen = stageRef.current?.getPointerPosition();
     if (tool === "move" && screen) {
       cancelPress();
@@ -272,6 +295,15 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    if (strokeRef.current) {
+      const s = strokeRef.current;
+      if (drawMode !== "free") strokeRef.current = [s[0], s[1], p.x, p.y];
+      // Ponto novo só depois de andar um pouco (na tela), para o traço não ficar pesado.
+      else if (Math.hypot(p.x - s[s.length - 2], p.y - s[s.length - 1]) > 3 / view.scale && s.length < LIMITS.drawingNumbers - 2) strokeRef.current = [...s, p.x, p.y];
+      else return;
+      setStroke(strokeRef.current);
+      return;
+    }
     if (placing) {
       const cell = cellAt(p, grid);
       setHoverCell((h) => (sameCell(h, cell) ? h : cell));
@@ -294,6 +326,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   function onMouseUp() {
     cancelPress();
+    finishStroke();
     calibStart.current = null;
     areaDragging.current = false;
     updateRuler(null);
@@ -425,6 +458,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             ))}
           </Layer>
 
+          {/* Desenhos do mestre: acima dos efeitos, abaixo dos tokens. Borracha: clicar num desenho apaga. */}
+          <Layer listening={gm && tool === "draw" && drawMode === "erase"}>
+            {state.battle.drawings.map((d) => (
+              <DrawingShape key={d.id} d={d} onErase={() => void act("draw:remove", { id: d.id })} />
+            ))}
+            {stroke && <DrawingShape d={{ kind: drawMode === "erase" ? "free" : drawMode, points: stroke, color: drawColor, width: drawWidth, hidden: drawHidden }} />}
+          </Layer>
+
           {/* Alcance e aura: abaixo dos tokens. */}
           <Layer listening={false}>
             {tokens.map((c) => (
@@ -497,6 +538,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         tool={tool}
         gm={gm}
         compact={compact}
+        narrow={size.width < 640}
         weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
@@ -530,6 +572,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Paper>
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
+      {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
       {fixing && myArea && (
         <FixEffectModal
           state={state}
@@ -645,6 +688,7 @@ function MapToolbar({
   tool,
   gm,
   compact,
+  narrow,
   weather,
   onZoom,
   onFit,
@@ -652,6 +696,8 @@ function MapToolbar({
   tool: string;
   gm: boolean;
   compact: boolean;
+  /** Mapa estreito: ferramentas só com ícone. */
+  narrow: boolean;
   weather: boolean;
   onZoom: (factor: number) => void;
   onFit: () => void;
@@ -709,34 +755,41 @@ function MapToolbar({
     );
   }
 
+  // Mapa estreito (colunas largas): as ferramentas ficam só com o ícone, para a barra caber.
+  const tools = [
+    { id: "move", text: "Mover", label: t("map.moveTip"), icon: IconHandStop },
+    { id: "ruler", text: "Régua", label: "Medir distância em pés (ou segure Shift e arraste)", icon: IconRuler2 },
+    { id: "area", text: "Área", label: "Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)", icon: IconSparkles },
+    ...(gm ? [{ id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil } as const] : []),
+  ] as const;
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
-        <Tooltip label={t("map.moveTip")}>
-          <Button variant={tool === "move" ? "filled" : "subtle"} color={tool === "move" ? undefined : "gray"} leftSection={<IconHandStop size={14} />} onClick={() => setTool("move")}>
-            Mover
-          </Button>
-        </Tooltip>
-        <Tooltip label="Medir distância em pés (ou segure Shift e arraste)">
-          <Button
-            variant={tool === "ruler" ? "filled" : "subtle"}
-            color={tool === "ruler" ? undefined : "gray"}
-            onClick={() => setTool(tool === "ruler" ? "move" : "ruler")}
-            leftSection={<IconRuler2 size={14} />}
-          >
-            Régua
-          </Button>
-        </Tooltip>
-        <Tooltip label="Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)">
-          <Button
-            variant={tool === "area" ? "filled" : "subtle"}
-            color={tool === "area" ? undefined : "gray"}
-            onClick={() => setTool(tool === "area" ? "move" : "area")}
-            leftSection={<IconSparkles size={14} />}
-          >
-            Área
-          </Button>
-        </Tooltip>
+        {tools.map(({ id, text, label, icon: Icon }) => (
+          <Tooltip key={id} label={label}>
+            {narrow ? (
+              <ActionIcon
+                size="lg"
+                variant={tool === id ? "filled" : "subtle"}
+                color={tool === id ? undefined : "gray"}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                aria-label={text}
+                aria-pressed={tool === id}
+              >
+                <Icon size={16} />
+              </ActionIcon>
+            ) : (
+              <Button
+                variant={tool === id ? "filled" : "subtle"}
+                color={tool === id ? undefined : "gray"}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                leftSection={<Icon size={14} />}
+              >
+                {text}
+              </Button>
+            )}
+          </Tooltip>
+        ))}
         {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>Cancelar calibração</Button>}
         <Divider orientation="vertical" mx={2} />
         <Tooltip label="Afastar">
@@ -750,9 +803,15 @@ function MapToolbar({
           </ActionIcon>
         </Tooltip>
         <Tooltip label="Enquadrar o mapa inteiro">
-          <Button variant="subtle" color="gray" onClick={onFit}>
-            Ajustar
-          </Button>
+          {narrow ? (
+            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label="Enquadrar o mapa inteiro">
+              <IconFocusCentered size={16} />
+            </ActionIcon>
+          ) : (
+            <Button variant="subtle" color="gray" onClick={onFit}>
+              Ajustar
+            </Button>
+          )}
         </Tooltip>
         {reduceButton}
       </MGroup>

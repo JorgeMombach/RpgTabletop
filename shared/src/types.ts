@@ -380,6 +380,25 @@ export interface MapEffect {
   revertTo?: EffectState;
 }
 
+export const DRAWING_KINDS = ["free", "arrow", "circle"] as const;
+/** Traço à mão livre, seta ou círculo. */
+export type DrawingKind = (typeof DRAWING_KINDS)[number];
+
+/**
+ * Desenho do mestre no mapa (setas, círculos, marcações): fica até ele apagar.
+ * Pontos em pixels do mapa (acompanham a imagem, não o grid): x0, y0, x1, y1…;
+ * na seta e no círculo, só o começo e o fim (centro e borda).
+ */
+export interface Drawing {
+  id: string;
+  kind: DrawingKind;
+  points: number[];
+  color: string;
+  width: number;
+  /** Só o mestre vê (anotação de preparo: armadilha, porta secreta). */
+  hidden?: boolean;
+}
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];
@@ -392,6 +411,7 @@ export interface GameState {
     combat: CombatState;
     rolls: RollsState;
     effects: MapEffect[];
+    drawings: Drawing[];
     weather: WeatherState;
   };
   log: LogEntry[];
@@ -514,6 +534,7 @@ export interface ClientState {
     combat: CombatState;
     rolls: RollsState;
     effects: MapEffect[];
+    drawings: Drawing[];
     weather: WeatherState;
   };
   log: LogEntry[];

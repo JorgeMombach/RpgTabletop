@@ -47,6 +47,7 @@ export function createGame(): GameState {
       combat: { active: false, round: 0, turnIndex: 0, order: [], turn: 0 },
       rolls: { request: null, reactions: [], outside: "free" },
       effects: [],
+      drawings: [],
       weather: defaultWeather(),
     },
     log: [],

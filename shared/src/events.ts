@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, Coins, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, Coins, Drawing, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -242,6 +242,11 @@ export interface ActionPayloads {
    * Mantém jogadores, aliados (vida/slots/magias), grid e log; templates se `keepTemplates`.
    */
   "battle:clear": { keepTemplates: boolean };
+  /** Mestre: desenho no mapa (traço, seta, círculo). */
+  "draw:add": Omit<Drawing, "id">;
+  "draw:remove": { id: string };
+  /** Mestre: apaga todos os desenhos. */
+  "draw:clear": Record<string, never>;
 }
 
 /** Identifica o arquivo de sessão do app (E18). */
@@ -345,6 +350,12 @@ export const LIMITS = {
   effectName: 32,
   /** Efeitos no mapa ao mesmo tempo. */
   effects: 40,
+  /** Desenhos do mestre no mapa ao mesmo tempo, números por desenho (x e y) e espessura do traço. */
+  drawings: 150,
+  drawingNumbers: 1200,
+  drawingWidth: { min: 1, max: 24 },
+  /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
+  drawingCoord: 100_000,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,
   soundName: 120,

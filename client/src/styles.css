@@ -339,6 +339,7 @@ abbr.abbr {
 }
 
 .battle-map.tool-ruler,
+.battle-map.tool-draw,
 .battle-map.tool-calibrate {
   cursor: crosshair;
 }

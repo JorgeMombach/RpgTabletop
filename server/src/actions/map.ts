@@ -69,6 +69,7 @@ export const mapHandlers: HandlerMap = {
     battle.mobs = [];
     battle.npcs = [];
     battle.effects = [];
+    battle.drawings = [];
     // Cena nova: sem clima, de dia (E26).
     battle.weather = defaultWeather();
     resetCombat(store);

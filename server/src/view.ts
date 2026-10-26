@@ -48,6 +48,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       rolls: game.battle.rolls,
       // Efeito desligado fica guardado só para o mestre (E19).
       effects: gm ? game.battle.effects : game.battle.effects.filter((e) => e.active),
+      // Anotação só do mestre não vai para os jogadores.
+      drawings: gm ? game.battle.drawings : game.battle.drawings.filter((d) => !d.hidden),
       weather: game.battle.weather,
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
