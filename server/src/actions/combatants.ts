@@ -102,6 +102,17 @@ function clampHp(c: Combatant, value: number) {
   c.hp = Math.max(0, Math.min(c.hpMax, value));
 }
 
+/** Muda a vida; voltar a ter vida zera os testes contra a morte. */
+function setHp(c: Combatant, value: number) {
+  clampHp(c, value);
+  if (c.hp > 0) delete c.deathSaves;
+}
+
+function setTempHp(c: Combatant, value: number) {
+  if (value > 0) c.tempHp = value;
+  else delete c.tempHp;
+}
+
 function findCombatant(store: Store, rawId: unknown): Combatant {
   return byId(store, requireString(rawId, "Combatente")) ?? fail("Combatente não encontrado.");
 }
@@ -398,16 +409,38 @@ export const combatantHandlers: HandlerMap = {
   "hp:change": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
     const delta = requireInt(payload.delta, "Valor", -LIMITS.hpMax.max * 10, LIMITS.hpMax.max * 10);
-    clampHp(c, c.hp + delta);
+    let rest = delta;
+    // Dano tira primeiro da vida temporária; a cura não mexe nela.
+    if (delta < 0 && c.tempHp) {
+      const absorbed = Math.min(c.tempHp, -delta);
+      setTempHp(c, c.tempHp - absorbed);
+      rest = delta + absorbed;
+    }
+    setHp(c, c.hp + rest);
   },
 
   "hp:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    clampHp(c, requireInt(payload.value, "Vida", 0, LIMITS.hpMax.max));
+    setHp(c, requireInt(payload.value, "Vida", 0, LIMITS.hpMax.max));
   },
 
   "hp:full": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    c.hp = c.hpMax;
+    setHp(c, c.hpMax);
+  },
+
+  "hp:temp": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    setTempHp(c, requireInt(payload.value, "Vida temporária", 0, LIMITS.hpMax.max));
+  },
+
+  "death:set": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    const successes = requireInt(payload.successes, "Sucessos", 0, 3);
+    const failures = requireInt(payload.failures, "Falhas", 0, 3);
+    if (c.type !== "ally") fail("Testes contra a morte são dos personagens.");
+    if (c.hp > 0) fail("Testes contra a morte só com 0 de vida.");
+    if (successes === 0 && failures === 0) delete c.deathSaves;
+    else c.deathSaves = { successes, failures };
   },
 };

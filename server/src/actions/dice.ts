@@ -142,7 +142,8 @@ export const diceHandlers: HandlerMap = {
     // Só depois de validar a expressão: rolagem inválida não gasta o pedido do mestre.
     const context = outOfTurn(store, player);
     const kindLabel = kind === "attack" ? "Ataque" : kind === "damage" ? (crit ? "Dano (crítico)" : "Dano") : undefined;
-    const label = [context, kindLabel, check && `Teste de ${CHECK_LABEL[check]}`].filter(Boolean).join(" · ") || undefined;
+    const death = payload?.death === true ? "Teste contra a morte" : undefined;
+    const label = [context, kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death].filter(Boolean).join(" · ") || undefined;
     if (!gm) player.lastRollAt = now;
     return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit, color })];
   },

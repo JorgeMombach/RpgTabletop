@@ -81,6 +81,11 @@ export function abilityMod(score: number): number {
   return Math.floor((score - 10) / 2);
 }
 
+export interface DeathSaves {
+  successes: number;
+  failures: number;
+}
+
 export interface Combatant {
   id: string;
   name: string;
@@ -90,6 +95,10 @@ export interface Combatant {
   templateId?: string;
   hp: number;
   hpMax: number;
+  /** Vida temporária: o dano tira dela primeiro. Ausente = nenhuma. Jogadores não recebem a de mob/NPC. */
+  tempHp?: number;
+  /** Testes contra a morte de quem está com 0 de vida (só marcação; a mesa decide). Zeram ao voltar a ter vida. */
+  deathSaves?: DeathSaves;
   /** Bônus de iniciativa (d20 + este valor; desempata a ordem). Com DES preenchida, o formulário propõe o modificador dela. */
   dexMod: number;
   /** Classe de armadura. Ausente = não informada (arquivos antigos); jogadores não recebem a de mob/NPC. */

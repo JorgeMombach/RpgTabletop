@@ -13,6 +13,7 @@ import { CombatantAvatar } from "./CombatantAvatar";
 import { StatsSection } from "./StatsSection";
 import { SummonForm } from "./SummonForm";
 import { CombatantForm } from "./CombatantForm";
+import { DeathSaves } from "./DeathSaves";
 import { ConditionsSection } from "./ConditionsSection";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
@@ -142,9 +143,11 @@ export function SelectedPanel({ state }: { state: ClientState }) {
               / {c.hpMax}
             </Text>
           </Text>
-          <HpBar hp={c.hp} hpMax={c.hpMax} thick />
+          <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
         </Stack>
       )}
+
+      {!editing && !summoning && c.type === "ally" && c.hp <= 0 && <DeathSaves c={c} editable={canEdit} gm={gm} />}
 
       {!editing && !summoning && <StatsSection c={c} canRoll={canEdit} gm={gm} />}
 

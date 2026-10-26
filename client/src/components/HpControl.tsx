@@ -1,19 +1,31 @@
-import { Badge, Button, Group, NumberInput, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, NumberInput, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { IconX } from "@tabler/icons-react";
 import type { Combatant } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
+import { useT } from "../i18n";
 import { HpBar } from "./HpBar";
 
-/** Vida de um combatente: o sistema só soma/subtrai o que a pessoa informar (ADR-06). */
+/**
+ * Vida de um combatente: o sistema só soma/subtrai o que a pessoa informar (ADR-06).
+ * Vida temporária à parte: o dano tira dela primeiro (o servidor faz a conta).
+ */
 export function HpControl({ c }: { c: Combatant }) {
+  const t = useT();
   const [amount, setAmount] = useState<string | number>("");
   const [editing, setEditing] = useState<string | number | null>(null);
   const down = c.hp <= 0;
+  const value = Math.abs(Math.trunc(Number(amount)));
 
   function apply(sign: 1 | -1) {
-    const n = Math.abs(Math.trunc(Number(amount)));
-    if (!n) return;
-    void act("hp:change", { id: c.id, delta: sign * n });
+    if (!value) return;
+    void act("hp:change", { id: c.id, delta: sign * value });
+    setAmount("");
+  }
+
+  function setTemp() {
+    if (!value) return;
+    void act("hp:temp", { id: c.id, value });
     setAmount("");
   }
 
@@ -27,7 +39,7 @@ export function HpControl({ c }: { c: Combatant }) {
     <Stack gap="xs">
       <Group gap={6} align="baseline" wrap="nowrap">
         {editing === null ? (
-          <Tooltip label="Clique para digitar a vida atual">
+          <Tooltip label={t("hp.editTip")}>
             <UnstyledButton className="hp-value" onClick={() => setEditing(c.hp)}>
               <Text fz={24} fw={700} lh={1.1}>
                 {c.hp}
@@ -47,21 +59,36 @@ export function HpControl({ c }: { c: Combatant }) {
               onChange={setEditing}
               onBlur={() => commitEdit()}
               onKeyDown={(e) => e.key === "Escape" && setEditing(null)}
-              aria-label="Vida atual"
+              aria-label={t("hp.current")}
             />
           </form>
         )}
         <Text size="lg" c="dimmed">
           / {c.hpMax}
         </Text>
+        {c.tempHp !== undefined && (
+          <Tooltip label={t("hp.tempTip")}>
+            <Badge
+              variant="light"
+              color="gray"
+              rightSection={
+                <ActionIcon size={14} variant="transparent" color="gray" onClick={() => act("hp:temp", { id: c.id, value: 0 })} aria-label={t("hp.tempClear")}>
+                  <IconX size={10} />
+                </ActionIcon>
+              }
+            >
+              {t("hp.tempBadge", { n: c.tempHp })}
+            </Badge>
+          </Tooltip>
+        )}
         {down && (
           <Badge color="red" variant="light" ml="auto">
-            {c.type === "mob" ? "Abatido" : "Caído"}
+            {c.type === "mob" ? t("hp.downMob") : t("hp.down")}
           </Badge>
         )}
       </Group>
 
-      <HpBar hp={c.hp} hpMax={c.hpMax} thick />
+      <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
 
       <Group gap="xs" wrap="nowrap">
         <NumberInput
@@ -70,28 +97,35 @@ export function HpControl({ c }: { c: Combatant }) {
           min={1}
           allowDecimal={false}
           allowNegative={false}
-          placeholder="Valor"
+          placeholder={t("hp.amount")}
           value={amount}
           onChange={setAmount}
           onKeyDown={(e) => {
             if (e.key === "Enter") apply(e.shiftKey ? 1 : -1);
           }}
-          aria-label="Valor de dano ou cura"
+          aria-label={t("hp.amountLabel")}
         />
-        <Button color="red" variant="light" onClick={() => apply(-1)} disabled={!amount}>
-          − Dano
+        <Button color="red" variant="light" onClick={() => apply(-1)} disabled={!value}>
+          {t("hp.damage")}
         </Button>
-        <Button color="copper" variant="light" onClick={() => apply(1)} disabled={!amount}>
-          + Cura
+        <Button color="copper" variant="light" onClick={() => apply(1)} disabled={!value}>
+          {t("hp.heal")}
         </Button>
       </Group>
       <Group justify="space-between" gap="xs" wrap="wrap">
         <Text size="xs" c="dimmed" className="keyboard-hint">
-          Enter = dano · Shift+Enter = cura
+          {t("hp.keys")}
         </Text>
-        <Button variant="default" onClick={() => act("hp:full", { id: c.id })} disabled={c.hp === c.hpMax}>
-          Vida cheia
-        </Button>
+        <Group gap="xs" ml="auto">
+          <Tooltip label={t("hp.tempSetTip")}>
+            <Button variant="default" onClick={setTemp} disabled={!value}>
+              {t("hp.temp")}
+            </Button>
+          </Tooltip>
+          <Button variant="default" onClick={() => act("hp:full", { id: c.id })} disabled={c.hp === c.hpMax}>
+            {t("hp.full")}
+          </Button>
+        </Group>
       </Group>
     </Stack>
   );

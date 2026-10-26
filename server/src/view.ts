@@ -1,8 +1,8 @@
 import type { ClientState, Combatant, CombatantView, HostInfo } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 
-/** Mob/NPC para jogadores: sem vida, CA e atributos (a mesa descobre jogando). */
-function hideHp({ hp: _hp, hpMax: _hpMax, ac: _ac, abilities: _abilities, ...rest }: Combatant): CombatantView {
+/** Mob/NPC para jogadores: sem vida (nem a temporária), CA e atributos (a mesa descobre jogando). */
+function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, ...rest }: Combatant): CombatantView {
   return rest;
 }
 

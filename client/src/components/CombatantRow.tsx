@@ -78,7 +78,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
               {status}
             </Text>
           </Group>
-          <HpBar hp={c.hp} hpMax={c.hpMax} />
+          <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} />
         </Stack>
         {trailing}
       </Group>

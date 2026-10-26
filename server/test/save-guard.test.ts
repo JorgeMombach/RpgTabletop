@@ -24,6 +24,8 @@ function fullGame(playerId: string, gmId: string): GameState {
     templateId: "t1",
     hp: 22,
     hpMax: 30,
+    tempHp: 5,
+    deathSaves: { successes: 2, failures: 1 },
     dexMod: 1,
     ac: 18,
     abilities: { str: 16, dex: 12, con: 14, int: 8, wis: 13, cha: 10 },

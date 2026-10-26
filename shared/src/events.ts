@@ -119,11 +119,15 @@ export interface ActionPayloads {
   "hp:change": { id: string; delta: number };
   "hp:set": { id: string; value: number };
   "hp:full": { id: string };
+  /** Vida temporária: o valor novo substitui o anterior (não soma); 0 apaga. */
+  "hp:temp": { id: string; value: number };
+  /** Marca os testes contra a morte (0 a 3 cada) de quem está com 0 de vida. */
+  "death:set": { id: string; successes: number; failures: number };
   /**
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
    */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability };
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean };
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
   "roll:cancel": Record<string, never>;

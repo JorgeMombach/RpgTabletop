@@ -219,11 +219,21 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
           <Rect x={-r} width={size} height={Math.max(3, ref * 0.09)} fill="#00000099" cornerRadius={2} />
           <Rect
             x={-r}
-            width={size * hpRatio(c.hp, c.hpMax)}
+            width={size * hpRatio(c.hp, c.hpMax + (c.tempHp ?? 0))}
             height={Math.max(3, ref * 0.09)}
             fill={HP_COLORS[hpLevel(c.hp, c.hpMax)]}
             cornerRadius={2}
           />
+          {!!c.tempHp && (
+            // Vida temporária: trecho claro logo depois da vida.
+            <Rect
+              x={-r + size * hpRatio(c.hp, c.hpMax + c.tempHp)}
+              width={size * (c.tempHp / (c.hpMax + c.tempHp))}
+              height={Math.max(3, ref * 0.09)}
+              fill="#ece4d4"
+              cornerRadius={2}
+            />
+          )}
         </Group>
       )}
 

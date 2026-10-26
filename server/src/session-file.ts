@@ -153,6 +153,11 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
     conditions: list(c.conditions ?? [], "condições", LIMITS.conditions).map(condition),
   };
   stats(out, c);
+  if (c.tempHp !== undefined) out.tempHp = int(c.tempHp, "vida temporária", 1, LIMITS.hpMax.max);
+  if (c.deathSaves !== undefined) {
+    const d = obj(c.deathSaves, "testes contra a morte");
+    out.deathSaves = { successes: int(d.successes, "testes contra a morte", 0, 3), failures: int(d.failures, "testes contra a morte", 0, 3) };
+  }
   if (c.ownerId !== undefined) out.ownerId = requireString(c.ownerId, "Dono");
   if (c.templateId !== undefined) out.templateId = requireString(c.templateId, "Template");
   if (c.avatar !== undefined) out.avatar = requireImage(c.avatar, "Avatar", LIMITS.avatarChars);

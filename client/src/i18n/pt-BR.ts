@@ -90,6 +90,32 @@ export const ptBR = {
   "stats.acTitle": "Classe de armadura",
   "stats.noAcTitle": "Classe de armadura ainda não informada: use Editar",
   "stats.roll": "Rolar teste de {ability}: d20 {mod}",
+
+  // Vida
+  "hp.editTip": "Clique para digitar a vida atual",
+  "hp.current": "Vida atual",
+  "hp.amount": "Valor",
+  "hp.amountLabel": "Valor de dano, cura ou vida temporária",
+  "hp.damage": "− Dano",
+  "hp.heal": "+ Cura",
+  "hp.keys": "Enter = dano · Shift+Enter = cura",
+  "hp.full": "Vida cheia",
+  "hp.down": "Caído",
+  "hp.downMob": "Abatido",
+  "hp.temp": "Temp.",
+  "hp.tempSetTip": "Vida temporária: o valor digitado substitui a atual (não soma). O dano tira dela primeiro.",
+  "hp.tempBadge": "+{n} temp.",
+  "hp.tempTip": "Vida temporária: o dano tira dela primeiro",
+  "hp.tempClear": "Tirar a vida temporária",
+
+  // Testes contra a morte
+  "death.title": "Testes contra a morte",
+  "death.successes": "Sucessos",
+  "death.failures": "Falhas",
+  "death.stable": "Estável",
+  "death.dead": "Morto",
+  "death.roll": "Rolar teste contra a morte",
+  "death.rollTip": "Rola 1d20 no log. Quem joga marca o resultado nas bolinhas.",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;

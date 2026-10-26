@@ -583,6 +583,29 @@ abbr.abbr {
   }
 }
 
+/* Testes contra a morte: bolinhas acesas na cor do resultado. */
+.death-saves {
+  padding: 8px;
+  border: 1px solid var(--mantine-color-red-9);
+  border-radius: var(--mantine-radius-sm);
+  background: rgb(201 74 82 / 0.06);
+}
+
+.death-mark {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--mark);
+}
+
+.death-mark.on {
+  background: var(--mark);
+}
+
+.death-mark:disabled {
+  cursor: default;
+}
+
 /* Atributos na ficha: cada um numa caixinha; clicável rola o teste. */
 .ability-cell {
   padding: 4px 0;
