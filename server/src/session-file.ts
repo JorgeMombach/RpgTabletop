@@ -370,7 +370,11 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   const owner = (id: string) => remap.get(id) ?? id;
   const { game } = parsed;
   for (const a of game.allies) if (a.ownerId) a.ownerId = owner(a.ownerId);
-  for (const e of game.battle.effects) e.ownerId = owner(e.ownerId);
+  for (const e of game.battle.effects) {
+    e.ownerId = owner(e.ownerId);
+    // O estado de antes de Transformar também tem dono: ao voltar a ele, continua com quem controlava.
+    if (e.revertTo) e.revertTo.ownerId = owner(e.revertTo.ownerId);
+  }
   for (const e of game.log) e.authorId = owner(e.authorId);
 
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
