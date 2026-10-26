@@ -48,6 +48,7 @@ export function createGame(): GameState {
       rolls: { request: null, reactions: [], outside: "free" },
       effects: [],
       drawings: [],
+      walls: [],
       weather: defaultWeather(),
     },
     log: [],

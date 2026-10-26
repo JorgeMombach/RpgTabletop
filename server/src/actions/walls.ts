@@ -1,0 +1,81 @@
+import { randomUUID } from "node:crypto";
+import { LIMITS, type Door, type GridPos, type Wall } from "@rpg/shared";
+import { fail } from "../validate";
+import { requireGm } from "./combatants";
+import type { HandlerMap } from "./types";
+
+function corner(raw: unknown): GridPos {
+  const p = raw as GridPos | undefined;
+  const ok = (n: unknown) => Number.isInteger(n) && Math.abs(n as number) <= LIMITS.gridCoord;
+  if (!p || !ok(p.col) || !ok(p.row)) fail("Ponta da parede inválida.");
+  return { col: p.col, row: p.row };
+}
+
+/** Valida as pontas e a porta de uma parede (do mestre ou do arquivo de sessão), sem o id. */
+export function parseWall(raw: unknown): Omit<Wall, "id"> {
+  const w = (raw ?? {}) as Record<string, unknown>;
+  const from = corner(w.from);
+  const to = corner(w.to);
+  const len = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
+  if (len === 0) fail("A parede precisa ir de um canto a outro.");
+  if (len > LIMITS.wallLength) fail(`Parede longa demais (máximo de ${LIMITS.wallLength} casas): trace em partes.`);
+  const out: Omit<Wall, "id"> = { from, to };
+  if (w.door !== undefined) {
+    const d = w.door as Partial<Door>;
+    if (typeof d !== "object" || d === null || typeof d.open !== "boolean") fail("Porta inválida.");
+    out.door = { open: d.open };
+    if (d.locked === true) out.door.locked = true;
+    if (d.secret === true) out.door.secret = true;
+  }
+  return out;
+}
+
+function findWall(walls: Wall[], id: unknown): Wall {
+  return walls.find((w) => w.id === id) ?? fail("Parede não encontrada.");
+}
+
+export const wallHandlers: HandlerMap = {
+  "wall:add": (store, player, payload) => {
+    requireGm(player);
+    const { battle } = store.game;
+    const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to }) };
+    if (payload.door === true) wall.door = { open: false };
+    if (battle.walls.length >= LIMITS.walls) fail(`Limite de ${LIMITS.walls} paredes e portas no mapa.`);
+    battle.walls.push(wall);
+    return [wall.id];
+  },
+
+  "wall:remove": (store, player, payload) => {
+    requireGm(player);
+    const { battle } = store.game;
+    const wall = findWall(battle.walls, payload?.id);
+    battle.walls = battle.walls.filter((w) => w !== wall);
+  },
+
+  "wall:clear": (store, player) => {
+    requireGm(player);
+    store.game.battle.walls = [];
+  },
+
+  "door:set": (store, player, payload) => {
+    const door = findWall(store.game.battle.walls, payload?.id).door ?? fail("Isso é uma parede, não uma porta.");
+    const gm = player.role === "gm";
+    const flags = ["open", "locked", "secret"] as const;
+    for (const k of flags) if (payload[k] !== undefined && typeof payload[k] !== "boolean") fail("Valor inválido.");
+    if (!gm) {
+      // Jogador só abre e fecha, e só a porta que ele vê e que não está trancada.
+      if (door.secret) fail("Parede não encontrada.");
+      if (payload.locked !== undefined || payload.secret !== undefined) fail("Só o mestre tranca ou esconde portas.");
+      if (door.locked) fail("A porta está trancada.");
+    }
+    if (payload.open !== undefined) door.open = payload.open;
+    if (payload.locked !== undefined) {
+      if (payload.locked) door.locked = true;
+      else delete door.locked;
+    }
+    if (payload.secret !== undefined) {
+      if (payload.secret) door.secret = true;
+      else delete door.secret;
+    }
+  },
+};

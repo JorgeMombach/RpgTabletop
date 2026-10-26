@@ -38,6 +38,7 @@ import {
   type SpellSlot,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
+import { parseWall } from "./actions/walls";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
 import { fail, requireImage, requireInt, requireName, requireNumber, requireString, validArea } from "./validate";
@@ -421,6 +422,7 @@ export function parseSession(raw: unknown): ParsedSession {
       effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
       // Arquivos anteriores à 2.8 não têm desenhos.
       drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
+      walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
       weather: weatherFromFile(b.weather),
     },
     log: list(g.log, "log", LIMITS.logSize).map(logEntry),

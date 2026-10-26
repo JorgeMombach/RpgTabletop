@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudOff, IconFocusCentered, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudOff, IconFocusCentered, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
+import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type Wall } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -15,6 +15,7 @@ import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions } from "./DrawingShape";
+import { cornerAt, WallOptions, WallPreview, WallShape } from "./WallShape";
 import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
@@ -64,7 +65,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -183,6 +184,24 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (long) void act("draw:add", { kind: drawMode, points: pts, color: drawColor, width: drawWidth, ...(drawHidden && { hidden: true }) });
   }
 
+  // Parede sendo traçada pelo mestre: de canto a canto do grid; ao soltar vai para todos.
+  const wallRef = useRef<{ from: GridPos; to: GridPos } | null>(null);
+  const [wallDraft, setWallDraft] = useState<{ from: GridPos; to: GridPos } | null>(null);
+  function finishWall() {
+    const w = wallRef.current;
+    wallRef.current = null;
+    setWallDraft(null);
+    if (w && !sameCell(w.from, w.to)) void act("wall:add", { from: w.from, to: w.to, door: wallMode === "door" });
+  }
+
+  /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
+  function onWallClick(w: Wall) {
+    if (tool === "walls" && wallMode === "erase") return void act("wall:remove", { id: w.id });
+    if (!w.door) return;
+    if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
+    if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
+  }
+
   function cancelPress() {
     if (!press.current) return;
     clearTimeout(press.current.timer);
@@ -261,6 +280,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (placing) setPlacing(null);
     pinged.current = false;
     if (e.evt.altKey) return sendPing(p);
+    if (tool === "walls") {
+      if (wallMode === "erase") return;
+      const c = cornerAt(p, grid);
+      wallRef.current = { from: c, to: c };
+      setWallDraft(wallRef.current);
+      return;
+    }
     if (tool === "draw") {
       if (drawMode === "erase") return;
       strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
@@ -295,6 +321,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    if (wallRef.current) {
+      const to = cornerAt(p, grid);
+      if (!sameCell(to, wallRef.current.to)) {
+        wallRef.current = { ...wallRef.current, to };
+        setWallDraft(wallRef.current);
+      }
+      return;
+    }
     if (strokeRef.current) {
       const s = strokeRef.current;
       if (drawMode !== "free") strokeRef.current = [s[0], s[1], p.x, p.y];
@@ -327,6 +361,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   function onMouseUp() {
     cancelPress();
     finishStroke();
+    finishWall();
     calibStart.current = null;
     areaDragging.current = false;
     updateRuler(null);
@@ -466,6 +501,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             {stroke && <DrawingShape d={{ kind: drawMode === "erase" ? "free" : drawMode, points: stroke, color: drawColor, width: drawWidth, hidden: drawHidden }} />}
           </Layer>
 
+          {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga. */}
+          <Layer listening={tool === "move" || (gm && tool === "walls")}>
+            {state.battle.walls.map((w) => (
+              <WallShape key={w.id} w={w} grid={grid} gm={gm} selected={w.id === selectedDoorId} onClick={() => onWallClick(w)} />
+            ))}
+            {wallDraft && !sameCell(wallDraft.from, wallDraft.to) && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
+          </Layer>
+
           {/* Alcance e aura: abaixo dos tokens. */}
           <Layer listening={false}>
             {tokens.map((c) => (
@@ -538,7 +581,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         tool={tool}
         gm={gm}
         compact={compact}
-        narrow={size.width < 640}
+        narrow={size.width < 720}
         weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
@@ -573,6 +616,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
       {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
+      {gm && tool === "walls" && <WallOptions walls={state.battle.walls} />}
       {fixing && myArea && (
         <FixEffectModal
           state={state}
@@ -760,7 +804,12 @@ function MapToolbar({
     { id: "move", text: "Mover", label: t("map.moveTip"), icon: IconHandStop },
     { id: "ruler", text: "Régua", label: "Medir distância em pés (ou segure Shift e arraste)", icon: IconRuler2 },
     { id: "area", text: "Área", label: "Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)", icon: IconSparkles },
-    ...(gm ? [{ id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil } as const] : []),
+    ...(gm
+      ? ([
+          { id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil },
+          { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
+        ] as const)
+      : []),
   ] as const;
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">

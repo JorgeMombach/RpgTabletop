@@ -50,6 +50,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       effects: gm ? game.battle.effects : game.battle.effects.filter((e) => e.active),
       // Anotação só do mestre não vai para os jogadores.
       drawings: gm ? game.battle.drawings : game.battle.drawings.filter((d) => !d.hidden),
+      // Porta secreta: o jogador nem recebe (parece parede nenhuma) até o mestre revelar.
+      walls: gm ? game.battle.walls : game.battle.walls.filter((w) => !w.door?.secret),
       weather: game.battle.weather,
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),

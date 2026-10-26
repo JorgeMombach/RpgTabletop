@@ -399,6 +399,24 @@ export interface Drawing {
   hidden?: boolean;
 }
 
+/** Porta numa parede: abre e fecha com um clique; trancada só o mestre abre; secreta só o mestre vê. */
+export interface Door {
+  open: boolean;
+  locked?: boolean;
+  secret?: boolean;
+}
+
+/**
+ * Parede ou porta traçada pelo mestre, de um canto do grid a outro (`col`/`row` contam cantos:
+ * o canto de cima à esquerda da casa (c, r) é (c, r)). Só visual: não bloqueia movimento (ADR-06).
+ */
+export interface Wall {
+  id: string;
+  from: GridPos;
+  to: GridPos;
+  door?: Door;
+}
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];
@@ -412,6 +430,7 @@ export interface GameState {
     rolls: RollsState;
     effects: MapEffect[];
     drawings: Drawing[];
+    walls: Wall[];
     weather: WeatherState;
   };
   log: LogEntry[];
@@ -535,6 +554,7 @@ export interface ClientState {
     rolls: RollsState;
     effects: MapEffect[];
     drawings: Drawing[];
+    walls: Wall[];
     weather: WeatherState;
   };
   log: LogEntry[];

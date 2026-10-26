@@ -247,6 +247,13 @@ export interface ActionPayloads {
   "draw:remove": { id: string };
   /** Mestre: apaga todos os desenhos. */
   "draw:clear": Record<string, never>;
+  /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean };
+  "wall:remove": { id: string };
+  /** Mestre: apaga todas as paredes e portas. */
+  "wall:clear": Record<string, never>;
+  /** Abrir/fechar: qualquer um, se não estiver trancada (nem for secreta). Trancar e secreta: só o mestre. */
+  "door:set": { id: string; open?: boolean; locked?: boolean; secret?: boolean };
 }
 
 /** Identifica o arquivo de sessão do app (E18). */
@@ -356,6 +363,9 @@ export const LIMITS = {
   drawingWidth: { min: 1, max: 24 },
   /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
   drawingCoord: 100_000,
+  /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */
+  walls: 600,
+  wallLength: 200,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,
   soundName: 120,
