@@ -167,6 +167,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
     out.turnUsed = used as TurnAction[];
   }
   if (c.tempHp !== undefined) out.tempHp = int(c.tempHp, "vida temporária", 1, LIMITS.hpMax.max);
+  if (c.aura !== undefined) out.aura = int(c.aura, "alcance", LIMITS.aura.min, LIMITS.aura.max);
   if (c.deathSaves !== undefined) {
     const d = obj(c.deathSaves, "testes contra a morte");
     out.deathSaves = { successes: int(d.successes, "testes contra a morte", 0, 3), failures: int(d.failures, "testes contra a morte", 0, 3) };

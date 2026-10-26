@@ -1,5 +1,5 @@
-import { LIMITS, TURN_ACTIONS, type Combatant, type RollResult, type TurnAction } from "@rpg/shared";
-import { allCombatants, byId, moveInOrder, newTurn, placeInOrder, removeFromOrder, resetCombat } from "../combat";
+import { LIMITS, TURN_ACTIONS, groupName, type Combatant, type RollResult, type TurnAction } from "@rpg/shared";
+import { allCombatants, byId, currentGroup, groupAt, moveInOrder, newTurn, placeInOrder, removeFromOrder, resetCombat } from "../combat";
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt } from "../validate";
@@ -51,10 +51,10 @@ function requireActive(store: Store) {
   if (!store.game.battle.combat.active) fail("O combate não começou.");
 }
 
-/** Avança para o próximo da ordem (round novo no fim da lista) e começa a vez dele. */
+/** Avança para o próximo da ordem (round novo no fim da lista) e começa a vez dele. Grupo de mobs iguais passa inteiro. */
 function advance(store: Store) {
   const combat = store.game.battle.combat;
-  combat.turnIndex++;
+  combat.turnIndex = groupAt(store, combat.turnIndex)[1];
   if (combat.turnIndex >= combat.order.length) {
     combat.turnIndex = 0;
     combat.round++;
@@ -169,17 +169,19 @@ export const initiativeHandlers: HandlerMap = {
     requireActive(store);
     const c = currentOf(store, player);
     const { combat } = store.game.battle;
-    const from = combat.turnIndex;
+    // Grupo de mobs iguais atrasa junto.
+    const [from, end] = groupAt(store, combat.turnIndex);
     const to = combat.order.indexOf(payload?.afterId);
-    if (to <= from) fail("Escolha alguém que ainda vai agir neste round.");
+    if (to < end) fail("Escolha alguém que ainda vai agir neste round.");
     const after = byId(store, payload.afterId);
+    const group = currentGroup(store);
     // Muda de lugar na ordem; a vez passa para quem vinha logo depois.
-    combat.order.splice(from, 1);
-    combat.order.splice(to, 0, c.id);
+    const moved = combat.order.splice(from, end - from);
+    combat.order.splice(to - moved.length + 1, 0, ...moved);
     // A iniciativa acompanha o novo lugar (empata com quem ele esperou).
-    if (after?.initiative !== null && after?.initiative !== undefined) c.initiative = after.initiative;
-    combat.delayed = { id: c.id, round: combat.round };
-    logSystem(store, `${c.name} vai agir depois de ${after?.name ?? "?"}.`);
+    for (const g of group) if (after?.initiative !== null && after?.initiative !== undefined) g.initiative = after.initiative;
+    combat.delayed = { ids: moved, round: combat.round };
+    logSystem(store, `${group.length > 1 ? groupName(group.map((g) => g.name)) : c.name} vai agir depois de ${after?.name ?? "?"}.`);
     newTurn(store);
     startTurn(store);
   },
@@ -200,11 +202,12 @@ export const initiativeHandlers: HandlerMap = {
     requireGm(player);
     requireActive(store);
     const combat = store.game.battle.combat;
-    if (combat.turnIndex > 0) combat.turnIndex--;
+    const start = groupAt(store, combat.turnIndex)[0];
+    if (start > 0) combat.turnIndex = groupAt(store, start - 1)[0];
     else if (combat.round > 1) {
       combat.round--;
-      combat.turnIndex = Math.max(0, combat.order.length - 1);
-    }
+      combat.turnIndex = groupAt(store, Math.max(0, combat.order.length - 1))[0];
+    } else combat.turnIndex = start;
     newTurn(store);
   },
 

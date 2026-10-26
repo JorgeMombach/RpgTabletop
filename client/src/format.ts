@@ -1,4 +1,4 @@
-import type { ClientState, CombatantView, Condition, LogEntry } from "@rpg/shared";
+import { groupRange, type ClientState, type CombatantView, type Condition, type LogEntry } from "@rpg/shared";
 
 export function fmtMod(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -18,6 +18,15 @@ export function hpLevel(hp: number, hpMax: number): "full" | "mid" | "low" | "ze
 /** Todos os combatentes da sessão: aliados, mobs e NPCs. */
 export function allCombatants(state: ClientState): CombatantView[] {
   return [...state.allies, ...state.battle.mobs, ...state.battle.npcs];
+}
+
+/** Quem está na vez: o combatente da vez ou, num grupo de mobs iguais, todos eles (agem juntos). */
+export function currentGroup(state: ClientState): CombatantView[] {
+  const { combat } = state.battle;
+  if (!combat.active || combat.order.length === 0) return [];
+  const byId = new Map(allCombatants(state).map((c) => [c.id, c]));
+  const [start, end] = groupRange(combat.order, combat.turnIndex, (id) => byId.get(id));
+  return combat.order.slice(start, end).flatMap((id) => byId.get(id) ?? []);
 }
 
 /** Quem rolou, no padrão da mesa (E26): "Thorin (Jorge)", "Goblin 2 (Mestre)", "Mestre". */

@@ -26,6 +26,21 @@ export const ptBR = {
   "join.error.invalidName": "Digite um nome.",
   "join.error.roomFull": "Sala cheia: o limite de jogadores foi atingido.",
 
+  // Iniciativa
+  "init.onTurn": "Na vez",
+  "init.groupTip": "{n} mobs iguais: mesma iniciativa, agem juntos na mesma vez",
+  "init.groupOpen": "Mostrar cada um",
+  "init.groupClose": "Juntar de novo",
+
+  // Alcance / aura
+  "aura.label": "Alcance",
+  "aura.labelOn": "Alcance {feet} ft",
+  "aura.tip": "Círculo em volta do token: alcance da arma (10 ft) ou aura (30 ft)",
+  "aura.hint": "Mostra no mapa, para todos, um círculo a partir da borda do token. É só visual.",
+  "aura.feet": "Pés (ft)",
+  "aura.save": "Mostrar",
+  "aura.remove": "Tirar o círculo",
+
   // Barra do topo
   "top.round": "Round {round}",
   "top.turnOf": " · vez de ",

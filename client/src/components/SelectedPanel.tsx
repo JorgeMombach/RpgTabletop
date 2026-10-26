@@ -9,6 +9,7 @@ import { allCombatants, fmtMod } from "../format";
 import { cellAt, placeFor } from "../map/geometry";
 import { select, useApp } from "../store";
 import { Abbr } from "./Abbr";
+import { AuraControl } from "./AuraControl";
 import { CombatantAvatar } from "./CombatantAvatar";
 import { StatsSection } from "./StatsSection";
 import { SummonForm } from "./SummonForm";
@@ -175,6 +176,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
                 </Button>
               </Tooltip>
             )}
+            <AuraControl c={c} />
             {gm && c.type !== "ally" && (
               <Tooltip label={c.hidden ? "Os jogadores passam a ver; rola a iniciativa se ela já estiver em andamento" : "Só você vê; sai da iniciativa até revelar"}>
                 <Button

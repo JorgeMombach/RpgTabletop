@@ -25,9 +25,9 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Atrasar a vez:** "agir depois de…" e reentrar na ordem.
 - [x] **Ações do turno:** Ação, Ação bônus, Movimento e Reação marcáveis, zerando na vez de cada um.
 - [x] **Lembrete de Concentração:** quem concentra e toma dano recebe o aviso "Teste de Concentração: CD X" (metade do dano, mínimo 10). Só lembra.
-- [ ] **Grupos de mobs na iniciativa:** "Goblin 1–6" numa linha só.
+- [x] **Grupos de mobs na iniciativa:** "Goblin 1–6" numa linha só.
 - [x] **Chefes:** ações lendárias, resistências lendárias e habilidades de Recarga (d6 no começo do turno), só para o mestre.
-- [ ] **Alcance / aura visível:** círculo leve em volta do token (ex.: 10 ft, aura de 30 ft).
+- [x] **Alcance / aura visível:** círculo leve em volta do token (ex.: 10 ft, aura de 30 ft).
 
 ## D. Mapa
 - [ ] **Colocar no mapa pelo celular:** *Colocar no mapa* na Ficha troca para a aba Mapa e espera o toque onde entra (modo de posicionar dos conjurados, com régua). Serve para personagem e invocações.

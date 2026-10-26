@@ -1,6 +1,6 @@
 import { Button, Chip, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
 import { IconClockPause, IconPlayerTrackNext } from "@tabler/icons-react";
-import { TURN_ACTIONS, type ClientState, type CombatantView, type TurnAction } from "@rpg/shared";
+import { TURN_ACTIONS, groupName, groupRange, type ClientState, type CombatantView, type TurnAction } from "@rpg/shared";
 import { act } from "../actions";
 import { useT, type MessageKey } from "../i18n";
 
@@ -22,13 +22,15 @@ export function TurnControls({ state, current }: { state: ClientState; current: 
   const { combat } = state.battle;
   const used = new Set(current.turnUsed ?? []);
   const byId = new Map([...state.allies, ...state.battle.mobs, ...state.battle.npcs].map((c) => [c.id, c]));
-  // Só dá para esperar quem ainda vai agir neste round.
-  const later = combat.order.slice(combat.turnIndex + 1).flatMap((id) => byId.get(id) ?? []);
+  // Só dá para esperar quem ainda vai agir neste round (depois do grupo inteiro, se for um grupo).
+  const [start, end] = groupRange(combat.order, combat.turnIndex, (id) => byId.get(id));
+  const name = groupName(combat.order.slice(start, end).map((id) => byId.get(id)?.name ?? ""));
+  const later = combat.order.slice(end).flatMap((id) => byId.get(id) ?? []);
 
   return (
     <Stack gap={6} className="turn-controls">
       <Text size="xs" c="dimmed">
-        {t("turn.of", { name: current.name })}
+        {t("turn.of", { name })}
       </Text>
       <Group gap={4}>
         {TURN_ACTIONS.map((a) => (
@@ -37,7 +39,10 @@ export function TurnControls({ state, current }: { state: ClientState; current: 
             size="xs"
             variant="outline"
             checked={used.has(a)}
-            onChange={(checked) => act("turn:use", { id: current.id, what: a, used: checked })}
+            // Grupo de mobs iguais: marca para todos.
+            onChange={(checked) => {
+              for (const id of combat.order.slice(start, end)) void act("turn:use", { id, what: a, used: checked });
+            }}
           >
             {t(ACTION_LABEL[a])}
           </Chip>

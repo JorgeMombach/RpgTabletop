@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { LIMITS } from "@rpg/shared";
-import { byId } from "../combat";
+import { currentGroup } from "../combat";
+import type { Combatant } from "@rpg/shared";
 import type { Store } from "../store";
 import { fail, requireInt, requireString } from "../validate";
 import { editable } from "./combatants";
@@ -15,13 +16,17 @@ import type { HandlerMap } from "./types";
  * Também contam os efeitos no mapa que ele conjurou (E19).
  */
 export function startTurn(store: Store) {
+  // Grupo de mobs iguais: o começo da vez roda para cada um.
+  for (const c of currentGroup(store)) startTurnOf(store, c);
+}
+
+function startTurnOf(store: Store, c: Combatant) {
   const { combat } = store.game.battle;
-  if (!combat.active) return;
-  const c = byId(store, combat.order[combat.turnIndex]);
-  if (!c) return;
   // Voltou a vez de quem atrasou: o começo do turno dele já rodou neste round.
-  if (combat.delayed?.id === c.id && combat.delayed.round === combat.round) {
-    delete combat.delayed;
+  const delayed = combat.delayed;
+  if (delayed && delayed.round === combat.round && delayed.ids.includes(c.id)) {
+    delayed.ids = delayed.ids.filter((id) => id !== c.id);
+    if (delayed.ids.length === 0) delete combat.delayed;
     return;
   }
   delete c.turnUsed;

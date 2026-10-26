@@ -8,10 +8,11 @@ import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area,
 import { act } from "../actions";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
-import { allCombatants } from "../format";
+import { allCombatants, currentGroup } from "../format";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
+import { AuraShape } from "./AuraShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
@@ -313,8 +314,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
-  const combat = state.battle.combat;
-  const activeId = combat.active ? combat.order[combat.turnIndex] : null;
+  // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
+  const activeIds = new Set(currentGroup(state).map((c) => c.id));
   const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
   // Por cima de todos: o token com o mouse em cima e, abaixo dele, o selecionado. Assim o nome
   // (que aparece em cima do token) nunca fica escondido atrás do vizinho (E26).
@@ -379,6 +380,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             ))}
           </Layer>
 
+          {/* Alcance e aura: abaixo dos tokens. */}
+          <Layer listening={false}>
+            {tokens.map((c) => (
+              <AuraShape key={c.id} c={c} grid={grid} />
+            ))}
+          </Layer>
+
           <Layer>
             {tokens.map((c) => (
               <Token
@@ -386,7 +394,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 c={c}
                 grid={grid}
                 selected={c.id === selectedId}
-                active={c.id === activeId}
+                active={activeIds.has(c.id)}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}

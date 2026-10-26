@@ -441,6 +441,12 @@ export const combatantHandlers: HandlerMap = {
     setTempHp(c, requireInt(payload.value, "Vida temporária", 0, LIMITS.hpMax.max));
   },
 
+  "aura:set": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    if (payload.feet === null) delete c.aura;
+    else c.aura = requireInt(payload.feet, "Alcance", LIMITS.aura.min, LIMITS.aura.max);
+  },
+
   "death:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
     const successes = requireInt(payload.successes, "Sucessos", 0, 3);

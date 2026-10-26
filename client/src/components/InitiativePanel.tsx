@@ -1,8 +1,9 @@
 import { ActionIcon, Alert, Badge, Box, Button, Checkbox, Divider, Group, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
 import { IconCaretRightFilled, IconChevronDown, IconChevronUp, IconDice5, IconPlayerTrackNext, IconPlayerTrackPrev } from "@tabler/icons-react";
-import { LIMITS, type ClientState, type CombatantView } from "@rpg/shared";
-import { useState, type FormEvent } from "react";
+import { LIMITS, groupName, groupRange, type ClientState, type CombatantView } from "@rpg/shared";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
+import { useT } from "../i18n";
 import { confirmAction } from "../confirm";
 import { allCombatants, fmtCondition } from "../format";
 import { select, useApp } from "../store";
@@ -124,19 +125,32 @@ export function InitiativePanel({ state }: { state: ClientState }) {
         </Text>
       ) : (
         <ol className="init-list">
-          {order.map((c, i) => (
-            <InitRow
-              key={c.id}
-              c={c}
-              index={i}
-              last={i === order.length - 1}
-              current={c.id === currentId}
-              selected={c.id === selectedId}
-              mine={c.ownerId === state.self.id}
-              editable={canEdit(c)}
-              gm={gm}
-            />
-          ))}
+          {groupsOf(order).map(({ start, members }) => {
+            const row = (c: CombatantView, i: number, current: boolean) => (
+              <InitRow
+                key={c.id}
+                c={c}
+                index={i}
+                last={i === order.length - 1}
+                current={current}
+                selected={c.id === selectedId}
+                mine={c.ownerId === state.self.id}
+                editable={canEdit(c)}
+                gm={gm}
+              />
+            );
+            if (members.length === 1) return row(members[0], start, members[0].id === currentId);
+            return (
+              <GroupRow
+                key={members[0].id}
+                members={members}
+                current={members.some((c) => c.id === currentId)}
+                selected={members.some((c) => c.id === selectedId)}
+              >
+                {members.map((c, k) => row(c, start + k, false))}
+              </GroupRow>
+            );
+          })}
         </ol>
       )}
 
@@ -151,6 +165,61 @@ export function InitiativePanel({ state }: { state: ClientState }) {
         </>
       )}
     </Panel>
+  );
+}
+
+/** Ordem em blocos: cada combatente sozinho ou um grupo de mobs iguais lado a lado (agem juntos). */
+function groupsOf(order: CombatantView[]): { start: number; members: CombatantView[] }[] {
+  const ids = order.map((c) => c.id);
+  const byId = new Map(order.map((c) => [c.id, c]));
+  const out: { start: number; members: CombatantView[] }[] = [];
+  for (let i = 0; i < order.length; ) {
+    const end = groupRange(ids, i, (id) => byId.get(id))[1];
+    out.push({ start: i, members: order.slice(i, end) });
+    i = end;
+  }
+  return out;
+}
+
+/** Grupo de mobs iguais numa linha só ("Goblin 1–6"); abre para ver e editar cada um. */
+function GroupRow({ members, current, selected, children }: { members: CombatantView[]; current: boolean; selected: boolean; children: ReactNode }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const head = members[0];
+  const name = groupName(members.map((c) => c.name));
+  const down = members.every((c) => c.hp !== undefined && c.hp <= 0);
+
+  return (
+    <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={() => select(head.id)}>
+      <Group gap={4} wrap="nowrap">
+        <Text component="span" c="bronze.4" w={12} style={{ display: "flex", flex: "none" }} aria-label={current ? t("init.onTurn") : undefined}>
+          {current && <IconCaretRightFilled size={12} />}
+        </Text>
+        <Box w={8} h={8} bg={head.color} style={{ borderRadius: 2, flex: "none" }} aria-hidden />
+        <Text size="sm" fw={current ? 600 : 400} truncate title={members.map((c) => c.name).join(", ")} style={{ flex: 1, minWidth: 0 }}>
+          {name}
+        </Text>
+        <Tooltip label={t("init.groupTip", { n: members.length })}>
+          <Text size="sm" fw={700} miw={36} ta="center">
+            {head.initiative}
+          </Text>
+        </Tooltip>
+        <Tooltip label={open ? t("init.groupClose") : t("init.groupOpen")}>
+          <ActionIcon
+            size="sm"
+            aria-label={open ? t("init.groupClose") : t("init.groupOpen")}
+            aria-expanded={open}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(!open);
+            }}
+          >
+            {open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+      {open && <ol className="init-list init-sub">{children}</ol>}
+    </li>
   );
 }
 
@@ -180,7 +249,7 @@ function InitRow(props: {
   };
 
   return (
-    <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={() => select(c.id)}>
+    <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={stop(() => select(c.id))}>
       <Group gap={4} wrap="nowrap">
         <Text component="span" c="bronze.4" w={12} style={{ display: "flex", flex: "none" }} aria-label={current ? "Na vez" : undefined}>
           {current && <IconCaretRightFilled size={12} />}

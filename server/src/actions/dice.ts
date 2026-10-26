@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { ABILITIES, LIMITS, type Ability, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult } from "@rpg/shared";
-import { byId } from "../combat";
+import { ABILITIES, LIMITS, groupName, type Ability, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult } from "@rpg/shared";
+import { byId, currentGroup } from "../combat";
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireString } from "../validate";
@@ -19,13 +19,13 @@ const CHECK_LABEL: Record<Ability, string> = { str: "FOR", dex: "DES", con: "CON
 function pushLog(store: Store, entry: Omit<LogEntry, "id" | "ts">): string {
   const { log, battle } = store.game;
   const { combat } = battle;
-  const current = combat.active ? byId(store, combat.order[combat.turnIndex]) : undefined;
+  const group = currentGroup(store);
   const id = randomUUID();
   log.push({
     id,
     ts: Date.now(),
     ...entry,
-    turn: current ? { seq: combat.turn, round: combat.round, name: current.name } : undefined,
+    turn: group.length > 0 ? { seq: combat.turn, round: combat.round, name: groupName(group.map((c) => c.name)) } : undefined,
   });
   if (log.length > LIMITS.logSize) log.splice(0, log.length - LIMITS.logSize);
   return id;

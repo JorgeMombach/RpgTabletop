@@ -150,6 +150,8 @@ export interface Combatant {
   abilities?: Abilities;
   /** Ausente = médio. `pos` é a casa de cima à esquerda do espaço que ocupa. */
   size?: Size;
+  /** Alcance ou aura em pés (ex.: 10 ft de alcance, aura de 30 ft): círculo leve em volta do token, só visual. */
+  aura?: number;
   avatar?: string;
   color: string;
   pos: GridPos | null;
@@ -217,9 +219,10 @@ export interface CombatState {
   turn: number;
   /**
    * Quem atrasou a vez neste round: quando chegar a vez dele de novo, o começo do turno (descontar
-   * condições e efeitos, zerar as ações) não roda outra vez. Não vai no arquivo de sessão.
+   * condições e efeitos, zerar as ações) não roda outra vez. Grupo de mobs iguais atrasa junto (vários ids).
+   * Não vai no arquivo de sessão.
    */
-  delayed?: { id: string; round: number };
+  delayed?: { ids: string[]; round: number };
 }
 
 /** Pedido do mestre para jogadores rolarem fora da vez (ex.: "Resistência DES"). Cada um rola uma vez. */

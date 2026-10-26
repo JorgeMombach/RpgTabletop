@@ -25,6 +25,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     hp: 22,
     hpMax: 30,
     tempHp: 5,
+    aura: 10,
     deathSaves: { successes: 2, failures: 1 },
     turnUsed: ["action", "move"],
     dexMod: 1,

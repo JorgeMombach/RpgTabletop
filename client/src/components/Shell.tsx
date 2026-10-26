@@ -1,9 +1,9 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { IconBrush, IconDeviceMobile, IconLogout } from "@tabler/icons-react";
-import { APP_VERSION, type ClientState, type Combatant } from "@rpg/shared";
+import { APP_VERSION, groupName, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
-import { allCombatants } from "../format";
+import { currentGroup } from "../format";
 import { setLayoutChoice, useMobileLayout, useSmallScreen } from "../layout";
 import { leave } from "../session";
 import { useT } from "../i18n";
@@ -37,8 +37,8 @@ export function TurnStatus({ state }: { state: ClientState }) {
   const t = useT();
   const { combat } = state.battle;
   if (!combat.active) return null;
-  const id = combat.order[combat.turnIndex];
-  const who = allCombatants(state).find((c) => c.id === id);
+  const group = currentGroup(state);
+  const who = group.length > 0 ? { name: groupName(group.map((c) => c.name)) } : undefined;
   return (
     <Text size="sm" c="dimmed" className="turn-status" truncate>
       {t("top.round", { round: combat.round })}

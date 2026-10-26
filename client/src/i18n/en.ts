@@ -21,6 +21,20 @@ export const en: Partial<Messages> = {
   "join.error.invalidName": "Type a name.",
   "join.error.roomFull": "The room is full: the player limit has been reached.",
 
+  "init.onTurn": "On turn",
+  "init.groupTip": "{n} identical mobs: same initiative, they act together on one turn",
+  "init.groupOpen": "Show each one",
+  "init.groupClose": "Group again",
+
+  // Reach / aura
+  "aura.label": "Reach",
+  "aura.labelOn": "Reach {feet} ft",
+  "aura.tip": "Circle around the token: weapon reach (10 ft) or aura (30 ft)",
+  "aura.hint": "Shows everyone a circle on the map, measured from the token's edge. Visual only.",
+  "aura.feet": "Feet (ft)",
+  "aura.save": "Show",
+  "aura.remove": "Remove the circle",
+
   "top.round": "Round {round}",
   "top.turnOf": " · turn of ",
   "top.yourTurn": "Your turn!",

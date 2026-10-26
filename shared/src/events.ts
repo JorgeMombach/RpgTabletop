@@ -123,6 +123,8 @@ export interface ActionPayloads {
   "hp:temp": { id: string; value: number };
   /** Marca os testes contra a morte (0 a 3 cada) de quem está com 0 de vida. */
   "death:set": { id: string; successes: number; failures: number };
+  /** Alcance/aura em pés em volta do token; null apaga. */
+  "aura:set": { id: string; feet: number | null };
   /**
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
@@ -312,6 +314,7 @@ export const LIMITS = {
   /** Classe de armadura e valor de atributo: sem teto de regra, só um limite de sanidade. */
   ac: { min: 0, max: 99 },
   abilityScore: { min: 1, max: 99 },
+  aura: { min: 5, max: 300 },
   /** Quantidade de mobs criados de uma vez a partir de um template. */
   qty: { min: 1, max: 30 },
   notes: 500,

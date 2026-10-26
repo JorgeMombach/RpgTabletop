@@ -281,6 +281,12 @@ body {
   opacity: 0.5;
 }
 
+/* Grupo de mobs iguais aberto: cada um embaixo da linha do grupo. */
+.init-sub {
+  margin-top: 4px;
+  padding-left: 12px;
+}
+
 /* Vida clicável para editar (painel Selecionado). */
 .hp-value {
   border-radius: var(--mantine-radius-xs);
