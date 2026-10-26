@@ -60,8 +60,11 @@ interface AppStore extends DicePrefs {
   /** Estado da mesa no último salvamento ou carregamento de arquivo (E18); `null` = nunca salvou. */
   savedSnapshot: string | null;
   savedAt: Date | null;
-  /** Conjurados esperando um clique no mapa (E21): um por clique, com a distância até quem conjurou. */
-  placing: { ids: string[]; fromId: string } | null;
+  /**
+   * Tokens esperando um clique no mapa: conjurados (E21), um por clique, com a distância até quem conjurou
+   * (`fromId`), ou o personagem posto pelo celular (sem `fromId`).
+   */
+  placing: { ids: string[]; fromId?: string } | null;
   /**
    * Rolagens que ainda estão caindo na animação deste navegador (E26): o log mostra "rolando…"
    * e só revela o resultado quando os dados param.

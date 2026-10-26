@@ -34,6 +34,12 @@ export const ptBR = {
 
   // Mapa
   "map.moveTip": "Mover tokens e a visão do mapa. Para chamar a atenção de todos num ponto (ping), segure parado ou use Alt+clique.",
+  "place.click": "Clique onde aparece {name}.",
+  "place.tap": "Toque onde entra {name} e toque de novo para confirmar.",
+  "place.left": "(faltam {n})",
+  "place.ruler": "A régua mede a distância até {name}.",
+  "place.esc": "Esc deixa o resto fora do mapa.",
+  "place.cancel": "Cancelar",
 
   // Alcance / aura
   "aura.label": "Alcance",

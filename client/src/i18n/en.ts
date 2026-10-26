@@ -28,6 +28,12 @@ export const en: Partial<Messages> = {
 
   // Map
   "map.moveTip": "Move tokens and the map view. To point something out to everyone (ping), press and hold or Alt+click.",
+  "place.click": "Click where {name} appears.",
+  "place.tap": "Tap where {name} goes, then tap again to confirm.",
+  "place.left": "({n} left)",
+  "place.ruler": "The ruler measures the distance to {name}.",
+  "place.esc": "Esc leaves the rest off the map.",
+  "place.cancel": "Cancel",
 
   // Reach / aura
   "aura.label": "Reach",

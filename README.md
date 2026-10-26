@@ -39,7 +39,7 @@ Só precisa de um navegador.
 
 Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade e o mesmo personagem.
 
-**Pelo celular ou tablet:** é só abrir o mesmo endereço. Em tela pequena (celular, tablet em pé) o jogador vê uma tela própria, com abas embaixo: **Mapa** (dois dedos para aproximar/afastar, um dedo arrasta a visão ou o seu token), **Ficha** (seu personagem: vida, condições, magias, *Colocar no mapa*), **Dados** (ataque, dano, dados livres e o log) e **Combate** (iniciativa, efeitos e quem está na sessão). Na sua vez aparece **Sua vez!** no topo e uma marca na aba Dados. Com o celular deitado, as abas vão para a lateral. No menu (☰) dá para trocar para a tela de computador (e voltar). O mestre usa sempre a tela de computador.
+**Pelo celular ou tablet:** é só abrir o mesmo endereço. Em tela pequena (celular, tablet em pé) o jogador vê uma tela própria, com abas embaixo: **Mapa** (dois dedos para aproximar/afastar, um dedo arrasta a visão ou o seu token), **Ficha** (seu personagem: vida, condições, magias, *Colocar no mapa*: o app troca para o Mapa, você toca onde ele entra e toca de novo para confirmar; conjurados com *Escolher no mapa* também), **Dados** (ataque, dano, dados livres e o log) e **Combate** (iniciativa, efeitos e quem está na sessão). Na sua vez aparece **Sua vez!** no topo e uma marca na aba Dados. Com o celular deitado, as abas vão para a lateral. No menu (☰) dá para trocar para a tela de computador (e voltar). O mestre usa sempre a tela de computador.
 
 ## Roteiro de uma sessão
 

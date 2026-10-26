@@ -7,7 +7,8 @@ import { removeMob } from "../commands";
 import { confirmAction } from "../confirm";
 import { allCombatants, fmtMod } from "../format";
 import { cellAt, placeFor } from "../map/geometry";
-import { select, useApp } from "../store";
+import { useMobileLayout } from "../layout";
+import { select, setPlacing, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { AuraControl } from "./AuraControl";
 import { CombatantAvatar } from "./CombatantAvatar";
@@ -39,6 +40,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const [summoningId, setSummoningId] = useState<string | null>(null);
 
   const gm = state.self.role === "gm";
+  const mobile = useMobileLayout(gm);
   const ally = state.allies.find((a) => a.id === selectedId);
   const mobView = [...state.battle.mobs, ...state.battle.npcs].find((m) => m.id === selectedId);
   // Jogadores não recebem vida de mob nem de NPC, então só o mestre tem o combatente completo.
@@ -165,7 +167,8 @@ export function SelectedPanel({ state }: { state: ClientState }) {
                 Tirar do mapa
               </Button>
             ) : (
-              <Button variant="default" onClick={() => placeOnMap(state, c.id)}>
+              // Celular: troca para a aba Mapa e espera o toque onde ele entra.
+              <Button variant="default" onClick={() => (mobile ? setPlacing({ ids: [c.id], fromId: c.summonerId }) : placeOnMap(state, c.id))}>
                 Colocar no mapa
               </Button>
             )}

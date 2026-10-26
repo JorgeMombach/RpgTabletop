@@ -28,6 +28,12 @@ export const es: Partial<Messages> = {
 
   // Mapa
   "map.moveTip": "Mover tokens y la vista del mapa. Para señalar un punto a todos (ping), mantén pulsado o usa Alt+clic.",
+  "place.click": "Haz clic donde aparece {name}.",
+  "place.tap": "Toca donde entra {name} y vuelve a tocar para confirmar.",
+  "place.left": "(faltan {n})",
+  "place.ruler": "La regla mide la distancia hasta {name}.",
+  "place.esc": "Esc deja el resto fuera del mapa.",
+  "place.cancel": "Cancelar",
 
   // Alcance / aura
   "aura.label": "Alcance",

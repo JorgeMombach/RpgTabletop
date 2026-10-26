@@ -50,6 +50,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 export function BattleMap({ state, compact = false }: { state: ClientState; compact?: boolean }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -79,6 +80,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Esc encerra a colocação: quem sobrou fica fora do mapa (dá para arrastar da lista depois).
   useEffect(() => {
+    // Casa marcada de antes não confirma sozinha o primeiro toque (celular).
+    setHoverCell(null);
     if (!placing) return;
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setPlacing(null);
     window.addEventListener("keydown", esc);
@@ -225,8 +228,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     const p = worldPointer();
     if (!p) return;
     if (placing && placingNext) {
+      const cell = cellAt(p, grid);
+      // Dedo não tem "passar por cima": o primeiro toque mostra a casa (e a régua); tocar de novo nela confirma.
+      if (e.evt.pointerType === "touch" && !sameCell(hoverCell, cell)) {
+        setHoverCell(cell);
+        return;
+      }
       const rest = placing.ids.filter((id) => id !== placingNext.id);
-      void act("token:move", { id: placingNext.id, pos: placeFor(placingNext, cellAt(p, grid), allCombatants(state)) }).then((r) => {
+      void act("token:move", { id: placingNext.id, pos: placeFor(placingNext, cell, allCombatants(state)) }).then((r) => {
         if (r.ok) setPlacing(rest.length ? { ...placing, ids: rest } : null);
       });
       return;
@@ -465,6 +474,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 scale={view.scale}
                 label={placingNext?.name}
                 color="#d8b47a"
+                cellOnly={!placingFrom?.pos}
               />
             )}
             {calibRect && (
@@ -506,10 +516,17 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {placing && placingNext && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">
-            Clique onde aparece <strong>{placingNext.name}</strong>
-            {placingLeft > 1 && ` (faltam ${placingLeft})`}
-            {placingFrom?.pos ? `; a régua mede a distância até ${placingFrom.name}` : ""}. Esc deixa o resto fora do mapa.
+            {t(compact ? "place.tap" : "place.click", { name: placingNext.name })}
+            {placingLeft > 1 && ` ${t("place.left", { n: placingLeft })}`}
+            {placingFrom?.pos ? ` ${t("place.ruler", { name: placingFrom.name })}` : ""} {!compact && t("place.esc")}
           </MText>
+          {compact && (
+            <MGroup justify="center" mt={6}>
+              <Button size="compact-sm" variant="default" onClick={() => setPlacing(null)}>
+                {t("place.cancel")}
+              </Button>
+            </MGroup>
+          )}
         </Paper>
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
@@ -580,19 +597,22 @@ function RulerShape({
   scale,
   label,
   color,
+  cellOnly = false,
 }: {
   ruler: Ruler;
   grid: MapConfig;
   scale: number;
   label?: string;
   color: string;
+  /** Só a casa de destino com o nome, sem medir (colocar no mapa sem ninguém de referência). */
+  cellOnly?: boolean;
 }) {
   const a = cellCenter(ruler.from, grid);
   const b = cellCenter(ruler.to, grid);
   const cells = cellDistance(ruler.from, ruler.to);
   const feet = cells * grid.feetPerCell;
   const fs = 14 / scale;
-  const text = `${feet} ft · ${cells} ${cells === 1 ? "quadrado" : "quadrados"}${label ? ` (${label})` : ""}`;
+  const text = cellOnly ? (label ?? "") : `${feet} ft · ${cells} ${cells === 1 ? "quadrado" : "quadrados"}${label ? ` (${label})` : ""}`;
 
   return (
     <Group>
@@ -603,8 +623,8 @@ function RulerShape({
         height={grid.cellPx}
         fill={`${color}33`}
       />
-      <Line points={[a.x, a.y, b.x, b.y]} stroke={color} strokeWidth={3 / scale} dash={[10 / scale, 6 / scale]} />
-      <Circle x={a.x} y={a.y} radius={5 / scale} fill={color} />
+      {!cellOnly && <Line points={[a.x, a.y, b.x, b.y]} stroke={color} strokeWidth={3 / scale} dash={[10 / scale, 6 / scale]} />}
+      {!cellOnly && <Circle x={a.x} y={a.y} radius={5 / scale} fill={color} />}
       <Circle x={b.x} y={b.y} radius={5 / scale} fill={color} />
       <Text
         x={b.x + 10 / scale}

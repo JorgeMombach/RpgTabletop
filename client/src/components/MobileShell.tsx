@@ -67,6 +67,12 @@ export function MobileShell({ state }: { state: ClientState }) {
     }
   }
 
+  // Algo esperando um toque no mapa (personagem ou conjurado): vai para a aba Mapa.
+  const placing = useApp((s) => s.placing);
+  useEffect(() => {
+    if (placing) open("map");
+  }, [placing]);
+
   // Ficha sem ninguém escolhido: abre o próprio personagem.
   useEffect(() => {
     if (tab === "sheet" && !selectedId && mine) select(mine.id);
