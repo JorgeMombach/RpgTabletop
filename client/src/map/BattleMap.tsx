@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudOff, IconHandStop, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler } from "@rpg/shared";
 import { act } from "../actions";
 import { socket } from "../socket";
-import { AREA_DEFAULT_FEET, select, setPlacing, setTool, useApp } from "../store";
+import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
 import { allCombatants } from "../format";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, nearestFreeCell, sameCell, type Point } from "./geometry";
@@ -15,6 +15,7 @@ import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
+import { WeatherOverlay } from "./WeatherOverlay";
 
 /** Tipo usado ao arrastar um combatente da lista para o mapa. */
 export const DRAG_MIME = "application/x-combatant";
@@ -51,7 +52,7 @@ export function BattleMap({ state }: { state: ClientState }) {
   const [fixing, setFixing] = useState(false);
   const calibStart = useRef<Point | null>(null);
 
-  const { tool, selectedId, rulers, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
+  const { tool, selectedId, hoverId, rulers, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
   const image = useImage(mapImage.image);
@@ -267,8 +268,10 @@ export function BattleMap({ state }: { state: ClientState }) {
   const combat = state.battle.combat;
   const activeId = combat.active ? combat.order[combat.turnIndex] : null;
   const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
-  // Tokens selecionados ficam por cima.
-  tokens.sort((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId));
+  // Por cima de todos: o token com o mouse em cima e, abaixo dele, o selecionado. Assim o nome
+  // (que aparece em cima do token) nunca fica escondido atrás do vizinho (E26).
+  const rank = (c: CombatantView) => (c.id === hoverId ? 2 : c.id === selectedId ? 1 : 0);
+  tokens.sort((a, b) => rank(a) - rank(b));
 
   return (
     <div
@@ -369,9 +372,13 @@ export function BattleMap({ state }: { state: ClientState }) {
         </Stage>
       )}
 
+      {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
+      <WeatherOverlay weather={state.battle.weather} />
+
       <MapToolbar
         tool={tool}
         gm={gm}
+        weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
       />
@@ -506,14 +513,17 @@ function RulerShape({
 function MapToolbar({
   tool,
   gm,
+  weather,
   onZoom,
   onFit,
 }: {
   tool: string;
   gm: boolean;
+  weather: boolean;
   onZoom: (factor: number) => void;
   onFit: () => void;
 }) {
+  const reduceFx = useApp((s) => s.reduceFx);
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
@@ -559,6 +569,19 @@ function MapToolbar({
             Ajustar
           </Button>
         </Tooltip>
+        {weather && (
+          <Tooltip label={reduceFx ? "Clima completo (só neste navegador)" : "Reduzir o clima: menos partículas e sem clarão (só neste navegador)"}>
+            <ActionIcon
+              variant={reduceFx ? "filled" : "subtle"}
+              color={reduceFx ? undefined : "gray"}
+              onClick={() => setDicePrefs({ reduceFx: !reduceFx })}
+              aria-label="Reduzir o clima"
+              aria-pressed={reduceFx}
+            >
+              <IconCloudOff size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </MGroup>
     </Paper>
   );

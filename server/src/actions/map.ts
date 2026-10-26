@@ -1,6 +1,7 @@
 import { LIMITS, type GridPos } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
+import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -68,6 +69,8 @@ export const mapHandlers: HandlerMap = {
     battle.mobs = [];
     battle.npcs = [];
     battle.effects = [];
+    // Cena nova: sem clima, de dia (E26).
+    battle.weather = defaultWeather();
     resetCombat(store);
     // Conjurados são da batalha: até os dos jogadores somem (E21).
     game.allies = game.allies.filter((a) => !a.summonerId);

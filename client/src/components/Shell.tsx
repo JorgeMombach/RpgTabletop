@@ -25,6 +25,7 @@ import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
 import { SoundSync } from "./SoundSync";
 import { VolumeControl } from "./VolumeControl";
+import { WeatherPanel } from "./WeatherPanel";
 import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
@@ -112,6 +113,7 @@ export function Shell({ state }: { state: ClientState }) {
         <AlliesPanel state={state} />
         <EffectsPanel state={state} />
         {gm && <MapPanel map={state.battle.map} />}
+        {gm && <WeatherPanel state={state} />}
         {gm && <SoundPanel state={state} />}
         {gm && <BestiaryPanel templates={state.templates} />}
         <PlayersPanel state={state} />

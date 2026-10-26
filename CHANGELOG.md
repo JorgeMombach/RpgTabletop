@@ -6,6 +6,21 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.5.0] - 2026-10-25
+
+### Adicionado
+- **Clima no mapa:** painel *Clima* do mestre com chuva, chuva forte, tempestade com relâmpagos (clarão e trovão juntos para todos), granizo, neve, nevasca, névoa, vento com folhas, tempestade de areia, cinzas, brasas, calor, vagalumes, luzes mágicas, esporos, pétalas e chuva de sangue, com intensidade e vento; luz da cena (dia, entardecer, noite, luar); sugestão do ambiente sonoro que combina. Botão para reduzir o clima em computadores mais fracos. (E26)
+- **Rolagens fora de combate:** o mestre escolhe se os jogadores rolam livres, só quando ele pedir (o *Pedir rolagem* agora funciona fora de combate, ex.: "Percepção") ou se as rolagens ficam travadas. (E26)
+- **Antispam de dados:** o jogador espera os próprios dados pararem antes de rolar de novo. (E26)
+
+### Alterado
+- O log mostra quem rolou sempre como **personagem (jogador)**: "Thorin (Jorge)", "Goblin 2 (Mestre)"; o mesmo nos dados 3D, na iniciativa e nos avisos. (E26)
+- *Rolar como* do mestre já vem com o combatente **selecionado** no mapa (senão, o da vez; senão, Mestre). (E26)
+- O log espera os dados 3D pararem para mostrar o resultado ("Rolando…" até lá). (E26)
+
+### Corrigido
+- O nome de um token no mapa ficava escondido atrás do token vizinho ao passar o mouse. (E26)
+
 ## [2.4.0] - 2026-10-25
 
 ### Adicionado
@@ -133,7 +148,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.4.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.1.0...v2.2.0

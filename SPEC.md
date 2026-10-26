@@ -573,7 +573,7 @@ Objetivo: depois de jogar com a 2.0, ir somando melhorias pequenas, **uma versã
 
 ## 18. Entregáveis da Fase 4
 
-Ordem: **2.0.1 → E21 → E22 → E24 → E25 → E23**. Regras de combate primeiro (mexem no jogo); depois a visibilidade dos dados (reclamação mais concreta); animações e som antes do celular (revisto depois da 2.2.0: o E23 é o maior e atende menos gente, e quem joga pelo celular já consegue jogar). Os detalhes de cada um são fechados no início do entregável.
+Ordem: **2.0.1 → E21 → E22 → E24 → E25 → E26 → E23**. Regras de combate primeiro (mexem no jogo); depois a visibilidade dos dados (reclamação mais concreta); animações e som antes do celular (revisto depois da 2.2.0: o E23 é o maior e atende menos gente, e quem joga pelo celular já consegue jogar). Os detalhes de cada um são fechados no início do entregável. O E26 entrou depois da 2.4.0: melhorias que apareceram jogando, antes do celular.
 
 ### 2.0.1 — Correções do app
 - **macOS:** o `executableName` (sem apóstrofo) também renomeava o pacote para `jamals-tabletop.app`; agora vale só para Windows e Linux, e o Mac fica com `Jamal's Tabletop.app` (o que o README manda liberar com `xattr`). Disco do `.dmg` e pasta de dados do app com o nome do produto.
@@ -630,5 +630,19 @@ Ordem: **2.0.1 → E21 → E22 → E24 → E25 → E23**. Regras de combate prim
   - Navegador com áudio bloqueado até um clique: com algo tocando, aparece *Ativar som da mesa* (qualquer clique na página também libera).
 - **Ácido** (pedido no fim do E24): poça verde-amarelada corroendo o chão, com bolhas e fumaça; transformações sugeridas: Ácido → Gás tóxico (evapora) / Solo molhado (diluído).
 
-### E23 — Celular e tablet  *(2.5.0)*
+### E26 — Melhorias da mesa e clima  *(2.5.0)*
+- **Nomes no mapa:** o token com o mouse em cima (e o selecionado) é desenhado por último, então o nome dele nunca fica atrás do token vizinho.
+- **Quem rolou, sempre no mesmo padrão:** "Personagem (jogador)". Jogador → o combatente dele na vez (pode ser um conjurado) ou o personagem; sem personagem, só o nome. Mestre → "Goblin 2 (Mestre)" com *Rolar como*, "Mestre" sem. Vale para o log, a faixa dos dados 3D, a iniciativa, os avisos ("Thorin (Jorge) usou a reação") e réguas/áreas.
+- **Rolar como** segue o mapa: combatente do lado do mestre **selecionado** → senão o da vez (se for do mestre) → senão "Mestre". A troca manual vale até a seleção ou o turno mudar. As rolagens do mestre continuam ocultas por padrão; o padrão serve para o log dele e para quando ele mostra a rolagem.
+- **Log sincronizado com os dados 3D:** cada navegador mostra "Rolando…" na entrada até os dados pararem na tela dele; fila como no E22 (mais de 3 esperando, as antigas pulam a animação e aparecem na hora). Só apresentação: o resultado continua vindo do servidor. Sem animação, aparece na hora.
+- **Rolagens fora de combate** (mestre, painel *Dados*): **Livres** (padrão), **Só com pedido** (o *Pedir rolagem* passa a valer fora de combate: cada jogador pedido rola uma vez) ou **Travadas** (só o mestre). Em combate vale a trava por turno de sempre; o modo continua depois do combate e vai no arquivo de sessão.
+- **Antispam:** o jogador espera os próprios dados pararem para rolar de novo (no navegador) e o servidor recusa rolagens do mesmo jogador com menos de 1,5 s entre elas. O mestre não tem limite.
+- **Clima no mapa** (só o mestre muda; todos veem igual): chuva, chuva forte, tempestade (relâmpagos), granizo, neve, nevasca, névoa, vento com folhas, tempestade de areia, cinzas, brasas, calor (miragem), vagalumes, luzes mágicas, esporos, pétalas e chuva de sangue; **intensidade** (20–100%) e **vento** (−60° a 60°). **Luz** à parte: dia, entardecer, noite, luar (cor multiplicada sobre o mapa e vinheta).
+  - Desenhado por cima do mapa e dos tokens, em pixels da tela (o clima não anda ao arrastar o mapa), sem receber cliques. A luz escurece chuva, névoa e neve junto com o mapa; o que brilha sozinho (brasas, vagalumes, luzes mágicas) fica por cima dela.
+  - **Relâmpagos com hora marcada:** a semente é a hora em que o clima começou (`startedAt`); todos os navegadores calculam os mesmos instantes, sem evento extra. O trovão (som gerado do E25, canal de efeitos) vem um pouco depois do clarão. Por isso Tempestade e Granizo sugerem o ambiente *Chuva*, não *Tempestade* (que tem trovões próprios, fora de sincronia).
+  - O painel sugere o ambiente sonoro que combina (*Tocar ambiente: …*), sem ligar sozinho.
+  - **Reduzir o clima** (barra do mapa, por navegador): cerca de 1/3 das partículas, 30 quadros por segundo, clarão fraco e sem miragem. Prepara o terreno para o E23.
+  - Vai no arquivo de sessão (arquivo antigo abre sem clima). *Limpar campo* volta para sem clima, de dia.
+
+### E23 — Celular e tablet  *(2.6.0)*
 - Layout próprio para **jogadores** em telas pequenas (abas como Mapa, Ficha, Dados, Iniciativa). O mestre continua no app do computador; a tela mínima de 1024 × 640 vale para ele.

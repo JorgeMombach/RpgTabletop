@@ -10,11 +10,11 @@ export function byId(store: Store, id: string): Combatant | undefined {
   return allCombatants(store).find((c) => c.id === id);
 }
 
-/** Para o combate e esquece pedidos e reações. `turn` continua contando, para nunca repetir o número de um turno antigo. */
+/** Para o combate e esquece pedidos e reações (o modo fora de combate continua). `turn` continua contando, para nunca repetir o número de um turno antigo. */
 export function resetCombat(store: Store) {
   const { battle } = store.game;
   Object.assign(battle.combat, { active: false, round: 0, turnIndex: 0, order: [] });
-  battle.rolls = { request: null, reactions: [] };
+  battle.rolls = { request: null, reactions: [], outside: battle.rolls.outside };
 }
 
 /** Troca de turno: o pedido de rolagem do mestre acaba e as reações abertas fecham (SPEC E16). */

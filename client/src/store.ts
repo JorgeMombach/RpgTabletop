@@ -13,16 +13,16 @@ export interface Rect {
   height: number;
 }
 
-/** Preferências deste navegador (E22): animação dos dados e log destacado. */
+/** Preferências deste navegador: animação dos dados e log destacado (E22); clima reduzido (E26). */
 const PREFS_KEY = "rpg.dicePrefs";
-type DicePrefs = { diceAnim: boolean; logDetached: boolean };
+type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean };
 
 function readPrefs(): DicePrefs {
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
-    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true };
+    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true };
   } catch {
-    return { diceAnim: true, logDetached: false };
+    return { diceAnim: true, logDetached: false, reduceFx: false };
   }
 }
 
@@ -57,6 +57,13 @@ interface AppStore extends DicePrefs {
   savedAt: Date | null;
   /** Conjurados esperando um clique no mapa (E21): um por clique, com a distância até quem conjurou. */
   placing: { ids: string[]; fromId: string } | null;
+  /**
+   * Rolagens que ainda estão caindo na animação deste navegador (E26): o log mostra "rolando…"
+   * e só revela o resultado quando os dados param.
+   */
+  rolling: string[];
+  /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
+  hoverId: string | null;
 }
 
 export const useApp = create<AppStore>(() => ({
@@ -78,6 +85,8 @@ export const useApp = create<AppStore>(() => ({
   savedSnapshot: null,
   savedAt: null,
   placing: null,
+  rolling: [],
+  hoverId: null,
   ...readPrefs(),
 }));
 
@@ -106,9 +115,9 @@ export function setVolume(patch: Partial<{ volume: number; muted: boolean }>) {
 
 export function setDicePrefs(patch: Partial<DicePrefs>) {
   useApp.setState(patch);
-  const { diceAnim, logDetached } = useApp.getState();
+  const { diceAnim, logDetached, reduceFx } = useApp.getState();
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx }));
   } catch {
     // sem armazenamento (aba anônima…): vale só nesta aba
   }

@@ -42,6 +42,8 @@ export function useServer(options: Partial<AppOptions> = {}) {
     await closeAll();
     // Store novo, mas o servidor continua apontando para o mesmo objeto.
     Object.assign(ctx.server.store, new Store(MAX));
+    // Sem antispam: os testes rolam em sequência (o teste do antispam liga de novo).
+    ctx.server.store.rollCooldownMs = 0;
   });
 
   /** Conexão local = mestre; com X-Forwarded-For de outro IP = jogador remoto. */

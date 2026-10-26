@@ -23,6 +23,7 @@ import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
 import { serveClient } from "./static";
 import { refreshLibrary, soundSource } from "./actions/sound";
+import { whoIs } from "./actions/dice";
 import { audioType, saveSound, soundPath } from "./sounds";
 import { viewFor } from "./view";
 
@@ -205,13 +206,13 @@ export function createApp(opts: AppOptions) {
     socket.on("ruler:update", (ruler) => {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (!player) return;
-      socket.to(SESSION_ROOM).emit("ruler", { playerId: player.id, name: player.name, ruler: validRuler(ruler) });
+      socket.to(SESSION_ROOM).emit("ruler", { playerId: player.id, name: whoIs(store, player), ruler: validRuler(ruler) });
     });
 
     socket.on("area:update", (area) => {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (!player) return;
-      socket.to(SESSION_ROOM).emit("area", { playerId: player.id, name: player.name, area: validArea(area) });
+      socket.to(SESSION_ROOM).emit("area", { playerId: player.id, name: whoIs(store, player), area: validArea(area) });
     });
 
     // Salvar e carregar sessão (E18): só o mestre.

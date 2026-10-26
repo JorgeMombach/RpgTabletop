@@ -134,7 +134,8 @@ describe("mobs ocultos", () => {
     const { combat } = game().battle;
     assert.equal(combat.order[combat.turnIndex], a);
     const log = game().log[0];
-    assert.equal(log.label, "Iniciativa · Espreitador (revelado)");
+    assert.equal(log.label, "Iniciativa (revelado)");
+    assert.equal(log.as, "Espreitador");
     assert.equal(log.hidden, true, "a rolagem fica só para o mestre");
   });
 

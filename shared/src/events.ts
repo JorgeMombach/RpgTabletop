@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, RollKind, RollMode, SoundChannel, SoundSource } from "./types";
+import type { ClientState, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -120,6 +120,8 @@ export interface ActionPayloads {
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
   "roll:cancel": Record<string, never>;
+  /** Mestre: rolagens dos jogadores fora de combate (livres, só com pedido ou travadas). */
+  "roll:outside": { mode: OutsideRolls };
   /** Jogador: usa a reação do round (libera rolar até o turno mudar). */
   "reaction:use": Record<string, never>;
   "battle:setMap": { image: string | null };
@@ -188,6 +190,8 @@ export interface ActionPayloads {
   "sound:volume": { channel: SoundChannel | "sfx"; value: number };
   /** Mestre: relê a pasta de sons (arquivos copiados direto para lá). */
   "sound:refresh": Record<string, never>;
+  /** Mestre: clima e luz do mapa (E26); só os campos enviados mudam. `kind: null` = sem clima. */
+  "weather:set": { kind?: WeatherId | null; intensity?: number; wind?: number; light?: LightId };
   "effect:remove": { id: string };
   /**
    * Limpa o campo para a próxima batalha: tira mapa, mobs, NPCs, iniciativa e posições.
@@ -276,6 +280,10 @@ export const LIMITS = {
   conditions: 12,
   conditionRounds: { min: 1, max: 100 },
   rollLabel: 32,
+  /** Jogador: intervalo mínimo entre rolagens (antispam, E26). O mestre não tem. */
+  rollCooldownMs: 1500,
+  weatherIntensity: { min: 0.2, max: 1 },
+  weatherWind: { min: -60, max: 60 },
   effectName: 32,
   /** Efeitos no mapa ao mesmo tempo. */
   effects: 40,

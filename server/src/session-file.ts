@@ -17,6 +17,7 @@ import {
   type LogEntry,
   type MapEffect,
   type MobTemplate,
+  type OutsideRolls,
   type RollResult,
   type Role,
   type RollTerm,
@@ -25,6 +26,7 @@ import {
   type SpellLevel,
   type SpellSlot,
 } from "@rpg/shared";
+import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
 import { fail, requireImage, requireInt, requireName, requireNumber, requireString, validArea } from "./validate";
 
@@ -40,7 +42,7 @@ export function exportSession(store: Store): SessionFile {
     game: {
       ...store.game,
       // Pedido de rolagem e reações valem só para o turno em que estavam.
-      battle: { ...store.game.battle, rolls: { request: null, reactions: [] } },
+      battle: { ...store.game.battle, rolls: { request: null, reactions: [], outside: store.game.battle.rolls.outside } },
     },
   };
 }
@@ -68,6 +70,11 @@ function text(raw: unknown, what: string, max: number): string {
 
 function optText(raw: unknown, what: string, max: number): string | undefined {
   return raw === undefined ? undefined : text(raw, what, max);
+}
+
+function outsideRolls(raw: unknown): OutsideRolls {
+  if (raw === undefined) return "free";
+  return raw === "free" || raw === "request" || raw === "locked" ? raw : fail("Arquivo inválido: modo das rolagens.");
 }
 
 function bool(raw: unknown, what: string): boolean {
@@ -321,8 +328,9 @@ export function parseSession(raw: unknown): ParsedSession {
       npcs,
       // Oculto não fica na ordem de iniciativa (E21).
       combat: combat(b.combat, new Set([...allies, ...mobs, ...npcs].filter((c) => !c.hidden).map((c) => c.id))),
-      rolls: { request: null, reactions: [] },
+      rolls: { request: null, reactions: [], outside: outsideRolls(obj(b.rolls ?? {}, "rolagens").outside) },
       effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
+      weather: weatherFromFile(b.weather),
     },
     log: list(g.log, "log", LIMITS.logSize).map(logEntry),
   };

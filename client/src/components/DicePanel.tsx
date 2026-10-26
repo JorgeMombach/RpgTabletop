@@ -17,7 +17,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconWindowMaximize } from "@tabler/icons-react";
-import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type RollMode } from "@rpg/shared";
+import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { allCombatants } from "../format";
@@ -90,13 +90,17 @@ export function DicePanel({ state }: { state: ClientState }) {
   const [crit, setCrit] = useState(false);
   // Mestre rola atrás do escudo por padrão (SPEC E16); desmarca para mostrar.
   const [hidden, setHidden] = useState(gm);
-  // Escolha manual do "rolar como" vale só para o turno em que foi feita.
-  const [asChoice, setAsChoice] = useState<{ turn: number; id: string } | null>(null);
+  const selectedId = useApp((s) => s.selectedId);
+  const rolling = useApp((s) => s.rolling);
+  // Escolha manual do "rolar como" vale até a seleção ou o turno mudar.
+  const asKey = `${combat.turn}:${selectedId ?? ""}`;
+  const [asChoice, setAsChoice] = useState<{ key: string; id: string } | null>(null);
 
   const current = combat.active ? allCombatants(state).find((c) => c.id === combat.order[combat.turnIndex]) : undefined;
   const side = gm ? gmSide(state) : [];
-  const defaultAs = current && side.some((c) => c.id === current.id) ? current.id : AS_MASTER;
-  const asId = asChoice && asChoice.turn === combat.turn && (asChoice.id === AS_MASTER || side.some((c) => c.id === asChoice.id)) ? asChoice.id : defaultAs;
+  // "Rolar como" (E26): o combatente selecionado do lado do mestre; senão, o da vez; senão, Mestre.
+  const defaultAs = side.find((c) => c.id === selectedId)?.id ?? (current && side.some((c) => c.id === current.id) ? current.id : AS_MASTER);
+  const asId = asChoice && asChoice.key === asKey && (asChoice.id === AS_MASTER || side.some((c) => c.id === asChoice.id)) ? asChoice.id : defaultAs;
 
   // Trava por turno: o servidor também recusa; aqui só desabilita e explica.
   const me = state.self.id;
@@ -105,7 +109,11 @@ export function DicePanel({ state }: { state: ClientState }) {
   const requested = !!request && request.playerIds.includes(me) && !request.done.includes(me);
   const reactionOpen = rolls.reactions.some((r) => r.playerId === me && r.turn === combat.turn);
   const reactionUsed = rolls.reactions.some((r) => r.playerId === me && r.round === combat.round);
-  const locked = !gm && combat.active && !myTurn && !requested && !reactionOpen;
+  const outside = rolls.outside;
+  const locked = !gm && (combat.active ? !myTurn && !requested && !reactionOpen : outside !== "free" && !requested);
+  // Antispam (E26): enquanto os dados desta pessoa caem na tela, não rola de novo.
+  const waiting = !gm && state.log.some((e) => e.authorId === me && rolling.includes(e.id));
+  const blocked = locked || waiting;
 
   async function roll(payload: ActionPayloads["dice:roll"]) {
     return act("dice:roll", { ...payload, hidden: gm && hidden, asId: gm && asId !== AS_MASTER ? asId : undefined });
@@ -148,12 +156,12 @@ export function DicePanel({ state }: { state: ClientState }) {
   return (
     <Panel title="Dados">
       {gm && side.length > 0 && (
-        <Tooltip label="Nome que aparece no log. Muda sozinho para o combatente da vez.">
+        <Tooltip label="Nome que aparece no log. Muda sozinho para o combatente selecionado no mapa ou, sem seleção, para o da vez.">
           <Select
             label="Rolar como"
             data={[{ value: AS_MASTER, label: "Mestre" }, ...side.map((c) => ({ value: c.id, label: c.name }))]}
             value={asId}
-            onChange={(v) => setAsChoice(v ? { turn: combat.turn, id: v } : null)}
+            onChange={(v) => setAsChoice(v ? { key: asKey, id: v } : null)}
             allowDeselect={false}
             comboboxProps={{ withinPortal: true }}
           />
@@ -161,7 +169,14 @@ export function DicePanel({ state }: { state: ClientState }) {
       )}
 
       {!gm && combat.active && <TurnLock state={state} myTurn={myTurn} requested={requested} reactionOpen={reactionOpen} reactionUsed={reactionUsed} />}
-      {gm && combat.active && <RequestControl state={state} />}
+      {!gm && !combat.active && outside !== "free" && <OutsideLock state={state} requested={requested} />}
+      {gm && !combat.active && <OutsideControl mode={outside} />}
+      {gm && <RequestControl state={state} />}
+      {waiting && (
+        <Text size="xs" c="dimmed">
+          Esperando seus dados pararem…
+        </Text>
+      )}
 
       <SectionTitle>Ataque</SectionTitle>
       <Group component="form" gap="xs" wrap="nowrap" align="flex-end" onSubmit={rollAttack}>
@@ -176,7 +191,7 @@ export function DicePanel({ state }: { state: ClientState }) {
             aria-label="Bônus de ataque"
           />
         </Tooltip>
-        <Button type="submit" style={{ flex: 1 }} disabled={locked}>
+        <Button type="submit" style={{ flex: 1 }} disabled={blocked}>
           Rolar ataque
         </Button>
       </Group>
@@ -194,7 +209,7 @@ export function DicePanel({ state }: { state: ClientState }) {
           placeholder="Ex.: 1d8+3"
           aria-label="Dano"
         />
-        <Button type="submit" disabled={locked || !damage.trim()}>
+        <Button type="submit" disabled={blocked || !damage.trim()}>
           Rolar dano
         </Button>
       </Group>
@@ -206,7 +221,7 @@ export function DicePanel({ state }: { state: ClientState }) {
       <SimpleGrid cols={4} spacing={6} verticalSpacing={6}>
         {DICE.map((f) => (
           <Tooltip key={f} label={`Rolar ${Number(count) > 1 ? `${count}` : "1"}d${f}${Number(mod) ? ` ${Number(mod) > 0 ? "+" : ""}${mod}` : ""}`}>
-            <Button variant="default" size="sm" fw={700} px={0} disabled={locked} onClick={() => rollDie(f)}>
+            <Button variant="default" size="sm" fw={700} px={0} disabled={blocked} onClick={() => rollDie(f)}>
               d{f}
             </Button>
           </Tooltip>
@@ -236,7 +251,7 @@ export function DicePanel({ state }: { state: ClientState }) {
           placeholder="Ex.: 2d6+1d4+3"
           aria-label="Expressão de dados"
         />
-        <Button type="submit" disabled={locked || !expr.trim()}>
+        <Button type="submit" disabled={blocked || !expr.trim()}>
           Rolar
         </Button>
       </Group>
@@ -306,6 +321,41 @@ function TurnLock(props: { state: ClientState; myTurn: boolean; requested: boole
   );
 }
 
+const OUTSIDE: { value: OutsideRolls; label: string }[] = [
+  { value: "free", label: "Livres" },
+  { value: "request", label: "Só com pedido" },
+  { value: "locked", label: "Travadas" },
+];
+
+/** Mestre, fora de combate (E26): os jogadores rolam livres, só quando ele pedir, ou nada. */
+function OutsideControl({ mode }: { mode: OutsideRolls }) {
+  return (
+    <Stack gap={4}>
+      <Text size="xs" c="dimmed">
+        Rolagens dos jogadores fora de combate
+      </Text>
+      <Tooltip label="Livres: todos rolam. Só com pedido: cada um rola uma vez quando você pedir (Percepção…). Travadas: só você rola.">
+        <SegmentedControl fullWidth data={OUTSIDE} value={mode} onChange={(v) => act("roll:outside", { mode: v as OutsideRolls })} aria-label="Rolagens fora de combate" />
+      </Tooltip>
+    </Stack>
+  );
+}
+
+/** Jogador fora de combate com as rolagens limitadas pelo mestre (E26). */
+function OutsideLock({ state, requested }: { state: ClientState; requested: boolean }) {
+  if (requested)
+    return (
+      <Alert variant="light" color="bronze" p="xs" title={`O mestre pediu: ${state.battle.rolls.request?.label}`}>
+        <Text size="xs">Role uma vez (ex.: d20 + modificador nos dados livres).</Text>
+      </Alert>
+    );
+  return (
+    <Text size="xs" c="dimmed">
+      {state.battle.rolls.outside === "locked" ? "O mestre travou as rolagens por enquanto." : "Dados travados: role quando o mestre pedir."}
+    </Text>
+  );
+}
+
 /** Mestre: pedir uma rolagem fora da vez (ex.: "Resistência DES") a todos ou a alguns jogadores. */
 function RequestControl({ state }: { state: ClientState }) {
   const [open, setOpen] = useState(false);
@@ -331,7 +381,7 @@ function RequestControl({ state }: { state: ClientState }) {
 
   if (!open)
     return (
-      <Tooltip label="Libera uma rolagem fora da vez (resistência, teste…). Acaba quando todos rolarem ou o turno mudar.">
+      <Tooltip label="Pede uma rolagem a todos ou a alguns jogadores (resistência, Percepção…). Cada um rola uma vez; em combate, acaba quando o turno mudar.">
         <Button variant="default" disabled={players.length === 0} onClick={() => setOpen(true)}>
           Pedir rolagem
         </Button>
