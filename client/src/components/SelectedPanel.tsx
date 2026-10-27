@@ -140,6 +140,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           submitLabel="Salvar"
           withNotes={gm}
           withDarkvision={c.type === "ally" && !c.summonerId}
+          withPhases={gm && c.type !== "ally"}
           onCancel={() => setEditingId(null)}
           onSubmit={async (v) => {
             // `notes` é do template; aqui valem `description` e (só o mestre) `gmNotes`.

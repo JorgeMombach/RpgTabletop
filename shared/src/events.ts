@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -38,6 +38,8 @@ export interface CombatantInput {
   animal?: boolean;
   /** Visão no escuro (só personagens dos jogadores). */
   darkvision?: boolean;
+  /** Chefe: as próximas fases (só mob, NPC e template; só o mestre). `[]` apaga. */
+  phases?: BossPhase[];
   /** Mob ou NPC já criado oculto (E21; ignorado em aliados). */
   hidden?: boolean;
   /** Descrição que todos veem; vazio apaga. */
@@ -396,6 +398,8 @@ export const LIMITS = {
   /** Cenas na sessão e tamanho do nome. */
   scenes: 20,
   sceneName: 40,
+  /** Fases de chefe depois da primeira. */
+  phases: 5,
   handoutTitle: 80,
   handoutText: 2000,
   /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */

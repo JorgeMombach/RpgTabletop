@@ -175,6 +175,10 @@ export interface Combatant {
   animal?: boolean;
   /** Personagem com visão no escuro: não recebe o lembrete de escuridão (regra da mesa). */
   darkvision?: boolean;
+  /** Chefe (mob/NPC): fases que ainda vão começar, em ordem. Só o mestre recebe (têm vida). */
+  phases?: BossPhase[];
+  /** Fase atual de um chefe (ausente = 1). */
+  phase?: number;
   /** Mob ou NPC oculto (furtividade, sala escura): só o mestre recebe; fora da iniciativa até ser revelado (E21). */
   hidden?: boolean;
   /** Conjurado (familiar, esqueleto…): quem conjurou. Fica do lado dele e com o mesmo controle (E21). */
@@ -190,6 +194,13 @@ export type CombatantView = Omit<Combatant, "hp" | "hpMax"> & {
   hp?: number;
   hpMax?: number;
 };
+
+/** Próxima fase de um chefe: começa quando a vida da fase atual zera. Nome e CA novos são opcionais. */
+export interface BossPhase {
+  hpMax: number;
+  name?: string;
+  ac?: number;
+}
 
 export interface MobTemplate {
   id: string;
@@ -207,6 +218,8 @@ export interface MobTemplate {
   notes?: string;
   /** Mobs e NPCs criados com o template já vêm com a marca de animal. */
   animal?: boolean;
+  /** Chefe: fases depois da primeira (que é a vida/nome/CA do próprio template). */
+  phases?: BossPhase[];
 }
 
 export interface MapConfig {

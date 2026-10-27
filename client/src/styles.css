@@ -505,6 +505,12 @@ abbr.abbr {
   color: var(--mantine-color-dark-2);
 }
 
+/* Uma fase de chefe no formulário: separada das outras por uma linha fina. */
+.phase-row {
+  border-top: 1px solid var(--mantine-color-dark-4);
+  padding-top: 6px;
+}
+
 /* Clima e luz sobre o mapa (E26): não recebem cliques. A luz multiplica as cores do mapa. */
 .map-light,
 .map-weather {

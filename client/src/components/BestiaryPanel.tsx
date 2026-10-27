@@ -42,6 +42,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
           palette={MOB_COLORS}
           submitLabel="Criar template"
           withNotes
+          withPhases
           onCancel={close}
           onSubmit={async (v) => {
             const ok = (await act("template:upsert", v)).ok;
@@ -57,6 +58,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
           submitLabel="Adicionar à batalha"
           withHidden
           withNotes
+          withPhases
           onCancel={close}
           onSubmit={async (v) => {
             const ok = (await act("mob:add", v)).ok;
@@ -80,6 +82,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
             palette={MOB_COLORS}
             submitLabel="Salvar"
             withNotes
+            withPhases
             onCancel={close}
             onSubmit={async (v) => {
               const ok = (await act("template:upsert", { ...v, id: t.id })).ok;

@@ -4,6 +4,7 @@ import type { Combatant } from "@rpg/shared";
 import type { ReactNode } from "react";
 import { DRAG_MIME } from "../map/BattleMap";
 import { allCombatants } from "../format";
+import { useT } from "../i18n";
 import { select, useApp } from "../store";
 import { CombatantAvatar } from "./CombatantAvatar";
 import { HpBar } from "./HpBar";
@@ -26,6 +27,11 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
   const hint = draggable && !c.pos ? "Fora do mapa: arraste para posicionar" : undefined;
   const summoner = useApp((s) => (c.summonerId && s.state ? allCombatants(s.state).find((o) => o.id === c.summonerId)?.name : undefined));
   const rounds = c.summonRounds !== undefined ? `${c.summonRounds} ${c.summonRounds === 1 ? "round" : "rounds"}` : null;
+  // Chefe: fase atual (e o total, para o mestre, que recebe as próximas fases).
+  const t = useT();
+  const nextPhases = "phases" in c ? (c.phases?.length ?? 0) : 0;
+  const phase = c.phase ?? 1;
+  const phaseText = nextPhases > 0 || phase > 1 ? t(nextPhases > 0 ? "phases.short" : "phases.only", { n: phase, total: phase + nextPhases }) : null;
   // Na coluna estreita o complemento corta: o texto completo fica no title.
   const full = [c.name, summoner && `invocado por ${summoner}`, rounds && `faltam ${rounds}`].filter(Boolean).join(" · ");
 
@@ -59,6 +65,12 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
                   {" "}
                   · de {summoner}
                   {rounds && ` · ${rounds}`}
+                </Text>
+              )}
+              {phaseText && (
+                <Text span size="xs" c="bronze.4">
+                  {" "}
+                  · {phaseText}
                 </Text>
               )}
               {c.hidden && (

@@ -7,7 +7,7 @@ function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resourc
 }
 
 /** Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando). */
-function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, gmNotes: _n, ...rest }: Combatant): CombatantView {
+function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, gmNotes: _n, phases: _p, ...rest }: Combatant): CombatantView {
   return withoutSheet(rest);
 }
 

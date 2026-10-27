@@ -38,6 +38,7 @@ import {
   type Spell,
   type SpellLevel,
   type SpellSlot,
+  type BossPhase,
   type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
@@ -195,6 +196,8 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   // Marcas do E21: arquivos da 2.0 não têm (ausente = não).
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
   if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
+  if (c.phases !== undefined) out.phases = bossPhases(c.phases);
+  if (c.phase !== undefined) out.phase = int(c.phase, "fase do chefe", 1, LIMITS.phases + 1);
   const description = optText(c.description, "descrição", LIMITS.description);
   if (description) out.description = description;
   const gmNotes = optText(c.gmNotes, "notas do mestre", LIMITS.notes);
@@ -285,7 +288,19 @@ function template(raw: unknown): MobTemplate {
   if (t.animal !== undefined && bool(t.animal, "animal")) out.animal = true;
   const description = optText(t.description, "descrição", LIMITS.description);
   if (description) out.description = description;
+  if (t.phases !== undefined) out.phases = bossPhases(t.phases);
   return out;
+}
+
+/** Fases de chefe (as próximas): vida, e nome e CA se tiverem. */
+function bossPhases(raw: unknown): BossPhase[] {
+  return list(raw, "fases do chefe", LIMITS.phases).map((r) => {
+    const p = obj(r, "fase do chefe");
+    const out: BossPhase = { hpMax: int(p.hpMax, "vida da fase", LIMITS.hpMax.min, LIMITS.hpMax.max) };
+    if (p.name !== undefined) out.name = requireName(p.name);
+    if (p.ac !== undefined) out.ac = int(p.ac, "CA da fase", LIMITS.ac.min, LIMITS.ac.max);
+    return out;
+  });
 }
 
 function effect(raw: unknown, combatantIds: Set<string>): MapEffect {

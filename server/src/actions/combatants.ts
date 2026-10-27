@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  type BossPhase,
   ABILITIES,
   ALLY_COLORS,
   LIMITS,
@@ -100,6 +101,47 @@ function applyAvatar(target: { avatar?: string }, raw: unknown) {
   else if (avatar !== undefined) target.avatar = avatar;
 }
 
+/** Fases de chefe: `undefined` = não mexe; lista (vazia apaga) já validada. */
+function phasesOf(raw: unknown): BossPhase[] | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return [];
+  if (!Array.isArray(raw)) fail("Fases inválidas.");
+  if (raw.length > LIMITS.phases) fail(`Até ${LIMITS.phases} fases além da primeira.`);
+  return raw.map((p: unknown) => {
+    if (typeof p !== "object" || p === null) fail("Fase inválida.");
+    const o = p as Record<string, unknown>;
+    const phase: BossPhase = { hpMax: hpMaxOf(o.hpMax) };
+    if (typeof o.name === "string" && o.name.trim()) phase.name = requireName(o.name);
+    const ac = acOf(o.ac);
+    if (typeof ac === "number") phase.ac = ac;
+    return phase;
+  });
+}
+
+function applyPhases(target: { phases?: BossPhase[] }, phases: BossPhase[] | undefined) {
+  if (phases === undefined) return;
+  if (phases.length > 0) target.phases = phases;
+  else delete target.phases;
+}
+
+/**
+ * Chefe com a vida da fase zerada: começa a próxima, com vida cheia (o dano que sobrou não passa)
+ * e, se a fase tiver, nome e CA novos. Avisa no log (só o mestre vê se o chefe estiver oculto).
+ */
+function nextPhase(store: Store, c: Combatant) {
+  const next = c.phases?.shift();
+  if (!next) return;
+  if (c.phases?.length === 0) delete c.phases;
+  const before = c.name;
+  c.phase = (c.phase ?? 1) + 1;
+  c.hpMax = next.hpMax;
+  c.hp = next.hpMax;
+  if (next.name) c.name = next.name;
+  if (next.ac !== undefined) c.ac = next.ac;
+  const renamed = next.name && next.name !== before ? `: agora é ${next.name}` : "";
+  logSystem(store, `${before} passou para a fase ${c.phase}${renamed}.`, !!c.hidden);
+}
+
 function clampHp(c: Combatant, value: number) {
   c.hp = Math.max(0, Math.min(c.hpMax, value));
 }
@@ -178,6 +220,7 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
   applyAvatar(c, input?.avatar);
   applyFlags(c, input);
   applyTexts(c, input, gm);
+  if (type !== "ally" && gm) applyPhases(c, phasesOf(input?.phases));
   return c;
 }
 
@@ -192,6 +235,7 @@ function fromTemplate(t: MobTemplate) {
     animal: t.animal,
     description: t.description,
     gmNotes: t.notes,
+    phases: t.phases?.map((p) => ({ ...p })),
   };
 }
 
@@ -275,6 +319,7 @@ export const combatantHandlers: HandlerMap = {
       description: typeof input?.description === "string" ? input.description.trim().slice(0, LIMITS.description) || undefined : undefined,
       animal: input?.animal === true || undefined,
     };
+    const phases = phasesOf(input?.phases);
     const ac = acOf(input?.ac);
     const abilities = abilitiesOf(input?.abilities);
     const size = sizeOf(input?.size);
@@ -283,6 +328,7 @@ export const combatantHandlers: HandlerMap = {
     if (input.id) {
       const t = templates.find((t) => t.id === input.id) ?? fail("Template não encontrado.");
       Object.assign(t, fields);
+      applyPhases(t, phases);
       if (isColor(input.color)) t.color = input.color;
       applyStats(t, ac, abilities);
       applySize(t, size);
@@ -290,6 +336,7 @@ export const combatantHandlers: HandlerMap = {
       return [t.id];
     }
     const t: MobTemplate = { id: randomUUID(), ...fields, color: colorOf(input.color, MOB_COLORS, templates.length) };
+    applyPhases(t, phases);
     applyStats(t, ac, abilities);
     applySize(t, size);
     applyAvatar(t, input.avatar);
@@ -448,7 +495,9 @@ export const combatantHandlers: HandlerMap = {
     const size = sizeOf(payload.size);
     avatarOf(payload.avatar);
     if (payload.gmNotes !== undefined && player.role !== "gm") fail("Só o mestre escreve notas do mestre.");
+    const phases = c.type === "ally" ? undefined : phasesOf(payload.phases);
     Object.assign(c, { name, dexMod, hpMax });
+    applyPhases(c, phases);
     applyTexts(c, payload, player.role === "gm");
     applyStats(c, ac, abilities);
     // Crescer no mapa pode encostar em alguém: o app não empurra ninguém (a mesa ajeita os tokens).
@@ -479,11 +528,13 @@ export const combatantHandlers: HandlerMap = {
       rest = delta + absorbed;
     }
     setHp(c, c.hp + rest);
+    if (c.hp === 0) nextPhase(store, c);
   },
 
   "hp:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
     setHp(c, requireInt(payload.value, "Vida", 0, LIMITS.hpMax.max));
+    if (c.hp === 0) nextPhase(store, c);
   },
 
   "hp:full": (store, player, payload) => {
