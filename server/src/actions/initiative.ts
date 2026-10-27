@@ -41,6 +41,15 @@ function rollGmSide(store: Store, list: Combatant[], grouped: boolean) {
   }
 }
 
+/**
+ * Iniciativa se rola uma vez: o jogador rola (ou digita) a do próprio personagem e dos invocados dele
+ * só enquanto não tem valor. Depois, mudar ou rolar de novo é com o mestre (ou *Iniciativa de novo*, que zera todas).
+ */
+function onceForPlayers(player: ServerPlayer, c: Combatant): Combatant {
+  if (player.role !== "gm" && c.initiative !== null) fail(`A iniciativa de ${c.name} já foi rolada. Só o mestre muda.`);
+  return c;
+}
+
 /** Oculto fica fora da iniciativa até o mestre revelar (E21). */
 function notHidden(c: Combatant): Combatant {
   if (c.hidden) fail(`${c.name} está oculto: revele antes de pôr na iniciativa.`);
@@ -75,7 +84,7 @@ function currentOf(store: Store, player: ServerPlayer): Combatant {
 
 export const initiativeHandlers: HandlerMap = {
   "init:roll": (store, player, payload) => {
-    const c = notHidden(editable(store, player, payload?.id));
+    const c = onceForPlayers(player, notHidden(editable(store, player, payload?.id)));
     const result = rollInitiative(c.dexMod);
     applyRoll(store, c, result);
     // Iniciativa de mob e NPC fica só para o mestre no log; a de aliado, para todos.
@@ -102,7 +111,7 @@ export const initiativeHandlers: HandlerMap = {
   },
 
   "init:set": (store, player, payload) => {
-    const c = notHidden(editable(store, player, payload?.id));
+    const c = onceForPlayers(player, notHidden(editable(store, player, payload?.id)));
     if (payload.value === null) {
       c.initiative = c.initRoll = null;
       removeFromOrder(store, c.id);

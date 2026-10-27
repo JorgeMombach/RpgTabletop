@@ -135,7 +135,8 @@ export function InitiativePanel({ state }: { state: ClientState }) {
                 current={current}
                 selected={c.id === selectedId}
                 mine={c.ownerId === state.self.id}
-                editable={canEdit(c)}
+                // Na ordem, todo mundo já tem valor: mudar ou rolar de novo é com o mestre (iniciativa se rola uma vez).
+                editable={gm}
                 gm={gm}
               />
             );

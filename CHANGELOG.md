@@ -11,6 +11,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Ping:** ganhou um botão próprio na barra do mapa (toque ou clique no ponto e a ferramenta volta para *Mover*); no computador, também Alt+clique ou o botão do meio do mouse. Segurar parado não pinga mais, nem no mouse nem no dedo: brigava com arrastar a visão e os tokens.
 
 ### Corrigido
+- **Iniciativa rolada uma vez só:** o jogador podia rolar a própria iniciativa de novo quantas vezes quisesse, até no meio do combate, e mudar a ordem. Agora rola (ou digita o dado físico) uma vez; depois, mudar ou rolar de novo é com o mestre, ou com *Iniciativa de novo*, que zera todas e libera uma nova rolagem para cada um.
 - **Nomes repetidos de mobs:** o bestiário e o *Invocar* numeravam cada um por conta própria e criavam dois "Zumbi 1". Agora o número continua do maior em uso na mesa (em qualquer cena): com Zumbi 1 a 3 invocados, o bestiário cria Zumbi 4 e 5.
 
 ## [2.8.1] - 2026-10-26
