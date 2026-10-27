@@ -105,6 +105,8 @@ export const es: Partial<Messages> = {
   "aura.feet": "Pies (ft)",
   "aura.save": "Mostrar",
   "aura.remove": "Quitar el círculo",
+  "aura.color": "Color del círculo",
+  "aura.tokenColor": "Color del token",
 
   "top.round": "Ronda {round}",
   "top.turnOf": " · turno de ",

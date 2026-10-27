@@ -464,8 +464,17 @@ export const combatantHandlers: HandlerMap = {
 
   "aura:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    if (payload.feet === null) delete c.aura;
-    else c.aura = requireInt(payload.feet, "Alcance", LIMITS.aura.min, LIMITS.aura.max);
+    const feet = payload.feet === null ? null : requireInt(payload.feet, "Alcance", LIMITS.aura.min, LIMITS.aura.max);
+    if (payload.color !== undefined && payload.color !== null && !isColor(payload.color)) fail("Cor inválida.");
+    if (feet === null) {
+      // Sem círculo, sem cor.
+      delete c.aura;
+      delete c.auraColor;
+      return;
+    }
+    c.aura = feet;
+    if (payload.color === null) delete c.auraColor;
+    else if (payload.color !== undefined) c.auraColor = payload.color;
   },
 
   "death:set": (store, player, payload) => {

@@ -152,6 +152,8 @@ export interface Combatant {
   size?: Size;
   /** Alcance ou aura em pés (ex.: 10 ft de alcance, aura de 30 ft): círculo leve em volta do token, só visual. */
   aura?: number;
+  /** Cor do círculo do alcance/aura; ausente = a cor do token. */
+  auraColor?: string;
   avatar?: string;
   color: string;
   pos: GridPos | null;

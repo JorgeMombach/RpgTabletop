@@ -135,8 +135,8 @@ export interface ActionPayloads {
   "hp:temp": { id: string; value: number };
   /** Marca os testes contra a morte (0 a 3 cada) de quem está com 0 de vida. */
   "death:set": { id: string; successes: number; failures: number };
-  /** Alcance/aura em pés em volta do token; null apaga. */
-  "aura:set": { id: string; feet: number | null };
+  /** Alcance/aura em pés em volta do token; null apaga. `color`: cor do círculo (null = a do token; ausente = mantém). */
+  "aura:set": { id: string; feet: number | null; color?: string | null };
   /**
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).

@@ -111,6 +111,8 @@ export const ptBR = {
   "aura.feet": "Pés (ft)",
   "aura.save": "Mostrar",
   "aura.remove": "Tirar o círculo",
+  "aura.color": "Cor do círculo",
+  "aura.tokenColor": "Cor do token",
 
   // Barra do topo
   "top.round": "Round {round}",

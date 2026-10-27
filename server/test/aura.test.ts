@@ -34,4 +34,22 @@ describe("alcance / aura", () => {
     await act(g, "aura:set", { id: ogro, feet: 10 });
     await seen;
   });
+
+  it("cor do círculo: escolhida, volta para a do token com null e some junto com o alcance", async () => {
+    const g = await client();
+    await join(g, "Mestre");
+    const [orc] = idsOf(await act(g, "mob:add", { name: "Orc", hpMax: 15, dexMod: 1, ac: 13 }));
+    const orcOf = () => game().battle.mobs.find((m) => m.id === orc)!;
+    await act(g, "aura:set", { id: orc, feet: 10, color: "#c94a52" });
+    assert.equal(orcOf().auraColor, "#c94a52");
+    assert.equal((await act(g, "aura:set", { id: orc, feet: 10, color: "vermelho" })).ok, false);
+    await act(g, "aura:set", { id: orc, feet: 15 });
+    assert.equal(orcOf().auraColor, "#c94a52", "sem color, mantém");
+    await act(g, "aura:set", { id: orc, feet: 15, color: null });
+    assert.equal(orcOf().auraColor, undefined, "null volta para a cor do token");
+    await act(g, "aura:set", { id: orc, feet: 15, color: "#4fae8c" });
+    await act(g, "aura:set", { id: orc, feet: null });
+    assert.equal(orcOf().aura, undefined);
+    assert.equal(orcOf().auraColor, undefined);
+  });
 });

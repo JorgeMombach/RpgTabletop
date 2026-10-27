@@ -6,6 +6,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Adicionado
+- **Cor do alcance/aura:** no popover do *Alcance*, escolha a cor do círculo (a do token, que é o padrão, ou bronze, vermelho, azul, verde e pergaminho). Com o círculo já no mapa, a cor muda na hora. Vai no arquivo de sessão.
+
 ### Alterado
 - **Descanso curto e longo:** pedem confirmação, ficam bloqueados para os jogadores durante o combate e aparecem no log ("Thorin (Ana) fez um descanso longo."). O mestre ganhou *Descanso* no painel *Aliados*, para dar o descanso curto ou longo a todos os aliados de uma vez.
 - **"Conjurar" virou "Invocar":** o botão do painel *Selecionado* e os textos sobre criaturas chamadas (familiar, esqueletos…) passam a falar em *invocar*, *invocado* e *invocador*. "Quem conjurou" continua nos efeitos de magia no mapa (lá é lançar a magia).
