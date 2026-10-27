@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudOff, IconFocusCentered, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudOff, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type Wall } from "@rpg/shared";
@@ -38,9 +38,6 @@ interface View {
  * Posição da imagem girada (sentido horário) e escalada para ocupar [0, largura] × [0, altura]
  * do mapa a partir da origem: o grid e os tokens não se mexem (E17).
  */
-/** Segurar parado este tempo (ms) faz um ping; mexer mais que PRESS_SLOP px na tela cancela. */
-const LONG_PRESS_MS = 550;
-const PRESS_SLOP = 6;
 
 function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
   const w = image.width * scale;
@@ -161,8 +158,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     return stageRef.current?.getRelativePointerPosition() ?? null;
   }
 
-  // Ping: segurar parado (mouse ou dedo) ou Alt+clique. Mexeu o ponteiro antes do tempo, vira arrasto normal.
-  const press = useRef<{ timer: number; screen: Point } | null>(null);
+  // Ping: ferramenta Ping (um toque e volta para Mover), Alt+clique ou botão do meio do mouse.
+  // Segurar parado não pinga: brigava com arrastar a visão e os tokens.
   /** Acabou de pingar: o clique que vem junto não tira a seleção. */
   const pinged = useRef(false);
   function sendPing(p: Point) {
@@ -200,12 +197,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (!w.door) return;
     if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
     if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
-  }
-
-  function cancelPress() {
-    if (!press.current) return;
-    clearTimeout(press.current.timer);
-    press.current = null;
   }
 
   // Ref espelha a régua para os handlers de mouse não dependerem do último render.
@@ -288,6 +279,11 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (placing) setPlacing(null);
     pinged.current = false;
     if (e.evt.altKey) return sendPing(p);
+    if (tool === "ping") {
+      sendPing(p);
+      setTool("move");
+      return;
+    }
     if (tool === "walls") {
       if (wallMode === "erase") return;
       const c = cornerAt(p, grid);
@@ -300,17 +296,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
       setStroke(strokeRef.current);
       return;
-    }
-    // Segurar parado só pinga no toque: com o mouse, segurar é para arrastar a visão ou um token.
-    const screen = stageRef.current?.getPointerPosition();
-    if (tool === "move" && screen && e.evt.pointerType !== "mouse") {
-      cancelPress();
-      const timer = window.setTimeout(() => {
-        press.current = null;
-        stageRef.current?.stopDrag();
-        sendPing(p);
-      }, LONG_PRESS_MS);
-      press.current = { timer, screen };
     }
     if (tool === "calibrate") {
       calibStart.current = p;
@@ -325,8 +310,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseMove() {
-    const screen = stageRef.current?.getPointerPosition();
-    if (press.current && screen && Math.hypot(screen.x - press.current.screen.x, screen.y - press.current.screen.y) > PRESS_SLOP) cancelPress();
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
@@ -368,7 +351,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseUp() {
-    cancelPress();
     finishStroke();
     finishWall();
     calibStart.current = null;
@@ -387,8 +369,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (t.length !== 2 || !stage) return;
       e.preventDefault();
       if (stage.isDragging()) stage.stopDrag();
-      // Segundo dedo no meio de uma régua ou área: a medição para (e não vira ping).
-      cancelPress();
+      // Segundo dedo no meio de uma régua ou área: a medição para.
       if (!pinch.current) {
         updateRuler(null);
         areaDragging.current = false;
@@ -465,8 +446,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           scaleX={view.scale}
           scaleY={view.scale}
           draggable={tool === "move" && !shiftHeld && !placing}
-          // Começou a arrastar (a visão ou um token): não é ping.
-          onDragStart={cancelPress}
           onDragMove={(e) => {
             if (e.target === e.target.getStage()) setView((v) => ({ ...v, x: e.target.x(), y: e.target.y() }));
           }}
@@ -594,7 +573,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         tool={tool}
         gm={gm}
         compact={compact}
-        narrow={size.width < 720}
+        narrow={size.width < 780}
         weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
@@ -782,6 +761,7 @@ function MapToolbar({
       { id: "move", label: t("map.moveTip"), icon: IconHandStop },
       { id: "ruler", label: "Régua: arraste para medir em pés", icon: IconRuler2 },
       { id: "area", label: "Área de magia para todos", icon: IconSparkles },
+      { id: "ping", label: t("map.pingTip"), icon: IconHandFinger },
     ] as const;
     return (
       <Paper className="map-toolbar" p={4} shadow="md" radius="md">
@@ -817,6 +797,7 @@ function MapToolbar({
     { id: "move", text: "Mover", label: t("map.moveTip"), icon: IconHandStop },
     { id: "ruler", text: "Régua", label: "Medir distância em pés (ou segure Shift e arraste)", icon: IconRuler2 },
     { id: "area", text: "Área", label: "Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)", icon: IconSparkles },
+    { id: "ping", text: t("map.ping"), label: t("map.pingTip"), icon: IconHandFinger },
     ...(gm
       ? ([
           { id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil },

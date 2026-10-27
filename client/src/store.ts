@@ -6,7 +6,7 @@ import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, MapPoint,
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "ping";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };

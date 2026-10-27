@@ -27,7 +27,9 @@ export const en: Partial<Messages> = {
   "init.groupClose": "Group again",
 
   // Map
-  "map.moveTip": "Move tokens and the map view. To point something out to everyone (ping): Alt+click or the middle mouse button; on touch, press and hold.",
+  "map.moveTip": "Move tokens and the map view.",
+  "map.ping": "Ping",
+  "map.pingTip": "Ping: tap or click a spot and everyone sees waves there with your name (shortcut on a computer: Alt+click or middle mouse button)",
   "place.click": "Click where {name} appears.",
   "place.tap": "Tap where {name} goes, then tap again to confirm.",
   "place.left": "({n} left)",

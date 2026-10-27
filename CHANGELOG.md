@@ -7,7 +7,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Alterado
-- **Ping:** no computador passa a ser Alt+clique ou o botão do meio do mouse; segurar o botão parado não pinga mais (segurar é para arrastar a visão ou um token). No toque continua segurar o dedo parado, e começar a arrastar cancela o ping.
+- **Ping:** ganhou um botão próprio na barra do mapa (toque ou clique no ponto e a ferramenta volta para *Mover*); no computador, também Alt+clique ou o botão do meio do mouse. Segurar parado não pinga mais, nem no mouse nem no dedo: brigava com arrastar a visão e os tokens.
 
 ## [2.8.1] - 2026-10-26
 
