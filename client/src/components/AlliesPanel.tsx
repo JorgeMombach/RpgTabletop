@@ -35,6 +35,7 @@ export function AlliesPanel({ state }: { state: ClientState }) {
         <CombatantForm
           palette={ALLY_COLORS}
           withNotes={gm}
+          withDarkvision
           submitLabel="Criar"
           onCancel={() => setCreating(false)}
           onSubmit={async (v) => {

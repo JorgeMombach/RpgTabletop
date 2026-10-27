@@ -130,9 +130,10 @@ export function editable(store: Store, player: ServerPlayer, rawId: unknown): Co
   return c;
 }
 
-/** Marcas opcionais (E21): animal em qualquer combatente; oculto só em mob/NPC. */
-function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown } | undefined) {
+/** Marcas opcionais (E21): animal em qualquer combatente; oculto só em mob/NPC; visão no escuro só em aliado. */
+function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown; darkvision?: unknown } | undefined) {
   if (typeof input?.animal === "boolean") c.animal = input.animal || undefined;
+  if (c.type === "ally" && typeof input?.darkvision === "boolean") c.darkvision = input.darkvision || undefined;
   if (c.type !== "ally" && input?.hidden === true) c.hidden = true;
 }
 
@@ -454,8 +455,8 @@ export const combatantHandlers: HandlerMap = {
     applySize(c, size);
     if (isColor(payload.color)) c.color = payload.color;
     applyAvatar(c, payload.avatar);
-    // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só a marca de animal.
-    applyFlags(c, { animal: payload.animal });
+    // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só as marcas de animal e visão no escuro.
+    applyFlags(c, { animal: payload.animal, darkvision: payload.darkvision });
     clampHp(c, c.hp);
     // Mod. DES desempata a iniciativa.
     if (payload.dexMod !== undefined && store.game.battle.combat.order.includes(c.id)) placeInOrder(store, c);

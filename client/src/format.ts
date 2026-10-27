@@ -38,6 +38,16 @@ export function turnLocked(state: ClientState, rule: keyof TableRules): boolean 
   return !currentGroup(state).some((c) => c.ownerId === state.self.id);
 }
 
+/**
+ * Lembrete de escuridão (regra da mesa): com a luz em Noite ou Luar, os personagens (não invocados)
+ * sem visão no escuro. Vazio = nada a lembrar. Só informa: o app não aplica efeito nenhum (ADR-06).
+ */
+export function inTheDark(state: ClientState): CombatantView[] {
+  const { light } = state.battle.weather;
+  if (!state.rules.darkReminder || (light !== "night" && light !== "moon")) return [];
+  return state.allies.filter((a) => !a.summonerId && !a.darkvision);
+}
+
 /** Quem rolou, no padrão da mesa (E26): "Thorin (Jorge)", "Goblin 2 (Mestre)", "Mestre". */
 export function rollerName(e: LogEntry): string {
   return e.as ? `${e.as} (${e.author})` : e.author;

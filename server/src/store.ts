@@ -55,7 +55,7 @@ export function createGame(): GameState {
     log: [],
     scenes: [{ id: sceneId, name: "Cena 1" }],
     sceneId,
-    rules: { moveOnTurn: false, summonOnTurn: false },
+    rules: { moveOnTurn: false, summonOnTurn: false, darkReminder: false },
   };
 }
 

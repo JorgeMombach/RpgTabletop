@@ -54,6 +54,7 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "c2", name: "Abençoado", rounds: 3 },
     ],
     animal: true,
+    darkvision: true,
     summonerId: "lia",
     summonConcentration: true,
     summonRounds: 10,
@@ -136,7 +137,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     log: [roll],
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
-    rules: { moveOnTurn: true, summonOnTurn: true } satisfies Required<TableRules>,
+    rules: { moveOnTurn: true, summonOnTurn: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);
 }

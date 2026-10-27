@@ -18,6 +18,8 @@ interface Props {
   withNotes?: boolean;
   /** Caixa "Já entra oculto" (criar mob ou NPC, E21). */
   withHidden?: boolean;
+  /** Marca de visão no escuro (personagem de jogador). */
+  withDarkvision?: boolean;
   /** Campos a mais antes dos botões (ex.: quantidade e concentração ao invocar). */
   extra?: ReactNode;
   onSubmit: (values: FormValues) => Promise<boolean>;
@@ -34,7 +36,7 @@ const emptyScores = (a?: Abilities): ScoreInputs =>
  * atributos (opcionais), cor, avatar e marca de animal. Com DES preenchida, o bônus de iniciativa
  * acompanha o modificador dela até a pessoa mexer nele à mão (talento, item mágico…).
  */
-export function CombatantForm({ initial, palette, submitLabel, withNotes, withHidden, extra, onSubmit, onCancel }: Props) {
+export function CombatantForm({ initial, palette, submitLabel, withNotes, withHidden, withDarkvision, extra, onSubmit, onCancel }: Props) {
   const t = useT();
   const [name, setName] = useState(initial?.name ?? "");
   const [hpMax, setHpMax] = useState<string | number>(initial?.hpMax ?? "");
@@ -54,6 +56,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null);
   const [avatarChanged, setAvatarChanged] = useState(false);
   const [animal, setAnimal] = useState(initial?.animal ?? false);
+  const [darkvision, setDarkvision] = useState(initial?.darkvision ?? false);
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -79,6 +82,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       gmNotes: withNotes ? notes : undefined,
       description,
       animal,
+      darkvision: withDarkvision ? darkvision : undefined,
       hidden: withHidden ? hidden : undefined,
       // Só envia o avatar se mudou: é o campo mais pesado do formulário.
       avatar: avatarChanged ? avatar : undefined,
@@ -96,6 +100,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       setAvatar(null);
       setAvatarChanged(false);
       setAnimal(false);
+      setDarkvision(false);
     }
   }
 
@@ -211,6 +216,13 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
               <Checkbox label={t("form.animal")} checked={animal} onChange={(e) => setAnimal(e.currentTarget.checked)} />
             </Box>
           </Tooltip>
+          {withDarkvision && (
+            <Tooltip label={t("form.darkvisionTip")}>
+              <Box>
+                <Checkbox label={t("form.darkvision")} checked={darkvision} onChange={(e) => setDarkvision(e.currentTarget.checked)} />
+              </Box>
+            </Tooltip>
+          )}
           {withHidden && (
             <Tooltip label={t("form.hiddenTip")}>
               <Box>

@@ -36,6 +36,8 @@ export interface CombatantInput {
   avatar?: string | null;
   /** Marca de animal (E21). */
   animal?: boolean;
+  /** Visão no escuro (só personagens dos jogadores). */
+  darkvision?: boolean;
   /** Mob ou NPC já criado oculto (E21; ignorado em aliados). */
   hidden?: boolean;
   /** Descrição que todos veem; vazio apaga. */

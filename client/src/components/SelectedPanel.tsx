@@ -101,6 +101,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
     (summoner ? ` · invocado por ${summoner.name}` : "") +
     (c.summonRounds !== undefined ? ` · ${c.summonRounds} ${c.summonRounds === 1 ? "round" : "rounds"}` : "") +
     (c.animal ? " · animal" : "") +
+    (c.darkvision ? " · visão no escuro" : "") +
     (c.hidden ? " · oculto" : "");
 
   async function remove(target: Combatant) {
@@ -138,6 +139,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           palette={PALETTE[c.type]}
           submitLabel="Salvar"
           withNotes={gm}
+          withDarkvision={c.type === "ally" && !c.summonerId}
           onCancel={() => setEditingId(null)}
           onSubmit={async (v) => {
             // `notes` é do template; aqui valem `description` e (só o mestre) `gmNotes`.

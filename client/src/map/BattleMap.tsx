@@ -10,6 +10,7 @@ import { useT } from "../i18n";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
+import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
@@ -592,6 +593,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           </MText>
         </Paper>
       )}
+      {!gm && (image || tokens.length > 0) && <DarkReminder state={state} />}
       {placing && placingNext && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">

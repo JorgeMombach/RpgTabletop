@@ -7,6 +7,7 @@ import { Panel } from "./Panel";
 const LABEL: Record<keyof TableRules, [MessageKey, MessageKey]> = {
   moveOnTurn: ["rules.moveOnTurn", "rules.moveOnTurnHint"],
   summonOnTurn: ["rules.summonOnTurn", "rules.summonOnTurnHint"],
+  darkReminder: ["rules.darkReminder", "rules.darkReminderHint"],
 };
 
 /** Regras da mesa (aba Mesa do mestre): opções que travam o jogador em combate. O mestre nunca é travado. */

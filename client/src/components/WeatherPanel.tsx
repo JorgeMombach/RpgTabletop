@@ -3,6 +3,8 @@ import { IconVolume } from "@tabler/icons-react";
 import { GEN_SOUNDS, LIGHTS, LIMITS, WEATHERS, type ClientState, type LightId, type WeatherId } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
+import { inTheDark } from "../format";
+import { useT } from "../i18n";
 import { Panel } from "./Panel";
 
 const NONE = "__nenhum";
@@ -43,7 +45,10 @@ function LiveSlider(props: { value: number; min: number; max: number; label: (v:
  * Sugere o ambiente sonoro que combina (E25), sem ligar sozinho.
  */
 export function WeatherPanel({ state }: { state: ClientState }) {
+  const t = useT();
   const w = state.battle.weather;
+  // Lembrete de escuridão: o mestre vê quem está sem visão no escuro.
+  const dark = inTheDark(state);
   const info = w.kind ? WEATHERS[w.kind] : null;
   const sound = info?.sound ?? null;
   const ambient = state.sound.ambient?.source;
@@ -111,6 +116,11 @@ export function WeatherPanel({ state }: { state: ClientState }) {
           onChange={(v) => act("weather:set", { light: v as LightId })}
           aria-label="Luz da cena"
         />
+        {dark.length > 0 && (
+          <Text size="xs" c="bronze.4" mt={4}>
+            {t("dark.gmList", { names: dark.map((a) => a.name).join(", ") })}
+          </Text>
+        )}
       </Stack>
     </Panel>
   );

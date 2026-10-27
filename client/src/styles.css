@@ -470,6 +470,11 @@ abbr.abbr {
   background: rgb(31 27 37 / 0.94) !important;
 }
 
+/* Lembrete de escuridão: tem botão de fechar, então recebe cliques. */
+.map-hint.dark-reminder {
+  pointer-events: auto;
+}
+
 .map-hint.top {
   top: 64px;
   bottom: auto;

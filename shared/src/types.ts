@@ -173,6 +173,8 @@ export interface Combatant {
   conditions: Condition[];
   /** Marca de animal (ícone de pata); o formato continua dizendo o lado (E21). */
   animal?: boolean;
+  /** Personagem com visão no escuro: não recebe o lembrete de escuridão (regra da mesa). */
+  darkvision?: boolean;
   /** Mob ou NPC oculto (furtividade, sala escura): só o mestre recebe; fora da iniciativa até ser revelado (E21). */
   hidden?: boolean;
   /** Conjurado (familiar, esqueleto…): quem conjurou. Fica do lado dele e com o mesmo controle (E21). */
@@ -473,9 +475,11 @@ export interface TableRules {
   moveOnTurn: boolean;
   /** Em combate, o jogador só invoca na sua vez. */
   summonOnTurn: boolean;
+  /** Com a luz em Noite ou Luar, avisa quem não tem visão no escuro. Só informa. */
+  darkReminder: boolean;
 }
 
-export const RULE_KEYS = ["moveOnTurn", "summonOnTurn"] as const satisfies readonly (keyof TableRules)[];
+export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
 
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {

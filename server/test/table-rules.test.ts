@@ -26,7 +26,7 @@ describe("regras da mesa", () => {
     assert.match(errorOf(await act(ana, "rules:set", { moveOnTurn: true })), /permissão/i);
     assert.match(errorOf(await act(g, "rules:set", { moveOnTurn: "sim" as unknown as boolean })), /inválido/);
     assert.match(errorOf(await act(g, "rules:set", { voar: true } as never)), /desconhecida/);
-    assert.deepEqual(ctx.server.store.game.rules, { moveOnTurn: false, summonOnTurn: false });
+    assert.deepEqual(ctx.server.store.game.rules, { moveOnTurn: false, summonOnTurn: false, darkReminder: false });
   });
 
   it("ligadas: em combate o jogador move e invoca só na sua vez; o mestre sempre; fora de combate, livre", async () => {
@@ -63,5 +63,21 @@ describe("regras da mesa", () => {
     assert.ok((await act(g, "rules:set", { moveOnTurn: false })).ok);
     assert.ok((await act(bia, "token:move", { id: lia, pos: { col: 5, row: 1 } })).ok);
     assert.equal(ctx.server.store.game.rules.summonOnTurn, true, "só muda a que veio");
+  });
+
+  it("visão no escuro: o jogador marca no próprio personagem; mob não leva a marca; a regra liga pelo mestre", async () => {
+    const g = await client();
+    await join(g, "Mestre");
+    const caio = await client("10.47.0.3");
+    await join(caio, "Caio");
+    const [kael] = idsOf(await act(caio, "ally:create", { name: "Kael", hpMax: 12, dexMod: 1, ac: 12, darkvision: true }));
+    const kaelOf = () => ctx.server.store.game.allies.find((a) => a.id === kael)!;
+    assert.equal(kaelOf().darkvision, true);
+    assert.ok((await act(caio, "combatant:update", { id: kael, name: "Kael", hpMax: 12, dexMod: 1, darkvision: false })).ok);
+    assert.equal(kaelOf().darkvision, undefined);
+    const [rato] = idsOf(await act(g, "mob:add", { name: "Rato", hpMax: 2, dexMod: 0, darkvision: true }));
+    assert.equal(ctx.server.store.game.battle.mobs.find((m) => m.id === rato)!.darkvision, undefined);
+    assert.ok((await act(g, "rules:set", { darkReminder: true })).ok);
+    assert.ok(ctx.server.store.game.log.some((e) => e.system && e.text === "Regra da mesa ligada: Lembrete de escuridão."));
   });
 });

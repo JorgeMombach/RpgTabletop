@@ -90,7 +90,11 @@ function optText(raw: unknown, what: string, max: number): string | undefined {
 
 function tableRules(raw: unknown): TableRules {
   const r = obj(raw, "regras da mesa");
-  return { moveOnTurn: bool(r.moveOnTurn ?? false, "regra da mesa"), summonOnTurn: bool(r.summonOnTurn ?? false, "regra da mesa") };
+  return {
+    moveOnTurn: bool(r.moveOnTurn ?? false, "regra da mesa"),
+    summonOnTurn: bool(r.summonOnTurn ?? false, "regra da mesa"),
+    darkReminder: bool(r.darkReminder ?? false, "regra da mesa"),
+  };
 }
 
 function outsideRolls(raw: unknown): OutsideRolls {
@@ -190,6 +194,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.spells !== undefined) out.spells = list(c.spells, "magias", LIMITS.spells).map(spell);
   // Marcas do E21: arquivos da 2.0 não têm (ausente = não).
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
+  if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
   const description = optText(c.description, "descrição", LIMITS.description);
   if (description) out.description = description;
   const gmNotes = optText(c.gmNotes, "notas do mestre", LIMITS.notes);
