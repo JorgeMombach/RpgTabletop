@@ -452,6 +452,18 @@ export interface Scene {
   stored?: StoredScene;
 }
 
+/**
+ * O que o mestre está mostrando para a mesa (carta, retrato, mapa do tesouro): abre na tela de todos.
+ * Fica fora do jogo (não vai no arquivo de sessão) e viaja num evento próprio, por causa da imagem.
+ */
+export interface Handout {
+  id: string;
+  title?: string;
+  text?: string;
+  /** dataURL já reduzido no cliente. */
+  image?: string;
+}
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];

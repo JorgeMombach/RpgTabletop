@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
-import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
+import type { Area, AreaKind, ClientState, Handout, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
@@ -82,6 +82,9 @@ interface AppStore extends DicePrefs {
   rolling: string[];
   /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
   logOut: boolean;
+  /** O que o mestre está mostrando para a mesa (chega à parte, com a imagem) e qual deles esta pessoa já fechou. */
+  handout: Handout | null;
+  handoutDismissed: string | null;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -115,6 +118,8 @@ export const useApp = create<AppStore>(() => ({
   rolling: [],
   hoverId: null,
   logOut: false,
+  handout: null,
+  handoutDismissed: null,
   ...readPrefs(),
 }));
 

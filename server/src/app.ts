@@ -117,6 +117,7 @@ export function createApp(opts: AppOptions) {
   /** Sala com todos os sockets que já entraram na sessão. */
   const SESSION_ROOM = "session";
   let sentImageVersion = 0;
+  let sentHandoutVersion = 0;
 
   function mapImage() {
     const { image, imageVersion } = store.game.battle.map;
@@ -128,6 +129,11 @@ export function createApp(opts: AppOptions) {
     if (store.game.battle.map.imageVersion !== sentImageVersion) {
       sentImageVersion = store.game.battle.map.imageVersion;
       io.to(SESSION_ROOM).emit("map:image", mapImage());
+    }
+    // O que o mestre mostra para a mesa também vai à parte (pode ter imagem) e só quando muda.
+    if (store.handoutVersion !== sentHandoutVersion) {
+      sentHandoutVersion = store.handoutVersion;
+      io.to(SESSION_ROOM).emit("handout", store.handout);
     }
     for (const player of store.players.values()) {
       if (player.sockets.size === 0) continue;
@@ -172,6 +178,7 @@ export function createApp(opts: AppOptions) {
     socket.data.playerId = player.id;
     void socket.join(SESSION_ROOM);
     if (store.game.battle.map.image) socket.emit("map:image", mapImage());
+    if (store.handout) socket.emit("handout", store.handout);
     return { ok: true, self: toPublic(player), sessionToken: player.token };
   }
 

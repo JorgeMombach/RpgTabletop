@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, Coins, Drawing, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, Coins, Drawing, Handout, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -257,6 +257,10 @@ export interface ActionPayloads {
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   "wall:add": { from: GridPos; to: GridPos; door?: boolean };
   "wall:remove": { id: string };
+  /** Mestre: mostra para a mesa (abre na tela de todos); substitui o que estava sendo mostrado. */
+  "handout:show": { title?: string; text?: string; image?: string };
+  /** Mestre: para de mostrar (fecha na tela de todos). */
+  "handout:close": Record<string, never>;
   /** Mestre: cena nova, vazia (mesmo grid da atual); não troca para ela. */
   "scene:add": { name: string };
   "scene:rename": { id: string; name: string };
@@ -330,6 +334,8 @@ export interface ServerToClientEvents {
   ruler: (payload: RulerBroadcast) => void;
   area: (payload: AreaBroadcast) => void;
   ping: (payload: PingBroadcast) => void;
+  /** O que o mestre está mostrando para a mesa (`null` = nada); vem ao mudar e ao entrar. */
+  handout: (handout: Handout | null) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
@@ -382,6 +388,8 @@ export const LIMITS = {
   /** Cenas na sessão e tamanho do nome. */
   scenes: 20,
   sceneName: 40,
+  handoutTitle: 80,
+  handoutText: 2000,
   /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */
   walls: 600,
   wallLength: 200,

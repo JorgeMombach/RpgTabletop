@@ -37,8 +37,8 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Vários mapas na sessão:** o mestre prepara e troca com um clique, cada mapa com os seus tokens.
 
 ## E. Mestre
-- [ ] **Mostrar para a mesa:** imagem ou texto (carta, retrato, mapa do tesouro) que abre na tela de todos.
-- [ ] **Encontros prontos:** salvar mobs, posições, clima e som de um encontro e carregar inteiro.
+- [x] **Mostrar para a mesa:** imagem ou texto (carta, retrato, mapa do tesouro) que abre na tela de todos.
+- ~~**Encontros prontos:**~~ coberto pelas cenas (bloco D): cada cena já guarda mapa, mobs, posições e clima. Não precisa de outra coisa.
 - [x] **Notas privadas do mestre** por mob/NPC (e aliados).
 - [x] **Descrição pública** de mob/NPC (e no template), que todos veem: "Avanthir, o Sábio — dragão ancião de neve…".
 - [x] **Rolagem secreta por um jogador:** o mestre rola (ex.: Percepção) com o modificador do personagem sem o jogador ver.

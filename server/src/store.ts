@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, type Combatant, type GameState, type PublicPlayer, type Role, type SoundState } from "@rpg/shared";
+import { LIMITS, type Combatant, type GameState, type Handout, type PublicPlayer, type Role, type SoundState } from "@rpg/shared";
 import { defaultWeather } from "./weather";
 
 /** Mob ou NPC removido recentemente, guardado para o "Desfazer". */
@@ -69,6 +69,9 @@ export class Store {
   sound: SoundState = { music: null, ambient: null, volume: { music: 0.6, ambient: 0.5, sfx: 0.8 } };
   /** Pasta de sons do mestre (E25); `null` = não configurada. */
   soundsDir: string | null = null;
+  /** O que o mestre está mostrando para a mesa; a versão sobe a cada mudança (o servidor reenvia a todos). */
+  handout: Handout | null = null;
+  handoutVersion = 0;
   /** Arquivos de áudio da pasta (lista lida no começo e quando o mestre atualiza). */
   soundLibrary: string[] | null = null;
   /** Antispam dos jogadores (E26); os testes zeram para rolar em sequência. */

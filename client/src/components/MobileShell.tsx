@@ -15,6 +15,7 @@ import { EffectsPanel } from "./EffectsPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { SelectedPanel } from "./SelectedPanel";
+import { HandoutButton, HandoutModal } from "./Handout";
 import { TurnStatus } from "./Shell";
 import { SoundSync } from "./SoundSync";
 import { VolumeControl } from "./VolumeControl";
@@ -100,6 +101,7 @@ export function MobileShell({ state }: { state: ClientState }) {
             {t("top.reconnecting")}
           </Badge>
         )}
+        <HandoutButton compact />
         <VolumeControl />
         <Menu position="bottom-end" withinPortal>
           <Menu.Target>
@@ -169,6 +171,7 @@ export function MobileShell({ state }: { state: ClientState }) {
       </nav>
 
       <SoundSync sound={state.sound} />
+      <HandoutModal />
     </div>
   );
 }

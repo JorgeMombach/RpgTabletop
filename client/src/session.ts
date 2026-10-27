@@ -127,6 +127,9 @@ socket.on("ruler", ({ playerId, name, ruler }) => {
 });
 
 let pingSeq = 0;
+// O que o mestre mostra para a mesa: abre de novo para todos quando é algo novo.
+socket.on("handout", (handout) => useApp.setState({ handout }));
+
 socket.on("ping", ({ playerId, name, at }) => {
   const id = ++pingSeq;
   useApp.setState((s) => ({ pings: [...s.pings, { id, playerId, name, at }].slice(-12) }));

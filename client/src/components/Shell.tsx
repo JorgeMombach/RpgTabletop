@@ -18,6 +18,7 @@ import { DicePanel } from "./DicePanel";
 import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
 import { GmTabs } from "./GmTabs";
+import { HandoutButton, HandoutModal } from "./Handout";
 import { InitiativePanel } from "./InitiativePanel";
 import { LanguageMenu } from "./LanguageMenu";
 import { MobileShell } from "./MobileShell";
@@ -104,6 +105,7 @@ function DesktopShell({ state }: { state: ClientState }) {
               </Button>
             </Tooltip>
           )}
+          <HandoutButton />
           <LanguageMenu size="md" />
           <VolumeControl />
           <Group gap={6} wrap="nowrap">
@@ -169,6 +171,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       {gm && <CloseGuard />}
       {logDetached && <FloatingLog />}
       <SoundSync sound={state.sound} />
+      <HandoutModal />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useT, type MessageKey } from "../i18n";
 import { AlliesPanel } from "./AlliesPanel";
 import { BestiaryPanel } from "./BestiaryPanel";
 import { EffectsPanel } from "./EffectsPanel";
+import { HandoutPanel } from "./Handout";
 import { InitiativePanel } from "./InitiativePanel";
 import { InvitePanel } from "./InvitePanel";
 import { MapPanel } from "./MapPanel";
@@ -38,7 +39,7 @@ function readTab(): Tab {
 
 /**
  * Coluna da esquerda do mestre em abas (a lista de painéis tinha ficado comprida demais):
- * Combate, Mapa (cenas e mapa), Ambiente (clima e som) e Mesa (bestiário, jogadores, sessão, convite).
+ * Combate, Mapa (cenas e mapa), Ambiente (clima e som) e Mesa (mostrar para a mesa, bestiário, jogadores, sessão, convite).
  * A aba não troca sozinha: quando a vez muda com outra aba aberta, a de Combate ganha um ponto.
  * A aba escolhida fica guardada neste navegador.
  */
@@ -100,6 +101,7 @@ export function GmTabs({ state }: { state: ClientState }) {
         <SoundPanel state={state} />
       </Tabs.Panel>
       <Tabs.Panel value="table" className="gm-tabs-panel">
+        <HandoutPanel />
         <BestiaryPanel templates={state.templates} />
         <PlayersPanel state={state} />
         <SessionPanel />
