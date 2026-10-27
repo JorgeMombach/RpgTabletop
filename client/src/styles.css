@@ -91,6 +91,27 @@ body {
   grid-area: left;
 }
 
+/* Mestre: abas no topo da coluna da esquerda, presas enquanto os painéis rolam. */
+.col.left.with-tabs {
+  padding-top: 0;
+}
+
+.gm-tabs-list {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--mantine-color-body);
+  margin: 0 -8px;
+  padding: 0 8px;
+}
+
+.gm-tabs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
 .col.right {
   grid-area: right;
 }

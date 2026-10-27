@@ -115,6 +115,10 @@ export const ptBR = {
   "aura.tokenColor": "Cor do token",
 
   // Barra do topo
+  "gmTabs.combat": "Combate",
+  "gmTabs.map": "Mapa",
+  "gmTabs.ambience": "Ambiente",
+  "gmTabs.table": "Mesa",
   "top.round": "Round {round}",
   "top.turnOf": " · vez de ",
   "top.yourTurn": "Sua vez!",

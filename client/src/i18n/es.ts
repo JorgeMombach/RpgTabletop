@@ -108,6 +108,10 @@ export const es: Partial<Messages> = {
   "aura.color": "Color del círculo",
   "aura.tokenColor": "Color del token",
 
+  "gmTabs.combat": "Combate",
+  "gmTabs.map": "Mapa",
+  "gmTabs.ambience": "Ambiente",
+  "gmTabs.table": "Mesa",
   "top.round": "Ronda {round}",
   "top.turnOf": " · turno de ",
   "top.yourTurn": "¡Tu turno!",

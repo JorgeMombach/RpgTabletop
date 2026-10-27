@@ -1,6 +1,6 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { IconBrush, IconDeviceMobile, IconLogout } from "@tabler/icons-react";
-import { APP_VERSION, groupName, type ClientState, type Combatant } from "@rpg/shared";
+import { APP_VERSION, groupName, type ClientState } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
 import { currentGroup } from "../format";
@@ -9,7 +9,6 @@ import { leave } from "../session";
 import { useT } from "../i18n";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
-import { BestiaryPanel } from "./BestiaryPanel";
 import { ClearBattleDialog } from "./ClearBattleDialog";
 import { CloseGuard } from "./CloseGuard";
 import { D20Emblem } from "./D20Emblem";
@@ -18,19 +17,13 @@ import { DiceOverlay } from "./DiceOverlay";
 import { DicePanel } from "./DicePanel";
 import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
+import { GmTabs } from "./GmTabs";
 import { InitiativePanel } from "./InitiativePanel";
-import { InvitePanel } from "./InvitePanel";
 import { LanguageMenu } from "./LanguageMenu";
-import { MapPanel } from "./MapPanel";
 import { MobileShell } from "./MobileShell";
-import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
-import { ScenesPanel } from "./ScenesPanel";
-import { SessionPanel } from "./SessionPanel";
-import { SoundPanel } from "./SoundPanel";
 import { SoundSync } from "./SoundSync";
 import { VolumeControl } from "./VolumeControl";
-import { WeatherPanel } from "./WeatherPanel";
 import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
@@ -128,20 +121,17 @@ function DesktopShell({ state }: { state: ClientState }) {
         </Group>
       </Group>
 
-      <aside className="col left">
-        <InitiativePanel state={state} />
-        {gm && <MobsPanel mobs={state.battle.mobs as Combatant[]} />}
-        {gm && <NpcsPanel npcs={state.battle.npcs as Combatant[]} />}
-        <AlliesPanel state={state} />
-        <EffectsPanel state={state} />
-        {gm && <ScenesPanel state={state} />}
-        {gm && <MapPanel map={state.battle.map} />}
-        {gm && <WeatherPanel state={state} />}
-        {gm && <SoundPanel state={state} />}
-        {gm && <BestiaryPanel templates={state.templates} />}
-        <PlayersPanel state={state} />
-        {gm && <SessionPanel />}
-        {gm && state.host && <InvitePanel host={state.host} />}
+      <aside className={`col left ${gm ? "with-tabs" : ""}`}>
+        {gm ? (
+          <GmTabs state={state} />
+        ) : (
+          <>
+            <InitiativePanel state={state} />
+            <AlliesPanel state={state} />
+            <EffectsPanel state={state} />
+            <PlayersPanel state={state} />
+          </>
+        )}
       </aside>
       <ColumnResizer side="left" width={widths.left} max={max.left} onResize={(w) => set("left", w)} onReset={() => reset("left")} />
 

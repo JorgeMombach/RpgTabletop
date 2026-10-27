@@ -64,7 +64,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [ ] **Lembrete de escuridão:** com a luz do clima em *Noite* ou *Luar*, aviso para quem não tem visão no escuro (marca "Visão no escuro" na ficha). Só informa.
 
 ## J. Interface
-- [ ] **Painel do mestre em abas:** a coluna da esquerda está poluída; separar em abas (ex.: Combate, Mapa e cenas, Ambiente (clima e som), Mesa (bestiário, jogadores, sessão, convite)).
+- [x] **Painel do mestre em abas:** a coluna da esquerda está poluída; separar em abas (ex.: Combate, Mapa e cenas, Ambiente (clima e som), Mesa (bestiário, jogadores, sessão, convite)).
 - [ ] **Recolher as colunas por completo:** botão na borda (e arrastar até o fim) para esconder a coluna e dar o espaço ao mapa; bom no iPad.
 - [ ] **Log de dados em outra janela:** abrir o log numa janela própria para arrastar para outro monitor (no navegador e no app do mestre).
 
