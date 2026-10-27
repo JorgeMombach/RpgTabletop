@@ -3,6 +3,7 @@ import { EFFECT_PRESETS, LIMITS, type Area, type ClientState, type EffectPreset 
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { allCombatants } from "../format";
+import { useT } from "../i18n";
 import { effectPreview } from "../map/effectTextures";
 
 export const PRESETS = Object.keys(EFFECT_PRESETS) as EffectPreset[];
@@ -23,12 +24,13 @@ export function useEffectForm(state: ClientState, initialPreset: EffectPreset) {
   const [casterId, setCasterId] = useState<string>(gm ? NO_CASTER : (casters[0]?.id ?? ""));
   const [rounds, setRounds] = useState<string | number>("");
   const [concentration, setConcentration] = useState(false);
+  const [follow, setFollow] = useState(false);
   const hasCaster = casterId !== NO_CASTER && casterId !== "";
 
   return {
     gm,
     casters,
-    fields: { preset, setPreset, name, setName, color, setColor, casterId, setCasterId, rounds, setRounds, concentration, setConcentration, hasCaster },
+    fields: { preset, setPreset, name, setName, color, setColor, casterId, setCasterId, rounds, setRounds, concentration, setConcentration, follow, setFollow, hasCaster },
     /** Valores para enviar ao servidor. */
     values: () => ({
       name: name.trim() || EFFECT_PRESETS[preset].label,
@@ -46,7 +48,8 @@ export function useEffectForm(state: ClientState, initialPreset: EffectPreset) {
 type EffectForm = ReturnType<typeof useEffectForm>;
 
 /** Os campos na tela. `suggested` = tipos que aparecem primeiro (transformações comuns). */
-export function EffectFormFields({ form, suggested = [] }: { form: EffectForm; suggested?: EffectPreset[] }) {
+export function EffectFormFields({ form, suggested = [], withFollow = false }: { form: EffectForm; suggested?: EffectPreset[]; withFollow?: boolean }) {
+  const t = useT();
   const { gm, casters } = form;
   const f = form.fields;
   const item = (p: EffectPreset) => ({ value: p, label: EFFECT_PRESETS[p].label });
@@ -111,6 +114,15 @@ export function EffectFormFields({ form, suggested = [] }: { form: EffectForm; s
         label="Concentração"
         description={f.hasCaster ? "Some quando o conjurador perder a Concentração (ele ganha a condição agora)." : "Escolha quem conjurou."}
       />
+      {withFollow && (
+        <Checkbox
+          checked={f.follow && f.hasCaster}
+          disabled={!f.hasCaster}
+          onChange={(e) => f.setFollow(e.currentTarget.checked)}
+          label={t("effects.follow")}
+          description={f.hasCaster ? t("effects.followHint") : "Escolha quem conjurou."}
+        />
+      )}
     </>
   );
 }
@@ -121,14 +133,14 @@ export function FixEffectModal({ state, area, onClose, onFixed }: { state: Clien
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const res = await act("effect:add", { ...form.values(), area });
+    const res = await act("effect:add", { ...form.values(), area, follow: form.fields.hasCaster && form.fields.follow });
     if (res.ok) onFixed();
   }
 
   return (
     <Modal opened onClose={onClose} title="Fixar como efeito no mapa" centered>
       <Stack component="form" gap="sm" onSubmit={submit}>
-        <EffectFormFields form={form} />
+        <EffectFormFields form={form} withFollow />
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={onClose}>
             Cancelar

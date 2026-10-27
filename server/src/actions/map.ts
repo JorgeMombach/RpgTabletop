@@ -3,6 +3,7 @@ import { allCombatants, resetCombat } from "../combat";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
+import { moveFollowers } from "./effects";
 import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
 
@@ -108,6 +109,7 @@ export const mapHandlers: HandlerMap = {
           (player.role === "gm" || !o.hidden),
       );
     if (other) fail(span > 1 ? `Não cabe aí: ${other.name} está no caminho.` : `Essa casa já está ocupada por ${other.name}.`);
+    moveFollowers(store, c, c.pos, pos);
     c.pos = pos;
   },
 };

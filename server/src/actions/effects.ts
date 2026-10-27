@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type MapEffect } from "@rpg/shared";
+import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
@@ -86,6 +86,23 @@ export function tickCasterEffects(store: Store, casterId: string) {
   }
 }
 
+/**
+ * O token andou: os efeitos presos a ele andam a mesma distância (a área continua na mesma posição
+ * em relação a ele: centrada, saindo dele…). Sair do mapa ou voltar a ele não leva o efeito junto.
+ */
+export function moveFollowers(store: Store, c: Combatant, from: GridPos | null, to: GridPos | null) {
+  if (!from || !to) return;
+  const dc = to.col - from.col;
+  const dr = to.row - from.row;
+  if (dc === 0 && dr === 0) return;
+  const lim = LIMITS.gridCoord;
+  const clamp = (n: number) => Math.max(-lim, Math.min(lim, n));
+  for (const e of store.game.battle.effects) {
+    if (e.followId !== c.id) continue;
+    e.area = { ...e.area, origin: { col: clamp(e.area.origin.col + dc), row: clamp(e.area.origin.row + dr) } };
+  }
+}
+
 /** Round novo: contam os efeitos sem conjurador (do ambiente, postos pelo mestre). */
 export function tickRoundEffects(store: Store) {
   tick(store, (e) => e.casterId === null);
@@ -135,6 +152,7 @@ export const effectHandlers: HandlerMap = {
     const fields = effectFields(store, player, payload);
     const area = validArea(payload.area) ?? fail("Área inválida.");
     const { casterId, concentration } = fields;
+    if (payload.follow === true && !casterId) fail("Para o efeito andar junto, escolha quem conjurou.");
 
     const effect: MapEffect = {
       id: randomUUID(),
@@ -142,6 +160,7 @@ export const effectHandlers: HandlerMap = {
       area,
       ownerId: player.id,
       active: true,
+      ...(payload.follow === true && casterId && { followId: casterId }),
     };
     battle.effects.push(effect);
 
@@ -182,6 +201,17 @@ export const effectHandlers: HandlerMap = {
     const e = ownEffect(store, player, payload?.id);
     if (typeof payload.active !== "boolean") fail("Informe se o efeito fica ligado.");
     e.active = payload.active;
+  },
+
+  "effect:follow": (store, player, payload) => {
+    const e = ownEffect(store, player, payload?.id);
+    if (typeof payload.follow !== "boolean") fail("Informe se o efeito anda junto.");
+    if (!payload.follow) {
+      delete e.followId;
+      return;
+    }
+    if (!e.casterId || !byId(store, e.casterId)) fail("Para o efeito andar junto, ele precisa de quem conjurou.");
+    e.followId = e.casterId;
   },
 
   "effect:remove": (store, player, payload) => {

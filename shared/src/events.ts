@@ -219,7 +219,11 @@ export interface ActionPayloads {
     casterId?: string | null;
     rounds?: number | null;
     concentration?: boolean;
+    /** A área acompanha o token de quem conjurou. */
+    follow?: boolean;
   };
+  /** Prende o efeito ao token de quem conjurou (anda junto) ou solta. */
+  "effect:follow": { id: string; follow: boolean };
   /**
    * Muda o estado de um efeito (E24): mesma área, outro tipo (ex.: Graxa → Fogo, Água → Eletrificado).
    * Qualquer um pode transformar um efeito ligado (é a magia de quem transforma); quem transforma passa a

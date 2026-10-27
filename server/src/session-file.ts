@@ -296,6 +296,8 @@ function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
     area: validArea(e.area) ?? fail("Arquivo inválido: área do efeito."),
     active: bool(e.active, "efeito ligado"),
   };
+  // Efeito que anda com o token: se o combatente não existe mais, só fica parado.
+  if (e.followId !== undefined && combatantIds.has(requireString(e.followId, "Efeito"))) out.followId = e.followId as string;
   // Estado de antes de "Transformar" (E24); arquivos da 2.x anteriores não têm.
   if (e.revertTo !== undefined) out.revertTo = effectState(obj(e.revertTo, "efeito"), combatantIds);
   return out;

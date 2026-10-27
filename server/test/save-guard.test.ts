@@ -76,6 +76,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     concentration: true,
     active: false,
     revertTo: { name: "Graxa", preset: "grease", color: "#3b3a2a", ownerId: playerId, casterId: "lia", rounds: null, concentration: false },
+    followId: "thorin",
   };
   const roll: Required<LogEntry> = {
     id: "l1",

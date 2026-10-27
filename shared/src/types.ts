@@ -387,6 +387,8 @@ export interface MapEffect {
   concentration: boolean;
   /** Desligado = fica guardado, mas só o mestre vê. */
   active: boolean;
+  /** Combatente que o efeito acompanha (aura, Espíritos Guardiões): a área anda junto quando o token anda. */
+  followId?: string;
   /** Estado de antes de "Transformar", se for para voltar a ele quando este acabar (duração ou concentração). */
   revertTo?: EffectState;
 }
