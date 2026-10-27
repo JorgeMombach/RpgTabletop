@@ -90,7 +90,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const summoning = summoningId === c.id;
   const kind =
     (c.type === "mob" ? "Mob" : c.type === "npc" ? "NPC" : owner ? `Aliado · ${owner.name}` : "Aliado") +
-    (summoner ? ` · conjurado de ${summoner.name}` : "") +
+    (summoner ? ` · invocado por ${summoner.name}` : "") +
     (c.summonRounds !== undefined ? ` · ${c.summonRounds} ${c.summonRounds === 1 ? "round" : "rounds"}` : "") +
     (c.animal ? " · animal" : "") +
     (c.hidden ? " · oculto" : "");
@@ -175,7 +175,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
             {!c.summonerId && (
               <Tooltip label="Familiar, esqueletos, animais…: ficam do seu lado e você controla">
                 <Button variant="default" leftSection={<IconWand size={14} />} onClick={() => setSummoningId(c.id)}>
-                  Conjurar
+                  Invocar
                 </Button>
               </Tooltip>
             )}

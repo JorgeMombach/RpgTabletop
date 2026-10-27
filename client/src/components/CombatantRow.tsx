@@ -27,7 +27,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
   const summoner = useApp((s) => (c.summonerId && s.state ? allCombatants(s.state).find((o) => o.id === c.summonerId)?.name : undefined));
   const rounds = c.summonRounds !== undefined ? `${c.summonRounds} ${c.summonRounds === 1 ? "round" : "rounds"}` : null;
   // Na coluna estreita o complemento corta: o texto completo fica no title.
-  const full = [c.name, summoner && `conjurado de ${summoner}`, rounds && `faltam ${rounds}`].filter(Boolean).join(" · ");
+  const full = [c.name, summoner && `invocado por ${summoner}`, rounds && `faltam ${rounds}`].filter(Boolean).join(" · ");
 
   return (
     <Box
@@ -46,7 +46,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
               {down && c.type === "mob" && <IconSkull size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Abatido" />}
               {c.hidden && <IconEyeOff size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Oculto" />}
               {c.animal && <IconPaw size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Animal" />}
-              {c.summonerId && <IconWand size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Conjurado" />}
+              {c.summonerId && <IconWand size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Invocado" />}
               {c.name}
               {suffix && (
                 <Text span size="xs" c="dimmed">

@@ -184,9 +184,9 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   // Marcas do E21: arquivos da 2.0 não têm (ausente = não).
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
   if (c.hidden !== undefined && bool(c.hidden, "oculto") && type !== "ally") out.hidden = true;
-  if (c.summonerId !== undefined) out.summonerId = requireString(c.summonerId, "Conjurador");
-  if (c.summonConcentration !== undefined && bool(c.summonConcentration, "concentração do conjurado")) out.summonConcentration = true;
-  if (c.summonRounds !== undefined) out.summonRounds = int(c.summonRounds, "duração do conjurado", LIMITS.conditionRounds.min, LIMITS.conditionRounds.max);
+  if (c.summonerId !== undefined) out.summonerId = requireString(c.summonerId, "Invocador");
+  if (c.summonConcentration !== undefined && bool(c.summonConcentration, "concentração do invocado")) out.summonConcentration = true;
+  if (c.summonRounds !== undefined) out.summonRounds = int(c.summonRounds, "duração do invocado", LIMITS.conditionRounds.min, LIMITS.conditionRounds.max);
   return out;
 }
 
@@ -442,7 +442,7 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
   for (const c of all) {
     if (!c.summonerId) continue;
     const by = all.find((o) => o.id === c.summonerId);
-    if (!by || by.type !== c.type || by.summonerId) fail("Arquivo inválido: conjurado sem conjurador.");
+    if (!by || by.type !== c.type || by.summonerId) fail("Arquivo inválido: invocado sem invocador.");
   }
   const rotation = int(m.rotation ?? 0, "rotação do mapa", 0, 270);
   if (rotation % 90 !== 0) fail("Arquivo inválido: rotação do mapa.");

@@ -330,7 +330,7 @@ export const combatantHandlers: HandlerMap = {
 
   "summon:add": (store, player, payload) => {
     const summoner = editable(store, player, payload?.summonerId);
-    if (summoner.summonerId) fail("Um conjurado não conjura outro (conjure a partir de quem lançou a magia).");
+    if (summoner.summonerId) fail("Um invocado não invoca outro (invoque a partir de quem lançou a magia).");
     const qty = requireInt(payload.qty, "Quantidade", LIMITS.qty.min, LIMITS.qty.max);
     const { min, max } = LIMITS.conditionRounds;
     const rounds = payload.rounds === undefined || payload.rounds === null ? null : requireInt(payload.rounds, "Duração", min, max);

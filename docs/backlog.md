@@ -52,10 +52,10 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 
 ## H. Ajustes do que já existe (vindos do jogo)
 - [x] **Ping sem atrapalhar o arrasto:** hoje segurar para arrastar a visão ou um token também dispara ping. Arrastar cancela o ping; no computador o ping passa a ser Alt+clique (ou botão do meio), e segurar parado fica só para o toque.
-- [x] **Numeração dos mobs pelos nomes em uso:** template e *Conjurar* numeram cada um por conta própria e repetem nomes ("Zumbi 1" duas vezes). O número novo continua do maior "Zumbi N" que já existe.
+- [x] **Numeração dos mobs pelos nomes em uso:** template e *Invocar* (antes *Conjurar*) numeram cada um por conta própria e repetem nomes ("Zumbi 1" duas vezes). O número novo continua do maior "Zumbi N" que já existe.
 - [ ] **Iniciativa rolada uma vez só:** o jogador rola a própria iniciativa uma vez por combate; rolar de novo ou mudar o valor fica com o mestre.
 - [ ] **Cor do alcance/aura** escolhível (hoje é a cor do token).
-- [ ] **"Conjurar" vira "Invocar"** em toda a interface (botões, avisos, log, README).
+- [x] **"Conjurar" vira "Invocar"** em toda a interface (botões, avisos, log, README).
 - [ ] **Descanso curto/longo: quem faz** (a decidir: cada jogador no seu, o mestre para todos, ou opção da mesa).
 
 ## I. Regras da mesa (opções que o mestre liga)

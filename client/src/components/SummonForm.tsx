@@ -37,7 +37,7 @@ export function SummonForm({ summoner, templates, onClose }: { summoner: Combata
         key={templateId ?? "novo"}
         initial={t ? { name: t.name, hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities, size: t.size, avatar: t.avatar, animal: t.animal } : undefined}
         palette={PALETTE[summoner.type]}
-        submitLabel="Conjurar"
+        submitLabel="Invocar"
         onCancel={onClose}
         extra={
           <Stack gap="sm">
@@ -52,7 +52,7 @@ export function SummonForm({ summoner, templates, onClose }: { summoner: Combata
                 value={qty}
                 onChange={setQty}
               />
-              <Tooltip label={`Conta no início do turno de ${summoner.name}; ao zerar, o conjurado some. Vazio = sem duração.`}>
+              <Tooltip label={`Conta no início do turno de ${summoner.name}; ao zerar, o invocado some. Vazio = sem duração.`}>
                 <NumberInput
                   label="Duração (rounds)"
                   placeholder="Sem duração"
@@ -65,7 +65,7 @@ export function SummonForm({ summoner, templates, onClose }: { summoner: Combata
                 />
               </Tooltip>
             </Group>
-            <Tooltip label={`Somem quando ${summoner.name} perder a Concentração (ex.: Conjurar Animais). ${summoner.name} ganha a condição.`}>
+            <Tooltip label={`Somem quando ${summoner.name} perder a Concentração (ex.: animais invocados por uma magia). ${summoner.name} ganha a condição.`}>
               <Checkbox
                 w="fit-content"
                 label="Depende de concentração"
@@ -90,8 +90,8 @@ export function SummonForm({ summoner, templates, onClose }: { summoner: Combata
                 {where === "near"
                   ? summoner.pos
                     ? `Nas casas livres em volta de ${summoner.name}.`
-                    : `${summoner.name} está fora do mapa: os conjurados também ficam.`
-                  : "Depois de conjurar, clique no mapa onde cada um aparece; a distância até o conjurador aparece em pés (o alcance da magia é com você)."}
+                    : `${summoner.name} está fora do mapa: os invocados também ficam.`
+                  : "Depois de invocar, clique no mapa onde cada um aparece; a distância até quem invocou aparece em pés (o alcance da magia é com você)."}
               </Text>
             </Stack>
           </Stack>
@@ -113,7 +113,7 @@ export function SummonForm({ summoner, templates, onClose }: { summoner: Combata
             if (where === "pick") setPlacing({ ids, fromId: summoner.id });
             else {
               const place = summoner.pos ? `ao lado de ${summoner.name}` : "(fora do mapa: arraste da lista)";
-              toast({ kind: "info", text: ids.length > 1 ? `${ids.length} conjurados ${place}.` : `${v.name} conjurado ${place}.` });
+              toast({ kind: "info", text: ids.length > 1 ? `${ids.length} invocados ${place}.` : `${v.name} invocado ${place}.` });
             }
             onClose();
           }
