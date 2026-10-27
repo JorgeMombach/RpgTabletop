@@ -3,8 +3,8 @@ import { COINS, LIMITS, type Coins, type Combatant, type Recharge } from "@rpg/s
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString } from "../validate";
-import { editable } from "./combatants";
-import { logRoll } from "./dice";
+import { editable, requireGm } from "./combatants";
+import { logRoll, logSystem } from "./dice";
 import type { HandlerMap } from "./types";
 
 /*
@@ -45,6 +45,22 @@ function damageOf(raw: unknown): string | undefined {
   const s = optLine(raw, LIMITS.dice.exprLength);
   if (s && !/^[\d\sdD+\-%]+$/.test(s)) fail("Dano inválido: use algo como 1d8+3.");
   return s;
+}
+
+const REST_LABEL = { short: "descanso curto", long: "descanso longo" } as const;
+
+function restKind(raw: unknown): "short" | "long" {
+  return raw === "short" || raw === "long" ? raw : fail("Descanso curto ou longo?");
+}
+
+/** Descanso longo: vida cheia, slots de volta, sem vida temporária nem testes contra a morte. Os dois: recursos. */
+function applyRest(c: Combatant, kind: "short" | "long") {
+  recharge(c, kind);
+  if (kind === "short") return;
+  c.hp = c.hpMax;
+  for (const slot of Object.values(c.spellSlots ?? {})) slot.used = 0;
+  delete c.tempHp;
+  delete c.deathSaves;
 }
 
 /** Recupera os recursos que voltam neste descanso. */
@@ -110,15 +126,22 @@ export const sheetHandlers: HandlerMap = {
 
   rest: (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    const kind = payload?.kind === "short" || payload?.kind === "long" ? payload.kind : fail("Descanso curto ou longo?");
-    recharge(c, kind);
-    if (kind === "long") {
-      // Descanso longo: vida cheia, slots de volta, sem vida temporária nem testes contra a morte.
-      c.hp = c.hpMax;
-      for (const slot of Object.values(c.spellSlots ?? {})) slot.used = 0;
-      delete c.tempHp;
-      delete c.deathSaves;
-    }
+    const kind = restKind(payload?.kind);
+    // Ninguém descansa no meio da luta (e um clique sem querer não enche a vida de ninguém). O mestre pode tudo.
+    if (player.role !== "gm" && store.game.battle.combat.active) fail("Descanso só fora de combate.");
+    applyRest(c, kind);
+    // No log, para a mesa ver quem descansou. De mob/NPC, só o mestre vê.
+    const who = player.role === "gm" ? `${c.name} (Mestre)` : c.name === player.name ? c.name : `${c.name} (${player.name})`;
+    logSystem(store, `${who} fez um ${REST_LABEL[kind]}.`, c.type !== "ally");
+  },
+
+  "rest:all": (store, player, payload) => {
+    requireGm(player);
+    const kind = restKind(payload?.kind);
+    const { allies } = store.game;
+    if (allies.length === 0) fail("Nenhum aliado na mesa.");
+    for (const a of allies) applyRest(a, kind);
+    logSystem(store, `Mestre: ${REST_LABEL[kind]} para o grupo (${allies.map((a) => a.name).join(", ")}).`);
   },
 
   "attack:upsert": (store, player, payload) => {

@@ -56,7 +56,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Iniciativa rolada uma vez só:** o jogador rola a própria iniciativa uma vez por combate; rolar de novo ou mudar o valor fica com o mestre.
 - [ ] **Cor do alcance/aura** escolhível (hoje é a cor do token).
 - [x] **"Conjurar" vira "Invocar"** em toda a interface (botões, avisos, log, README).
-- [ ] **Descanso curto/longo: quem faz** (a decidir: cada jogador no seu, o mestre para todos, ou opção da mesa).
+- [x] **Descanso curto/longo: quem faz:** cada jogador no próprio personagem (com confirmação, só fora de combate, no log) e o mestre *Descanso para todos*.
 
 ## I. Regras da mesa (opções que o mestre liga)
 - [ ] **Movimento por turno:** em combate, cada um só move o próprio token na sua vez; fora de combate, livre; o mestre sempre. Validado no servidor. Muda o "movimento livre" do ADR-06 para uma opção da mesa.

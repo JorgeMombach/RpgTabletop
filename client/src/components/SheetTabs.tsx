@@ -20,6 +20,7 @@ import { act } from "../actions";
 import { fmtMod } from "../format";
 import { useT, type MessageKey } from "../i18n";
 import { doubleDice } from "./DicePanel";
+import { RestButton } from "./RestButton";
 import { MagicSection } from "./MagicSection";
 
 type Tab = "magic" | "resources" | "attacks" | "items";
@@ -131,16 +132,8 @@ function ResourcesSection({ c, editable }: { c: Combatant; editable: boolean }) 
               {t("sheet.resources.add")}
             </Button>
           )}
-          <Tooltip label={t("sheet.rest.shortTip")}>
-            <Button variant="default" ml="auto" onClick={() => act("rest", { id: c.id, kind: "short" })}>
-              {t("sheet.rest.short")}
-            </Button>
-          </Tooltip>
-          <Tooltip label={t("sheet.rest.longTip")}>
-            <Button variant="default" onClick={() => act("rest", { id: c.id, kind: "long" })}>
-              {t("sheet.rest.long")}
-            </Button>
-          </Tooltip>
+          <RestButton who={c} kind="short" ml="auto" />
+          <RestButton who={c} kind="long" />
         </Group>
       )}
     </Stack>

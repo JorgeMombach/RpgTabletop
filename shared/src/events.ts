@@ -188,7 +188,10 @@ export interface ActionPayloads {
   "resource:use": { id: string; resourceId: string; delta: number };
   "resource:remove": { id: string; resourceId: string };
   /** Descanso: curto recupera os recursos de descanso curto; longo recupera tudo (vida, slots, recursos) e zera a vida temporária. */
+  /** Descanso de um combatente: o dono (fora de combate) ou o mestre. Vai para o log. */
   rest: { id: string; kind: "short" | "long" };
+  /** Mestre: o mesmo descanso para todos os aliados (personagens e invocados). */
+  "rest:all": { kind: "short" | "long" };
   "attack:upsert": { id: string; attackId?: string; name: string; bonus?: number | null; damage?: string };
   "attack:remove": { id: string; attackId: string };
   "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string };

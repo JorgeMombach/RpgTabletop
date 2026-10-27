@@ -1,8 +1,9 @@
-import { ActionIcon, Button, Divider, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Button, Divider, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { LIMITS, SPELL_LEVELS, type Combatant, type SpellLevel, type SpellSlot } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
+import { RestButton } from "./RestButton";
 import { Abbr } from "./Abbr";
 
 const ORDINAL = ["Truque", "1º", "2º", "3º", "4º", "5º", "6º", "7º", "8º", "9º"];
@@ -101,11 +102,7 @@ export function MagicSection({ c, editable }: { c: Combatant; editable: boolean 
           <Button variant="default" style={{ flex: "1 1 auto" }} disabled={!anyUsed} onClick={() => act("slots:restore", { id: c.id })}>
             Recuperar slots
           </Button>
-          <Tooltip label="Vida cheia, todos os slots e os recursos de volta; sem vida temporária">
-            <Button variant="default" style={{ flex: "1 1 auto" }} onClick={() => act("rest", { id: c.id, kind: "long" })}>
-              Descanso longo
-            </Button>
-          </Tooltip>
+          <RestButton who={c} kind="long" style={{ flex: "1 1 auto" }} />
         </Group>
       )}
 

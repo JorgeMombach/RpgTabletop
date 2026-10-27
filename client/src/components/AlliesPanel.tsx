@@ -1,4 +1,4 @@
-import { Button, Text } from "@mantine/core";
+import { Button, Group, Text } from "@mantine/core";
 import { ALLY_COLORS, type ClientState } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -6,6 +6,7 @@ import { select, useApp } from "../store";
 import { CombatantForm } from "./CombatantForm";
 import { CombatantRow } from "./CombatantRow";
 import { Panel } from "./Panel";
+import { RestAllMenu } from "./RestButton";
 
 export function AlliesPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
@@ -19,13 +20,15 @@ export function AlliesPanel({ state }: { state: ClientState }) {
     <Panel
       title="Aliados"
       aside={
-        // Jogador tem um personagem só (o servidor também recusa um segundo).
-        !creating &&
-        (gm || !hasOwn) && (
-          <Button variant="default" onClick={() => setCreating(true)}>
-            {gm ? "+ Aliado" : "+ Criar personagem"}
-          </Button>
-        )
+        <Group gap={4} wrap="nowrap">
+          {gm && state.allies.length > 0 && <RestAllMenu />}
+          {/* Jogador tem um personagem só (o servidor também recusa um segundo). */}
+          {!creating && (gm || !hasOwn) && (
+            <Button variant="default" onClick={() => setCreating(true)}>
+              {gm ? "+ Aliado" : "+ Criar personagem"}
+            </Button>
+          )}
+        </Group>
       }
     >
       {creating && (
