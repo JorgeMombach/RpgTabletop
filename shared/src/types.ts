@@ -152,6 +152,10 @@ export interface Combatant {
   size?: Size;
   /** Alcance ou aura em pés (ex.: 10 ft de alcance, aura de 30 ft): círculo leve em volta do token, só visual. */
   aura?: number;
+  /** Descrição que todos veem ("dragão ancião de neve, guardião do passo…"). */
+  description?: string;
+  /** Notas do mestre: só ele vê (o servidor não envia aos jogadores, nem ao dono). */
+  gmNotes?: string;
   /** Cor do círculo do alcance/aura; ausente = a cor do token. */
   auraColor?: string;
   avatar?: string;
@@ -195,6 +199,9 @@ export interface MobTemplate {
   size?: Size;
   color: string;
   avatar?: string;
+  /** Descrição pública: vai para os mobs e NPCs criados com o template. */
+  description?: string;
+  /** Notas do mestre: vão para as notas do mestre dos mobs e NPCs criados com o template. */
   notes?: string;
   /** Mobs e NPCs criados com o template já vêm com a marca de animal. */
   animal?: boolean;

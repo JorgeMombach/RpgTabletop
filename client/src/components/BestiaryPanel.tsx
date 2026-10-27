@@ -56,6 +56,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
           palette={MOB_COLORS}
           submitLabel="Adicionar à batalha"
           withHidden
+          withNotes
           onCancel={close}
           onSubmit={async (v) => {
             const ok = (await act("mob:add", v)).ok;

@@ -105,6 +105,7 @@ export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
       {creating && (
         <CombatantForm
           palette={NPC_COLORS}
+          withNotes
           submitLabel="Adicionar NPC"
           withHidden
           onCancel={() => setCreating(false)}

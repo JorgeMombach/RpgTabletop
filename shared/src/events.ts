@@ -38,6 +38,10 @@ export interface CombatantInput {
   animal?: boolean;
   /** Mob ou NPC já criado oculto (E21; ignorado em aliados). */
   hidden?: boolean;
+  /** Descrição que todos veem; vazio apaga. */
+  description?: string;
+  /** Notas do mestre (só ele envia e só ele vê); vazio apaga. */
+  gmNotes?: string;
 }
 
 /** Régua em células (as pontas ficam no centro dos quadrados). */
@@ -356,6 +360,7 @@ export const LIMITS = {
   /** Quantidade de mobs criados de uma vez a partir de um template. */
   qty: { min: 1, max: 30 },
   notes: 500,
+  description: 1000,
   conditionName: 32,
   /** Condições por combatente. */
   conditions: 12,

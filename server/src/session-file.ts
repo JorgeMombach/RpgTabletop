@@ -184,6 +184,10 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.spells !== undefined) out.spells = list(c.spells, "magias", LIMITS.spells).map(spell);
   // Marcas do E21: arquivos da 2.0 não têm (ausente = não).
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
+  const description = optText(c.description, "descrição", LIMITS.description);
+  if (description) out.description = description;
+  const gmNotes = optText(c.gmNotes, "notas do mestre", LIMITS.notes);
+  if (gmNotes) out.gmNotes = gmNotes;
   if (c.hidden !== undefined && bool(c.hidden, "oculto") && type !== "ally") out.hidden = true;
   if (c.summonerId !== undefined) out.summonerId = requireString(c.summonerId, "Invocador");
   if (c.summonConcentration !== undefined && bool(c.summonConcentration, "concentração do invocado")) out.summonConcentration = true;
@@ -268,6 +272,8 @@ function template(raw: unknown): MobTemplate {
   const notes = optText(t.notes, "notas", LIMITS.notes);
   if (notes) out.notes = notes;
   if (t.animal !== undefined && bool(t.animal, "animal")) out.animal = true;
+  const description = optText(t.description, "descrição", LIMITS.description);
+  if (description) out.description = description;
   return out;
 }
 

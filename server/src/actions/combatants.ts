@@ -135,7 +135,25 @@ function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown } 
   if (c.type !== "ally" && input?.hidden === true) c.hidden = true;
 }
 
-function newCombatant(type: Combatant["type"], input: CombatantInput, color: string): Combatant {
+/** Texto opcional: `undefined` = não mexe; vazio = apaga. */
+function textOf(raw: unknown, max: number): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw !== null && typeof raw !== "string") fail("Texto inválido.");
+  return raw?.trim().slice(0, max) || null;
+}
+
+/** Descrição (pública) e notas do mestre. Só o mestre escreve as notas (o servidor confere aqui). */
+function applyTexts(c: Combatant, input: { description?: unknown; gmNotes?: unknown } | undefined, gm: boolean) {
+  const description = textOf(input?.description, LIMITS.description);
+  const gmNotes = textOf(input?.gmNotes, LIMITS.notes);
+  if (gmNotes !== undefined && !gm) fail("Só o mestre escreve notas do mestre.");
+  if (description === null) delete c.description;
+  else if (description !== undefined) c.description = description;
+  if (gmNotes === null) delete c.gmNotes;
+  else if (gmNotes !== undefined) c.gmNotes = gmNotes;
+}
+
+function newCombatant(type: Combatant["type"], input: CombatantInput, color: string, gm = true): Combatant {
   const hpMax = hpMaxOf(input?.hpMax);
   const ac = acOf(input?.ac);
   const abilities = abilitiesOf(input?.abilities);
@@ -157,12 +175,22 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
   applySize(c, size);
   applyAvatar(c, input?.avatar);
   applyFlags(c, input);
+  applyTexts(c, input, gm);
   return c;
 }
 
 /** Dados de um template para criar mob/NPC (cópia dos atributos: cada um muda o seu depois). */
 function fromTemplate(t: MobTemplate) {
-  return { hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities ? { ...t.abilities } : undefined, size: t.size, animal: t.animal };
+  return {
+    hpMax: t.hpMax,
+    dexMod: t.dexMod,
+    ac: t.ac,
+    abilities: t.abilities ? { ...t.abilities } : undefined,
+    size: t.size,
+    animal: t.animal,
+    description: t.description,
+    gmNotes: t.notes,
+  };
 }
 
 /** Lista onde o combatente mora, pelo tipo. */
@@ -242,6 +270,7 @@ export const combatantHandlers: HandlerMap = {
       hpMax: hpMaxOf(input?.hpMax),
       dexMod: dexModOf(input?.dexMod),
       notes: typeof input?.notes === "string" ? input.notes.trim().slice(0, LIMITS.notes) || undefined : undefined,
+      description: typeof input?.description === "string" ? input.description.trim().slice(0, LIMITS.description) || undefined : undefined,
       animal: input?.animal === true || undefined,
     };
     const ac = acOf(input?.ac);
@@ -339,7 +368,7 @@ export const combatantHandlers: HandlerMap = {
     const palette = summoner.type === "ally" ? ALLY_COLORS : summoner.type === "mob" ? MOB_COLORS : NPC_COLORS;
     // Valida o resto (vida, DES, avatar) antes de criar qualquer um.
     const color = colorOf(payload.color, palette, list.length);
-    newCombatant(summoner.type, { ...payload, name: base }, color);
+    newCombatant(summoner.type, { ...payload, name: base }, color, player.role === "gm");
 
     const occupied = () => blockedCells(allCombatants(store));
     const ids: string[] = [];
@@ -349,7 +378,7 @@ export const combatantHandlers: HandlerMap = {
     for (let i = 1; i <= qty; i++) {
       const suffix = qty > 1 || used > 0 ? ` ${used + i}` : "";
       const name = base.slice(0, NAME_MAX_LENGTH - suffix.length).trimEnd() + suffix;
-      const s = newCombatant(summoner.type, { ...payload, name, hidden: summoner.hidden }, color);
+      const s = newCombatant(summoner.type, { ...payload, name, hidden: summoner.hidden }, color, player.role === "gm");
       s.summonerId = summoner.id;
       if (summoner.ownerId) s.ownerId = summoner.ownerId;
       if (payload.concentration === true) s.summonConcentration = true;
@@ -393,7 +422,7 @@ export const combatantHandlers: HandlerMap = {
     if (player.role === "player" && allies.some((a) => a.ownerId === player.id && !a.summonerId)) {
       fail("Você já tem um personagem. Para mudar nome, vida ou mod. DES, use Editar no painel Selecionado.");
     }
-    const ally = newCombatant("ally", input, colorOf(input?.color, ALLY_COLORS, allies.length));
+    const ally = newCombatant("ally", input, colorOf(input?.color, ALLY_COLORS, allies.length), player.role === "gm");
     ally.ownerId = player.id;
     allies.push(ally);
     return [ally.id];
@@ -415,7 +444,9 @@ export const combatantHandlers: HandlerMap = {
     const abilities = abilitiesOf(payload.abilities);
     const size = sizeOf(payload.size);
     avatarOf(payload.avatar);
+    if (payload.gmNotes !== undefined && player.role !== "gm") fail("Só o mestre escreve notas do mestre.");
     Object.assign(c, { name, dexMod, hpMax });
+    applyTexts(c, payload, player.role === "gm");
     applyStats(c, ac, abilities);
     // Crescer no mapa pode encostar em alguém: o app não empurra ninguém (a mesa ajeita os tokens).
     applySize(c, size);

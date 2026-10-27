@@ -7,13 +7,15 @@ function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resourc
 }
 
 /** Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando). */
-function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, ...rest }: Combatant): CombatantView {
+function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, gmNotes: _n, ...rest }: Combatant): CombatantView {
   return withoutSheet(rest);
 }
 
+/** Aliado para um jogador: as notas do mestre nunca vão (nem para o dono); a ficha, só para o dono. */
 function allyFor(player: ServerPlayer, c: Combatant): Combatant {
-  if (player.role === "gm" || c.ownerId === player.id) return c;
-  return withoutSheet(c);
+  if (player.role === "gm") return c;
+  const { gmNotes: _n, ...rest } = c;
+  return c.ownerId === player.id ? rest : withoutSheet(rest);
 }
 
 /** Para jogadores: sem os ocultos (E21) e sem a vida. */

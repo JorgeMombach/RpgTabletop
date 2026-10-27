@@ -18,7 +18,7 @@ interface Props {
   withNotes?: boolean;
   /** Caixa "Já entra oculto" (criar mob ou NPC, E21). */
   withHidden?: boolean;
-  /** Campos a mais antes dos botões (ex.: quantidade e concentração ao conjurar). */
+  /** Campos a mais antes dos botões (ex.: quantidade e concentração ao invocar). */
   extra?: ReactNode;
   onSubmit: (values: FormValues) => Promise<boolean>;
   onCancel?: () => void;
@@ -48,7 +48,9 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
   const [showAbilities, setShowAbilities] = useState(() => !!initial?.abilities && Object.keys(initial.abilities).length > 0);
   const [size, setSize] = useState<Size>(initial?.size ?? "medium");
   const [color, setColor] = useState(initial?.color ?? palette[0]);
-  const [notes, setNotes] = useState(initial?.notes ?? "");
+  // Notas do mestre: no template são `notes`; num combatente, `gmNotes` (o form manda as duas e cada ação usa a sua).
+  const [notes, setNotes] = useState(initial?.notes ?? initial?.gmNotes ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null);
   const [avatarChanged, setAvatarChanged] = useState(false);
   const [animal, setAnimal] = useState(initial?.animal ?? false);
@@ -74,6 +76,8 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       size,
       color,
       notes: withNotes ? notes : undefined,
+      gmNotes: withNotes ? notes : undefined,
+      description,
       animal,
       hidden: withHidden ? hidden : undefined,
       // Só envia o avatar se mudou: é o campo mais pesado do formulário.
@@ -215,10 +219,24 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
             </Tooltip>
           )}
         </Group>
+        <Textarea
+          label={t("form.description")}
+          description={t("form.descriptionHint")}
+          maxLength={LIMITS.description}
+          autosize
+          minRows={2}
+          maxRows={6}
+          value={description}
+          onChange={(e) => setDescription(e.currentTarget.value)}
+        />
         {withNotes && (
           <Textarea
             label={t("form.notes")}
+            description={t("form.notesHint")}
             maxLength={LIMITS.notes}
+            autosize
+            minRows={2}
+            maxRows={6}
             value={notes}
             onChange={(e) => setNotes(e.currentTarget.value)}
           />

@@ -16,6 +16,7 @@ import { StatsSection } from "./StatsSection";
 import { SummonForm } from "./SummonForm";
 import { CombatantForm } from "./CombatantForm";
 import { DeathSaves } from "./DeathSaves";
+import { DescriptionSection } from "./DescriptionSection";
 import { ConditionsSection } from "./ConditionsSection";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
@@ -68,6 +69,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
             </Text>
           </div>
         </Group>
+        <DescriptionSection c={mobView} gm={false} />
         <ConditionsSection c={mobView} editable={false} />
       </Panel>
     );
@@ -129,9 +131,12 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           initial={c}
           palette={PALETTE[c.type]}
           submitLabel="Salvar"
+          withNotes={gm}
           onCancel={() => setEditingId(null)}
           onSubmit={async (v) => {
-            const ok = (await act("combatant:update", { id: c.id, ...v })).ok;
+            // `notes` é do template; aqui valem `description` e (só o mestre) `gmNotes`.
+            const { notes: _notes, ...fields } = v;
+            const ok = (await act("combatant:update", { id: c.id, ...fields })).ok;
             if (ok) setEditingId(null);
             return ok;
           }}
@@ -149,6 +154,8 @@ export function SelectedPanel({ state }: { state: ClientState }) {
           <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
         </Stack>
       )}
+
+      {!editing && !summoning && <DescriptionSection c={c} gm={gm} />}
 
       {!editing && !summoning && c.type === "ally" && c.hp <= 0 && <DeathSaves c={c} editable={canEdit} gm={gm} />}
 

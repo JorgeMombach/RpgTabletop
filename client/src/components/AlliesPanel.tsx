@@ -34,6 +34,7 @@ export function AlliesPanel({ state }: { state: ClientState }) {
       {creating && (
         <CombatantForm
           palette={ALLY_COLORS}
+          withNotes={gm}
           submitLabel="Criar"
           onCancel={() => setCreating(false)}
           onSubmit={async (v) => {
