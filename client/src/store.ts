@@ -80,6 +80,8 @@ interface AppStore extends DicePrefs {
    * e só revela o resultado quando os dados param.
    */
   rolling: string[];
+  /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
+  logOut: boolean;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -112,6 +114,7 @@ export const useApp = create<AppStore>(() => ({
   placing: null,
   rolling: [],
   hoverId: null,
+  logOut: false,
   ...readPrefs(),
 }));
 

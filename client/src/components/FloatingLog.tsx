@@ -1,7 +1,9 @@
 import { ActionIcon, Group, Paper, Text, Tooltip } from "@mantine/core";
-import { IconWindowMinimize } from "@tabler/icons-react";
+import { IconExternalLink, IconWindowMinimize } from "@tabler/icons-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { popOutLog } from "../logWindow";
 import { setDicePrefs, useApp } from "../store";
+import { useT } from "../i18n";
 import { RollLog } from "./RollLog";
 
 const RECT_KEY = "rpg.logWindow";
@@ -34,12 +36,17 @@ function clamp(r: Rect): Rect {
 /**
  * Log de rolagens destacado (E22): janela flutuante que dá para arrastar (pelo título) e redimensionar
  * (canto inferior direito). Minimizar devolve o log ao painel Dados. Posição e tamanho ficam neste navegador.
+ * Arrastar para fora da mesa e soltar (ou o botão do título) leva o log para uma janela própria, no lugar
+ * onde foi solto: dá para pôr em outro monitor.
  */
 export function FloatingLog() {
+  const t = useT();
   const state = useApp((s) => s.state);
   const [rect, setRect] = useState<Rect>(() => clamp(readRect()));
   const boxRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ dx: number; dy: number } | null>(null);
+  // Ponteiro fora da mesa durante o arrasto: soltar ali leva o log para uma janela própria.
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     try {
@@ -75,14 +82,26 @@ export function FloatingLog() {
 
   function moveDrag(e: ReactPointerEvent) {
     const d = drag.current;
-    if (d) setRect((r) => clamp({ ...r, x: e.clientX - d.dx, y: e.clientY - d.dy }));
+    if (!d) return;
+    const out = e.clientX < 0 || e.clientY < 0 || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
+    setLeaving(out);
+    setRect((r) => clamp({ ...r, x: e.clientX - d.dx, y: e.clientY - d.dy }));
+  }
+
+  function endDrag(e: ReactPointerEvent) {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || !leaving) return;
+    setLeaving(false);
+    // Abre onde foi solto (coordenadas da tela, que valem para o outro monitor) e com o mesmo tamanho.
+    popOutLog({ x: e.screenX - d.dx, y: e.screenY - d.dy, w: rect.w, h: rect.h });
   }
 
   if (!state) return null;
   return (
     <Paper
       ref={boxRef}
-      className="floating-log plaque"
+      className={`floating-log plaque ${leaving ? "leaving" : ""}`}
       withBorder
       shadow="xl"
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
@@ -97,16 +116,27 @@ export function FloatingLog() {
         py={6}
         onPointerDown={startDrag}
         onPointerMove={moveDrag}
-        onPointerUp={() => (drag.current = null)}
+        onPointerUp={endDrag}
+        onPointerCancel={() => {
+          drag.current = null;
+          setLeaving(false);
+        }}
       >
-        <Text ff="heading" fw={700} size="sm" c="bronze.4">
-          Rolagens
+        <Text ff="heading" fw={700} size="sm" c="bronze.4" truncate>
+          {leaving ? t("logWindow.dropHint") : "Rolagens"}
         </Text>
-        <Tooltip label="Minimizar (volta para o painel Dados)">
-          <ActionIcon size="sm" aria-label="Minimizar o log" onClick={() => setDicePrefs({ logDetached: false })}>
-            <IconWindowMinimize size={16} />
-          </ActionIcon>
-        </Tooltip>
+        <Group gap={4} wrap="nowrap">
+          <Tooltip label={t("logWindow.openTip")}>
+            <ActionIcon size="sm" aria-label={t("logWindow.open")} onClick={() => popOutLog({ x: window.screenX + rect.x, y: window.screenY + rect.y, w: rect.w, h: rect.h })}>
+              <IconExternalLink size={16} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Minimizar (volta para o painel Dados)">
+            <ActionIcon size="sm" aria-label="Minimizar o log" onClick={() => setDicePrefs({ logDetached: false })}>
+              <IconWindowMinimize size={16} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
       </Group>
       <div className="floating-log-body">
         <RollLog log={state.log} selfId={state.self.id} />

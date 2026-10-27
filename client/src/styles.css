@@ -153,6 +153,33 @@ body {
   opacity: 0.6;
 }
 
+/* Log flutuante sendo arrastado para fora da mesa: soltar abre a janela própria. */
+.floating-log.leaving {
+  outline: 2px dashed var(--mantine-color-bronze-4);
+  opacity: 0.85;
+}
+
+/* Janela do log (outro monitor): cabeçalho fixo e o log rolando embaixo. */
+.log-window {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--mantine-color-body);
+}
+
+.log-window-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+}
+
+.log-window-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px;
+  scrollbar-width: thin;
+}
+
 /* Coluna recolhida: some (continua montada, nada se perde) e o mapa ocupa o espaço. */
 .col.collapsed {
   display: none;

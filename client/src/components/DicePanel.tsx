@@ -20,6 +20,8 @@ import { IconWindowMaximize } from "@tabler/icons-react";
 import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
+import { useT } from "../i18n";
+import { bringLogBack } from "../logWindow";
 import { allCombatants } from "../format";
 import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
@@ -78,7 +80,9 @@ function SectionTitle({ children }: { children: ReactNode }) {
 
 /** `inline` = tela de celular (E23): o log fica sempre no painel, sem janela flutuante. */
 export function DicePanel({ state, inline = false }: { state: ClientState; inline?: boolean }) {
+  const t = useT();
   const logDetached = useApp((s) => s.logDetached) && !inline;
+  const logOut = useApp((s) => s.logOut);
   const gm = state.self.role === "gm";
   const { combat, rolls } = state.battle;
   const saved = useState(readAttack)[0];
@@ -261,7 +265,16 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
 
       <Divider />
       <LogHeader canDetach={!inline} />
-      {logDetached ? (
+      {logOut && !inline ? (
+        <Group gap="xs" wrap="nowrap" justify="space-between">
+          <Text size="xs" c="dimmed">
+            {t("logWindow.isOut")}
+          </Text>
+          <Button size="compact-xs" variant="default" onClick={bringLogBack} style={{ flex: "none" }}>
+            {t("logWindow.bringBack")}
+          </Button>
+        </Group>
+      ) : logDetached ? (
         <Text size="xs" c="dimmed">
           O log está numa janela flutuante. Minimize a janela para ele voltar aqui.
         </Text>
@@ -274,15 +287,16 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
 
 /** Cabeçalho do log (E22): animação dos dados no centro e destacar o log numa janela. Valem só para este navegador. */
 function LogHeader({ canDetach }: { canDetach: boolean }) {
+  const t = useT();
   const diceAnim = useApp((s) => s.diceAnim);
-  const logDetached = useApp((s) => s.logDetached) || !canDetach;
+  const logDetached = useApp((s) => s.logDetached || s.logOut) || !canDetach;
   return (
     <Group justify="space-between" wrap="nowrap" gap="xs">
       <Tooltip label="Dados rolando no centro do mapa a cada rolagem (só neste navegador)">
         <Switch size="xs" label="Animar rolagens" checked={diceAnim} onChange={(e) => setDicePrefs({ diceAnim: e.currentTarget.checked })} />
       </Tooltip>
       {!logDetached && (
-        <Tooltip label="Abrir o log numa janela que dá para arrastar e redimensionar">
+        <Tooltip label={t("logWindow.detachTip")}>
           <ActionIcon size="sm" aria-label="Destacar o log" onClick={() => setDicePrefs({ logDetached: true })}>
             <IconWindowMaximize size={16} />
           </ActionIcon>

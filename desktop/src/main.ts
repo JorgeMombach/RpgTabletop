@@ -67,9 +67,21 @@ function createWindow() {
   win.once("ready-to-show", () => win?.show());
 
   // Links externos (ex.: ajuda) abrem no navegador; a janela só navega dentro da mesa.
+  // Exceção: o log de rolagens em janela própria (para arrastar a outro monitor), que é a própria mesa.
   win.webContents.setWindowOpenHandler(({ url }) => {
+    if (server && url.startsWith(server.local) && new URL(url).searchParams.get("janela") === "log") {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: { minWidth: 280, minHeight: 240, backgroundColor: "#141218", autoHideMenuBar: true },
+      };
+    }
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: "deny" };
+  });
+  win.webContents.on("did-create-window", (child) => {
+    // A janela do log não abre outras nem navega para fora da mesa.
+    child.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    child.webContents.on("will-navigate", (event) => event.preventDefault());
   });
   win.webContents.on("will-navigate", (event, url) => {
     if (server && !url.startsWith(server.local)) event.preventDefault();
@@ -89,7 +101,11 @@ function createWindow() {
     event.preventDefault();
     win?.webContents.send("close-requested");
   });
-  win.on("closed", () => (win = null));
+  win.on("closed", () => {
+    win = null;
+    // Fechou a mesa: a janela do log vai junto (senão o app ficaria aberto só com ela).
+    for (const other of BrowserWindow.getAllWindows()) other.close();
+  });
 
   void openTable();
 }

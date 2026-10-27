@@ -58,7 +58,8 @@ function DesktopShell({ state }: { state: ClientState }) {
   const t = useT();
   const small = useSmallScreen();
   const connected = useApp((s) => s.connected);
-  const logDetached = useApp((s) => s.logDetached);
+  // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
+  const logDetached = useApp((s) => s.logDetached && !s.logOut);
   const [clearing, setClearing] = useState(false);
   const { widths, max, collapsed, drag, toggle, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
