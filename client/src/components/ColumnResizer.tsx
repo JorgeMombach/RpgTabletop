@@ -117,22 +117,17 @@ export function useColumnWidths() {
   }, []);
   const reset = useCallback((side: Side) => set(side, DEFAULTS[side]), [set]);
 
-  /** Arrasto da borda: passar bem do mínimo recolhe; puxar uma coluna recolhida abre de novo. */
-  const drag = useCallback(
+  /** Arrasto da borda: abre a coluna (se estava recolhida) e ajusta a largura. Recolher é decidido ao soltar. */
+  const resize = useCallback(
     (side: Side, value: number) => {
-      if (collapsed[side]) {
-        if (value < OPEN_PULL) return;
-        setCollapsed(side, false);
-        set(side, Math.max(value, COLUMN_LIMITS.min));
-        return;
-      }
-      if (value < COLUMN_LIMITS.min - COLLAPSE_PULL) setCollapsed(side, true);
-      else set(side, value);
+      if (collapsedRef.current[side]) setCollapsed(side, false);
+      set(side, value);
     },
-    [collapsed, set, setCollapsed],
+    [set, setCollapsed],
   );
+  const collapse = useCallback((side: Side) => setCollapsed(side, true), [setCollapsed]);
   const toggle = useCallback((side: Side) => setCollapsed(side, !collapsed[side]), [collapsed, setCollapsed]);
-  return { widths, max, collapsed, drag, toggle, reset };
+  return { widths, max, collapsed, resize, collapse, toggle, reset };
 }
 
 interface Props {
@@ -142,6 +137,7 @@ interface Props {
   max: number;
   collapsed: boolean;
   onResize: (width: number) => void;
+  onCollapse: () => void;
   onReset: () => void;
   onToggle: () => void;
 }
@@ -151,9 +147,13 @@ interface Props {
  * O botão no meio recolhe a coluna por completo (mais espaço para o mapa, bom no iPad) e abre de volta;
  * arrastar a borda até o fim também recolhe.
  */
-export function ColumnResizer({ side, width, max, collapsed, onResize, onReset, onToggle }: Props) {
+export function ColumnResizer({ side, width, max, collapsed, onResize, onCollapse, onReset, onToggle }: Props) {
   const t = useT();
-  const start = useRef<{ x: number; width: number } | null>(null);
+  // O arrasto todo se mede a partir do começo dele (largura e se estava recolhida): recolher no meio
+  // não muda a conta, e a coluna não fica abrindo e fechando enquanto o mouse anda.
+  const start = useRef<{ x: number; width: number; collapsed: boolean; opened?: boolean } | null>(null);
+  // Passou do limite: soltar agora recolhe (a coluna fica na largura mínima, apagada, até soltar).
+  const [willCollapse, setWillCollapse] = useState(false);
   // A seta aponta para onde a coluna vai: recolher = em direção à borda da tela.
   const towardEdge = side === "left" ? IconChevronLeft : IconChevronRight;
   const towardMap = side === "left" ? IconChevronRight : IconChevronLeft;
@@ -162,14 +162,34 @@ export function ColumnResizer({ side, width, max, collapsed, onResize, onReset, 
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     e.currentTarget.setPointerCapture(e.pointerId);
-    start.current = { x: e.clientX, width };
+    start.current = { x: e.clientX, width, collapsed };
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
-    if (!start.current) return;
-    const dx = e.clientX - start.current.x;
+    const s = start.current;
+    if (!s) return;
+    const dx = e.clientX - s.x;
     // Coluna da esquerda cresce arrastando para a direita; a da direita, para a esquerda.
-    onResize(start.current.width + (side === "left" ? dx : -dx));
+    const raw = s.width + (side === "left" ? dx : -dx);
+    // Recolhida: abre quando puxar um pouco. Aberta: recolhe se soltar bem abaixo do mínimo.
+    const below = raw < (s.collapsed ? OPEN_PULL : COLUMN_LIMITS.min - COLLAPSE_PULL);
+    // Abriu neste mesmo arrasto e voltou até a borda: soltar recolhe de novo.
+    const open = !s.collapsed || s.opened === true;
+    setWillCollapse(below && open);
+    if (below) {
+      // Abaixo do limite a coluna não muda (recolhida continua recolhida; aberta fica no mínimo).
+      if (open) onResize(COLUMN_LIMITS.min);
+      return;
+    }
+    s.opened = true;
+    onResize(Math.max(raw, COLUMN_LIMITS.min));
+  }
+
+  function onPointerUp() {
+    const s = start.current;
+    start.current = null;
+    if (s && willCollapse) onCollapse();
+    setWillCollapse(false);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -184,7 +204,7 @@ export function ColumnResizer({ side, width, max, collapsed, onResize, onReset, 
 
   return (
     <div
-      className={`col-resizer ${side} ${collapsed ? "collapsed" : ""}`}
+      className={`col-resizer ${side} ${collapsed ? "collapsed" : ""} ${willCollapse ? "will-collapse" : ""}`}
       role="separator"
       aria-orientation="vertical"
       aria-label={side === "left" ? "Largura da coluna esquerda" : "Largura da coluna direita"}
@@ -195,8 +215,11 @@ export function ColumnResizer({ side, width, max, collapsed, onResize, onReset, 
       title="Arraste para ajustar a largura (duplo clique: padrão)"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={() => (start.current = null)}
-      onPointerCancel={() => (start.current = null)}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => {
+        start.current = null;
+        setWillCollapse(false);
+      }}
       onDoubleClick={collapsed ? onToggle : onReset}
       onKeyDown={onKeyDown}
     >

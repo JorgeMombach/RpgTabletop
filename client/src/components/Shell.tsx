@@ -61,7 +61,7 @@ function DesktopShell({ state }: { state: ClientState }) {
   // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
   const logDetached = useApp((s) => s.logDetached && !s.logOut);
   const [clearing, setClearing] = useState(false);
-  const { widths, max, collapsed, drag, toggle, reset } = useColumnWidths();
+  const { widths, max, collapsed, resize, collapse, toggle, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
 
   return (
@@ -139,7 +139,8 @@ function DesktopShell({ state }: { state: ClientState }) {
         width={widths.left}
         max={max.left}
         collapsed={collapsed.left}
-        onResize={(w) => drag("left", w)}
+        onResize={(w) => resize("left", w)}
+        onCollapse={() => collapse("left")}
         onReset={() => reset("left")}
         onToggle={() => toggle("left")}
       />
@@ -154,7 +155,8 @@ function DesktopShell({ state }: { state: ClientState }) {
         width={widths.right}
         max={max.right}
         collapsed={collapsed.right}
-        onResize={(w) => drag("right", w)}
+        onResize={(w) => resize("right", w)}
+        onCollapse={() => collapse("right")}
         onReset={() => reset("right")}
         onToggle={() => toggle("right")}
       />

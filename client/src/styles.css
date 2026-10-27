@@ -190,20 +190,33 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  /* Centralizado por margem (22 px de botão), não por transform: o Mantine usa transform no clique
+     (o botão "afunda") e o botão pulava de lugar, fazendo o clique cair fora dele. */
+  margin: -11px 0 0 -11px;
   z-index: 3;
 }
 
 /* Recolhida: a alça fica na borda da tela; o botão vai inteiro para o lado do mapa. */
 .col-resizer.left.collapsed .col-toggle {
   left: 0;
-  transform: translate(0, -50%);
+  margin-left: 0;
 }
 
 .col-resizer.right.collapsed .col-toggle {
   left: auto;
   right: 0;
-  transform: translate(0, -50%);
+  margin-left: 0;
+}
+
+/* Arrastando além do limite: soltar recolhe. A borda acende e a coluna fica apagada até soltar. */
+.col-resizer.will-collapse {
+  background: var(--mantine-primary-color-filled);
+}
+
+.col.left:has(+ .col-resizer.will-collapse),
+.col-resizer.right.will-collapse + .col.right {
+  opacity: 0.4;
+  transition: opacity 0.12s ease;
 }
 
 .col-resizer:has(.col-toggle)::after {
