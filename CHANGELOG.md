@@ -7,6 +7,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Adicionado
+- **Recolher as colunas laterais:** botão com seta no meio da borda de cada coluna esconde a coluna inteira e dá o espaço ao mapa (o mesmo botão abre de volta). Arrastar a borda até o fim também recolhe, e puxar a borda de uma coluna recolhida abre. Fica guardado no navegador; nada do que estava nos painéis se perde.
 - **Cor do alcance/aura:** no popover do *Alcance*, escolha a cor do círculo (a do token, que é o padrão, ou bronze, vermelho, azul, verde e pergaminho). Com o círculo já no mapa, a cor muda na hora. Vai no arquivo de sessão.
 
 ### Alterado

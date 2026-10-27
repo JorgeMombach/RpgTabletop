@@ -153,6 +153,36 @@ body {
   opacity: 0.6;
 }
 
+/* Coluna recolhida: some (continua montada, nada se perde) e o mapa ocupa o espaço. */
+.col.collapsed {
+  display: none;
+}
+
+/* Botão de recolher/abrir no meio da alça; passa um pouco por cima do mapa para ser fácil de acertar. */
+.col-toggle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+}
+
+/* Recolhida: a alça fica na borda da tela; o botão vai inteiro para o lado do mapa. */
+.col-resizer.left.collapsed .col-toggle {
+  left: 0;
+  transform: translate(0, -50%);
+}
+
+.col-resizer.right.collapsed .col-toggle {
+  left: auto;
+  right: 0;
+  transform: translate(0, -50%);
+}
+
+.col-resizer:has(.col-toggle)::after {
+  display: none;
+}
+
 .col-resizer:hover,
 .col-resizer:focus-visible {
   background: var(--mantine-primary-color-filled);

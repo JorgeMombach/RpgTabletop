@@ -60,7 +60,7 @@ function DesktopShell({ state }: { state: ClientState }) {
   const connected = useApp((s) => s.connected);
   const logDetached = useApp((s) => s.logDetached);
   const [clearing, setClearing] = useState(false);
-  const { widths, max, set, reset } = useColumnWidths();
+  const { widths, max, collapsed, drag, toggle, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
 
   return (
@@ -121,7 +121,7 @@ function DesktopShell({ state }: { state: ClientState }) {
         </Group>
       </Group>
 
-      <aside className={`col left ${gm ? "with-tabs" : ""}`}>
+      <aside className={`col left ${gm ? "with-tabs" : ""} ${collapsed.left ? "collapsed" : ""}`}>
         {gm ? (
           <GmTabs state={state} />
         ) : (
@@ -133,15 +133,31 @@ function DesktopShell({ state }: { state: ClientState }) {
           </>
         )}
       </aside>
-      <ColumnResizer side="left" width={widths.left} max={max.left} onResize={(w) => set("left", w)} onReset={() => reset("left")} />
+      <ColumnResizer
+        side="left"
+        width={widths.left}
+        max={max.left}
+        collapsed={collapsed.left}
+        onResize={(w) => drag("left", w)}
+        onReset={() => reset("left")}
+        onToggle={() => toggle("left")}
+      />
 
       <main className="map-area">
         <BattleMap state={state} />
         <DiceOverlay />
       </main>
 
-      <ColumnResizer side="right" width={widths.right} max={max.right} onResize={(w) => set("right", w)} onReset={() => reset("right")} />
-      <aside className="col right">
+      <ColumnResizer
+        side="right"
+        width={widths.right}
+        max={max.right}
+        collapsed={collapsed.right}
+        onResize={(w) => drag("right", w)}
+        onReset={() => reset("right")}
+        onToggle={() => toggle("right")}
+      />
+      <aside className={`col right ${collapsed.right ? "collapsed" : ""}`}>
         <SelectedPanel state={state} />
         <DicePanel state={state} />
       </aside>
