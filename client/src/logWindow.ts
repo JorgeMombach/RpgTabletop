@@ -18,15 +18,20 @@ let child: Window | null = null;
 let answered = true;
 
 /**
- * Leva o log para uma janela própria (`at` = onde ela aparece, em pixels da tela, e o tamanho).
- * Precisa de um clique ou arrasto recente (o navegador bloqueia janelas abertas sozinhas).
+ * Leva o log para uma janela própria (`at` = onde ela aparece, em pixels da tela, e o tamanho; sem `at`,
+ * encostada na direita da mesa). Precisa de um clique ou arrasto recente (o navegador bloqueia janelas
+ * abertas sozinhas): se bloquear, o log abre flutuando dentro da mesa (arrastar para fora tenta de novo).
  */
 export function popOutLog(at?: { x: number; y: number; w: number; h: number }) {
   const url = `${location.origin}${location.pathname}?janela=log`;
-  const size = at ? `,width=${Math.round(at.w)},height=${Math.round(at.h)},left=${Math.round(at.x)},top=${Math.round(at.y)}` : ",width=420,height=720";
-  child = window.open(url, NAME, `popup${size}`);
+  const w = at?.w ?? 420;
+  const h = at?.h ?? Math.min(720, window.outerHeight);
+  const x = at?.x ?? window.screenX + window.outerWidth - w - 24;
+  const y = at?.y ?? window.screenY + 80;
+  child = window.open(url, NAME, `popup,width=${Math.round(w)},height=${Math.round(h)},left=${Math.round(x)},top=${Math.round(y)}`);
   if (!child) {
-    toast({ kind: "error", text: "O navegador bloqueou a janela do log. Libere as janelas pop-up deste endereço e tente de novo." });
+    setDicePrefs({ logDetached: true });
+    toast({ kind: "info", text: "O navegador bloqueou a janela do log; ele abriu flutuando na mesa. Libere as janelas pop-up deste endereço para abrir fora." });
     return;
   }
   child.focus();
@@ -35,13 +40,13 @@ export function popOutLog(at?: { x: number; y: number; w: number; h: number }) {
   useApp.setState({ logOut: true });
 }
 
-/** Traz o log de volta para a mesa (como janela flutuante) e fecha a de fora. */
+/** Traz o log de volta para o painel Dados e fecha a janela de fora. */
 export function bringLogBack() {
   post("return");
   child?.close();
   child = null;
   useApp.setState({ logOut: false });
-  setDicePrefs({ logDetached: true });
+  setDicePrefs({ logDetached: false });
 }
 
 if (channel && IS_LOG_WINDOW) {
@@ -56,7 +61,7 @@ if (channel && IS_LOG_WINDOW) {
   const back = () => {
     child = null;
     useApp.setState({ logOut: false });
-    setDicePrefs({ logDetached: true });
+    setDicePrefs({ logDetached: false });
   };
   // Mesa: se a janela de fora fechar (ou pedir para voltar), o log volta a aparecer aqui.
   channel.onmessage = (e: MessageEvent<Message>) => {

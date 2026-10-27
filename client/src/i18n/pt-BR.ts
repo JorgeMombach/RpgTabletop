@@ -126,7 +126,7 @@ export const ptBR = {
   "logWindow.title": "Log de rolagens · Jamal's Tabletop",
   "logWindow.heading": "Log de rolagens",
   "logWindow.open": "Abrir o log em outra janela",
-  "logWindow.detachTip": "Destacar o log: janela flutuante que dá para arrastar e redimensionar; arraste para fora da mesa para levar a outro monitor",
+  "logWindow.detachTip": "Abrir o log numa janela própria, ao lado da mesa (arraste para outro monitor). Fechar a janela traz o log de volta para cá.",
   "logWindow.openTip": "Levar o log para uma janela própria (para outro monitor); também dá para arrastar a janela para fora da mesa",
   "logWindow.dropHint": "Solte para abrir em janela própria",
   "logWindow.isOut": "O log está numa janela fora da mesa.",

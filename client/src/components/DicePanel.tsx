@@ -21,7 +21,7 @@ import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
-import { bringLogBack } from "../logWindow";
+import { bringLogBack, popOutLog } from "../logWindow";
 import { allCombatants } from "../format";
 import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
@@ -297,7 +297,7 @@ function LogHeader({ canDetach }: { canDetach: boolean }) {
       </Tooltip>
       {!logDetached && (
         <Tooltip label={t("logWindow.detachTip")}>
-          <ActionIcon size="sm" aria-label="Destacar o log" onClick={() => setDicePrefs({ logDetached: true })}>
+          <ActionIcon size="sm" aria-label={t("logWindow.open")} onClick={() => popOutLog()}>
             <IconWindowMaximize size={16} />
           </ActionIcon>
         </Tooltip>

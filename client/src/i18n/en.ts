@@ -119,7 +119,7 @@ export const en: Partial<Messages> = {
   "logWindow.title": "Roll log · Jamal's Tabletop",
   "logWindow.heading": "Roll log",
   "logWindow.open": "Open the log in another window",
-  "logWindow.detachTip": "Detach the log: floating window you can drag and resize; drag it out of the table to take it to another monitor",
+  "logWindow.detachTip": "Open the log in its own window, next to the table (drag it to another monitor). Closing the window brings the log back here.",
   "logWindow.openTip": "Move the log to its own window (for another monitor); you can also drag the window out of the table",
   "logWindow.dropHint": "Drop to open in its own window",
   "logWindow.isOut": "The log is in a window outside the table.",

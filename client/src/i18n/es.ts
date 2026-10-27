@@ -119,7 +119,7 @@ export const es: Partial<Messages> = {
   "logWindow.title": "Registro de tiradas · Jamal's Tabletop",
   "logWindow.heading": "Registro de tiradas",
   "logWindow.open": "Abrir el registro en otra ventana",
-  "logWindow.detachTip": "Separar el registro: ventana flotante que se puede arrastrar y redimensionar; arrástrala fuera de la mesa para llevarla a otro monitor",
+  "logWindow.detachTip": "Abrir el registro en una ventana propia, junto a la mesa (arrástrala a otro monitor). Cerrar la ventana trae el registro de vuelta aquí.",
   "logWindow.openTip": "Llevar el registro a una ventana propia (para otro monitor); también puedes arrastrar la ventana fuera de la mesa",
   "logWindow.dropHint": "Suelta para abrir en ventana propia",
   "logWindow.isOut": "El registro está en una ventana fuera de la mesa.",
