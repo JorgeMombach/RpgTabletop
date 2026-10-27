@@ -6,6 +6,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Alterado
+- **Ping:** no computador passa a ser Alt+clique ou o botão do meio do mouse; segurar o botão parado não pinga mais (segurar é para arrastar a visão ou um token). No toque continua segurar o dedo parado, e começar a arrastar cancela o ping.
+
 ## [2.8.1] - 2026-10-26
 
 ### Corrigido

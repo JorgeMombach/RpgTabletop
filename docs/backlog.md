@@ -1,6 +1,6 @@
 # Backlog — melhorias da mesa
 
-Branch contínua `feat/melhorias-da-mesa` (a partir da 2.7.0): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
+Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D; agora `feat/melhorias-da-mesa-2`, a partir da 2.8.1): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
 
 Regras que valem para tudo: o app registra, não aplica regras (ADR-06); permissões no servidor; dado novo sensível passa pelo filtro de `view.ts` com teste; tudo novo entra no arquivo de sessão (e no teste de proteção do save); textos novos já nascem traduzíveis (depois da base de i18n).
 
@@ -40,16 +40,41 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [ ] **Mostrar para a mesa:** imagem ou texto (carta, retrato, mapa do tesouro) que abre na tela de todos.
 - [ ] **Encontros prontos:** salvar mobs, posições, clima e som de um encontro e carregar inteiro.
 - [ ] **Notas privadas do mestre** por mob/NPC.
+- [ ] **Descrição pública** de mob/NPC (e no template), que todos veem: "Avanthir, o Sábio — dragão ancião de neve…".
 - [ ] **Rolagem secreta por um jogador:** o mestre rola (ex.: Percepção) com o modificador do personagem sem o jogador ver.
 
 ## F. Produto
 - [ ] **Sobre / Créditos:** versão, licenças de terceiros (biblioteca e sons dos dados, MIT; fontes, OFL; ícones Tabler, MIT…) e crédito do SRD 5.1 (CC-BY 4.0) se usarmos texto dele. Nada de "D&D" e outras marcas da Wizards no app.
 - [ ] **i18n completo: inglês e espanhol.** Migrar os textos do client para o catálogo; mensagens de erro do servidor viram códigos traduzidos no client; escolha do idioma (padrão: o do navegador).
 
-## Depois (entregáveis próprios)
-- Névoa de guerra (o mestre revela o mapa aos poucos).
-- Hospedagem ou túnel para jogar sem VPN.
-- Assinatura do executável (Windows e Mac).
+## G. Névoa de guerra
+- [ ] **Névoa de guerra:** o mapa começa coberto para os jogadores e o mestre revela por áreas (retângulo, pincel, cômodo entre paredes) e cobre de novo. O mestre vê tudo, com a névoa translúcida. Tokens debaixo da névoa não vão para os jogadores (como os ocultos). Uma névoa por cena, no arquivo de sessão. Usa as paredes do bloco D para revelar "o cômodo".
+
+## H. Ajustes do que já existe (vindos do jogo)
+- [x] **Ping sem atrapalhar o arrasto:** hoje segurar para arrastar a visão ou um token também dispara ping. Arrastar cancela o ping; no computador o ping passa a ser Alt+clique (ou botão do meio), e segurar parado fica só para o toque.
+- [ ] **Numeração dos mobs pelos nomes em uso:** template e *Conjurar* numeram cada um por conta própria e repetem nomes ("Zumbi 1" duas vezes). O número novo continua do maior "Zumbi N" que já existe.
+- [ ] **Iniciativa rolada uma vez só:** o jogador rola a própria iniciativa uma vez por combate; rolar de novo ou mudar o valor fica com o mestre.
+- [ ] **Cor do alcance/aura** escolhível (hoje é a cor do token).
+- [ ] **"Conjurar" vira "Invocar"** em toda a interface (botões, avisos, log, README).
+- [ ] **Descanso curto/longo: quem faz** (a decidir: cada jogador no seu, o mestre para todos, ou opção da mesa).
+
+## I. Regras da mesa (opções que o mestre liga)
+- [ ] **Movimento por turno:** em combate, cada um só move o próprio token na sua vez; fora de combate, livre; o mestre sempre. Validado no servidor. Muda o "movimento livre" do ADR-06 para uma opção da mesa.
+- [ ] **Invocar só na sua vez** quando estiver em combate.
+- [ ] **Lembrete de escuridão:** com a luz do clima em *Noite* ou *Luar*, aviso para quem não tem visão no escuro (marca "Visão no escuro" na ficha). Só informa.
+
+## J. Interface
+- [ ] **Painel do mestre em abas:** a coluna da esquerda está poluída; separar em abas (ex.: Combate, Mapa e cenas, Ambiente (clima e som), Mesa (bestiário, jogadores, sessão, convite)).
+- [ ] **Recolher as colunas por completo:** botão na borda (e arrastar até o fim) para esconder a coluna e dar o espaço ao mapa; bom no iPad.
+- [ ] **Log de dados em outra janela:** abrir o log numa janela própria para arrastar para outro monitor (no navegador e no app do mestre).
+
+## K. Combate avançado
+- [ ] **Chefe com fases:** várias barras de vida em sequência (fase 1, 2, 3…); zerou uma, começa a próxima com aviso no log (e, se quiser, nome e CA novos).
+- [ ] **Efeitos que andam com o token:** um efeito de área preso a um combatente (ex.: espírito protetor do clérigo) acompanha o token quando ele anda.
+
+## Depois (pago ou entregável próprio)
+- Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).
+- Assinatura do executável no Windows e no Mac (certificados pagos).
 
 ## Ideias novas
 (entram aqui conforme surgirem e sobem para a seção certa quando decididas)

@@ -258,6 +258,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Eventos de ponteiro: valem para mouse, dedo e caneta (E23).
   function onMouseDown(e: Konva.KonvaEventObject<PointerEvent>) {
+    // Botão do meio = ping (sem abrir a rolagem automática do navegador).
+    if (e.evt.button === 1) {
+      e.evt.preventDefault();
+      stageRef.current?.setPointersPositions(e.evt);
+      const at = worldPointer();
+      if (at) sendPing(at);
+      return;
+    }
     if (e.evt.button !== 0 || pinch.current) return;
     // Clique sem mover o mouse antes: garante que o Konva saiba onde está o ponteiro.
     stageRef.current?.setPointersPositions(e.evt);
@@ -293,8 +301,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       setStroke(strokeRef.current);
       return;
     }
+    // Segurar parado só pinga no toque: com o mouse, segurar é para arrastar a visão ou um token.
     const screen = stageRef.current?.getPointerPosition();
-    if (tool === "move" && screen) {
+    if (tool === "move" && screen && e.evt.pointerType !== "mouse") {
       cancelPress();
       const timer = window.setTimeout(() => {
         press.current = null;
@@ -439,6 +448,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     <div
       ref={containerRef}
       className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}`}
+      // Botão do meio é ping: sem a rolagem automática do navegador.
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes(DRAG_MIME)) e.preventDefault();
       }}
@@ -454,6 +465,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           scaleX={view.scale}
           scaleY={view.scale}
           draggable={tool === "move" && !shiftHeld && !placing}
+          // Começou a arrastar (a visão ou um token): não é ping.
+          onDragStart={cancelPress}
           onDragMove={(e) => {
             if (e.target === e.target.getStage()) setView((v) => ({ ...v, x: e.target.x(), y: e.target.y() }));
           }}

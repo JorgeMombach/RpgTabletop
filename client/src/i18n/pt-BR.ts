@@ -33,7 +33,7 @@ export const ptBR = {
   "init.groupClose": "Juntar de novo",
 
   // Mapa
-  "map.moveTip": "Mover tokens e a visão do mapa. Para chamar a atenção de todos num ponto (ping), segure parado ou use Alt+clique.",
+  "map.moveTip": "Mover tokens e a visão do mapa. Para chamar a atenção de todos num ponto (ping): Alt+clique ou botão do meio do mouse; no toque, segure parado.",
   "place.click": "Clique onde aparece {name}.",
   "place.tap": "Toque onde entra {name} e toque de novo para confirmar.",
   "place.left": "(faltam {n})",
