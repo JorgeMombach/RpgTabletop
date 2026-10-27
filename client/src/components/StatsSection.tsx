@@ -1,4 +1,5 @@
-import { SimpleGrid, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { Menu, SimpleGrid, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import { ABILITIES, abilityMod, type Ability, type Combatant } from "@rpg/shared";
 import { act } from "../actions";
 import { fmtMod } from "../format";
@@ -35,10 +36,13 @@ export function StatsSection({ c, canRoll, gm }: { c: Combatant; canRoll: boolea
   const t = useT();
   const filled = ABILITIES.filter((k) => c.abilities?.[k] !== undefined);
 
-  function roll(k: Ability) {
+  // Mestre no personagem de um jogador: escolhe rolar à vista ou em segredo (só ele vê; o jogador nem fica sabendo).
+  const secretChoice = gm && c.type === "ally";
+
+  function roll(k: Ability, secret = false) {
     const mod = abilityMod(c.abilities![k]!);
-    // Mestre: assina com o combatente; oculta só a de mob/NPC (a do personagem de um jogador fica à vista).
-    void act("dice:roll", { expr: d20(mod), check: k, ...(gm ? { asId: c.id, hidden: c.type !== "ally" } : {}) });
+    // Mestre: assina com o combatente; oculta a de mob/NPC (e a do personagem, se pediu em segredo).
+    void act("dice:roll", { expr: d20(mod), check: k, ...(gm ? { asId: c.id, hidden: c.type !== "ally" || secret } : {}) });
   }
 
   return (
@@ -60,6 +64,24 @@ export function StatsSection({ c, canRoll, gm }: { c: Combatant; canRoll: boolea
             </Text>
           </Stack>
         );
+        if (canRoll && secretChoice) {
+          return (
+            <Menu key={k} position="bottom" withinPortal>
+              <Menu.Target>
+                <UnstyledButton aria-label={t("stats.roll", { ability: t(`ability.${k}.name`), mod })}>{body}</UnstyledButton>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>{t("stats.roll", { ability: t(`ability.${k}.name`), mod })}</Menu.Label>
+                <Menu.Item leftSection={<IconEye size={14} />} onClick={() => roll(k)}>
+                  {t("stats.rollOpen")}
+                </Menu.Item>
+                <Menu.Item leftSection={<IconEyeOff size={14} />} onClick={() => roll(k, true)}>
+                  {t("stats.rollSecret")}
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          );
+        }
         return (
           <Tooltip key={k} label={canRoll ? t("stats.roll", { ability: t(`ability.${k}.name`), mod }) : t(`ability.${k}.name`)}>
             {canRoll ? (

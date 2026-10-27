@@ -143,7 +143,9 @@ export const diceHandlers: HandlerMap = {
     const context = outOfTurn(store, player);
     const kindLabel = kind === "attack" ? "Ataque" : kind === "damage" ? (crit ? "Dano (crítico)" : "Dano") : undefined;
     const death = payload?.death === true ? "Teste contra a morte" : undefined;
-    const label = [context, kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death].filter(Boolean).join(" · ") || undefined;
+    // Mestre rolando oculto como o personagem de um jogador (ex.: Percepção sem ele saber): marca "Secreto".
+    const secret = gm && payload.hidden === true && by?.type === "ally" ? "Secreto" : undefined;
+    const label = [context, kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death, secret].filter(Boolean).join(" · ") || undefined;
     if (!gm) player.lastRollAt = now;
     return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit, color })];
   },

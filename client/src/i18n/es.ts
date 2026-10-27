@@ -190,6 +190,8 @@ export const es: Partial<Messages> = {
   "stats.acTitle": "Clase de armadura",
   "stats.noAcTitle": "Clase de armadura aún sin definir: usa Editar",
   "stats.roll": "Tirar prueba de {ability}: d20 {mod}",
+  "stats.rollOpen": "Tirar a la vista (todos ven)",
+  "stats.rollSecret": "Tirar en secreto (solo tú ves)",
 
   "hp.editTip": "Haz clic para escribir los puntos de golpe actuales",
   "hp.current": "Puntos de golpe actuales",

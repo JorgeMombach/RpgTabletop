@@ -190,6 +190,8 @@ export const en: Partial<Messages> = {
   "stats.acTitle": "Armor class",
   "stats.noAcTitle": "Armor class not set yet: use Edit",
   "stats.roll": "Roll {ability} check: d20 {mod}",
+  "stats.rollOpen": "Roll openly (everyone sees)",
+  "stats.rollSecret": "Roll in secret (only you see)",
 
   "hp.editTip": "Click to type the current hit points",
   "hp.current": "Current hit points",

@@ -41,7 +41,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [ ] **Encontros prontos:** salvar mobs, posições, clima e som de um encontro e carregar inteiro.
 - [x] **Notas privadas do mestre** por mob/NPC (e aliados).
 - [x] **Descrição pública** de mob/NPC (e no template), que todos veem: "Avanthir, o Sábio — dragão ancião de neve…".
-- [ ] **Rolagem secreta por um jogador:** o mestre rola (ex.: Percepção) com o modificador do personagem sem o jogador ver.
+- [x] **Rolagem secreta por um jogador:** o mestre rola (ex.: Percepção) com o modificador do personagem sem o jogador ver.
 
 ## F. Produto
 - [ ] **Sobre / Créditos:** versão, licenças de terceiros (biblioteca e sons dos dados, MIT; fontes, OFL; ícones Tabler, MIT…) e crédito do SRD 5.1 (CC-BY 4.0) se usarmos texto dele. Nada de "D&D" e outras marcas da Wizards no app.

@@ -201,6 +201,8 @@ export const ptBR = {
   "stats.acTitle": "Classe de armadura",
   "stats.noAcTitle": "Classe de armadura ainda não informada: use Editar",
   "stats.roll": "Rolar teste de {ability}: d20 {mod}",
+  "stats.rollOpen": "Rolar à vista (todos veem)",
+  "stats.rollSecret": "Rolar em segredo (só você vê)",
 
   // Vida
   "hp.editTip": "Clique para digitar a vida atual",
