@@ -12,6 +12,7 @@ import { InvitePanel } from "./InvitePanel";
 import { MapPanel } from "./MapPanel";
 import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
+import { RulesPanel } from "./RulesPanel";
 import { ScenesPanel } from "./ScenesPanel";
 import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
@@ -39,7 +40,7 @@ function readTab(): Tab {
 
 /**
  * Coluna da esquerda do mestre em abas (a lista de painéis tinha ficado comprida demais):
- * Combate, Mapa (cenas e mapa), Ambiente (clima e som) e Mesa (mostrar para a mesa, bestiário, jogadores, sessão, convite).
+ * Combate, Mapa (cenas e mapa), Ambiente (clima e som) e Mesa (mostrar para a mesa, regras da mesa, bestiário, jogadores, sessão, convite).
  * A aba não troca sozinha: quando a vez muda com outra aba aberta, a de Combate ganha um ponto.
  * A aba escolhida fica guardada neste navegador.
  */
@@ -102,6 +103,7 @@ export function GmTabs({ state }: { state: ClientState }) {
       </Tabs.Panel>
       <Tabs.Panel value="table" className="gm-tabs-panel">
         <HandoutPanel />
+        <RulesPanel rules={state.rules} />
         <BestiaryPanel templates={state.templates} />
         <PlayersPanel state={state} />
         <SessionPanel />

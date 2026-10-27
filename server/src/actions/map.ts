@@ -3,6 +3,7 @@ import { allCombatants, resetCombat } from "../combat";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
+import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
 
 function gridPosOf(raw: unknown): GridPos | null {
@@ -87,8 +88,10 @@ export const mapHandlers: HandlerMap = {
   },
 
   "token:move": (store, player, payload) => {
-    // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa.
+    // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa e, com a regra
+    // da mesa ligada, a vez em combate.
     const c = editable(store, player, payload?.id);
+    requireTurnFor(store, player, "moveOnTurn", "Em combate, cada um move na sua vez.");
     const pos = gridPosOf(payload.pos);
     // Dois corpos não ocupam o mesmo espaço; criaturas grandes ocupam várias casas e miúdas dividem a casa.
     // Para o jogador, um oculto não conta: a recusa entregaria que há alguém ali (E21). O mestre separa os dois quando revelar.

@@ -103,7 +103,7 @@ O jogador é **dono e único gestor** do estado do próprio personagem. O sistem
 - **Calibração:** mestre ajusta tamanho da célula e offset (sliders) ou arrasta um retângulo sobre 1 quadrado (ou N quadrados informando N) e o app calcula a escala.
 - Zoom (scroll) e pan.
 - **Tokens:** avatar circular (upload redimensionado no cliente para ~128px) ou círculo colorido com iniciais. Borda diferencia aliado/mob; token do turno atual destacado.
-- **Movimento livre:** arrastar com snap no grid e sincronizar. **Sem limite nem contagem de deslocamento** — cada um respeita a própria ficha.
+- **Movimento livre:** arrastar com snap no grid e sincronizar. **Sem limite nem contagem de deslocamento** — cada um respeita a própria ficha. Com a regra da mesa *Movimento só na sua vez* ligada pelo mestre, em combate o jogador só move os próprios tokens na sua vez (ainda sem contar deslocamento).
 - **Régua (só medição, sem validação):** clicar e arrastar mostra a distância em pés para todos; serve para conferir alcance de magia/ataque e quanto andou. Diagonal pela regra padrão do 5e (5 pés).
 
 ### F5 — Iniciativa e turnos
@@ -194,7 +194,7 @@ Servidor → cliente:
 ### ADR-06 — Sistema como registro, sem motor de regras
 - **Decisão:** o app **não calcula** dano, cura, deslocamento, alcance nem morte. Ele só soma/subtrai os valores informados e mede distâncias na régua.
 - **Motivo:** cada validação de regra é um ponto de falha e de discussão; a mesa já resolve isso pelas fichas.
-- **Consequências:** movimento livre; mob com 0 HP só é marcado, a remoção é ação explícita do mestre. Jogadores gerenciam livremente a própria vida e slots (incluindo restaurar tudo), sem aprovação nem regra de descanso no sistema.
+- **Consequências:** movimento livre (a mesa pode ligar a regra *Movimento só na sua vez*: trava **quando** mover, nunca **quanto**); mob com 0 HP só é marcado, a remoção é ação explícita do mestre. Jogadores gerenciam livremente a própria vida e slots (incluindo restaurar tudo), sem aprovação nem regra de descanso no sistema.
 
 ### ADR-07 — Rolagem de dados no servidor
 - **Decisão:** toda rolagem acontece no servidor (`crypto.randomInt`) e é publicada no log.

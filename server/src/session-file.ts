@@ -38,6 +38,7 @@ import {
   type Spell,
   type SpellLevel,
   type SpellSlot,
+  type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
 import { parseWall } from "./actions/walls";
@@ -85,6 +86,11 @@ function text(raw: unknown, what: string, max: number): string {
 
 function optText(raw: unknown, what: string, max: number): string | undefined {
   return raw === undefined ? undefined : text(raw, what, max);
+}
+
+function tableRules(raw: unknown): TableRules {
+  const r = obj(raw, "regras da mesa");
+  return { moveOnTurn: bool(r.moveOnTurn ?? false, "regra da mesa"), summonOnTurn: bool(r.summonOnTurn ?? false, "regra da mesa") };
 }
 
 function outsideRolls(raw: unknown): OutsideRolls {
@@ -429,6 +435,8 @@ export function parseSession(raw: unknown): ParsedSession {
     log: list(g.log, "log", LIMITS.logSize).map(logEntry),
     scenes,
     sceneId,
+    // Arquivo de antes das regras da mesa: tudo desligado.
+    rules: tableRules(g.rules ?? {}),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");

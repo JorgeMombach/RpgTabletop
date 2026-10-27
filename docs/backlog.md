@@ -59,8 +59,8 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Descanso curto/longo: quem faz:** cada jogador no próprio personagem (com confirmação, só fora de combate, no log) e o mestre *Descanso para todos*.
 
 ## I. Regras da mesa (opções que o mestre liga)
-- [ ] **Movimento por turno:** em combate, cada um só move o próprio token na sua vez; fora de combate, livre; o mestre sempre. Validado no servidor. Muda o "movimento livre" do ADR-06 para uma opção da mesa.
-- [ ] **Invocar só na sua vez** quando estiver em combate.
+- [x] **Movimento por turno:** em combate, cada um só move o próprio token na sua vez; fora de combate, livre; o mestre sempre. Validado no servidor. Muda o "movimento livre" do ADR-06 para uma opção da mesa.
+- [x] **Invocar só na sua vez** quando estiver em combate.
 - [ ] **Lembrete de escuridão:** com a luz do clima em *Noite* ou *Luar*, aviso para quem não tem visão no escuro (marca "Visão no escuro" na ficha). Só informa.
 
 ## J. Interface

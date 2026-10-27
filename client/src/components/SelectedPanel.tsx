@@ -5,7 +5,8 @@ import { useState } from "react";
 import { act } from "../actions";
 import { removeMob } from "../commands";
 import { confirmAction } from "../confirm";
-import { allCombatants, fmtMod } from "../format";
+import { allCombatants, fmtMod, turnLocked } from "../format";
+import { useT } from "../i18n";
 import { cellAt, placeFor } from "../map/geometry";
 import { useMobileLayout } from "../layout";
 import { select, setPlacing, useApp } from "../store";
@@ -39,6 +40,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [summoningId, setSummoningId] = useState<string | null>(null);
+  const t = useT();
 
   const gm = state.self.role === "gm";
   const mobile = useMobileLayout(gm);
@@ -90,6 +92,10 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const editing = editingId === c.id;
   const summoner = c.summonerId ? allCombatants(state).find((o) => o.id === c.summonerId) : undefined;
   const summoning = summoningId === c.id;
+  // Regras da mesa: em combate, fora da vez, o jogador não mexe no mapa nem invoca. `data-disabled`
+  // (e não `disabled`) para o tooltip explicar o porquê.
+  const moveLocked = turnLocked(state, "moveOnTurn");
+  const summonLocked = turnLocked(state, "summonOnTurn");
   const kind =
     (c.type === "mob" ? "Mob" : c.type === "npc" ? "NPC" : owner ? `Aliado · ${owner.name}` : "Aliado") +
     (summoner ? ` · invocado por ${summoner.name}` : "") +
@@ -169,19 +175,25 @@ export function SelectedPanel({ state }: { state: ClientState }) {
         <>
           <Divider />
           <Group justify="space-between" gap="xs" wrap="wrap">
-            {c.pos ? (
-              <Button variant="default" onClick={() => act("token:move", { id: c.id, pos: null })}>
-                Tirar do mapa
-              </Button>
-            ) : (
-              // Celular: troca para a aba Mapa e espera o toque onde ele entra.
-              <Button variant="default" onClick={() => (mobile ? setPlacing({ ids: [c.id], fromId: c.summonerId }) : placeOnMap(state, c.id))}>
-                Colocar no mapa
-              </Button>
-            )}
+            <Tooltip label={t("rules.moveLocked")} disabled={!moveLocked}>
+              {c.pos ? (
+                <Button variant="default" data-disabled={moveLocked || undefined} onClick={() => !moveLocked && act("token:move", { id: c.id, pos: null })}>
+                  Tirar do mapa
+                </Button>
+              ) : (
+                // Celular: troca para a aba Mapa e espera o toque onde ele entra.
+                <Button
+                  variant="default"
+                  data-disabled={moveLocked || undefined}
+                  onClick={() => !moveLocked && (mobile ? setPlacing({ ids: [c.id], fromId: c.summonerId }) : placeOnMap(state, c.id))}
+                >
+                  Colocar no mapa
+                </Button>
+              )}
+            </Tooltip>
             {!c.summonerId && (
-              <Tooltip label="Familiar, esqueletos, animais…: ficam do seu lado e você controla">
-                <Button variant="default" leftSection={<IconWand size={14} />} onClick={() => setSummoningId(c.id)}>
+              <Tooltip label={summonLocked ? t("rules.summonLocked") : "Familiar, esqueletos, animais…: ficam do seu lado e você controla"}>
+                <Button variant="default" leftSection={<IconWand size={14} />} data-disabled={summonLocked || undefined} onClick={() => !summonLocked && setSummoningId(c.id)}>
                   Invocar
                 </Button>
               </Tooltip>

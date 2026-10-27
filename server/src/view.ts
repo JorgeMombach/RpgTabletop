@@ -58,6 +58,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
     sceneId: game.sceneId,
+    rules: game.rules,
     // Cenas preparadas são do mestre: os jogadores só veem a que está no mapa.
     scenes: gm
       ? game.scenes.map((s) => {

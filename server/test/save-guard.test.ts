@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Combatant, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
+import type { Combatant, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -136,6 +136,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     log: [roll],
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
+    rules: { moveOnTurn: true, summonOnTurn: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);
 }

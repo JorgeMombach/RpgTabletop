@@ -1,4 +1,4 @@
-import { groupRange, type ClientState, type CombatantView, type Condition, type LogEntry } from "@rpg/shared";
+import { groupRange, type ClientState, type CombatantView, type Condition, type LogEntry, type TableRules } from "@rpg/shared";
 
 export function fmtMod(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -27,6 +27,15 @@ export function currentGroup(state: ClientState): CombatantView[] {
   const byId = new Map(allCombatants(state).map((c) => [c.id, c]));
   const [start, end] = groupRange(combat.order, combat.turnIndex, (id) => byId.get(id));
   return combat.order.slice(start, end).flatMap((id) => byId.get(id) ?? []);
+}
+
+/**
+ * Regra da mesa travando esta pessoa agora: em combate, com a regra ligada, fora da vez dela
+ * (a vez do personagem ou de um invocado dele). O mestre nunca é travado. O servidor confere de novo.
+ */
+export function turnLocked(state: ClientState, rule: keyof TableRules): boolean {
+  if (state.self.role === "gm" || !state.rules[rule] || !state.battle.combat.active) return false;
+  return !currentGroup(state).some((c) => c.ownerId === state.self.id);
 }
 
 /** Quem rolou, no padrão da mesa (E26): "Thorin (Jorge)", "Goblin 2 (Mestre)", "Mestre". */

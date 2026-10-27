@@ -464,6 +464,19 @@ export interface Handout {
   image?: string;
 }
 
+/**
+ * Regras da mesa: opções que o mestre liga. Desligadas, vale o de sempre (movimento livre, ADR-06).
+ * O mestre nunca é travado por elas.
+ */
+export interface TableRules {
+  /** Em combate, o jogador só move os próprios tokens na sua vez. */
+  moveOnTurn: boolean;
+  /** Em combate, o jogador só invoca na sua vez. */
+  summonOnTurn: boolean;
+}
+
+export const RULE_KEYS = ["moveOnTurn", "summonOnTurn"] as const satisfies readonly (keyof TableRules)[];
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];
@@ -484,6 +497,8 @@ export interface GameState {
   /** Cenas da sessão, na ordem do painel; a ativa é `sceneId` (o conteúdo dela está em `battle`). */
   scenes: Scene[];
   sceneId: string;
+  /** Regras da mesa (valem para todas as cenas). */
+  rules: TableRules;
 }
 
 export interface HostInfo {
@@ -611,6 +626,7 @@ export interface ClientState {
   /** Cena ativa (todos) e a lista de cenas (só o mestre: nome, se tem imagem e quantos mobs). */
   sceneId: string;
   scenes?: { id: string; name: string; hasImage: boolean; mobs: number }[];
+  rules: TableRules;
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */

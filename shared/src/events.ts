@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, Coins, Drawing, Handout, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 
 export interface JoinPayload {
   name: string;
@@ -257,6 +257,8 @@ export interface ActionPayloads {
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   "wall:add": { from: GridPos; to: GridPos; door?: boolean };
   "wall:remove": { id: string };
+  /** Mestre: liga ou desliga regras da mesa (só as que vierem). */
+  "rules:set": Partial<TableRules>;
   /** Mestre: mostra para a mesa (abre na tela de todos); substitui o que estava sendo mostrado. */
   "handout:show": { title?: string; text?: string; image?: string };
   /** Mestre: para de mostrar (fecha na tela de todos). */

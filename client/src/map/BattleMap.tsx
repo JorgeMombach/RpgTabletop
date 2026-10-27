@@ -9,7 +9,7 @@ import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
-import { allCombatants, currentGroup } from "../format";
+import { allCombatants, currentGroup, turnLocked } from "../format";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
@@ -419,7 +419,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
   const activeIds = new Set(currentGroup(state).map((c) => c.id));
-  const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
+  // Com a regra "movimento só na vez" ligada, o jogador só arrasta os seus na vez dele.
+  const moveLocked = turnLocked(state, "moveOnTurn");
+  const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id && !moveLocked);
   // Por cima de todos: o token com o mouse em cima e, abaixo dele, o selecionado. Assim o nome
   // (que aparece em cima do token) nunca fica escondido atrás do vizinho (E26).
   const rank = (c: CombatantView) => (c.id === hoverId ? 2 : c.id === selectedId ? 1 : 0);

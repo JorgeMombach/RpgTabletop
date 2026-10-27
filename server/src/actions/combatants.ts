@@ -24,6 +24,7 @@ import { endConcentration, ensureConcentration, isConcentration } from "./effect
 import { logSystem } from "./dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireImage, requireInt, requireName, requireString } from "../validate";
+import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
 
 /** Janela do "Desfazer" depois de remover um mob. */
@@ -360,6 +361,7 @@ export const combatantHandlers: HandlerMap = {
   "summon:add": (store, player, payload) => {
     const summoner = editable(store, player, payload?.summonerId);
     if (summoner.summonerId) fail("Um invocado não invoca outro (invoque a partir de quem lançou a magia).");
+    requireTurnFor(store, player, "summonOnTurn", "Em combate, só dá para invocar na sua vez.");
     const qty = requireInt(payload.qty, "Quantidade", LIMITS.qty.min, LIMITS.qty.max);
     const { min, max } = LIMITS.conditionRounds;
     const rounds = payload.rounds === undefined || payload.rounds === null ? null : requireInt(payload.rounds, "Duração", min, max);
