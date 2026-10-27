@@ -215,6 +215,24 @@ function pruneRemoved(store: Store, now = Date.now()) {
   for (const [id, r] of store.removedMobs) if (now - r.at > UNDO_WINDOW_MS) store.removedMobs.delete(id);
 }
 
+/**
+ * Maior número já usado com este nome em qualquer combatente de qualquer cena: "Zumbi 3" → 3;
+ * "Zumbi" sozinho conta como 1. Sem ninguém com o nome: 0. Ignora maiúsculas.
+ */
+function numberInUse(store: Store, base: string): number {
+  const { game } = store;
+  const stored = game.scenes.flatMap((s) => (s.stored ? [...s.stored.mobs, ...s.stored.npcs] : []));
+  const key = base.trim().toLocaleLowerCase("pt-BR");
+  let max = 0;
+  for (const c of [...allCombatants(store), ...stored]) {
+    const name = c.name.toLocaleLowerCase("pt-BR");
+    if (name === key) max = Math.max(max, 1);
+    const m = /^(.*\S)\s+(\d+)$/.exec(name);
+    if (m && m[1] === key) max = Math.max(max, Number(m[2]));
+  }
+  return max;
+}
+
 export const combatantHandlers: HandlerMap = {
   "template:upsert": (store, player, input) => {
     requireGm(player);
@@ -262,7 +280,8 @@ export const combatantHandlers: HandlerMap = {
     const t = store.game.templates.find((t) => t.id === payload?.templateId) ?? fail("Template não encontrado.");
     const qty = requireInt(payload.qty, "Quantidade", LIMITS.qty.min, LIMITS.qty.max);
 
-    let n = store.mobCounters.get(t.id) ?? 0;
+    // Continua do maior número em uso (o *Conjurar* também numera) e nunca volta atrás (mob removido não "libera" o número).
+    let n = Math.max(store.mobCounters.get(t.id) ?? 0, numberInUse(store, t.name));
     const ids: string[] = [];
     for (let i = 0; i < qty; i++) {
       n++;
@@ -324,9 +343,11 @@ export const combatantHandlers: HandlerMap = {
 
     const occupied = () => blockedCells(allCombatants(store));
     const ids: string[] = [];
+    // Vários iguais: "Esqueleto 1", "Esqueleto 2"…, continuando do maior número em uso ("Zumbi 4" se já há
+    // Zumbi 1 a 3, vindos do bestiário ou de outra conjuração). Um só e sem ninguém com o nome: sem número.
+    const used = numberInUse(store, base);
     for (let i = 1; i <= qty; i++) {
-      // Vários iguais: "Esqueleto 1", "Esqueleto 2"… (o número nunca é cortado).
-      const suffix = qty > 1 ? ` ${i}` : "";
+      const suffix = qty > 1 || used > 0 ? ` ${used + i}` : "";
       const name = base.slice(0, NAME_MAX_LENGTH - suffix.length).trimEnd() + suffix;
       const s = newCombatant(summoner.type, { ...payload, name, hidden: summoner.hidden }, color);
       s.summonerId = summoner.id;

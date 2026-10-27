@@ -9,6 +9,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ### Alterado
 - **Ping:** ganhou um botão próprio na barra do mapa (toque ou clique no ponto e a ferramenta volta para *Mover*); no computador, também Alt+clique ou o botão do meio do mouse. Segurar parado não pinga mais, nem no mouse nem no dedo: brigava com arrastar a visão e os tokens.
 
+### Corrigido
+- **Nomes repetidos de mobs:** o bestiário e o *Conjurar* numeravam cada um por conta própria e criavam dois "Zumbi 1". Agora o número continua do maior em uso na mesa (em qualquer cena): com Zumbi 1 a 3 conjurados, o bestiário cria Zumbi 4 e 5.
+
 ## [2.8.1] - 2026-10-26
 
 ### Corrigido
