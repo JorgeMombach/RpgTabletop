@@ -189,6 +189,8 @@ export const ptBR = {
   "fog.mode": "Revelar ou cobrir",
   "fog.brush": "Pincel",
   "fog.rect": "Retângulo",
+  "fog.room": "Cômodo",
+  "fog.hintRoom": "Clique dentro de uma sala: revela (ou cobre) tudo até as paredes e portas fechadas. Porta aberta deixa passar.",
   "fog.shape": "Pincel ou retângulo",
   "fog.brushSize": "{n}×{n}",
   "fog.brushSizeLabel": "Tamanho do pincel (casas)",

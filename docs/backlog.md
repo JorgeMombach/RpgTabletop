@@ -50,7 +50,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 ## G. Névoa de guerra
 Em três partes (cada uma um commit), decididas com o mestre: visão da mesa **compartilhada** (o que um vê, todos veem); área já explorada fica **escurecida e sem os inimigos atuais**.
 - [x] **1. Névoa pintada pelo mestre:** o mapa começa coberto para os jogadores; ferramenta *Névoa* com pincel (1, 3 ou 5 casas) e retângulo para revelar ou cobrir, *Revelar o mapa* e *Cobrir tudo*. O mestre vê através (bruma translúcida). Mobs, NPCs, efeitos, desenhos e paredes cobertos não vão para os jogadores. Uma névoa por cena, no arquivo de sessão.
-- [ ] **2. Revelar o cômodo:** com a ferramenta *Névoa*, um clique dentro de uma sala revela tudo até as paredes e portas fechadas (usa as paredes do bloco D).
+- [x] **2. Revelar o cômodo:** com a ferramenta *Névoa*, um clique dentro de uma sala revela tudo até as paredes e portas fechadas (usa as paredes do bloco D).
 - [ ] **3. Visão dos personagens:** cada aliado no mapa revela em volta dele (raio pela luz do clima e *Visão no escuro*), com paredes e portas fechadas bloqueando a linha de visão; o que já foi visto fica explorado (escurecido, sem os inimigos de agora).
 
 ## H. Ajustes do que já existe (vindos do jogo)

@@ -270,6 +270,8 @@ export interface ActionPayloads {
   "fog:set": { enabled: boolean };
   /** Mestre: revela (ou cobre) retângulos de casas. */
   "fog:paint": { reveal: boolean; rects: FogRect[] };
+  /** Mestre: revela (ou cobre) o cômodo da casa: até as paredes e portas fechadas. */
+  "fog:room": { cell: GridPos; reveal: boolean };
   /** Mestre: cobre o mapa inteiro de novo. */
   "fog:reset": Record<string, never>;
   /** Mestre: liga ou desliga regras da mesa (só as que vierem). */
@@ -414,6 +416,8 @@ export const LIMITS = {
   /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
   fogRects: 500,
   fogRectSide: 400,
+  /** Maior cômodo que "revelar o cômodo" aceita (casas); passou disso, a área não fecha. */
+  fogRoom: 4000,
   wallLength: 200,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,

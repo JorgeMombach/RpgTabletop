@@ -182,6 +182,8 @@ export const es: Partial<Messages> = {
   "fog.mode": "Revelar o cubrir",
   "fog.brush": "Pincel",
   "fog.rect": "Rectángulo",
+  "fog.room": "Sala",
+  "fog.hintRoom": "Haz clic dentro de una sala: revela (o cubre) todo hasta las paredes y puertas cerradas. Una puerta abierta deja pasar.",
   "fog.shape": "Pincel o rectángulo",
   "fog.brushSize": "{n}×{n}",
   "fog.brushSizeLabel": "Tamaño del pincel (casillas)",

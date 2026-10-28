@@ -1,4 +1,4 @@
-import { LIMITS, paintFog, type FogRect } from "@rpg/shared";
+import { cellsToRects, LIMITS, paintFog, roomCells, type FogRect } from "@rpg/shared";
 import { fail, requireInt } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
@@ -32,6 +32,18 @@ export const fogHandlers: HandlerMap = {
     // Valida tudo antes de pintar.
     const rects = payload.rects.map(fogRect);
     for (const r of rects) paintFog(store.game.battle.fog, r, payload.reveal);
+  },
+
+  "fog:room": (store, player, payload) => {
+    requireGm(player);
+    if (typeof payload?.reveal !== "boolean") fail("Informe se é para revelar ou cobrir.");
+    const raw = (payload.cell ?? {}) as unknown as Record<string, unknown>;
+    const lim = LIMITS.gridCoord;
+    const cell = { col: requireInt(raw.col, "Coluna", -lim, lim), row: requireInt(raw.row, "Linha", -lim, lim) };
+    const { battle } = store.game;
+    const cells = roomCells(cell, battle.walls, LIMITS.fogRoom);
+    if (!cells) fail("Essa área não está fechada por paredes e portas: feche o cômodo ou use o pincel ou o retângulo.");
+    for (const r of cellsToRects(cells)) paintFog(battle.fog, r, payload.reveal);
   },
 
   "fog:reset": (store, player) => {

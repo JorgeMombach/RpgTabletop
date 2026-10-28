@@ -182,6 +182,8 @@ export const en: Partial<Messages> = {
   "fog.mode": "Reveal or cover",
   "fog.brush": "Brush",
   "fog.rect": "Rectangle",
+  "fog.room": "Room",
+  "fog.hintRoom": "Click inside a room: reveals (or covers) everything up to the walls and closed doors. An open door lets it through.",
   "fog.shape": "Brush or rectangle",
   "fog.brushSize": "{n}×{n}",
   "fog.brushSizeLabel": "Brush size (squares)",

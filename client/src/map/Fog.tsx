@@ -14,7 +14,8 @@ const GM_FOG = { color: "#5b5470", opacity: 0.45 };
 /** Até onde a névoa vai em volta do mapa (casas): o grid não tem fim. */
 const REACH = LIMITS.gridCoord;
 
-export type FogShape = "brush" | "rect";
+/** Pincel, retângulo ou o cômodo inteiro (um clique: até as paredes e portas fechadas). */
+export type FogShape = "brush" | "rect" | "room";
 
 /** Pincelada em andamento do mestre (aparece na hora, antes de o servidor confirmar). */
 export interface FogDraft {
@@ -118,6 +119,7 @@ export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (
           data={[
             { value: "brush", label: t("fog.brush") },
             { value: "rect", label: t("fog.rect") },
+            { value: "room", label: t("fog.room") },
           ]}
           value={fogShape}
           onChange={(v) => useApp.setState({ fogShape: v as FogShape })}
@@ -136,7 +138,7 @@ export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (
       </Group>
       <Group gap="xs" wrap="wrap" justify="space-between" mt={6}>
         <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 160 }}>
-          {t(fog.enabled ? "fog.hint" : "fog.hintOff")}
+          {t(!fog.enabled ? "fog.hintOff" : fogShape === "room" ? "fog.hintRoom" : "fog.hint")}
         </Text>
         <Group gap={4} wrap="nowrap">
           <Tooltip label={t(onRevealMap ? "fog.revealMapTip" : "fog.revealMapNoImage")}>

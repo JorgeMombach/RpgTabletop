@@ -328,6 +328,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (tool === "fog") {
       if (!state.battle.fog.enabled) return;
       const cell = cellAt(p, grid);
+      // Cômodo: um clique revela (ou cobre) até as paredes; o servidor faz a conta.
+      if (fogShape === "room") return void act("fog:room", { cell, reveal: fogReveal });
       fogRef.current = { draft: { reveal: fogReveal, rects: [] }, start: cell, seen: new Set() };
       fogAt(cell);
       return;
