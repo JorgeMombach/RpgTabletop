@@ -570,7 +570,7 @@ Objetivo: depois de jogar com a 2.0, ir somando melhorias pequenas, **uma versã
 
 - **Correção** sobe o PATCH (2.0.1, 2.0.2…). **Entregável novo** sobe o MINOR (2.1.0, 2.2.0…; depois da 2.9.0 vem a 2.10.0). MAJOR (3.0.0) só se quebrar compatibilidade (ex.: arquivo de sessão antigo que deixa de abrir).
 - O PR que fecha o entregável já leva a versão no `package.json` e a seção datada no CHANGELOG: depois do merge, é só criar a tag (checklist no CLAUDE.md).
-- **Depois da 2.7.0:** as melhorias passam a entrar aos poucos numa branch contínua (`feat/melhorias-da-mesa`), com a lista viva em [docs/backlog.md](docs/backlog.md), e saem em versões que juntam vários itens quando o pacote fica bom (2.8.0 = blocos A–D do backlog; E e F na próxima).
+- **Depois da 2.7.0:** as melhorias passam a entrar aos poucos numa branch contínua (`feat/melhorias-da-mesa`), com a lista viva em [docs/backlog.md](docs/backlog.md), e saem em versões que juntam vários itens quando o pacote fica bom (2.8.0 = blocos A–D do backlog; 2.9.0 = E–K).
 
 ## 18. Entregáveis da Fase 4
 
@@ -667,3 +667,17 @@ Os itens e o detalhe de cada um estão em [docs/backlog.md](docs/backlog.md) e n
 - **Vez em grupo:** mobs do mesmo template com a mesma iniciativa e o mesmo d20, lado a lado na ordem, são um grupo (`shared/src/initiative.ts`): uma linha, uma vez; o começo da vez roda para cada um e *Atrasar* leva o grupo.
 - **Ping** é efêmero (como a régua), com limite de frequência por conexão. **Desenhos** ficam em pixels do mapa (acompanham a imagem, não o grid); os ocultos não vão para os jogadores. **Portas secretas** também não.
 - **Cenas:** a ativa vive em `battle`; as outras guardam o conteúdo do mapa (`SceneContent`) e as posições dos aliados. Trocar só fora de combate e zera a iniciativa; bestiário, personagens, log e som são da mesa. A lista de cenas é só do mestre.
+
+### 2.9.0 — Mesa do mestre, névoa de guerra e tradução completa (backlog E–K)
+Os itens e o detalhe de cada um estão em [docs/backlog.md](docs/backlog.md) e no CHANGELOG. Decisões que valem daqui em diante:
+- **Regras da mesa** (`game.rules`, valem para todas as cenas): opções que o mestre liga, desligadas por padrão. *Movimento só na sua vez* trava **quando** mover, nunca **quanto** (ADR-06 continua: o app não conta deslocamento). A trava é conferida no servidor; o mestre nunca é travado.
+- **Névoa de guerra** (uma por cena, `battle.fog`): casas guardadas por linha em intervalos de colunas (leve para ir em todo envio). O jogador **não recebe** mobs, NPCs, efeitos, desenhos nem paredes que estejam inteiros na parte coberta (`view.ts`, com teste); a imagem do mapa vai inteira e a névoa é desenhada por cima (limite aceito: quem abrir as ferramentas do navegador vê o desenho do mapa, nunca os inimigos).
+  - **Revelado pelo mestre** (pincel, retângulo, cômodo) é visível de verdade. *Cômodo* cresce casa a casa até paredes e portas fechadas; área que não fecha é recusada.
+  - **Visão dos personagens:** compartilhada pela mesa (o que um vê, todos veem); linha de visão calculada no servidor (`server/src/sight.ts`), refeita só quando aliados, tochas, paredes, portas, luz ou escala mudam. Raio pela luz do clima (dia 120 ft, entardecer 60, luar 30, noite 20; visão no escuro 60; tocha 40). O que já foi visto fica **explorado**: mapa, paredes e efeitos à mostra, escurecidos, **sem os inimigos de agora**.
+  - **Tochas** iluminam para quem tem linha de visão até a luz (mob oculto não ilumina). **Visto por último aqui:** inimigo que sai da vista deixa uma marca até alguém ver o lugar de novo.
+  - Visual: textura e máscara da névoa geradas no cliente (`fogRender.ts`), borda esfumaçada estável (ruído preso às coordenadas do mapa); *Reduzir o clima* para as animações.
+- **Chefe com fases:** as próximas fases (vida, nome e CA) ficam no combatente e nunca vão para os jogadores; zerar a vida começa a próxima com vida cheia (o dano que sobra não passa).
+- **Efeito que anda com o token** (`followId`): a área anda a mesma distância que o token; tirar do mapa e voltar não leva junto.
+- **Mostrar para a mesa** viaja num evento próprio (como a imagem do mapa) e **não** vai no arquivo de sessão: é do momento.
+- **Tradução completa (en, es):** interface no catálogo do cliente; **textos do servidor** (recusas e avisos do log) continuam escritos em português, mas como **modelo com valores** (`fail("… {name}.", { name })`, `logSystem(store, "…", { … })`), e o cliente traduz com `client/src/i18n/serverText.ts`. `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução. O que a mesa digita fica como foi escrito.
+- **Arquivo de sessão:** continua no formato 2; os campos novos (névoa, regras, tochas, fases, modelos do log) são opcionais, então arquivos da 2.8 abrem normalmente. Uma versão 2.8 abrindo arquivo da 2.9 ignora esses campos.

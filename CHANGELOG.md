@@ -6,6 +6,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.9.0] - 2026-10-28
+
 ### Adicionado
 - **Sobre:** clicar na versão, ao lado do nome no topo (no celular, *Sobre* no menu ☰), abre a janela com versão, autor, o que o app é, os créditos e licenças das bibliotecas, fontes e ícones usados, e a nota de que o projeto é independente, sem ligação com editoras de RPG.
 - **Visto por último aqui:** com a *Visão dos personagens* da névoa ligada, um inimigo que sai da vista do grupo (porta que fecha, ele que anda para o escuro, o aliado que se afasta) deixa um **?** vermelho pulsando, com o nome dele, no último lugar em que foi visto. A marca fica legível até à noite. Ela some quando alguém volta a ver aquele lugar (esteja o inimigo lá ou não), quando ele reaparece, sai da batalha ou é ocultado pelo mestre. O mestre vê a marca mais apagada. *Cobrir tudo* limpa as marcas, e elas vão no arquivo de sessão.
@@ -248,7 +250,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.1...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.9.0...HEAD
+[2.9.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.6.0...v2.7.0
