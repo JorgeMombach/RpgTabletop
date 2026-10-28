@@ -176,6 +176,8 @@ export interface Combatant {
   animal?: boolean;
   /** Personagem com visão no escuro: não recebe o lembrete de escuridão (regra da mesa). */
   darkvision?: boolean;
+  /** Tocha acesa: ilumina em volta (20 ft de luz forte e 20 de meia-luz). */
+  torch?: boolean;
   /** Chefe (mob/NPC): fases que ainda vão começar, em ordem. Só o mestre recebe (têm vida). */
   phases?: BossPhase[];
   /** Fase atual de um chefe (ausente = 1). */
@@ -645,6 +647,8 @@ export interface ClientState {
     walls: Wall[];
     weather: WeatherState;
     fog: FogState;
+    /** Casas que os aliados veem agora (visão dos personagens); vazio sem ela. Calculado, não guardado. */
+    sight: Record<string, number[]>;
   };
   log: LogEntry[];
   /** Cena ativa (todos) e a lista de cenas (só o mestre: nome, se tem imagem e quantos mobs). */

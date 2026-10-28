@@ -46,8 +46,16 @@ export const fogHandlers: HandlerMap = {
     for (const r of cellsToRects(cells)) paintFog(battle.fog, r, payload.reveal);
   },
 
+  "fog:vision": (store, player, payload) => {
+    requireGm(player);
+    if (typeof payload?.enabled !== "boolean") fail("Informe se a visão dos personagens fica ligada.");
+    store.game.battle.fog.vision = payload.enabled;
+  },
+
   "fog:reset": (store, player) => {
     requireGm(player);
     store.game.battle.fog.revealed = {};
+    store.game.battle.fog.explored = {};
+    store.game.battle.fog.lastSeen = [];
   },
 };

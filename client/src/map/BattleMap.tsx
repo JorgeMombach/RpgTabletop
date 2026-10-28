@@ -22,6 +22,8 @@ import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
+import { LastSeenOverlay } from "./LastSeen";
+import { screenLights, TorchGlowLayer } from "./Torch";
 import { WeatherOverlay } from "./WeatherOverlay";
 
 /** Tipo usado ao arrastar um combatente da lista para o mapa. */
@@ -551,8 +553,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             {wallDraft && !sameCell(wallDraft.from, wallDraft.to) && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
           </Layer>
 
-          {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos e paredes; os tokens ficam por cima. */}
-          <FogLayer fog={state.battle.fog} grid={grid} gm={gm} draft={fogDraft} />
+          {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
+              onde se vê (não "vaza" pela parede para dentro de um cômodo coberto). */}
+          <TorchGlowLayer tokens={tokens} grid={grid} light={state.battle.weather.light} />
+
+          {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos, paredes e brilho das tochas; os tokens ficam por cima. */}
+          <FogLayer fog={state.battle.fog} sight={state.battle.sight} grid={grid} gm={gm} draft={fogDraft} />
 
           {/* Alcance e aura: abaixo dos tokens. */}
           <Layer listening={false}>
@@ -620,7 +626,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       )}
 
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
-      <WeatherOverlay weather={state.battle.weather} />
+      <WeatherOverlay weather={state.battle.weather} lights={screenLights(tokens, grid, view)} />
+      {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
+      {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
       <MapToolbar
         tool={tool}

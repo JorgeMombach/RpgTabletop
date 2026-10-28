@@ -1,5 +1,6 @@
-import { anyRevealed, emptyFog, LIMITS, overlaps, sharesCell, sizeSpan, type Combatant, type GridPos } from "@rpg/shared";
+import { emptyFog, inRows, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, type Combatant, type GridPos } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
+import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
@@ -106,7 +107,9 @@ export const mapHandlers: HandlerMap = {
     // Para o jogador, um oculto não conta: a recusa entregaria que há alguém ali (E21). O mestre separa os dois quando revelar.
     const span = sizeSpan(c.size);
     const { fog } = store.game.battle;
-    const seen = (o: Combatant) => o.type === "ally" || !o.pos || anyRevealed(fog, cellsOf(o.pos, sizeSpan(o.size)));
+    const sight = currentSight(store);
+    const seen = (o: Combatant) =>
+      o.type === "ally" || !o.pos || !fog.enabled || cellsOf(o.pos, sizeSpan(o.size)).some((p) => isRevealed(fog, p.col, p.row) || inRows(sight, p.col, p.row));
     const other =
       pos &&
       !sharesCell(c.size) &&

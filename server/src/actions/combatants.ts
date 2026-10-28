@@ -547,6 +547,13 @@ export const combatantHandlers: HandlerMap = {
     setTempHp(c, requireInt(payload.value, "Vida temporária", 0, LIMITS.hpMax.max));
   },
 
+  "torch:set": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    if (typeof payload.lit !== "boolean") fail("Informe se a tocha fica acesa.");
+    if (payload.lit) c.torch = true;
+    else delete c.torch;
+  },
+
   "aura:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
     const feet = payload.feet === null ? null : requireInt(payload.feet, "Alcance", LIMITS.aura.min, LIMITS.aura.max);

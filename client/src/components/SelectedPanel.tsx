@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Divider, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { IconEye, IconEyeOff, IconPencil, IconWand, IconX } from "@tabler/icons-react";
+import { IconEye, IconEyeOff, IconFlame, IconPencil, IconWand, IconX } from "@tabler/icons-react";
 import { ALLY_COLORS, MOB_COLORS, NPC_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -201,6 +201,17 @@ export function SelectedPanel({ state }: { state: ClientState }) {
                 </Button>
               </Tooltip>
             )}
+            <Tooltip label={t(c.torch ? "torch.offTip" : "torch.onTip")}>
+              <Button
+                variant={c.torch ? "light" : "default"}
+                color={c.torch ? "bronze" : undefined}
+                leftSection={<IconFlame size={14} />}
+                aria-pressed={!!c.torch}
+                onClick={() => act("torch:set", { id: c.id, lit: !c.torch })}
+              >
+                {t(c.torch ? "torch.off" : "torch.on")}
+              </Button>
+            </Tooltip>
             <AuraControl c={c} />
             {gm && c.type !== "ally" && (
               <Tooltip label={c.hidden ? "Os jogadores passam a ver; rola a iniciativa se ela já estiver em andamento" : "Só você vê; sai da iniciativa até revelar"}>

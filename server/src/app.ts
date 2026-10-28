@@ -27,6 +27,7 @@ import { refreshLibrary, soundSource } from "./actions/sound";
 import { whoIs } from "./actions/dice";
 import { audioType, saveSound, soundPath } from "./sounds";
 import { viewFor } from "./view";
+import { trackLastSeen, updateSight } from "./sight";
 
 interface SocketData {
   playerId?: string;
@@ -125,6 +126,9 @@ export function createApp(opts: AppOptions) {
   }
 
   function broadcast() {
+    // Visão dos personagens (névoa): recalcula se alguém andou ou uma porta mexeu, e guarda o explorado.
+    updateSight(store);
+    trackLastSeen(store);
     // A imagem do mapa é pesada: vai à parte e só quando muda (ADR-05).
     if (store.game.battle.map.imageVersion !== sentImageVersion) {
       sentImageVersion = store.game.battle.map.imageVersion;

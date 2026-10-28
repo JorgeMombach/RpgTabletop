@@ -5,6 +5,7 @@ import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig
 import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { useApp } from "../store";
+import { TorchBadge } from "./Torch";
 import { useImage } from "./useImage";
 
 // Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
@@ -271,6 +272,12 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
             lineCap="round"
             lineJoin="round"
           />
+        </Group>
+      )}
+
+      {c.torch && (
+        <Group x={r * 0.78} y={r * 0.78} listening={false}>
+          <TorchBadge id={c.id} radius={badgeR * 1.2} />
         </Group>
       )}
 

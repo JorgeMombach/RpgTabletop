@@ -1,4 +1,5 @@
 import type { WeatherState } from "@rpg/shared";
+import type { ScreenLight } from "./Torch";
 import { useEffect, useRef } from "react";
 import { playSfx } from "../audio/engine";
 import { useApp } from "../store";
@@ -22,7 +23,7 @@ function thunderDelay(at: number): number {
  * Clima e luz por cima do mapa (E26), iguais para todos; só o mestre muda. Não recebe cliques.
  * Os relâmpagos da tempestade clareiam a tela no mesmo instante para todos e trazem o trovão (E25).
  */
-export function WeatherOverlay({ weather }: { weather: WeatherState }) {
+export function WeatherOverlay({ weather, lights = [] }: { weather: WeatherState; lights?: ScreenLight[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduce = useApp((s) => s.reduceFx);
   const light = LIGHT_STYLE[weather.light];
@@ -71,12 +72,18 @@ export function WeatherOverlay({ weather }: { weather: WeatherState }) {
     };
   }, [kind, intensity, wind, startedAt, reduce]);
 
+  // Tochas: a luz da cena some no círculo de cada uma (forte no meio, voltando aos poucos até a borda).
+  // Máscaras combinadas por interseção: cada tocha tira a sua parte.
+  const mask = lights.length
+    ? lights.map((l) => `radial-gradient(circle ${l.r}px at ${l.x}px ${l.y}px, rgb(0 0 0 / 0.05) 0%, rgb(0 0 0 / 0.15) 45%, rgb(0 0 0 / 0.6) 75%, #000 100%)`).join(", ")
+    : undefined;
   const lightLayer = light && (
     <div
       className="map-light"
       style={{
         backgroundColor: light.color,
         boxShadow: `inset 0 0 18vmax rgb(0 0 0 / ${light.vignette})`,
+        ...(mask && { maskImage: mask, WebkitMaskImage: mask, maskComposite: "intersect", WebkitMaskComposite: "source-in" }),
       }}
     />
   );

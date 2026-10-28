@@ -512,6 +512,64 @@ abbr.abbr {
   padding-top: 6px;
 }
 
+/* "Visto por último aqui" (névoa): por cima do mapa e da luz do clima, sem receber cliques. */
+.last-seen-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.last-seen-layer.gm {
+  opacity: 0.5;
+}
+
+.last-seen {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--mantine-color-red-5);
+  border-radius: 18%;
+  background: rgb(201 74 82 / 0.14);
+  box-shadow: 0 0 12px rgb(201 74 82 / 0.45);
+  animation: last-seen-pulse 1.8s ease-in-out infinite;
+}
+
+.last-seen-mark {
+  font-family: var(--mantine-font-family-headings);
+  font-weight: 700;
+  line-height: 1;
+  color: #ff6b73;
+  text-shadow: 0 0 2px #141218, 0 0 6px rgb(201 74 82 / 0.9);
+}
+
+.last-seen-name {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: #f1e6d0;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+}
+
+@keyframes last-seen-pulse {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .last-seen {
+    animation: none;
+  }
+}
+
 /* Clima e luz sobre o mapa (E26): não recebem cliques. A luz multiplica as cores do mapa. */
 .map-light,
 .map-weather {

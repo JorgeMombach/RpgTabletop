@@ -55,6 +55,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     ],
     animal: true,
     darkvision: true,
+    torch: true,
     // Fases de chefe valem para qualquer tipo no arquivo (a interface só oferece em mob e NPC).
     phases: [{ hpMax: 40 }],
     phase: 2,
@@ -120,7 +121,7 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, door: { open: true, locked: true, secret: true } satisfies Required<Door> },
     ],
     weather,
-    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] } } satisfies Required<FogState>,
+    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }] } satisfies Required<FogState>,
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -132,7 +133,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     weather,
-    fog: { enabled: false, revealed: {} },
+    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [] },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];

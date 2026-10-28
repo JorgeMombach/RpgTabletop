@@ -144,6 +144,8 @@ export interface ActionPayloads {
   "hp:temp": { id: string; value: number };
   /** Marca os testes contra a morte (0 a 3 cada) de quem está com 0 de vida. */
   "death:set": { id: string; successes: number; failures: number };
+  /** Acende ou apaga a tocha do combatente. */
+  "torch:set": { id: string; lit: boolean };
   /** Alcance/aura em pés em volta do token; null apaga. `color`: cor do círculo (null = a do token; ausente = mantém). */
   "aura:set": { id: string; feet: number | null; color?: string | null };
   /**
@@ -272,7 +274,9 @@ export interface ActionPayloads {
   "fog:paint": { reveal: boolean; rects: FogRect[] };
   /** Mestre: revela (ou cobre) o cômodo da casa: até as paredes e portas fechadas. */
   "fog:room": { cell: GridPos; reveal: boolean };
-  /** Mestre: cobre o mapa inteiro de novo. */
+  /** Mestre: liga ou desliga a visão dos personagens (os aliados revelam em volta deles). */
+  "fog:vision": { enabled: boolean };
+  /** Mestre: cobre o mapa inteiro de novo (e esquece o que foi explorado). */
   "fog:reset": Record<string, never>;
   /** Mestre: liga ou desliga regras da mesa (só as que vierem). */
   "rules:set": Partial<TableRules>;

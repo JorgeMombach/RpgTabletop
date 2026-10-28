@@ -1,5 +1,5 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { IconEyeOff, IconPaw, IconSkull, IconWand } from "@tabler/icons-react";
+import { IconEyeOff, IconFlame, IconPaw, IconSkull, IconWand } from "@tabler/icons-react";
 import type { Combatant } from "@rpg/shared";
 import type { ReactNode } from "react";
 import { DRAG_MIME } from "../map/BattleMap";
@@ -53,6 +53,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
               {c.hidden && <IconEyeOff size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Oculto" />}
               {c.animal && <IconPaw size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Animal" />}
               {c.summonerId && <IconWand size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Invocado" />}
+              {c.torch && <IconFlame size={14} color="var(--mantine-color-bronze-4)" style={{ verticalAlign: -2, marginRight: 4 }} aria-label={t("torch.lit")} />}
               {c.name}
               {suffix && (
                 <Text span size="xs" c="dimmed">

@@ -1,16 +1,19 @@
 import { Button, Checkbox, Group, Paper, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
-import { Layer, Rect } from "react-konva";
+import Konva from "konva";
+import { useEffect, useMemo, useRef } from "react";
+import { Layer, Shape } from "react-konva";
 import { LIMITS, type FogRect, type FogState, type GridPos, type MapConfig } from "@rpg/shared";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT } from "../i18n";
 import { useApp } from "../store";
+import { buildMask, FOG_TILE, fogTexture, type MaskArea } from "./fogRender";
 
-/** Névoa do jogador: a "tinta" mais escura do tema, opaca. */
-const FOG_COLOR = "#0d0b10";
 /** Névoa vista pelo mestre: bruma acinzentada e translúcida (aparece até no grid sem imagem). */
-const GM_FOG = { color: "#5b5470", opacity: 0.45 };
+const GM_FOG_OPACITY = 0.62;
+/** Área explorada (já vista, ninguém olhando agora): a névoa fica rala, o mapa aparece escurecido. */
+const EXPLORED_OPACITY = 0.6;
 /** Até onde a névoa vai em volta do mapa (casas): o grid não tem fim. */
 const REACH = LIMITS.gridCoord;
 
@@ -61,29 +64,92 @@ export async function sendFog(draft: FogDraft) {
 
 type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY">;
 
+/** Intervalos por linha viram retângulos de uma linha. */
+function rowsToRects(rows: Record<string, number[]>): FogRect[] {
+  const out: FogRect[] = [];
+  for (const [key, list] of Object.entries(rows)) {
+    const row = Number(key);
+    for (let i = 0; i < list.length; i += 2) out.push({ col: list[i], row, w: list[i + 1] - list[i], h: 1 });
+  }
+  return out;
+}
+
 /**
  * Névoa por cima do mapa, dos efeitos, dos desenhos e das paredes; abaixo dos tokens (o jogador sempre
- * vê os aliados; inimigos cobertos nem chegam do servidor). Uma camada própria: as casas reveladas
- * "furam" a névoa (destination-out) sem apagar o resto do mapa. O mestre vê através dela.
+ * vê os aliados; inimigos cobertos nem chegam do servidor). Uma camada própria: fumaça em duas camadas
+ * que derivam devagar e, por cima, a máscara do que se vê "fura" a fumaça (destination-out), com borda
+ * esfumaçada. O explorado fura só um pouco (névoa rala). O mestre vê através (bruma translúcida).
  */
-export function FogLayer({ fog, grid, gm, draft }: { fog: FogState; grid: Grid; gm: boolean; draft: FogDraft | null }) {
+export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight: Record<string, number[]>; grid: Grid; gm: boolean; draft: FogDraft | null }) {
+  const reduceFx = useApp((s) => s.reduceFx);
+  const layerRef = useRef<Konva.Layer>(null);
+  const time = useRef(0);
+
+  // A máscara só muda quando a névoa, a visão ou a pincelada mudam (não a cada quadro).
+  const mask = useMemo(() => {
+    if (!fog.enabled) return null;
+    const areas: MaskArea[] = [];
+    if (fog.vision) for (const rect of rowsToRects(fog.explored)) areas.push({ rect, amount: 1 - EXPLORED_OPACITY });
+    for (const rect of rowsToRects(fog.revealed)) areas.push({ rect, amount: 1 });
+    if (fog.vision) for (const rect of rowsToRects(sight)) areas.push({ rect, amount: 1 });
+    if (draft?.reveal) for (const rect of draft.rects) areas.push({ rect, amount: 1 });
+    return buildMask(areas, draft && !draft.reveal ? draft.rects : []);
+  }, [fog, sight, draft]);
+
+  // Fumaça andando devagar (sem animação com "Reduzir o clima").
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!fog.enabled || reduceFx || !layer) return;
+    let last = 0;
+    const anim = new Konva.Animation((frame) => {
+      if (!frame) return false;
+      time.current = frame.time / 1000;
+      // ~20 quadros por segundo bastam para a fumaça.
+      if (frame.time - last < 50) return false;
+      last = frame.time;
+      return true;
+    }, layer);
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, [fog.enabled, reduceFx]);
+
   if (!fog.enabled) return null;
   const { cellPx: s, offsetX: ox, offsetY: oy } = grid;
-  const cut = { fill: "#000", globalCompositeOperation: "destination-out" as const };
-  const holes: FogRect[] = [];
-  for (const [key, list] of Object.entries(fog.revealed)) {
-    const row = Number(key);
-    for (let i = 0; i < list.length; i += 2) holes.push({ col: list[i], row, w: list[i + 1] - list[i], h: 1 });
-  }
-  const fill = gm ? GM_FOG.color : FOG_COLOR;
-  const box = (r: FogRect) => ({ x: ox + r.col * s, y: oy + r.row * s, width: r.w * s, height: r.h * s });
+  const look = gm ? "mist" : "dark";
+
   return (
-    <Layer listening={false} opacity={gm ? GM_FOG.opacity : 1}>
-      <Rect x={ox - REACH * s} y={oy - REACH * s} width={2 * REACH * s} height={2 * REACH * s} fill={fill} />
-      {holes.map((r) => (
-        <Rect key={`${r.row}:${r.col}`} {...box(r)} {...cut} />
-      ))}
-      {draft?.rects.map((r, i) => <Rect key={`d${i}`} {...box(r)} {...(draft.reveal ? cut : { fill })} />)}
+    <Layer ref={layerRef} listening={false} opacity={gm ? GM_FOG_OPACITY : 1}>
+      <Shape
+        sceneFunc={(kctx) => {
+          const ctx = kctx._context as CanvasRenderingContext2D;
+          const t = time.current;
+          const big = { x: ox - REACH * s, y: oy - REACH * s, w: 2 * REACH * s, h: 2 * REACH * s };
+          // O ladrilho cobre 3 casas: a fumaça acompanha o zoom do mapa.
+          const tile = (3 * s) / FOG_TILE;
+          const drifts: [number, number][] = [
+            [t * 0.06 * s, t * 0.025 * s],
+            [-t * 0.11 * s, t * 0.05 * s],
+          ];
+          ctx.save();
+          ([0, 1] as const).forEach((layer) => {
+            const pattern = ctx.createPattern(fogTexture(look, layer), "repeat");
+            if (!pattern) return;
+            const scale = layer ? tile * 1.7 : tile;
+            pattern.setTransform(new DOMMatrix().translate(ox + drifts[layer][0], oy + drifts[layer][1]).scale(scale));
+            ctx.fillStyle = pattern;
+            ctx.fillRect(big.x, big.y, big.w, big.h);
+          });
+          if (mask) {
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(mask.canvas, ox + mask.col * s, oy + mask.row * s, (mask.canvas.width / mask.ppc) * s, (mask.canvas.height / mask.ppc) * s);
+          }
+          ctx.restore();
+        }}
+      />
     </Layer>
   );
 }
@@ -102,6 +168,15 @@ export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (
     <Paper className="map-options" p="xs" shadow="md" radius="md">
       <Group gap="xs" wrap="wrap" align="center">
         <Checkbox size="xs" label={t("fog.enabled")} checked={fog.enabled} onChange={(e) => void act("fog:set", { enabled: e.currentTarget.checked })} />
+        <Tooltip label={t("fog.visionTip")} multiline w={280}>
+          <Checkbox
+            size="xs"
+            label={t("fog.vision")}
+            disabled={!fog.enabled}
+            checked={fog.vision}
+            onChange={(e) => void act("fog:vision", { enabled: e.currentTarget.checked })}
+          />
+        </Tooltip>
         <SegmentedControl
           size="xs"
           disabled={!fog.enabled}

@@ -198,6 +198,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   // Marcas do E21: arquivos da 2.0 não têm (ausente = não).
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
   if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
+  if (c.torch !== undefined && bool(c.torch, "tocha")) out.torch = true;
   if (c.phases !== undefined) out.phases = bossPhases(c.phases);
   if (c.phase !== undefined) out.phase = int(c.phase, "fase do chefe", 1, LIMITS.phases + 1);
   const description = optText(c.description, "descrição", LIMITS.description);
@@ -512,18 +513,39 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
 /** Névoa da cena: intervalos de colunas por linha, conferidos (ordenados, sem sobreposição). */
 function fogFromFile(raw: unknown): FogState {
   const f = obj(raw, "névoa");
-  const rows = obj(f.revealed ?? {}, "névoa");
+  return {
+    enabled: bool(f.enabled, "névoa"),
+    revealed: fogRows(f.revealed),
+    // Arquivos da parte 1 e 2 da névoa: sem visão dos personagens.
+    vision: bool(f.vision ?? false, "névoa"),
+    explored: fogRows(f.explored),
+    lastSeen: list(f.lastSeen ?? [], "névoa", 500).map((raw) => {
+      const m = obj(raw, "névoa");
+      const pos = obj(m.pos, "névoa");
+      const lim = LIMITS.gridCoord;
+      return {
+        id: requireString(m.id, "névoa"),
+        name: requireName(m.name),
+        pos: { col: int(pos.col, "névoa", -lim, lim), row: int(pos.row, "névoa", -lim, lim) },
+        span: int(m.span, "névoa", 1, 4),
+      };
+    }),
+  };
+}
+
+function fogRows(raw: unknown): Record<string, number[]> {
+  const rows = obj(raw ?? {}, "névoa");
   const lim = LIMITS.gridCoord;
-  const revealed: Record<string, number[]> = {};
+  const out: Record<string, number[]> = {};
   for (const [key, value] of Object.entries(rows)) {
     const row = Number(key);
     if (!Number.isInteger(row) || Math.abs(row) > lim) fail("Arquivo inválido: névoa.");
     const nums = list(value, "névoa", 2000).map((n) => int(n, "névoa", -lim, lim + 1));
     if (nums.length === 0 || nums.length % 2 !== 0) fail("Arquivo inválido: névoa.");
     for (let i = 1; i < nums.length; i++) if (nums[i] <= nums[i - 1]) fail("Arquivo inválido: névoa.");
-    revealed[String(row)] = nums;
+    out[String(row)] = nums;
   }
-  return { enabled: bool(f.enabled, "névoa"), revealed };
+  return out;
 }
 
 /** Onde cada aliado estava numa cena guardada (aliado que não existe mais é ignorado). */

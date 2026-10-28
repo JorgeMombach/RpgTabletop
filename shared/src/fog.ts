@@ -1,4 +1,4 @@
-import type { GridPos, Wall } from "./types";
+import type { GridPos, LightId, Wall } from "./types";
 
 /**
  * Névoa de guerra (G): casas reveladas, por linha, em intervalos de colunas `[início, fim)` ordenados
@@ -7,7 +7,22 @@ import type { GridPos, Wall } from "./types";
  */
 export interface FogState {
   enabled: boolean;
+  /** Revelado pelo mestre: visível de verdade (inimigos inclusive). */
   revealed: Record<string, number[]>;
+  /** Visão dos personagens (parte 3): cada aliado no mapa revela em volta dele, com as paredes bloqueando. */
+  vision: boolean;
+  /** Já visto por algum aliado: fica escurecido e sem os inimigos de agora (mesmo formato de `revealed`). */
+  explored: Record<string, number[]>;
+  /** Inimigos que saíram da vista: onde foram vistos pela última vez (some quando alguém volta a ver o lugar). */
+  lastSeen: LastSeen[];
+}
+
+/** Marca de "visto por último aqui": nome e lugar (casas ocupadas) de quando o grupo o perdeu de vista. */
+export interface LastSeen {
+  id: string;
+  name: string;
+  pos: GridPos;
+  span: number;
 }
 
 /** Retângulo de casas: `w` × `h` a partir de `col`, `row`. */
@@ -19,7 +34,7 @@ export interface FogRect {
 }
 
 export function emptyFog(): FogState {
-  return { enabled: false, revealed: {} };
+  return { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [] };
 }
 
 /** Junta `[s, e)` aos intervalos (mantendo ordenados e sem sobreposição). */
@@ -59,24 +74,34 @@ function removeInterval(list: number[], s: number, e: number): number[] {
   return out;
 }
 
-/** Revela (ou cobre) um retângulo de casas. Altera `fog`. */
-export function paintFog(fog: FogState, rect: FogRect, reveal: boolean) {
+/** Acrescenta (ou tira) um retângulo de casas num mapa de linhas. Altera `rows`. */
+export function paintRows(rows: Record<string, number[]>, rect: FogRect, add: boolean) {
   for (let row = rect.row; row < rect.row + rect.h; row++) {
     const key = String(row);
-    const list = fog.revealed[key] ?? [];
-    const next = reveal ? addInterval(list, rect.col, rect.col + rect.w) : removeInterval(list, rect.col, rect.col + rect.w);
-    if (next.length > 0) fog.revealed[key] = next;
-    else delete fog.revealed[key];
+    const list = rows[key] ?? [];
+    const next = add ? addInterval(list, rect.col, rect.col + rect.w) : removeInterval(list, rect.col, rect.col + rect.w);
+    if (next.length > 0) rows[key] = next;
+    else delete rows[key];
   }
 }
 
-/** A casa está visível (névoa desligada ou casa revelada). */
-export function isRevealed(fog: FogState, col: number, row: number): boolean {
-  if (!fog.enabled) return true;
-  const list = fog.revealed[String(row)];
+/** A casa está no mapa de linhas. */
+export function inRows(rows: Record<string, number[]>, col: number, row: number): boolean {
+  const list = rows[String(row)];
   if (!list) return false;
   for (let i = 0; i < list.length; i += 2) if (col >= list[i] && col < list[i + 1]) return true;
   return false;
+}
+
+/** Revela (ou cobre) um retângulo de casas. Cobrir apaga também o que já foi explorado. Altera `fog`. */
+export function paintFog(fog: FogState, rect: FogRect, reveal: boolean) {
+  paintRows(fog.revealed, rect, reveal);
+  if (!reveal) paintRows(fog.explored, rect, false);
+}
+
+/** A casa está revelada pelo mestre (ou a névoa está desligada). */
+export function isRevealed(fog: FogState, col: number, row: number): boolean {
+  return !fog.enabled || inRows(fog.revealed, col, row);
 }
 
 /** Alguma das casas está visível. */
@@ -173,6 +198,84 @@ export function cellsToRects(cells: GridPos[]): FogRect[] {
       if (i < cols.length && cols[i] === cols[i - 1] + 1) continue;
       out.push({ col: s, row, w: cols[i - 1] - s + 1, h: 1 });
       s = cols[i];
+    }
+  }
+  return out;
+}
+
+/**
+ * Raio de visão (pés) pela luz do clima: de dia vê longe; à noite, a luz de uma tocha.
+ * Visão no escuro garante 60 ft quando não é dia. O app não aplica regra nenhuma além disso (ADR-06).
+ */
+export const VISION_FEET: Record<LightId, number> = { day: 120, dusk: 60, moon: 30, night: 20 };
+export const DARKVISION_FEET = 60;
+/** Tocha: 20 ft de luz forte e mais 20 de meia-luz. */
+export const TORCH_FEET = 40;
+export const TORCH_BRIGHT_FEET = 20;
+
+export function visionFeet(light: LightId, darkvision: boolean, torch = false): number {
+  let feet = VISION_FEET[light];
+  if (light !== "day" && darkvision) feet = Math.max(feet, DARKVISION_FEET);
+  if (light !== "day" && torch) feet = Math.max(feet, TORCH_FEET);
+  return feet;
+}
+
+/** Quem enxerga: onde está (canto de cima à esquerda), quantas casas ocupa e até onde vê (pés). */
+export interface Viewer {
+  pos: GridPos;
+  span: number;
+  feet: number;
+}
+
+/**
+ * Casas que os aliados veem agora: dentro do raio de cada um e sem parede ou porta fechada no caminho
+ * entre o centro dele e o centro da casa. Os pontos levam um deslocamento mínimo (como no cômodo) para
+ * a linha nunca passar exatamente pela ponta de uma parede.
+ */
+export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, lights: Viewer[] = []): GridPos[] {
+  const solid = walls.filter(blocks);
+  const seen = new Set<string>();
+  const out: GridPos[] = [];
+  const add = (col: number, row: number) => {
+    const k = `${col},${row}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ col, row });
+  };
+  for (const v of viewers) {
+    const r = v.feet / feetPerCell + v.span / 2;
+    const o = { x: v.pos.col + v.span / 2 + 0.0013, y: v.pos.row + v.span / 2 + 0.0071 };
+    // Só as paredes que chegam perto.
+    const near = solid.filter(
+      (w) =>
+        Math.max(w.from.col, w.to.col) >= o.x - r - 1 &&
+        Math.min(w.from.col, w.to.col) <= o.x + r + 1 &&
+        Math.max(w.from.row, w.to.row) >= o.y - r - 1 &&
+        Math.min(w.from.row, w.to.row) <= o.y + r + 1,
+    );
+    for (let dc = 0; dc < v.span; dc++) for (let dr = 0; dr < v.span; dr++) add(v.pos.col + dc, v.pos.row + dr);
+    for (let col = Math.floor(o.x - r); col <= Math.ceil(o.x + r); col++) {
+      for (let row = Math.floor(o.y - r); row <= Math.ceil(o.y + r); row++) {
+        const t = { x: col + NUDGE.x, y: row + NUDGE.y };
+        if (Math.hypot(t.x - o.x, t.y - o.y) > r) continue;
+        if (near.some((w) => crosses(o, t, { x: w.from.col, y: w.from.row }, { x: w.to.col, y: w.to.row }))) continue;
+        add(col, row);
+      }
+    }
+  }
+  // Luz de tochas (de qualquer um): a área iluminada aparece para quem tem linha de visão até ela,
+  // até onde se enxerga de dia. Um inimigo com tocha no fim do corredor escuro é visto de longe.
+  if (lights.length > 0 && viewers.length > 0) {
+    const reach = VISION_FEET.day / feetPerCell;
+    for (const c of sightCells(lights, walls, feetPerCell)) {
+      if (seen.has(`${c.col},${c.row}`)) continue;
+      const t = { x: c.col + NUDGE.x, y: c.row + NUDGE.y };
+      const visible = viewers.some((v) => {
+        const o = { x: v.pos.col + v.span / 2 + 0.0013, y: v.pos.row + v.span / 2 + 0.0071 };
+        if (Math.hypot(t.x - o.x, t.y - o.y) > reach) return false;
+        return !solid.some((w) => crosses(o, t, { x: w.from.col, y: w.from.row }, { x: w.to.col, y: w.to.row }));
+      });
+      if (visible) add(c.col, c.row);
     }
   }
   return out;
