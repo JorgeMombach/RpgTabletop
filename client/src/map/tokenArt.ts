@@ -698,3 +698,174 @@ export function drawSelection(ctx: CanvasRenderingContext2D, kind: FrameKind, bo
   ctx.stroke(tokenOutline(kind, boss, R * 1.13));
   ctx.restore();
 }
+
+// ---------- placas de nome (L3) ----------
+
+/** Estilo da placa: o metal acompanha a moldura; pet tem placa menor; chefe tem a fita de pergaminho. */
+export type PlateStyle = "ally" | "mob" | "npc" | "pet" | "boss";
+
+const PLATE_METAL: Record<"ally" | "mob" | "npc" | "pet", Metal> = { ally: METALS.bronze, mob: METALS.iron, npc: METALS.silver, pet: METALS.bronze };
+
+/**
+ * Placa com o nome, centrada em x = 0 e com o topo em `y`. `u` é o tamanho da letra em unidades do mapa
+ * (as medidas do protótipo eram para letra de 11 px). Devolve a altura ocupada.
+ */
+export function drawNamePlate(ctx: CanvasRenderingContext2D, text: string, style: PlateStyle, y: number, u: number): number {
+  if (style === "boss") return drawBossRibbon(ctx, text, y, u * 1.15);
+  const k = (style === "pet" ? u * 0.82 : u) / 11;
+  const m = PLATE_METAL[style];
+  ctx.save();
+  ctx.font = `700 ${11 * k}px "Alegreya Sans", sans-serif`;
+  const w = ctx.measureText(text).width + (style === "pet" ? 10 : 16) * k;
+  const h = (style === "pet" ? 13 : 16) * k;
+  const l = -w / 2;
+  const plate = new Path2D();
+  plate.roundRect(l, y, w, h, 3 * k);
+  ctx.shadowColor = "rgba(0,0,0,.7)";
+  ctx.shadowBlur = 5 * k;
+  ctx.shadowOffsetY = 1.5 * k;
+  ctx.fillStyle = "#17131b";
+  ctx.fill(plate);
+  ctx.shadowColor = "transparent";
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, m.hi);
+  g.addColorStop(0.5, m.mid);
+  g.addColorStop(1, m.lo);
+  ctx.strokeStyle = g;
+  ctx.lineWidth = 1.5 * k;
+  ctx.stroke(plate);
+  if (style !== "pet") {
+    rivet(ctx, l + 4 * k, y + h / 2, 1.6 * k, m);
+    rivet(ctx, l + w - 4 * k, y + h / 2, 1.6 * k, m);
+  }
+  ctx.fillStyle = "#f1e7d3";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 0, y + h / 2 + 0.5 * k);
+  ctx.restore();
+  return h;
+}
+
+/** Escudinho com o número (mobs repetidos: "2" em vez de "Goblin 2"), centrado em x = 0, topo em `y`. */
+export function drawNumberShield(ctx: CanvasRenderingContext2D, n: number, y: number, u: number): number {
+  const k = u / 11;
+  const r = 8 * k;
+  const cy = y + r * 0.8;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.7)";
+  ctx.shadowBlur = 4 * k;
+  const g = ctx.createRadialGradient(-2 * k, cy - 3 * k, 1, 0, cy, r);
+  g.addColorStop(0, "#3a3540");
+  g.addColorStop(1, "#141018");
+  ctx.fillStyle = g;
+  const p = new Path2D();
+  p.moveTo(-r, cy - r * 0.8);
+  p.lineTo(r, cy - r * 0.8);
+  p.lineTo(r, cy + r * 0.1);
+  p.quadraticCurveTo(r * 0.9, cy + r * 0.8, 0, cy + r * 1.15);
+  p.quadraticCurveTo(-r * 0.9, cy + r * 0.8, -r, cy + r * 0.1);
+  p.closePath();
+  ctx.fill(p);
+  ctx.shadowColor = "transparent";
+  const sg = ctx.createLinearGradient(0, cy - r, 0, cy + r);
+  sg.addColorStop(0, METALS.iron.hi);
+  sg.addColorStop(1, METALS.iron.lo);
+  ctx.strokeStyle = sg;
+  ctx.lineWidth = 1.2 * k;
+  ctx.stroke(p);
+  ctx.fillStyle = "#f1e7d3";
+  ctx.font = `700 ${10 * k}px "Alegreya Sans", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(String(n), 0, cy + 0.5 * k);
+  ctx.restore();
+  return r * 1.95;
+}
+
+/**
+ * Fita de pergaminho do chefe, na estética da moldura dele: rabos dobrados em couro escuro, pergaminho com
+ * textura, dois filetes de ouro nas bordas, letra Cinzel em sangue escuro e um rubi pequeno de cada lado.
+ */
+function drawBossRibbon(ctx: CanvasRenderingContext2D, text: string, y: number, u: number): number {
+  const k = u / 11;
+  ctx.save();
+  ctx.font = `700 ${11 * k}px Cinzel, serif`;
+  const tw = ctx.measureText(text).width;
+  const w = tw + 34 * k;
+  const h = 17 * k;
+  const l = -w / 2;
+  // Rabos dobrados (atrás), em couro escuro.
+  const tail = (x0: number, dir: number) => {
+    const p = new Path2D();
+    p.moveTo(x0, y + 4 * k);
+    p.lineTo(x0 + dir * 11 * k, y + 4 * k);
+    p.lineTo(x0 + dir * 6 * k, y + 10.5 * k);
+    p.lineTo(x0 + dir * 11 * k, y + 17 * k);
+    p.lineTo(x0, y + 17 * k);
+    p.closePath();
+    const g = ctx.createLinearGradient(0, y + 4 * k, 0, y + 17 * k);
+    g.addColorStop(0, "#5a3a22");
+    g.addColorStop(1, "#2a160a");
+    ctx.fillStyle = g;
+    ctx.fill(p);
+    ctx.strokeStyle = "#1a0c04";
+    ctx.lineWidth = 0.8 * k;
+    ctx.stroke(p);
+  };
+  tail(l + 3 * k, -1);
+  tail(l + w - 3 * k, 1);
+  // Faixa de pergaminho, com a curvinha de fita.
+  const band = new Path2D();
+  band.moveTo(l, y);
+  band.quadraticCurveTo(0, y + 3.5 * k, l + w, y);
+  band.lineTo(l + w, y + h - 3 * k);
+  band.quadraticCurveTo(0, y + h + 0.5 * k, l, y + h - 3 * k);
+  band.closePath();
+  ctx.shadowColor = "rgba(0,0,0,.65)";
+  ctx.shadowBlur = 5 * k;
+  ctx.shadowOffsetY = 1.5 * k;
+  const pg = ctx.createLinearGradient(0, y, 0, y + h);
+  pg.addColorStop(0, "#f4e6c4");
+  pg.addColorStop(1, "#c8ac78");
+  ctx.fillStyle = pg;
+  ctx.fill(band);
+  ctx.shadowColor = "transparent";
+  ctx.save();
+  ctx.clip(band);
+  ctx.globalCompositeOperation = "multiply";
+  ctx.globalAlpha = 0.35;
+  const pattern = ctx.createPattern(grain(), "repeat");
+  if (pattern) {
+    pattern.setTransform(new DOMMatrix().scale(k * 0.6));
+    ctx.fillStyle = pattern;
+    ctx.fillRect(l, y - 2 * k, w, h + 4 * k);
+  }
+  ctx.restore();
+  // Filetes de ouro acompanhando a curva da fita.
+  const edge = (y0: number, bulge: number) => {
+    const p = new Path2D();
+    p.moveTo(l + 2 * k, y0);
+    p.quadraticCurveTo(0, y0 + bulge, l + w - 2 * k, y0);
+    return p;
+  };
+  ctx.lineCap = "round";
+  for (const p of [edge(y + 2.2 * k, 3.5 * k), edge(y + h - 4.6 * k, 3.5 * k)]) {
+    ctx.strokeStyle = "#7a5414";
+    ctx.lineWidth = 1.3 * k;
+    ctx.stroke(p);
+    ctx.strokeStyle = "#e8c070";
+    ctx.lineWidth = 0.7 * k;
+    ctx.stroke(p);
+  }
+  ctx.strokeStyle = "#5a3a1a";
+  ctx.lineWidth = 0.8 * k;
+  ctx.stroke(band);
+  ctx.fillStyle = "#4a120c";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 0, y + h / 2 + 1 * k);
+  ruby(ctx, l + 7 * k, y + h / 2 + 0.5 * k, 2.6 * k);
+  ruby(ctx, l + w - 7 * k, y + h / 2 + 0.5 * k, 2.6 * k);
+  ctx.restore();
+  return h + 1 * k;
+}

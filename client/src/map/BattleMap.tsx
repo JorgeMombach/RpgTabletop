@@ -467,6 +467,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
+  const plateNumbers = repeatedNumbers(tokens);
   // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
   const activeIds = new Set(currentGroup(state).map((c) => c.id));
   // Com a regra "movimento só na vez" ligada, o jogador só arrasta os seus na vez dele.
@@ -575,6 +576,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 grid={grid}
                 selected={c.id === selectedId}
                 active={activeIds.has(c.id)}
+                plateNumber={plateNumbers.get(c.id)}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}
@@ -974,4 +976,23 @@ function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) 
       </MGroup>
     </Paper>
   );
+}
+
+/**
+ * Mobs repetidos no mapa ("Goblin 1", "Goblin 2"…, numerados pelo servidor): o número de cada um, para a
+ * placa mostrar só "2". Mob sozinho com aquele nome-base fica com o nome inteiro.
+ */
+function repeatedNumbers(tokens: CombatantView[]): Map<string, number> {
+  const groups = new Map<string, { id: string; n: number }[]>();
+  for (const c of tokens) {
+    if (c.type !== "mob" || c.boss) continue;
+    const m = /^(.*\S) (\d+)$/.exec(c.name);
+    if (!m) continue;
+    const list = groups.get(m[1]) ?? [];
+    list.push({ id: c.id, n: Number(m[2]) });
+    groups.set(m[1], list);
+  }
+  const out = new Map<string, number>();
+  for (const list of groups.values()) if (list.length > 1) for (const { id, n } of list) out.set(id, n);
+  return out;
 }

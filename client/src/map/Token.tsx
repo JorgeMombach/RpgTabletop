@@ -7,7 +7,7 @@ import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
-import { drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind } from "./tokenArt";
+import { drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind, type PlateStyle } from "./tokenArt";
 import { useImage } from "./useImage";
 
 // Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
@@ -30,6 +30,8 @@ interface Props {
   selected: boolean;
   /** Turno atual (destacado para todos). */
   active?: boolean;
+  /** Mob repetido ("Goblin 2" entre vários goblins): a placa mostra só o número. */
+  plateNumber?: number;
   draggable: boolean;
   onSelect: () => void;
   /** Devolve false se o servidor recusou (o token volta para o lugar). */
@@ -77,7 +79,7 @@ function TokenFx({ kind, boss, r, active, selected, over }: { kind: FrameKind; b
 }
 
 /** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
-export function Token({ c, grid, selected, active, draggable, onSelect, onMove }: Props) {
+export function Token({ c, grid, selected, active, plateNumber, draggable, onSelect, onMove }: Props) {
   const avatar = useImage(c.avatar);
   const [hover, setHover] = useState(false);
   const [dragFeet, setDragFeet] = useState<number | null>(null);
@@ -128,6 +130,19 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
   const art = { kind, boss, r, color: c.color, avatar, initials: initials(c.name), down };
   // A moldura de chefe é sempre quadrada (também no NPC chefe): halo e seleção acompanham.
   const fxKind: FrameKind = boss ? "mob" : kind;
+  const plateStyle: PlateStyle = boss ? "boss" : summon ? "pet" : kind;
+  const barH = Math.max(3, ref * 0.09);
+  const hasBar = c.hp !== undefined && c.hpMax !== undefined;
+  // A placa fica logo abaixo da barra de vida (ou do token, para quem não vê a vida).
+  const plateY = hasBar ? r + ring * 1.7 + barH + ref * 0.07 : r + ref * 0.1;
+  // Placa com o nome: só no hover, selecionado ou arrastando (tokens lado a lado não se cobrem); o chefe, sempre.
+  const focused = hover || selected || dragFeet !== null;
+  // Rótulo do hover: só o que a placa não mostra (oculto, distância, condições).
+  const head = [hidden ? `(${t("kind.hidden")})` : null, dragFeet !== null ? `${dragFeet} ft` : null]
+    .filter(Boolean)
+    .join(" · ");
+  const labelLines = [head, conditionText].filter(Boolean);
+  const labelSize = Math.max(11, ref * 0.24);
 
   /** Área de clique: a forma do token. */
   const clip = (ctx: Konva.Context) => {
@@ -244,7 +259,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
 
       {hidden && RingShape(ring * 0.9, { stroke: "#ece4d4", strokeWidth: ring * 0.6, dash: [ring * 1.5, ring * 1.5], listening: false })}
 
-      {c.hp !== undefined && c.hpMax !== undefined && (
+      {hasBar && c.hp !== undefined && c.hpMax !== undefined && (
         <Group y={r + ring * 1.7} listening={false}>
           <Rect x={-r} width={size} height={Math.max(3, ref * 0.09)} fill="#00000099" cornerRadius={2} />
           <Rect
@@ -287,8 +302,8 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       )}
 
       {c.animal && (
-        // Selo de animal no canto oposto ao das condições.
-        <Group x={-r * 0.78} y={-r * 0.78} listening={false}>
+        // Selo de animal no canto oposto ao das condições (embaixo, se o de cima for do número do mob).
+        <Group x={-r * 0.78} y={plateNumber !== undefined ? r * 0.78 : -r * 0.78} listening={false}>
           <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, ref * 0.03)} />
           <Path
             data={PAW}
@@ -327,16 +342,30 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
         </Group>
       )}
 
-      {(hover || selected || dragFeet !== null) && (
-        <Group y={-r - ring * 2 - ref * (conditionText ? 0.6 : 0.3)} listening={false}>
+      {plateNumber !== undefined && (
+        // Mob repetido: escudinho com o número dentro do token, no canto de cima à esquerda (o da direita é das condições).
+        <KShape
+          x={-r * 0.78}
+          y={-r * 0.78}
+          listening={false}
+          sceneFunc={(kctx) => {
+            const u = (badgeR * 11) / 7.5;
+            kctx._context.translate(0, -(u / 11) * 8.5);
+            drawNumberShield(kctx._context, plateNumber, 0, u);
+          }}
+        />
+      )}
+
+      {(focused || boss) && (
+        <KShape listening={false} sceneFunc={(kctx) => void drawNamePlate(kctx._context, c.name, plateStyle, plateY, ref * 0.26)} />
+      )}
+
+      {(hover || selected || dragFeet !== null) && labelLines.length > 0 && (
+        <Group y={-(boss ? r * 1.3 : r) - ring * 2 - labelSize * 1.2 * labelLines.length} listening={false}>
           <Text
-            text={
-              (dragFeet !== null ? `${c.name} · ${dragFeet} ft` : c.name) +
-              (hidden ? ` (${t("kind.hidden")})` : "") +
-              (conditionText ? `\n${conditionText}` : "")
-            }
+            text={labelLines.join("\n")}
             lineHeight={1.2}
-            fontSize={Math.max(11, ref * 0.24)}
+            fontSize={labelSize}
             fill="#ffffff"
             stroke="#000000"
             strokeWidth={Math.max(2, ref * 0.05)}
