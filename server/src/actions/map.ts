@@ -1,9 +1,19 @@
-import { LIMITS, overlaps, sharesCell, sizeSpan, type GridPos } from "@rpg/shared";
+import { emptyFog, inRows, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, type Combatant, type GridPos } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
+import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
+import { moveFollowers } from "./effects";
+import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
+
+/** Casas que um corpo de lado `span` ocupa a partir de `pos`. */
+function cellsOf(pos: GridPos, span: number): GridPos[] {
+  const out: GridPos[] = [];
+  for (let dc = 0; dc < span; dc++) for (let dr = 0; dr < span; dr++) out.push({ col: pos.col + dc, row: pos.row + dr });
+  return out;
+}
 
 function gridPosOf(raw: unknown): GridPos | null {
   if (raw === null) return null;
@@ -71,8 +81,9 @@ export const mapHandlers: HandlerMap = {
     battle.effects = [];
     battle.drawings = [];
     battle.walls = [];
-    // Cena nova: sem clima, de dia (E26).
+    // Cena nova: sem clima, de dia (E26), e sem névoa.
     battle.weather = defaultWeather();
+    battle.fog = emptyFog();
     resetCombat(store);
     // Conjurados são da batalha: até os dos jogadores somem (E21).
     game.allies = game.allies.filter((a) => !a.summonerId);
@@ -87,12 +98,18 @@ export const mapHandlers: HandlerMap = {
   },
 
   "token:move": (store, player, payload) => {
-    // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa.
+    // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa e, com a regra
+    // da mesa ligada, a vez em combate.
     const c = editable(store, player, payload?.id);
+    requireTurnFor(store, player, "moveOnTurn", "Em combate, cada um move na sua vez.");
     const pos = gridPosOf(payload.pos);
     // Dois corpos não ocupam o mesmo espaço; criaturas grandes ocupam várias casas e miúdas dividem a casa.
     // Para o jogador, um oculto não conta: a recusa entregaria que há alguém ali (E21). O mestre separa os dois quando revelar.
     const span = sizeSpan(c.size);
+    const { fog } = store.game.battle;
+    const sight = currentSight(store);
+    const seen = (o: Combatant) =>
+      o.type === "ally" || !o.pos || !fog.enabled || cellsOf(o.pos, sizeSpan(o.size)).some((p) => isRevealed(fog, p.col, p.row) || inRows(sight, p.col, p.row));
     const other =
       pos &&
       !sharesCell(c.size) &&
@@ -102,9 +119,10 @@ export const mapHandlers: HandlerMap = {
           o.pos &&
           !sharesCell(o.size) &&
           overlaps(pos, span, o.pos, sizeSpan(o.size)) &&
-          (player.role === "gm" || !o.hidden),
+          (player.role === "gm" || (!o.hidden && seen(o))),
       );
-    if (other) fail(span > 1 ? `Não cabe aí: ${other.name} está no caminho.` : `Essa casa já está ocupada por ${other.name}.`);
+    if (other) fail(span > 1 ? "Não cabe aí: {name} está no caminho." : "Essa casa já está ocupada por {name}.", { name: other.name });
+    moveFollowers(store, c, c.pos, pos);
     c.pos = pos;
   },
 };

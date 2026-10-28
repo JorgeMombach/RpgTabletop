@@ -1,5 +1,6 @@
 // Modelo de dados compartilhado entre servidor e cliente (ver SPEC.md §4).
 import type { Area } from "./events";
+import type { FogState } from "./fog";
 
 export type Role = "gm" | "player";
 
@@ -152,6 +153,12 @@ export interface Combatant {
   size?: Size;
   /** Alcance ou aura em pés (ex.: 10 ft de alcance, aura de 30 ft): círculo leve em volta do token, só visual. */
   aura?: number;
+  /** Descrição que todos veem ("dragão ancião de neve, guardião do passo…"). */
+  description?: string;
+  /** Notas do mestre: só ele vê (o servidor não envia aos jogadores, nem ao dono). */
+  gmNotes?: string;
+  /** Cor do círculo do alcance/aura; ausente = a cor do token. */
+  auraColor?: string;
   avatar?: string;
   color: string;
   pos: GridPos | null;
@@ -167,6 +174,14 @@ export interface Combatant {
   conditions: Condition[];
   /** Marca de animal (ícone de pata); o formato continua dizendo o lado (E21). */
   animal?: boolean;
+  /** Personagem com visão no escuro: não recebe o lembrete de escuridão (regra da mesa). */
+  darkvision?: boolean;
+  /** Tocha acesa: ilumina em volta (20 ft de luz forte e 20 de meia-luz). */
+  torch?: boolean;
+  /** Chefe (mob/NPC): fases que ainda vão começar, em ordem. Só o mestre recebe (têm vida). */
+  phases?: BossPhase[];
+  /** Fase atual de um chefe (ausente = 1). */
+  phase?: number;
   /** Mob ou NPC oculto (furtividade, sala escura): só o mestre recebe; fora da iniciativa até ser revelado (E21). */
   hidden?: boolean;
   /** Conjurado (familiar, esqueleto…): quem conjurou. Fica do lado dele e com o mesmo controle (E21). */
@@ -183,6 +198,13 @@ export type CombatantView = Omit<Combatant, "hp" | "hpMax"> & {
   hpMax?: number;
 };
 
+/** Próxima fase de um chefe: começa quando a vida da fase atual zera. Nome e CA novos são opcionais. */
+export interface BossPhase {
+  hpMax: number;
+  name?: string;
+  ac?: number;
+}
+
 export interface MobTemplate {
   id: string;
   name: string;
@@ -193,9 +215,14 @@ export interface MobTemplate {
   size?: Size;
   color: string;
   avatar?: string;
+  /** Descrição pública: vai para os mobs e NPCs criados com o template. */
+  description?: string;
+  /** Notas do mestre: vão para as notas do mestre dos mobs e NPCs criados com o template. */
   notes?: string;
   /** Mobs e NPCs criados com o template já vêm com a marca de animal. */
   animal?: boolean;
+  /** Chefe: fases depois da primeira (que é a vida/nome/CA do próprio template). */
+  phases?: BossPhase[];
 }
 
 export interface MapConfig {
@@ -302,6 +329,22 @@ export interface LogEntry {
   crit?: boolean;
   /** Turno do combate em que a rolagem aconteceu, para o log agrupar. */
   turn?: { seq: number; round: number; name: string };
+  /**
+   * Aviso automático com valores: o modelo em português (`{nome}` no lugar dos valores) e os valores,
+   * para cada um ler no próprio idioma. Sem eles, o modelo é o próprio `text` (ou é texto de alguém).
+   */
+  textKey?: string;
+  textParams?: Record<string, string | number>;
+  /** Rótulo da rolagem em pedaços ("Reação", "Ataque", "Secreto"), cada um traduzível; `label` é a versão pronta. */
+  labelParts?: LogPart[];
+  /** Quem rolou é o mestre (o nome aparece como "Mestre" no idioma de cada um). */
+  gm?: boolean;
+}
+
+/** Pedaço de texto do log: modelo em português e valores. */
+export interface LogPart {
+  key: string;
+  params?: Record<string, string | number>;
 }
 
 /** Efeitos predefinidos (cada um tem textura própria no mapa); "custom" = só a cor escolhida. */
@@ -376,6 +419,8 @@ export interface MapEffect {
   concentration: boolean;
   /** Desligado = fica guardado, mas só o mestre vê. */
   active: boolean;
+  /** Combatente que o efeito acompanha (aura, Espíritos Guardiões): a área anda junto quando o token anda. */
+  followId?: string;
   /** Estado de antes de "Transformar", se for para voltar a ele quando este acabar (duração ou concentração). */
   revertTo?: EffectState;
 }
@@ -426,6 +471,8 @@ export interface SceneContent {
   drawings: Drawing[];
   walls: Wall[];
   weather: WeatherState;
+  /** Névoa de guerra da cena (G). */
+  fog: FogState;
 }
 
 /** Cena guardada (não ativa): o conteúdo dela e onde cada aliado estava nela. */
@@ -443,6 +490,33 @@ export interface Scene {
   stored?: StoredScene;
 }
 
+/**
+ * O que o mestre está mostrando para a mesa (carta, retrato, mapa do tesouro): abre na tela de todos.
+ * Fica fora do jogo (não vai no arquivo de sessão) e viaja num evento próprio, por causa da imagem.
+ */
+export interface Handout {
+  id: string;
+  title?: string;
+  text?: string;
+  /** dataURL já reduzido no cliente. */
+  image?: string;
+}
+
+/**
+ * Regras da mesa: opções que o mestre liga. Desligadas, vale o de sempre (movimento livre, ADR-06).
+ * O mestre nunca é travado por elas.
+ */
+export interface TableRules {
+  /** Em combate, o jogador só move os próprios tokens na sua vez. */
+  moveOnTurn: boolean;
+  /** Em combate, o jogador só invoca na sua vez. */
+  summonOnTurn: boolean;
+  /** Com a luz em Noite ou Luar, avisa quem não tem visão no escuro. Só informa. */
+  darkReminder: boolean;
+}
+
+export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
+
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
   templates: MobTemplate[];
@@ -458,11 +532,14 @@ export interface GameState {
     drawings: Drawing[];
     walls: Wall[];
     weather: WeatherState;
+    fog: FogState;
   };
   log: LogEntry[];
   /** Cenas da sessão, na ordem do painel; a ativa é `sceneId` (o conteúdo dela está em `battle`). */
   scenes: Scene[];
   sceneId: string;
+  /** Regras da mesa (valem para todas as cenas). */
+  rules: TableRules;
 }
 
 export interface HostInfo {
@@ -585,11 +662,15 @@ export interface ClientState {
     drawings: Drawing[];
     walls: Wall[];
     weather: WeatherState;
+    fog: FogState;
+    /** Casas que os aliados veem agora (visão dos personagens); vazio sem ela. Calculado, não guardado. */
+    sight: Record<string, number[]>;
   };
   log: LogEntry[];
   /** Cena ativa (todos) e a lista de cenas (só o mestre: nome, se tem imagem e quantos mobs). */
   sceneId: string;
   scenes?: { id: string; name: string; hasImage: boolean; mobs: number }[];
+  rules: TableRules;
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */

@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
-import type { Area, AreaKind, ClientState, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
+import type { FogShape } from "./map/Fog";
+import type { Area, AreaKind, ClientState, Handout, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "ping" | "fog";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -58,6 +59,10 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Paredes do mestre: modo e a porta escolhida (para trancar, esconder ou apagar). */
   wallMode: WallMode;
   selectedDoorId: string | null;
+  /** Ferramenta Névoa do mestre: revelar ou cobrir, pincel ou retângulo, lado do pincel em casas. */
+  fogReveal: boolean;
+  fogShape: FogShape;
+  fogBrush: number;
   /** Combatente aberto no painel "Selecionado" (local, não sincroniza). */
   selectedId: string | null;
   /** Nome usado antes de "Sair", para preencher a tela de entrada. */
@@ -80,6 +85,11 @@ interface AppStore extends DicePrefs {
    * e só revela o resultado quando os dados param.
    */
   rolling: string[];
+  /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
+  logOut: boolean;
+  /** O que o mestre está mostrando para a mesa (chega à parte, com a imagem) e qual deles esta pessoa já fechou. */
+  handout: Handout | null;
+  handoutDismissed: string | null;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -102,6 +112,9 @@ export const useApp = create<AppStore>(() => ({
   drawHidden: false,
   wallMode: "wall",
   selectedDoorId: null,
+  fogReveal: true,
+  fogShape: "brush",
+  fogBrush: 3,
   selectedId: null,
   lastName: "",
   tool: "move",
@@ -112,6 +125,9 @@ export const useApp = create<AppStore>(() => ({
   placing: null,
   rolling: [],
   hoverId: null,
+  logOut: false,
+  handout: null,
+  handoutDismissed: null,
   ...readPrefs(),
 }));
 

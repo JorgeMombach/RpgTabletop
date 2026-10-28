@@ -263,7 +263,7 @@ describe("conjurados", () => {
     const cells = new Set([nec, ...ids].map((id) => JSON.stringify(find(id).pos)));
     assert.equal(cells.size, 4, "ninguém na mesma casa");
     assert.equal((await act(ana, "token:move", { id: ids[0], pos: { col: 9, row: 9 } })).ok, false);
-    assert.match(errorOf(await act(g, "summon:add", { summonerId: ids[0], name: "Y", hpMax: 1, dexMod: 0, qty: 1 })), /Um conjurado não conjura/);
+    assert.match(errorOf(await act(g, "summon:add", { summonerId: ids[0], name: "Y", hpMax: 1, dexMod: 0, qty: 1 })), /Um invocado não invoca/);
   });
 
   it("conjurado de um oculto nasce oculto; iniciativa própria (entra no Rolar mobs em campo)", async () => {
@@ -337,7 +337,7 @@ describe("conjurados", () => {
 
     file.game.battle.mobs = file.game.battle.mobs.filter((m) => m.id !== nec);
     file.game.battle.combat.order = [];
-    assert.match(errorOf(await g.timeout(2000).emitWithAck("session:import", file)), /conjurado sem conjurador/);
+    assert.match(errorOf(await g.timeout(2000).emitWithAck("session:import", file)), /invocado sem invocador/);
   });
 });
 

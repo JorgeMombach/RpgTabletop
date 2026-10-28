@@ -3,6 +3,7 @@ import { IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
 import { NPC_COLORS, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
+import { useT } from "../i18n";
 import { removeMob } from "../commands";
 import { select, useApp } from "../store";
 import { CombatantForm } from "./CombatantForm";
@@ -11,14 +12,13 @@ import { Panel } from "./Panel";
 
 /** Olho na linha do mob/NPC: oculta dos jogadores ou revela (E21). */
 export function HideToggle({ c }: { c: Combatant }) {
-  const tip = c.hidden
-    ? "Revelar aos jogadores (rola a iniciativa se ela já estiver em andamento)"
-    : "Ocultar dos jogadores (furtividade, sala escura): sai da iniciativa até você revelar";
+  const t = useT();
+  const tip = c.hidden ? t("mobs.revealTip") : t("mobs.hideTip");
   return (
     <Tooltip label={tip}>
       <ActionIcon
         size="sm"
-        aria-label={c.hidden ? `Revelar ${c.name}` : `Ocultar ${c.name}`}
+        aria-label={t(c.hidden ? "mobs.revealOf" : "mobs.hideOf", { name: c.name })}
         onClick={(e) => {
           e.stopPropagation();
           void act("combatant:setHidden", { id: c.id, hidden: !c.hidden });
@@ -32,6 +32,7 @@ export function HideToggle({ c }: { c: Combatant }) {
 
 /** Lista de mobs ou NPCs (só o mestre), com ocultar e remover + "Desfazer". */
 function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
+  const t = useT();
   const selectedId = useApp((s) => s.selectedId);
   if (list.length === 0)
     return (
@@ -50,10 +51,10 @@ function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
           trailing={
             <Group gap={2} wrap="nowrap">
               <HideToggle c={m} />
-              <Tooltip label="Remover da batalha (dá para desfazer)">
+              <Tooltip label={t("mobs.removeTip")}>
                 <ActionIcon
                   size="sm"
-                  aria-label={`Remover ${m.name}`}
+                  aria-label={t("mobs.removeOf", { name: m.name })}
                   onClick={(e) => {
                     e.stopPropagation();
                     void removeMob(m);
@@ -78,25 +79,27 @@ const count = (n: number) => (
 
 /** Mestre: mobs da batalha atual. */
 export function MobsPanel({ mobs }: { mobs: Combatant[] }) {
+  const t = useT();
   return (
-    <Panel title="Mobs na batalha" aside={count(mobs.length)}>
-      <GmList list={mobs} empty="Nenhum mob. Adicione pelo bestiário." />
+    <Panel title={t("mobs.title")} aside={count(mobs.length)}>
+      <GmList list={mobs} empty={t("mobs.empty")} />
     </Panel>
   );
 }
 
 /** Mestre: NPCs neutros (vida oculta para os jogadores, como a dos mobs). */
 export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
+  const t = useT();
   const [creating, setCreating] = useState(false);
 
   return (
     <Panel
-      title="NPCs"
+      title={t("npcs.title")}
       aside={
         !creating && (
-          <Tooltip label="Personagem neutro controlado por você; os jogadores não veem a vida">
+          <Tooltip label={t("npcs.addTip")}>
             <Button variant="default" onClick={() => setCreating(true)}>
-              + NPC
+              {t("npcs.add")}
             </Button>
           </Tooltip>
         )
@@ -105,7 +108,9 @@ export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
       {creating && (
         <CombatantForm
           palette={NPC_COLORS}
-          submitLabel="Adicionar NPC"
+          withNotes
+          withPhases
+          submitLabel={t("npcs.create")}
           withHidden
           onCancel={() => setCreating(false)}
           onSubmit={async (v) => {
@@ -118,7 +123,7 @@ export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
           }}
         />
       )}
-      {!creating && <GmList list={npcs} empty="Nenhum NPC. Crie aqui ou pelo bestiário (botão NPC no template)." />}
+      {!creating && <GmList list={npcs} empty={t("npcs.empty")} />}
     </Panel>
   );
 }

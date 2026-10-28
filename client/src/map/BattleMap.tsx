@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudOff, IconFocusCentered, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudFog, IconCloudOff, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type Wall } from "@rpg/shared";
@@ -9,17 +9,21 @@ import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
-import { allCombatants, currentGroup } from "../format";
+import { allCombatants, currentGroup, turnLocked } from "../format";
+import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions } from "./DrawingShape";
 import { cornerAt, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
+import { LastSeenOverlay } from "./LastSeen";
+import { screenLights, TorchGlowLayer } from "./Torch";
 import { WeatherOverlay } from "./WeatherOverlay";
 
 /** Tipo usado ao arrastar um combatente da lista para o mapa. */
@@ -38,9 +42,6 @@ interface View {
  * Posição da imagem girada (sentido horário) e escalada para ocupar [0, largura] × [0, altura]
  * do mapa a partir da origem: o grid e os tokens não se mexem (E17).
  */
-/** Segurar parado este tempo (ms) faz um ping; mexer mais que PRESS_SLOP px na tela cancela. */
-const LONG_PRESS_MS = 550;
-const PRESS_SLOP = 6;
 
 function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
   const w = image.width * scale;
@@ -65,7 +66,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId, fogReveal, fogShape, fogBrush } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -161,8 +162,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     return stageRef.current?.getRelativePointerPosition() ?? null;
   }
 
-  // Ping: segurar parado (mouse ou dedo) ou Alt+clique. Mexeu o ponteiro antes do tempo, vira arrasto normal.
-  const press = useRef<{ timer: number; screen: Point } | null>(null);
+  // Ping: ferramenta Ping (um toque e volta para Mover), Alt+clique ou botão do meio do mouse.
+  // Segurar parado não pinga: brigava com arrastar a visão e os tokens.
   /** Acabou de pingar: o clique que vem junto não tira a seleção. */
   const pinged = useRef(false);
   function sendPing(p: Point) {
@@ -194,18 +195,44 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (w && !sameCell(w.from, w.to)) void act("wall:add", { from: w.from, to: w.to, door: wallMode === "door" });
   }
 
+  // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
+  const fogRef = useRef<{ draft: FogDraft; start: GridPos; seen: Set<string> } | null>(null);
+  const [fogDraft, setFogDraft] = useState<FogDraft | null>(null);
+  function fogAt(cell: GridPos) {
+    const f = fogRef.current;
+    if (!f) return;
+    if (fogShape === "rect") f.draft = { ...f.draft, rects: [rectBetween(f.start, cell)] };
+    else {
+      const key = `${cell.col},${cell.row}`;
+      if (f.seen.has(key)) return;
+      f.seen.add(key);
+      f.draft = { ...f.draft, rects: [...f.draft.rects, brushRect(cell, fogBrush)] };
+    }
+    setFogDraft(f.draft);
+  }
+  function finishFog() {
+    const f = fogRef.current;
+    fogRef.current = null;
+    if (!f) return;
+    // A prévia fica até o servidor responder (sem piscar a névoa de volta).
+    void sendFog(f.draft).then(() => setFogDraft(null));
+  }
+  /** "Revelar o mapa": todas as casas da imagem. */
+  const revealMap =
+    image && layout
+      ? () => {
+          const a = cellAt({ x: 0, y: 0 }, grid);
+          const b = cellAt({ x: layout.bounds.width - 0.01, y: layout.bounds.height - 0.01 }, grid);
+          void sendFog({ reveal: true, rects: [rectBetween(a, b)] });
+        }
+      : null;
+
   /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
   function onWallClick(w: Wall) {
     if (tool === "walls" && wallMode === "erase") return void act("wall:remove", { id: w.id });
     if (!w.door) return;
     if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
     if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
-  }
-
-  function cancelPress() {
-    if (!press.current) return;
-    clearTimeout(press.current.timer);
-    press.current = null;
   }
 
   // Ref espelha a régua para os handlers de mouse não dependerem do último render.
@@ -258,6 +285,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Eventos de ponteiro: valem para mouse, dedo e caneta (E23).
   function onMouseDown(e: Konva.KonvaEventObject<PointerEvent>) {
+    // Botão do meio = ping (sem abrir a rolagem automática do navegador).
+    if (e.evt.button === 1) {
+      e.evt.preventDefault();
+      stageRef.current?.setPointersPositions(e.evt);
+      const at = worldPointer();
+      if (at) sendPing(at);
+      return;
+    }
     if (e.evt.button !== 0 || pinch.current) return;
     // Clique sem mover o mouse antes: garante que o Konva saiba onde está o ponteiro.
     stageRef.current?.setPointersPositions(e.evt);
@@ -280,6 +315,11 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (placing) setPlacing(null);
     pinged.current = false;
     if (e.evt.altKey) return sendPing(p);
+    if (tool === "ping") {
+      sendPing(p);
+      setTool("move");
+      return;
+    }
     if (tool === "walls") {
       if (wallMode === "erase") return;
       const c = cornerAt(p, grid);
@@ -287,21 +327,20 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       setWallDraft(wallRef.current);
       return;
     }
+    if (tool === "fog") {
+      if (!state.battle.fog.enabled) return;
+      const cell = cellAt(p, grid);
+      // Cômodo: um clique revela (ou cobre) até as paredes; o servidor faz a conta.
+      if (fogShape === "room") return void act("fog:room", { cell, reveal: fogReveal });
+      fogRef.current = { draft: { reveal: fogReveal, rects: [] }, start: cell, seen: new Set() };
+      fogAt(cell);
+      return;
+    }
     if (tool === "draw") {
       if (drawMode === "erase") return;
       strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
       setStroke(strokeRef.current);
       return;
-    }
-    const screen = stageRef.current?.getPointerPosition();
-    if (tool === "move" && screen) {
-      cancelPress();
-      const timer = window.setTimeout(() => {
-        press.current = null;
-        stageRef.current?.stopDrag();
-        sendPing(p);
-      }, LONG_PRESS_MS);
-      press.current = { timer, screen };
     }
     if (tool === "calibrate") {
       calibStart.current = p;
@@ -316,11 +355,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseMove() {
-    const screen = stageRef.current?.getPointerPosition();
-    if (press.current && screen && Math.hypot(screen.x - press.current.screen.x, screen.y - press.current.screen.y) > PRESS_SLOP) cancelPress();
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    if (fogRef.current) {
+      fogAt(cellAt(p, grid));
+      return;
+    }
     if (wallRef.current) {
       const to = cornerAt(p, grid);
       if (!sameCell(to, wallRef.current.to)) {
@@ -359,9 +400,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseUp() {
-    cancelPress();
     finishStroke();
     finishWall();
+    finishFog();
     calibStart.current = null;
     areaDragging.current = false;
     updateRuler(null);
@@ -378,8 +419,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (t.length !== 2 || !stage) return;
       e.preventDefault();
       if (stage.isDragging()) stage.stopDrag();
-      // Segundo dedo no meio de uma régua ou área: a medição para (e não vira ping).
-      cancelPress();
+      // Segundo dedo no meio de uma régua ou área: a medição para.
       if (!pinch.current) {
         updateRuler(null);
         areaDragging.current = false;
@@ -429,7 +469,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
   const activeIds = new Set(currentGroup(state).map((c) => c.id));
-  const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id);
+  // Com a regra "movimento só na vez" ligada, o jogador só arrasta os seus na vez dele.
+  const moveLocked = turnLocked(state, "moveOnTurn");
+  const canMove = (c: CombatantView) => gm || (c.type === "ally" && c.ownerId === state.self.id && !moveLocked);
   // Por cima de todos: o token com o mouse em cima e, abaixo dele, o selecionado. Assim o nome
   // (que aparece em cima do token) nunca fica escondido atrás do vizinho (E26).
   const rank = (c: CombatantView) => (c.id === hoverId ? 2 : c.id === selectedId ? 1 : 0);
@@ -439,6 +481,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     <div
       ref={containerRef}
       className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}`}
+      // Botão do meio é ping: sem a rolagem automática do navegador.
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes(DRAG_MIME)) e.preventDefault();
       }}
@@ -509,6 +553,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             {wallDraft && !sameCell(wallDraft.from, wallDraft.to) && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
           </Layer>
 
+          {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
+              onde se vê (não "vaza" pela parede para dentro de um cômodo coberto). */}
+          <TorchGlowLayer tokens={tokens} grid={grid} light={state.battle.weather.light} />
+
+          {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos, paredes e brilho das tochas; os tokens ficam por cima. */}
+          <FogLayer fog={state.battle.fog} sight={state.battle.sight} grid={grid} gm={gm} draft={fogDraft} />
+
           {/* Alcance e aura: abaixo dos tokens. */}
           <Layer listening={false}>
             {tokens.map((c) => (
@@ -575,13 +626,15 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       )}
 
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
-      <WeatherOverlay weather={state.battle.weather} />
+      <WeatherOverlay weather={state.battle.weather} lights={screenLights(tokens, grid, view)} />
+      {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
+      {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
       <MapToolbar
         tool={tool}
         gm={gm}
         compact={compact}
-        narrow={size.width < 720}
+        narrow={size.width < 780}
         weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
@@ -591,13 +644,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         <Paper className="map-hint" px="md" py="sm" shadow="md">
           <MText size="sm" c="dimmed" ta="center">
             {gm
-              ? "Suba a imagem do mapa no painel Mapa, ou use só o grid. Arraste aliados e mobs da lista para cá."
+              ? t("map.emptyGm")
               : compact
-                ? "Aguardando o mestre montar o campo. Na aba Ficha, use Colocar no mapa para pôr seu personagem."
-                : "Aguardando o mestre montar o campo. Arraste seu personagem da lista para o mapa."}
+                ? t("map.waitingMobile")
+                : t("map.waiting")}
           </MText>
         </Paper>
       )}
+      {!gm && (image || tokens.length > 0) && <DarkReminder state={state} />}
       {placing && placingNext && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">
@@ -617,6 +671,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
       {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
       {gm && tool === "walls" && <WallOptions walls={state.battle.walls} />}
+      {gm && tool === "fog" && <FogOptions fog={state.battle.fog} onRevealMap={revealMap} />}
       {fixing && myArea && (
         <FixEffectModal
           state={state}
@@ -631,7 +686,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {tool === "calibrate" && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">
-            Arraste um retângulo sobre um ou mais quadrados do mapa.
+            {t("map.calibrateHint")}
           </MText>
         </Paper>
       )}
@@ -694,12 +749,13 @@ function RulerShape({
   /** Só a casa de destino com o nome, sem medir (colocar no mapa sem ninguém de referência). */
   cellOnly?: boolean;
 }) {
+  const t = useT();
   const a = cellCenter(ruler.from, grid);
   const b = cellCenter(ruler.to, grid);
   const cells = cellDistance(ruler.from, ruler.to);
   const feet = cells * grid.feetPerCell;
   const fs = 14 / scale;
-  const text = cellOnly ? (label ?? "") : `${feet} ft · ${cells} ${cells === 1 ? "quadrado" : "quadrados"}${label ? ` (${label})` : ""}`;
+  const text = cellOnly ? (label ?? "") : `${feet} ft · ${t("map.squares", { n: cells })}${label ? ` (${label})` : ""}`;
 
   return (
     <Group>
@@ -749,13 +805,13 @@ function MapToolbar({
   const t = useT();
   const reduceFx = useApp((s) => s.reduceFx);
   const reduceButton = weather && (
-    <Tooltip label={reduceFx ? "Clima completo (só neste navegador)" : "Reduzir o clima: menos partículas e sem clarão (só neste navegador)"}>
+    <Tooltip label={reduceFx ? t("map.fullFx") : t("map.reduceFxTip")}>
       <ActionIcon
         size={compact ? "lg" : undefined}
         variant={reduceFx ? "filled" : "subtle"}
         color={reduceFx ? undefined : "gray"}
         onClick={() => setDicePrefs({ reduceFx: !reduceFx })}
-        aria-label="Reduzir o clima"
+        aria-label={t("map.reduceFx")}
         aria-pressed={reduceFx}
       >
         <IconCloudOff size={compact ? 18 : 16} />
@@ -767,8 +823,9 @@ function MapToolbar({
     // Celular (E23): só ícones, alvos de toque maiores; zoom é com pinça.
     const tools = [
       { id: "move", label: t("map.moveTip"), icon: IconHandStop },
-      { id: "ruler", label: "Régua: arraste para medir em pés", icon: IconRuler2 },
-      { id: "area", label: "Área de magia para todos", icon: IconSparkles },
+      { id: "ruler", label: t("map.rulerTipMobile"), icon: IconRuler2 },
+      { id: "area", label: t("map.areaTipMobile"), icon: IconSparkles },
+      { id: "ping", label: t("map.pingTip"), icon: IconHandFinger },
     ] as const;
     return (
       <Paper className="map-toolbar" p={4} shadow="md" radius="md">
@@ -788,8 +845,8 @@ function MapToolbar({
             </Tooltip>
           ))}
           <Divider orientation="vertical" mx={2} />
-          <Tooltip label="Enquadrar o mapa inteiro">
-            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label="Enquadrar o mapa inteiro">
+          <Tooltip label={t("map.fit")}>
+            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label={t("map.fit")}>
               <IconFocusCentered size={18} />
             </ActionIcon>
           </Tooltip>
@@ -801,13 +858,15 @@ function MapToolbar({
 
   // Mapa estreito (colunas largas): as ferramentas ficam só com o ícone, para a barra caber.
   const tools = [
-    { id: "move", text: "Mover", label: t("map.moveTip"), icon: IconHandStop },
-    { id: "ruler", text: "Régua", label: "Medir distância em pés (ou segure Shift e arraste)", icon: IconRuler2 },
-    { id: "area", text: "Área", label: "Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)", icon: IconSparkles },
+    { id: "move", text: t("map.move"), label: t("map.moveTip"), icon: IconHandStop },
+    { id: "ruler", text: t("map.ruler"), label: t("map.rulerTip"), icon: IconRuler2 },
+    { id: "area", text: t("map.area"), label: t("map.areaTip"), icon: IconSparkles },
+    { id: "ping", text: t("map.ping"), label: t("map.pingTip"), icon: IconHandFinger },
     ...(gm
       ? ([
           { id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil },
           { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
+          { id: "fog", text: t("fog.tool"), label: t("fog.toolTip"), icon: IconCloudFog },
         ] as const)
       : []),
   ] as const;
@@ -839,26 +898,26 @@ function MapToolbar({
             )}
           </Tooltip>
         ))}
-        {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>Cancelar calibração</Button>}
+        {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>{t("map.cancelCalibration")}</Button>}
         <Divider orientation="vertical" mx={2} />
-        <Tooltip label="Afastar">
-          <ActionIcon onClick={() => onZoom(1 / 1.25)} aria-label="Afastar">
+        <Tooltip label={t("map.zoomOut")}>
+          <ActionIcon onClick={() => onZoom(1 / 1.25)} aria-label={t("map.zoomOut")}>
             −
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Aproximar">
-          <ActionIcon onClick={() => onZoom(1.25)} aria-label="Aproximar">
+        <Tooltip label={t("map.zoomIn")}>
+          <ActionIcon onClick={() => onZoom(1.25)} aria-label={t("map.zoomIn")}>
             +
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Enquadrar o mapa inteiro">
+        <Tooltip label={t("map.fit")}>
           {narrow ? (
-            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label="Enquadrar o mapa inteiro">
+            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label={t("map.fit")}>
               <IconFocusCentered size={16} />
             </ActionIcon>
           ) : (
             <Button variant="subtle" color="gray" onClick={onFit}>
-              Ajustar
+              {t("map.fitShort")}
             </Button>
           )}
         </Tooltip>
@@ -872,18 +931,19 @@ const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
 
 /** Forma e tamanho da área (ferramenta Área). */
 function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) {
+  const t = useT();
   const { areaKind, areaFeet } = useApp();
   return (
     <Paper className="map-options" p="xs" shadow="md" radius="md">
       <MGroup gap="xs" wrap="nowrap" align="flex-end">
         <SegmentedControl
           size="xs"
-          data={AREA_KINDS.map((k) => ({ value: k, label: AREA_LABEL[k] }))}
+          data={AREA_KINDS.map((k) => ({ value: k, label: t(AREA_LABEL[k]) }))}
           value={areaKind}
           onChange={(v) => useApp.setState({ areaKind: v as AreaKind, areaFeet: AREA_DEFAULT_FEET[v as AreaKind] })}
-          aria-label="Forma da área"
+          aria-label={t("area.shape")}
         />
-        <Tooltip label={`Em pés: ${AREA_MEASURE[areaKind]}`}>
+        <Tooltip label={t("area.feetOf", { what: t(AREA_MEASURE[areaKind]) })}>
           <NumberInput
             w={84}
             min={LIMITS.areaFeet.min}
@@ -898,17 +958,17 @@ function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) 
               const n = Number(v);
               if (Number.isInteger(n) && n >= LIMITS.areaFeet.min && n <= LIMITS.areaFeet.max) useApp.setState({ areaFeet: n });
             }}
-            aria-label={`Tamanho em pés (${AREA_MEASURE[areaKind]})`}
+            aria-label={t("area.sizeOf", { what: t(AREA_MEASURE[areaKind]) })}
           />
         </Tooltip>
       </MGroup>
       <MGroup gap="xs" wrap="nowrap" justify="space-between" mt={4}>
         <MText size="xs" c="dimmed">
-          Clique para pôr a origem e arraste para apontar. Esc apaga.
+          {t("area.hint")}
         </MText>
-        <Tooltip label="Deixa a área no mapa (graxa, teia, fogo…), com duração e concentração">
+        <Tooltip label={t("area.fixTip")}>
           <Button size="compact-xs" disabled={!canFix} leftSection={<IconPin size={12} />} onClick={onFix} style={{ flex: "none" }}>
-            Fixar como efeito
+            {t("area.fix")}
           </Button>
         </Tooltip>
       </MGroup>

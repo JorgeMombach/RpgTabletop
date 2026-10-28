@@ -6,6 +6,35 @@ import { act } from "../actions";
 import { useT } from "../i18n";
 import { HpBar } from "./HpBar";
 
+/** Chefe com fases: "Fase 2 de 3" e uma barra cheia para cada fase que ainda vem. */
+function PhaseBars({ c }: { c: Combatant }) {
+  const t = useT();
+  const current = c.phase ?? 1;
+  const next = c.phases ?? [];
+  return (
+    <Stack gap={4}>
+      <Text size="xs" c="bronze.4">
+        {t("phases.current", { n: current, total: current + next.length })}
+      </Text>
+      {next.map((p, i) => (
+        <Group key={i} gap="xs" wrap="nowrap">
+          <Text size="xs" c="dimmed" w={44} style={{ flex: "none" }}>
+            {t("phases.label", { n: current + i + 1 })}
+          </Text>
+          <div style={{ flex: 1 }}>
+            <HpBar hp={p.hpMax} hpMax={p.hpMax} />
+          </div>
+          <Text size="xs" c="dimmed" truncate maw={140} title={p.name}>
+            {p.hpMax}
+            {p.name ? ` · ${p.name}` : ""}
+            {p.ac !== undefined ? ` · CA ${p.ac}` : ""}
+          </Text>
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
 /**
  * Vida de um combatente: o sistema só soma/subtrai o que a pessoa informar (ADR-06).
  * Vida temporária à parte: o dano tira dela primeiro (o servidor faz a conta).
@@ -89,6 +118,7 @@ export function HpControl({ c }: { c: Combatant }) {
       </Group>
 
       <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
+      {(c.phases || c.phase) && <PhaseBars c={c} />}
 
       <Group gap="xs" wrap="nowrap">
         <NumberInput

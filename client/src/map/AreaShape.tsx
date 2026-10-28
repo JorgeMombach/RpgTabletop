@@ -1,22 +1,23 @@
 import { Circle, Group, Line, Text } from "react-konva";
 import type { Area, AreaKind, MapConfig } from "@rpg/shared";
+import { t, type MessageKey } from "../i18n";
 import type { Point } from "./geometry";
 
-export const AREA_LABEL: Record<AreaKind, string> = {
-  cone: "Cone",
-  sphere: "Esfera",
-  cylinder: "Cilindro",
-  line: "Linha",
-  cube: "Cubo",
+export const AREA_LABEL: Record<AreaKind, MessageKey> = {
+  cone: "area.cone",
+  sphere: "area.sphere",
+  cylinder: "area.cylinder",
+  line: "area.line",
+  cube: "area.cube",
 };
 
 /** O que o número em pés mede em cada forma. */
-export const AREA_MEASURE: Record<AreaKind, string> = {
-  cone: "comprimento",
-  sphere: "raio",
-  cylinder: "raio",
-  line: "comprimento (5 ft de largura)",
-  cube: "lado",
+export const AREA_MEASURE: Record<AreaKind, MessageKey> = {
+  cone: "area.length",
+  sphere: "area.radius",
+  cylinder: "area.radius",
+  line: "area.lineLength",
+  cube: "area.side",
 };
 
 /** Largura da linha no 5e. */
@@ -72,7 +73,7 @@ export function AreaShape({ area, grid, scale, label, color }: { area: Area; gri
     // Cilindro tracejado para diferenciar da esfera (vista de cima é o mesmo círculo).
     dash: area.kind === "cylinder" ? [10 / scale, 6 / scale] : undefined,
   };
-  const text = `${AREA_LABEL[area.kind]} ${area.feet} ft${label ? ` (${label})` : ""}`;
+  const text = `${t(AREA_LABEL[area.kind])} ${area.feet} ft${label ? ` (${label})` : ""}`;
 
   return (
     <Group listening={false}>

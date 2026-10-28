@@ -5,6 +5,7 @@ import { Server, type Socket } from "socket.io";
 import {
   LIMITS,
   type ActionName,
+  type ActionFailure,
   type ActionResult,
   type ClientToServerEvents,
   type GridPos,
@@ -22,11 +23,17 @@ import { exportSession, importSession } from "./session-file";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
+
+/** Recusa para o cliente: a mensagem e, se tiver parâmetros, o modelo para ele traduzir. */
+function failure(err: ActionError): ActionFailure {
+  return { ok: false, error: err.message, ...(err.params && { errorKey: err.template, errorParams: err.params }) };
+}
 import { serveClient } from "./static";
 import { refreshLibrary, soundSource } from "./actions/sound";
 import { whoIs } from "./actions/dice";
 import { audioType, saveSound, soundPath } from "./sounds";
 import { viewFor } from "./view";
+import { trackLastSeen, updateSight } from "./sight";
 
 interface SocketData {
   playerId?: string;
@@ -117,6 +124,7 @@ export function createApp(opts: AppOptions) {
   /** Sala com todos os sockets que já entraram na sessão. */
   const SESSION_ROOM = "session";
   let sentImageVersion = 0;
+  let sentHandoutVersion = 0;
 
   function mapImage() {
     const { image, imageVersion } = store.game.battle.map;
@@ -124,10 +132,18 @@ export function createApp(opts: AppOptions) {
   }
 
   function broadcast() {
+    // Visão dos personagens (névoa): recalcula se alguém andou ou uma porta mexeu, e guarda o explorado.
+    updateSight(store);
+    trackLastSeen(store);
     // A imagem do mapa é pesada: vai à parte e só quando muda (ADR-05).
     if (store.game.battle.map.imageVersion !== sentImageVersion) {
       sentImageVersion = store.game.battle.map.imageVersion;
       io.to(SESSION_ROOM).emit("map:image", mapImage());
+    }
+    // O que o mestre mostra para a mesa também vai à parte (pode ter imagem) e só quando muda.
+    if (store.handoutVersion !== sentHandoutVersion) {
+      sentHandoutVersion = store.handoutVersion;
+      io.to(SESSION_ROOM).emit("handout", store.handout);
     }
     for (const player of store.players.values()) {
       if (player.sockets.size === 0) continue;
@@ -172,6 +188,7 @@ export function createApp(opts: AppOptions) {
     socket.data.playerId = player.id;
     void socket.join(SESSION_ROOM);
     if (store.game.battle.map.image) socket.emit("map:image", mapImage());
+    if (store.handout) socket.emit("handout", store.handout);
     return { ok: true, self: toPublic(player), sessionToken: player.token };
   }
 
@@ -187,7 +204,7 @@ export function createApp(opts: AppOptions) {
       broadcast();
       return ids ? { ok: true, ids } : { ok: true };
     } catch (err) {
-      if (err instanceof ActionError) return { ok: false, error: err.message };
+      if (err instanceof ActionError) return failure(err);
       console.error(`[${name}]`, err);
       return { ok: false, error: "Ação inválida." };
     }
@@ -252,7 +269,7 @@ export function createApp(opts: AppOptions) {
       try {
         importSession(store, player, file);
       } catch (err) {
-        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        if (err instanceof ActionError) return ack(failure(err));
         console.error("[session:import]", err);
         return ack({ ok: false, error: "Arquivo inválido." });
       }
@@ -268,7 +285,7 @@ export function createApp(opts: AppOptions) {
       try {
         io.to(SESSION_ROOM).emit("sound:sfx", soundSource(store, source, false));
       } catch (err) {
-        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        if (err instanceof ActionError) return ack(failure(err));
         throw err;
       }
       ack({ ok: true });
@@ -282,7 +299,7 @@ export function createApp(opts: AppOptions) {
       try {
         saveSound(store.soundsDir, file?.name, file?.data);
       } catch (err) {
-        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        if (err instanceof ActionError) return ack(failure(err));
         console.error("[sound:upload]", err);
         return ack({ ok: false, error: "Não consegui gravar o arquivo na pasta de sons." });
       }

@@ -6,12 +6,14 @@ import { audioLocked, onAudioState, playSfx, setPlayerVolume, syncSound, unlockA
 import { sessionToken } from "../session";
 import { socket } from "../socket";
 import { useVolume } from "../store";
+import { useT } from "../i18n";
 
 /**
  * Deixa o som deste navegador igual ao da mesa (E25) e toca os efeitos de uma vez.
  * O navegador só libera áudio depois de um clique: com algo tocando, aparece "Ativar som".
  */
 export function SoundSync({ sound }: { sound: SoundState }) {
+  const t = useT();
   const { volume, muted } = useVolume();
   const [locked, setLocked] = useState(() => audioLocked());
 
@@ -38,7 +40,7 @@ export function SoundSync({ sound }: { sound: SoundState }) {
   return (
     <Affix position={{ bottom: 24, left: "50%" }} style={{ transform: "translateX(-50%)" }}>
       <Button leftSection={<IconVolume size={16} />} onClick={unlockAudio} size="md" className="plaque">
-        Ativar som da mesa
+        {t("sound.unlock")}
       </Button>
     </Affix>
   );

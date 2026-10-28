@@ -48,7 +48,7 @@ export const magicHandlers: HandlerMap = {
   "spell:add": (store, player, payload) => {
     const c = editableAlly(store, player, payload?.id);
     const spells = (c.spells ??= []);
-    if (spells.length >= LIMITS.spells) fail(`Limite de ${LIMITS.spells} magias.`);
+    if (spells.length >= LIMITS.spells) fail("Limite de {n} magias.", { n: LIMITS.spells });
     const name = typeof payload.name === "string" ? payload.name.replace(/\s+/g, " ").trim().slice(0, LIMITS.spellName) : "";
     if (!name) fail("Informe o nome da magia.");
     const note = typeof payload.note === "string" ? payload.note.trim().slice(0, LIMITS.spellNote) : "";

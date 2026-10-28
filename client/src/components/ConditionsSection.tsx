@@ -3,19 +3,19 @@ import { IconX } from "@tabler/icons-react";
 import { CONDITIONS, LIMITS, type CombatantView } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
-import { fmtCondition } from "../format";
-
-const ROUNDS_TIP = "Desconta 1 no início de cada turno de quem tem a condição; ao chegar a 0, ela sai.";
+import { conditionLabel, conditionName, fmtCondition } from "../format";
+import { useT } from "../i18n";
 
 /** Condições do combatente. O app só anota: nenhum efeito é aplicado (ADR-06). */
 export function ConditionsSection({ c, editable }: { c: CombatantView; editable: boolean }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [rounds, setRounds] = useState<string | number>("");
   const [adding, setAdding] = useState(false);
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    const res = await act("condition:add", { id: c.id, name, rounds: rounds === "" ? null : Number(rounds) });
+    const res = await act("condition:add", { id: c.id, name: conditionName(name), rounds: rounds === "" ? null : Number(rounds) });
     if (res.ok) {
       setName("");
       setRounds("");
@@ -29,25 +29,25 @@ export function ConditionsSection({ c, editable }: { c: CombatantView; editable:
       <Divider />
       <Group justify="space-between" gap="xs" wrap="nowrap">
         <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>
-          Condições
+          {t("conditions.title")}
         </Text>
         {editable && !adding && (
           <Button variant="default" onClick={() => setAdding(true)}>
-            + Condição
+            {t("conditions.add")}
           </Button>
         )}
       </Group>
 
       {c.conditions.length === 0 && !adding && (
         <Text size="xs" c="dimmed">
-          Nenhuma condição.
+          {t("conditions.none")}
         </Text>
       )}
 
       {c.conditions.length > 0 && (
         <Group gap={6}>
           {c.conditions.map((k) => (
-            <Tooltip key={k.id} label={k.rounds === null ? "Sem duração: fica até alguém tirar" : `${k.rounds} round(s) restante(s). ${ROUNDS_TIP}`}>
+            <Tooltip key={k.id} label={k.rounds === null ? t("conditions.noDuration") : `${t("conditions.left", { n: k.rounds })} ${t("conditions.roundsTip")}`}>
               <Badge
                 variant="light"
                 // Concentração em bronze; as demais em verde-cobre (guia visual E20).
@@ -63,7 +63,7 @@ export function ConditionsSection({ c, editable }: { c: CombatantView; editable:
                       size="xs"
                       variant="transparent"
                       color={k.name === "Concentração" ? "bronze" : "copper"}
-                      aria-label={`Tirar ${k.name}`}
+                      aria-label={t("conditions.removeOf", { name: conditionLabel(k.name) })}
                       onClick={() => act("condition:remove", { id: c.id, conditionId: k.id })}
                     >
                       <IconX size={12} stroke={2.5} />
@@ -84,18 +84,18 @@ export function ConditionsSection({ c, editable }: { c: CombatantView; editable:
             <Autocomplete
               style={{ flex: 1, minWidth: 0 }}
               autoFocus
-              placeholder="Condição (ou texto livre)"
-              data={CONDITIONS}
+              placeholder={t("conditions.placeholder")}
+              data={CONDITIONS.map(conditionLabel)}
               maxLength={LIMITS.conditionName}
               value={name}
               onChange={setName}
-              aria-label="Condição"
+              aria-label={t("conditions.name")}
               comboboxProps={{ withinPortal: true }}
             />
-            <Tooltip label={`Duração em rounds (opcional). ${ROUNDS_TIP}`}>
+            <Tooltip label={`${t("conditions.durationTip")} ${t("conditions.roundsTip")}`}>
               <NumberInput
                 w={72}
-                placeholder="Rounds"
+                placeholder={t("conditions.rounds")}
                 min={LIMITS.conditionRounds.min}
                 max={LIMITS.conditionRounds.max}
                 allowDecimal={false}
@@ -103,16 +103,16 @@ export function ConditionsSection({ c, editable }: { c: CombatantView; editable:
                 clampBehavior="strict"
                 value={rounds}
                 onChange={setRounds}
-                aria-label="Duração em rounds"
+                aria-label={t("conditions.duration")}
               />
             </Tooltip>
           </Group>
           <Group justify="flex-end" gap="xs">
             <Button variant="default" onClick={() => setAdding(false)}>
-              Fechar
+              {t("common.close")}
             </Button>
             <Button type="submit" disabled={!name.trim()}>
-              Adicionar
+              {t("common.add")}
             </Button>
           </Group>
         </Stack>

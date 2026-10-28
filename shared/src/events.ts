@@ -1,5 +1,6 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, ClientState, Coins, Drawing, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { FogRect } from "./fog";
 
 export interface JoinPayload {
   name: string;
@@ -36,8 +37,16 @@ export interface CombatantInput {
   avatar?: string | null;
   /** Marca de animal (E21). */
   animal?: boolean;
+  /** Visão no escuro (só personagens dos jogadores). */
+  darkvision?: boolean;
+  /** Chefe: as próximas fases (só mob, NPC e template; só o mestre). `[]` apaga. */
+  phases?: BossPhase[];
   /** Mob ou NPC já criado oculto (E21; ignorado em aliados). */
   hidden?: boolean;
+  /** Descrição que todos veem; vazio apaga. */
+  description?: string;
+  /** Notas do mestre (só ele envia e só ele vê); vazio apaga. */
+  gmNotes?: string;
 }
 
 /** Régua em células (as pontas ficam no centro dos quadrados). */
@@ -135,8 +144,10 @@ export interface ActionPayloads {
   "hp:temp": { id: string; value: number };
   /** Marca os testes contra a morte (0 a 3 cada) de quem está com 0 de vida. */
   "death:set": { id: string; successes: number; failures: number };
-  /** Alcance/aura em pés em volta do token; null apaga. */
-  "aura:set": { id: string; feet: number | null };
+  /** Acende ou apaga a tocha do combatente. */
+  "torch:set": { id: string; lit: boolean };
+  /** Alcance/aura em pés em volta do token; null apaga. `color`: cor do círculo (null = a do token; ausente = mantém). */
+  "aura:set": { id: string; feet: number | null; color?: string | null };
   /**
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
@@ -188,7 +199,10 @@ export interface ActionPayloads {
   "resource:use": { id: string; resourceId: string; delta: number };
   "resource:remove": { id: string; resourceId: string };
   /** Descanso: curto recupera os recursos de descanso curto; longo recupera tudo (vida, slots, recursos) e zera a vida temporária. */
+  /** Descanso de um combatente: o dono (fora de combate) ou o mestre. Vai para o log. */
   rest: { id: string; kind: "short" | "long" };
+  /** Mestre: o mesmo descanso para todos os aliados (personagens e invocados). */
+  "rest:all": { kind: "short" | "long" };
   "attack:upsert": { id: string; attackId?: string; name: string; bonus?: number | null; damage?: string };
   "attack:remove": { id: string; attackId: string };
   "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string };
@@ -210,7 +224,11 @@ export interface ActionPayloads {
     casterId?: string | null;
     rounds?: number | null;
     concentration?: boolean;
+    /** A área acompanha o token de quem conjurou. */
+    follow?: boolean;
   };
+  /** Prende o efeito ao token de quem conjurou (anda junto) ou solta. */
+  "effect:follow": { id: string; follow: boolean };
   /**
    * Muda o estado de um efeito (E24): mesma área, outro tipo (ex.: Graxa → Fogo, Água → Eletrificado).
    * Qualquer um pode transformar um efeito ligado (é a magia de quem transforma); quem transforma passa a
@@ -250,6 +268,22 @@ export interface ActionPayloads {
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   "wall:add": { from: GridPos; to: GridPos; door?: boolean };
   "wall:remove": { id: string };
+  /** Mestre: liga ou desliga a névoa de guerra da cena. */
+  "fog:set": { enabled: boolean };
+  /** Mestre: revela (ou cobre) retângulos de casas. */
+  "fog:paint": { reveal: boolean; rects: FogRect[] };
+  /** Mestre: revela (ou cobre) o cômodo da casa: até as paredes e portas fechadas. */
+  "fog:room": { cell: GridPos; reveal: boolean };
+  /** Mestre: liga ou desliga a visão dos personagens (os aliados revelam em volta deles). */
+  "fog:vision": { enabled: boolean };
+  /** Mestre: cobre o mapa inteiro de novo (e esquece o que foi explorado). */
+  "fog:reset": Record<string, never>;
+  /** Mestre: liga ou desliga regras da mesa (só as que vierem). */
+  "rules:set": Partial<TableRules>;
+  /** Mestre: mostra para a mesa (abre na tela de todos); substitui o que estava sendo mostrado. */
+  "handout:show": { title?: string; text?: string; image?: string };
+  /** Mestre: para de mostrar (fecha na tela de todos). */
+  "handout:close": Record<string, never>;
   /** Mestre: cena nova, vazia (mesmo grid da atual); não troca para ela. */
   "scene:add": { name: string };
   "scene:rename": { id: string; name: string };
@@ -284,11 +318,17 @@ export interface SessionFile {
   game: GameState;
 }
 
-export type SessionExportResult = { ok: true; file: SessionFile } | { ok: false; error: string };
+/**
+ * Recusa: `error` em português, pronto para mostrar. Com parâmetros, vão também o modelo (`errorKey`,
+ * a frase com `{nome}`) e os valores, para o cliente traduzir (sem eles, o modelo é o próprio `error`).
+ */
+export type ActionFailure = { ok: false; error: string; errorKey?: string; errorParams?: Record<string, string | number> };
+
+export type SessionExportResult = { ok: true; file: SessionFile } | ActionFailure;
 
 export type ActionName = keyof ActionPayloads;
 
-export type ActionResult = { ok: true; ids?: string[] } | { ok: false; error: string };
+export type ActionResult = { ok: true; ids?: string[] } | ActionFailure;
 
 type ActionEvents = {
   [K in ActionName]: (payload: ActionPayloads[K], ack?: (res: ActionResult) => void) => void;
@@ -323,6 +363,8 @@ export interface ServerToClientEvents {
   ruler: (payload: RulerBroadcast) => void;
   area: (payload: AreaBroadcast) => void;
   ping: (payload: PingBroadcast) => void;
+  /** O que o mestre está mostrando para a mesa (`null` = nada); vem ao mudar e ao entrar. */
+  handout: (handout: Handout | null) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
@@ -353,6 +395,7 @@ export const LIMITS = {
   /** Quantidade de mobs criados de uma vez a partir de um template. */
   qty: { min: 1, max: 30 },
   notes: 500,
+  description: 1000,
   conditionName: 32,
   /** Condições por combatente. */
   conditions: 12,
@@ -374,8 +417,17 @@ export const LIMITS = {
   /** Cenas na sessão e tamanho do nome. */
   scenes: 20,
   sceneName: 40,
+  /** Fases de chefe depois da primeira. */
+  phases: 5,
+  handoutTitle: 80,
+  handoutText: 2000,
   /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */
   walls: 600,
+  /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
+  fogRects: 500,
+  fogRectSide: 400,
+  /** Maior cômodo que "revelar o cômodo" aceita (casas); passou disso, a área não fecha. */
+  fogRoom: 4000,
   wallLength: 200,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,

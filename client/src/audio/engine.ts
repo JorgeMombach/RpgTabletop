@@ -1,5 +1,6 @@
 import type { SoundChannel, SoundSource, SoundState, SoundTrack } from "@rpg/shared";
 import { AMBIENT, AMBIENT_LEVEL, SFX, SFX_LEVEL, type Voice } from "./synth";
+import { t } from "../i18n";
 
 /**
  * Motor de som da mesa (E25), um por navegador. Caminho do som:
@@ -83,7 +84,7 @@ function loadBuffer(name: string, token: string): Promise<AudioBuffer> {
   if (!p) {
     p = fetch(`/sons/${encodeURIComponent(name)}?t=${encodeURIComponent(token)}`)
       .then((r) => {
-        if (!r.ok) throw new Error(`Som "${name}" indisponível.`);
+        if (!r.ok) throw new Error(t("sound.unavailable", { name }));
         return r.arrayBuffer();
       })
       .then((data) => audio().decodeAudioData(data));

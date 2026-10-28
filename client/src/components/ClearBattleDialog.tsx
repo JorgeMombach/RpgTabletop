@@ -3,9 +3,11 @@ import { useState } from "react";
 import { act } from "../actions";
 import { toast } from "../notify";
 import { select, setTool } from "../store";
+import { useT } from "../i18n";
 
 /** Confirmação do "Limpar campo de batalha" (SPEC F7). */
 export function ClearBattleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   const [keepTemplates, setKeepTemplates] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -17,33 +19,33 @@ export function ClearBattleDialog({ open, onClose }: { open: boolean; onClose: (
     select(null);
     setTool("move");
     onClose();
-    toast({ kind: "info", text: "Campo limpo. Pronto para a próxima batalha." });
+    toast({ kind: "info", text: t("clear.done") });
   }
 
   return (
-    <Modal opened={open} onClose={onClose} title="Limpar campo de batalha?" size="md">
+    <Modal opened={open} onClose={onClose} title={t("clear.title")} size="md">
       <Stack gap="md">
         <SimpleGrid cols={2} spacing="md">
           <div>
             <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb={4}>
-              Sai
+              {t("clear.goes")}
             </Text>
             <List size="sm" spacing={2}>
-              <List.Item>Imagem do mapa</List.Item>
-              <List.Item>Todos os mobs</List.Item>
-              <List.Item>Iniciativa e rounds</List.Item>
-              <List.Item>Posições dos tokens</List.Item>
+              <List.Item>{t("clear.image")}</List.Item>
+              <List.Item>{t("clear.mobs")}</List.Item>
+              <List.Item>{t("clear.initiative")}</List.Item>
+              <List.Item>{t("clear.positions")}</List.Item>
             </List>
           </div>
           <div>
             <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb={4}>
-              Fica
+              {t("clear.stays")}
             </Text>
             <List size="sm" spacing={2}>
-              <List.Item>Jogadores conectados</List.Item>
-              <List.Item>Personagens com vida, slots e magias</List.Item>
-              <List.Item>Configuração do grid</List.Item>
-              <List.Item>Log de dados</List.Item>
+              <List.Item>{t("clear.players")}</List.Item>
+              <List.Item>{t("clear.characters")}</List.Item>
+              <List.Item>{t("clear.grid")}</List.Item>
+              <List.Item>{t("clear.log")}</List.Item>
             </List>
           </div>
         </SimpleGrid>
@@ -51,14 +53,14 @@ export function ClearBattleDialog({ open, onClose }: { open: boolean; onClose: (
           size="sm"
           checked={keepTemplates}
           onChange={(e) => setKeepTemplates(e.currentTarget.checked)}
-          label="Manter bestiário (templates) para a próxima luta"
+          label={t("clear.keepTemplates")}
         />
         <Group justify="flex-end" gap="sm">
           <Button size="sm" variant="default" onClick={onClose}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button size="sm" color="red" loading={busy} onClick={confirm}>
-            Limpar campo
+            {t("top.clearField")}
           </Button>
         </Group>
       </Stack>

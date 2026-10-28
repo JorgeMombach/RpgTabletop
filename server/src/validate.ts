@@ -1,10 +1,28 @@
 import { LIMITS, NAME_MAX_LENGTH, type Area, type AreaKind } from "@rpg/shared";
 
-/** Erro de ação: a mensagem vai direto para o usuário. */
-export class ActionError extends Error {}
+export type ErrorParams = Record<string, string | number>;
 
-export function fail(message: string): never {
-  throw new ActionError(message);
+/** Troca `{nome}` pelo parâmetro. */
+export function fillMessage(template: string, params?: ErrorParams): string {
+  return params ? template.replace(/\{(\w+)\}/g, (m, k: string) => (k in params ? String(params[k]) : m)) : template;
+}
+
+/**
+ * Erro de ação: a mensagem (em português) vai para o usuário. O modelo e os parâmetros vão junto para
+ * o cliente traduzir no idioma de quem lê (o catálogo de erros fica em client/src/i18n/errors.ts).
+ */
+export class ActionError extends Error {
+  constructor(
+    readonly template: string,
+    readonly params?: ErrorParams,
+  ) {
+    super(fillMessage(template, params));
+  }
+}
+
+/** Recusa com mensagem pronta para o usuário: `fail("Essa casa já está ocupada por {name}.", { name })`. */
+export function fail(template: string, params?: ErrorParams): never {
+  throw new ActionError(template, params);
 }
 
 export function cleanName(raw: unknown): string | null {
@@ -19,9 +37,9 @@ export function requireName(raw: unknown): string {
 
 export function requireInt(raw: unknown, label: string, min: number, max: number): number {
   const n = typeof raw === "string" && raw.trim() !== "" ? Number(raw) : raw;
-  if (typeof n !== "number" || !Number.isFinite(n)) fail(`${label}: informe um número.`);
+  if (typeof n !== "number" || !Number.isFinite(n)) fail("{label}: informe um número.", { label });
   const int = Math.trunc(n);
-  if (int < min || int > max) fail(`${label}: use um valor entre ${min} e ${max}.`);
+  if (int < min || int > max) fail("{label}: use um valor entre {min} e {max}.", { label, min, max });
   return int;
 }
 
@@ -30,20 +48,20 @@ const IMAGE_DATA_URL = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*
 /** Aceita só imagens embutidas (dataURL base64) até `maxChars` caracteres. */
 export function requireImage(raw: unknown, label: string, maxChars: number): string {
   if (typeof raw !== "string" || !IMAGE_DATA_URL.test(raw.slice(0, 64) + raw.slice(-8))) {
-    fail(`${label}: use uma imagem PNG, JPG ou WebP.`);
+    fail("{label}: use uma imagem PNG, JPG ou WebP.", { label });
   }
-  if (raw.length > maxChars) fail(`${label}: imagem grande demais.`);
+  if (raw.length > maxChars) fail("{label}: imagem grande demais.", { label });
   return raw;
 }
 
 export function requireNumber(raw: unknown, label: string, min: number, max: number): number {
-  if (typeof raw !== "number" || !Number.isFinite(raw)) fail(`${label}: informe um número.`);
-  if (raw < min || raw > max) fail(`${label}: use um valor entre ${min} e ${max}.`);
+  if (typeof raw !== "number" || !Number.isFinite(raw)) fail("{label}: informe um número.", { label });
+  if (raw < min || raw > max) fail("{label}: use um valor entre {min} e {max}.", { label, min, max });
   return raw;
 }
 
 export function requireString(raw: unknown, label: string): string {
-  if (typeof raw !== "string" || !raw) fail(`${label} inválido.`);
+  if (typeof raw !== "string" || !raw) fail("{label} inválido.", { label });
   return raw;
 }
 

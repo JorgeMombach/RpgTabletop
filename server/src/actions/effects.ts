@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type MapEffect } from "@rpg/shared";
+import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
@@ -20,26 +20,33 @@ export function endConcentration(store: Store, casterId: string) {
   const { game } = store;
   const { battle } = game;
   const caster = byId(store, casterId)?.name;
-  const of = caster ? ` de ${caster}` : "";
 
   const summons = allCombatants(store).filter((c) => c.summonConcentration && c.summonerId === casterId);
-  for (const s of summons) dismissSummon(store, s, `${s.name}${of} sumiu (concentração perdida).`);
+  for (const s of summons) dismissSummon(store, s, caster, "concentration");
 
   const ended = battle.effects.filter((e) => e.concentration && e.casterId === casterId);
-  for (const e of ended) finish(store, e, `${e.name}${of} acabou (concentração perdida)`);
+  for (const e of ended) finish(store, e, caster, "concentration");
 }
 
-/** Efeito acabou: volta ao estado de antes de "Transformar" (se pediram) ou sai do mapa. Avisa no log. */
-function finish(store: Store, e: MapEffect, message: string) {
+/** Por que acabou: concentração perdida ou duração. */
+type EndReason = "concentration" | "duration";
+
+/**
+ * Efeito acabou: volta ao estado de antes de "Transformar" (se pediram) ou sai do mapa. Avisa no log
+ * (cada combinação é um modelo inteiro, para traduzir a frase toda).
+ */
+function finish(store: Store, e: MapEffect, caster: string | undefined, reason: EndReason) {
   const before = e.revertTo;
+  const base = (caster ? "{effect} de {caster} acabou" : "{effect} acabou") + (reason === "concentration" ? " (concentração perdida)" : "");
+  const params = { effect: e.name, ...(caster && { caster }) };
   if (!before) {
     store.game.battle.effects = store.game.battle.effects.filter((x) => x !== e);
-    logSystem(store, `${message}.`);
+    logSystem(store, `${base}.`, params);
     return;
   }
   delete e.revertTo;
   Object.assign(e, before);
-  logSystem(store, `${message}; voltou a ser ${before.name}.`);
+  logSystem(store, `${base}; voltou a ser {before}.`, { ...params, before: before.name });
 }
 
 /** Concentração: o conjurador ganha a condição (o vínculo só funciona se ela existir). */
@@ -49,7 +56,7 @@ export function ensureConcentration(caster: Combatant) {
 }
 
 /** Conjurado sai de vez (concentração, duração): sem "Desfazer", com aviso no log. */
-function dismissSummon(store: Store, s: Combatant, message: string) {
+function dismissSummon(store: Store, s: Combatant, caster: string | undefined, reason: EndReason) {
   const { game } = store;
   const { battle } = game;
   game.allies = game.allies.filter((c) => c.id !== s.id);
@@ -57,7 +64,8 @@ function dismissSummon(store: Store, s: Combatant, message: string) {
   battle.npcs = battle.npcs.filter((c) => c.id !== s.id);
   removeFromOrder(store, s.id);
   endConcentration(store, s.id);
-  logSystem(store, message);
+  const why = reason === "concentration" ? "(concentração perdida)" : "(duração acabou)";
+  logSystem(store, caster ? `{name} de {caster} sumiu ${why}.` : `{name} sumiu ${why}.`, { name: s.name, ...(caster && { caster }) });
 }
 
 /** Desconta 1 round dos efeitos que passam no filtro; os que chegam a 0 somem com aviso. */
@@ -71,7 +79,7 @@ function tick(store: Store, which: (e: MapEffect) => boolean) {
   }
   for (const e of expired) {
     const caster = e.casterId ? byId(store, e.casterId)?.name : undefined;
-    finish(store, e, `${e.name}${caster ? ` de ${caster}` : ""} acabou`);
+    finish(store, e, caster, "duration");
   }
 }
 
@@ -82,7 +90,24 @@ export function tickCasterEffects(store: Store, casterId: string) {
   for (const s of allCombatants(store)) {
     if (s.summonerId !== casterId || s.summonRounds === undefined) continue;
     s.summonRounds--;
-    if (s.summonRounds <= 0) dismissSummon(store, s, `${s.name}${caster ? ` de ${caster}` : ""} sumiu (duração acabou).`);
+    if (s.summonRounds <= 0) dismissSummon(store, s, caster, "duration");
+  }
+}
+
+/**
+ * O token andou: os efeitos presos a ele andam a mesma distância (a área continua na mesma posição
+ * em relação a ele: centrada, saindo dele…). Sair do mapa ou voltar a ele não leva o efeito junto.
+ */
+export function moveFollowers(store: Store, c: Combatant, from: GridPos | null, to: GridPos | null) {
+  if (!from || !to) return;
+  const dc = to.col - from.col;
+  const dr = to.row - from.row;
+  if (dc === 0 && dr === 0) return;
+  const lim = LIMITS.gridCoord;
+  const clamp = (n: number) => Math.max(-lim, Math.min(lim, n));
+  for (const e of store.game.battle.effects) {
+    if (e.followId !== c.id) continue;
+    e.area = { ...e.area, origin: { col: clamp(e.area.origin.col + dc), row: clamp(e.area.origin.row + dr) } };
   }
 }
 
@@ -131,10 +156,11 @@ function ownEffect(store: Store, player: ServerPlayer, rawId: unknown): MapEffec
 export const effectHandlers: HandlerMap = {
   "effect:add": (store, player, payload) => {
     const { battle } = store.game;
-    if (battle.effects.length >= LIMITS.effects) fail(`Limite de ${LIMITS.effects} efeitos no mapa.`);
+    if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
     const fields = effectFields(store, player, payload);
     const area = validArea(payload.area) ?? fail("Área inválida.");
     const { casterId, concentration } = fields;
+    if (payload.follow === true && !casterId) fail("Para o efeito andar junto, escolha quem conjurou.");
 
     const effect: MapEffect = {
       id: randomUUID(),
@@ -142,6 +168,7 @@ export const effectHandlers: HandlerMap = {
       area,
       ownerId: player.id,
       active: true,
+      ...(payload.follow === true && casterId && { followId: casterId }),
     };
     battle.effects.push(effect);
 
@@ -173,7 +200,7 @@ export const effectHandlers: HandlerMap = {
       delete e.revertTo;
     }
     Object.assign(e, fields, { ownerId: player.id });
-    logSystem(store, `${whoIs(store, player)} transformou ${before.name} em ${e.name}.`);
+    logSystem(store, "{who} transformou {from} em {to}.", { who: whoIs(store, player), from: before.name, to: e.name });
     const caster = fields.casterId ? byId(store, fields.casterId) : undefined;
     if (fields.concentration && caster) ensureConcentration(caster);
   },
@@ -182,6 +209,17 @@ export const effectHandlers: HandlerMap = {
     const e = ownEffect(store, player, payload?.id);
     if (typeof payload.active !== "boolean") fail("Informe se o efeito fica ligado.");
     e.active = payload.active;
+  },
+
+  "effect:follow": (store, player, payload) => {
+    const e = ownEffect(store, player, payload?.id);
+    if (typeof payload.follow !== "boolean") fail("Informe se o efeito anda junto.");
+    if (!payload.follow) {
+      delete e.followId;
+      return;
+    }
+    if (!e.casterId || !byId(store, e.casterId)) fail("Para o efeito andar junto, ele precisa de quem conjurou.");
+    e.followId = e.casterId;
   },
 
   "effect:remove": (store, player, payload) => {

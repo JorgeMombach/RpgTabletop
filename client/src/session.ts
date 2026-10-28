@@ -1,5 +1,7 @@
 import { socket } from "./socket";
+import { logText } from "./i18n";
 import { toast } from "./notify";
+import { IS_LOG_WINDOW } from "./logWindow";
 import { PING_MS, useApp } from "./store";
 
 const TOKEN_KEY = "rpg.sessionToken";
@@ -104,9 +106,10 @@ socket.on("state:full", (state) => {
   const previous = useApp.getState().state;
   useApp.setState({ state, joinError: null });
   // Avisos da mesa (ex.: condição que acabou) viram toast, mas só os novos: ao entrar, o log antigo não se repete.
-  if (!previous) return;
+  // Na janela do log, não: a janela principal já avisa.
+  if (!previous || IS_LOG_WINDOW) return;
   const seen = new Set(previous.log.map((e) => e.id));
-  for (const e of state.log) if (e.system && !seen.has(e.id)) toast({ kind: "info", text: e.text });
+  for (const e of state.log) if (e.system && !seen.has(e.id)) toast({ kind: "info", text: logText(e) });
 });
 
 socket.on("toast", (t) => toast(t));
@@ -125,6 +128,9 @@ socket.on("ruler", ({ playerId, name, ruler }) => {
 });
 
 let pingSeq = 0;
+// O que o mestre mostra para a mesa: abre de novo para todos quando é algo novo.
+socket.on("handout", (handout) => useApp.setState({ handout }));
+
 socket.on("ping", ({ playerId, name, at }) => {
   const id = ++pingSeq;
   useApp.setState((s) => ({ pings: [...s.pings, { id, playerId, name, at }].slice(-12) }));

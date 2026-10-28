@@ -3,8 +3,8 @@ import { COINS, LIMITS, type Coins, type Combatant, type Recharge } from "@rpg/s
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString } from "../validate";
-import { editable } from "./combatants";
-import { logRoll } from "./dice";
+import { editable, requireGm } from "./combatants";
+import { logRoll, logSystem } from "./dice";
 import type { HandlerMap } from "./types";
 
 /*
@@ -28,7 +28,7 @@ function optLine(raw: unknown, max: number): string | undefined {
 /** Item de uma lista do combatente pelo id, ou recusa. */
 function findIn<T extends { id: string }>(list: T[] | undefined, raw: unknown, what: string): T {
   const id = requireString(raw, what);
-  return list?.find((x) => x.id === id) ?? fail(`${what} não encontrado.`);
+  return list?.find((x) => x.id === id) ?? fail("{what} não encontrado.", { what });
 }
 
 /** Tira um item de uma das listas; a lista vazia some do combatente. */
@@ -45,6 +45,20 @@ function damageOf(raw: unknown): string | undefined {
   const s = optLine(raw, LIMITS.dice.exprLength);
   if (s && !/^[\d\sdD+\-%]+$/.test(s)) fail("Dano inválido: use algo como 1d8+3.");
   return s;
+}
+
+function restKind(raw: unknown): "short" | "long" {
+  return raw === "short" || raw === "long" ? raw : fail("Descanso curto ou longo?");
+}
+
+/** Descanso longo: vida cheia, slots de volta, sem vida temporária nem testes contra a morte. Os dois: recursos. */
+function applyRest(c: Combatant, kind: "short" | "long") {
+  recharge(c, kind);
+  if (kind === "short") return;
+  c.hp = c.hpMax;
+  for (const slot of Object.values(c.spellSlots ?? {})) slot.used = 0;
+  delete c.tempHp;
+  delete c.deathSaves;
 }
 
 /** Recupera os recursos que voltam neste descanso. */
@@ -64,7 +78,7 @@ export function rechargeOnTurn(store: Store, c: Combatant) {
     const back = result.total >= (r.rechargeOn ?? 6);
     if (back) r.used = 0;
     logRoll(store, gmOf(store), result, {
-      label: `Recarga de ${r.name} (${r.rechargeOn ?? 6}–6)${back ? ": voltou" : ""}`,
+      label: [{ key: back ? "Recarga de {name} ({n}–6): voltou" : "Recarga de {name} ({n}–6)", params: { name: r.name, n: r.rechargeOn ?? 6 } }],
       as: c.name,
       hidden: c.type !== "ally",
       color: c.color,
@@ -91,7 +105,7 @@ export const sheetHandlers: HandlerMap = {
       return [r.id];
     }
     const resources = (c.resources ??= []);
-    if (resources.length >= LIMITS.resources) fail(`Limite de ${LIMITS.resources} recursos.`);
+    if (resources.length >= LIMITS.resources) fail("Limite de {n} recursos.", { n: LIMITS.resources });
     const r = { id: randomUUID(), name, max, used: 0, recharge: kind, ...(rechargeOn && { rechargeOn }) };
     resources.push(r);
     return [r.id];
@@ -110,15 +124,22 @@ export const sheetHandlers: HandlerMap = {
 
   rest: (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    const kind = payload?.kind === "short" || payload?.kind === "long" ? payload.kind : fail("Descanso curto ou longo?");
-    recharge(c, kind);
-    if (kind === "long") {
-      // Descanso longo: vida cheia, slots de volta, sem vida temporária nem testes contra a morte.
-      c.hp = c.hpMax;
-      for (const slot of Object.values(c.spellSlots ?? {})) slot.used = 0;
-      delete c.tempHp;
-      delete c.deathSaves;
-    }
+    const kind = restKind(payload?.kind);
+    // Ninguém descansa no meio da luta (e um clique sem querer não enche a vida de ninguém). O mestre pode tudo.
+    if (player.role !== "gm" && store.game.battle.combat.active) fail("Descanso só fora de combate.");
+    applyRest(c, kind);
+    // No log, para a mesa ver quem descansou. De mob/NPC, só o mestre vê.
+    const who = player.role === "gm" ? `${c.name} (Mestre)` : c.name === player.name ? c.name : `${c.name} (${player.name})`;
+    logSystem(store, kind === "short" ? "{who} fez um descanso curto." : "{who} fez um descanso longo.", { who }, c.type !== "ally");
+  },
+
+  "rest:all": (store, player, payload) => {
+    requireGm(player);
+    const kind = restKind(payload?.kind);
+    const { allies } = store.game;
+    if (allies.length === 0) fail("Nenhum aliado na mesa.");
+    for (const a of allies) applyRest(a, kind);
+    logSystem(store, kind === "short" ? "Mestre: descanso curto para o grupo ({names})." : "Mestre: descanso longo para o grupo ({names}).", { names: allies.map((a) => a.name).join(", ") });
   },
 
   "attack:upsert": (store, player, payload) => {
@@ -136,7 +157,7 @@ export const sheetHandlers: HandlerMap = {
       return [a.id];
     }
     const attacks = (c.attacks ??= []);
-    if (attacks.length >= LIMITS.attacks) fail(`Limite de ${LIMITS.attacks} ataques.`);
+    if (attacks.length >= LIMITS.attacks) fail("Limite de {n} ataques.", { n: LIMITS.attacks });
     const a = { id: randomUUID(), ...fields };
     attacks.push(a);
     return [a.id];
@@ -159,7 +180,7 @@ export const sheetHandlers: HandlerMap = {
       return [item.id];
     }
     const inventory = (c.inventory ??= []);
-    if (inventory.length >= LIMITS.items) fail(`Limite de ${LIMITS.items} itens.`);
+    if (inventory.length >= LIMITS.items) fail("Limite de {n} itens.", { n: LIMITS.items });
     const item = { id: randomUUID(), ...fields };
     inventory.push(item);
     return [item.id];

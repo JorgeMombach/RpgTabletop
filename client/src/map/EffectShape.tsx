@@ -2,6 +2,7 @@ import Konva from "konva";
 import { useEffect, useMemo, useRef } from "react";
 import { Circle, Group, Line, Shape, Text } from "react-konva";
 import type { MapConfig, MapEffect } from "@rpg/shared";
+import { t } from "../i18n";
 import { areaPolygon } from "./AreaShape";
 import { drawFx, newFxState, type FxArea } from "./effectFx";
 import { effectTexture, TILE } from "./effectTextures";
@@ -166,7 +167,7 @@ export function EffectShape({ effect, grid, scale, casterName }: { effect: MapEf
       <Text
         x={origin.x + 6 / scale}
         y={origin.y + 6 / scale}
-        text={effect.active ? label : `${label} (desligado)`}
+        text={effect.active ? label : `${label} (${t("effects.off")})`}
         fontSize={fs}
         fontStyle="bold"
         fill="#ffffff"

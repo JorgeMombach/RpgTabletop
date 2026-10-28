@@ -1,15 +1,17 @@
 import { ActionIcon, Badge, Group, Stack, Switch, Text, Tooltip } from "@mantine/core";
-import { IconTransform, IconTrash } from "@tabler/icons-react";
+import { IconLink, IconLinkOff, IconTransform, IconTrash } from "@tabler/icons-react";
 import type { ClientState, MapEffect } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
 import { allCombatants } from "../format";
+import { useT } from "../i18n";
 import { EffectSwatch } from "./FixEffectModal";
 import { Panel } from "./Panel";
 import { TransformEffectModal } from "./TransformEffectModal";
 
 /** Efeitos persistentes no mapa (E19): quem conjurou, rounds restantes, transformar (E24), ligar/desligar e remover. */
 export function EffectsPanel({ state }: { state: ClientState }) {
+  const t = useT();
   const gm = state.self.role === "gm";
   const { effects } = state.battle;
   const nameOf = (id: string | null) => (id ? allCombatants(state).find((c) => c.id === id)?.name : undefined);
@@ -17,7 +19,7 @@ export function EffectsPanel({ state }: { state: ClientState }) {
 
   return (
     <Panel
-      title="Efeitos no mapa"
+      title={t("effects.title")}
       aside={
         <Badge variant="default" size="sm">
           {effects.length}
@@ -26,16 +28,19 @@ export function EffectsPanel({ state }: { state: ClientState }) {
     >
       {effects.length === 0 ? (
         <Text size="xs" c="dimmed">
-          Nenhum efeito. No mapa, use a ferramenta Área e depois “Fixar como efeito”.
+          {t("effects.none")}
         </Text>
       ) : (
         <Stack gap={6}>
           {effects.map((e) => {
             const canEdit = gm || e.ownerId === state.self.id;
-            const caster = nameOf(e.casterId) ?? "ambiente";
+            const caster = nameOf(e.casterId) ?? t("effects.ambient");
             const detail =
-              `${caster}${e.rounds !== null ? ` · ${e.rounds} round(s)` : ""}${e.concentration ? " · concentração" : ""}` +
-              (e.revertTo ? ` · depois volta a ser ${e.revertTo.name}` : "");
+              `${caster}${e.rounds !== null ? ` · ${t("common.rounds", { n: e.rounds })}` : ""}${e.concentration ? ` · ${t("effects.concentration")}` : ""}` +
+              // Quem conjurou já está no começo: preso a ele, basta "anda junto".
+              (e.followId ? ` · ${e.followId === e.casterId ? t("effects.followingCaster") : t("effects.following", { name: nameOf(e.followId) ?? "?" })}` : "") +
+              (e.revertTo ? ` · ${t("effects.revertsTo", { name: e.revertTo.name })}` : "");
+            const follows = !!e.followId;
             return (
               <Group key={e.id} gap="xs" wrap="nowrap" style={{ opacity: e.active ? 1 : 0.55 }}>
                 <EffectSwatch preset={e.preset} color={e.color} size={24} />
@@ -49,25 +54,39 @@ export function EffectsPanel({ state }: { state: ClientState }) {
                 </div>
                 {/* Qualquer um transforma um efeito que vê: é a magia dele agindo na área (E24). */}
                 {(gm || e.active) && (
-                  <Tooltip label="Transformar (ex.: graxa pega fogo, água fica eletrificada)">
-                    <ActionIcon size="sm" aria-label={`Transformar ${e.name}`} onClick={() => setTransforming(e)}>
+                  <Tooltip label={t("effects.transformTip")}>
+                    <ActionIcon size="sm" aria-label={t("effects.transformOf", { name: e.name })} onClick={() => setTransforming(e)}>
                       <IconTransform size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
+                {canEdit && e.casterId && (
+                  <Tooltip label={t(follows ? "effects.unfollow" : "effects.followTip", { name: caster })}>
+                    <ActionIcon
+                      size="sm"
+                      variant={follows ? "light" : "subtle"}
+                      color={follows ? "bronze" : undefined}
+                      aria-label={t(follows ? "effects.unfollow" : "effects.followTip", { name: caster })}
+                      aria-pressed={follows}
+                      onClick={() => act("effect:follow", { id: e.id, follow: !follows })}
+                    >
+                      {follows ? <IconLink size={16} /> : <IconLinkOff size={16} />}
+                    </ActionIcon>
+                  </Tooltip>
+                )}
                 {canEdit && (
-                  <Tooltip label={e.active ? "Desligar (fica guardado; só o mestre vê)" : "Ligar"}>
+                  <Tooltip label={e.active ? t("effects.disableTip") : t("effects.enable")}>
                     <Switch
                       size="xs"
                       checked={e.active}
                       onChange={(ev) => void act("effect:toggle", { id: e.id, active: ev.currentTarget.checked })}
-                      aria-label={`${e.active ? "Desligar" : "Ligar"} ${e.name}`}
+                      aria-label={t(e.active ? "effects.disableOf" : "effects.enableOf", { name: e.name })}
                     />
                   </Tooltip>
                 )}
                 {canEdit && (
-                  <Tooltip label="Remover efeito">
-                    <ActionIcon size="sm" aria-label={`Remover ${e.name}`} onClick={() => act("effect:remove", { id: e.id })}>
+                  <Tooltip label={t("effects.remove")}>
+                    <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: e.name })} onClick={() => act("effect:remove", { id: e.id })}>
                       <IconTrash size={16} />
                     </ActionIcon>
                   </Tooltip>

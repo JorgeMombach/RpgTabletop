@@ -41,9 +41,18 @@ function rollGmSide(store: Store, list: Combatant[], grouped: boolean) {
   }
 }
 
+/**
+ * Iniciativa se rola uma vez: o jogador rola (ou digita) a do próprio personagem e dos invocados dele
+ * só enquanto não tem valor. Depois, mudar ou rolar de novo é com o mestre (ou *Iniciativa de novo*, que zera todas).
+ */
+function onceForPlayers(player: ServerPlayer, c: Combatant): Combatant {
+  if (player.role !== "gm" && c.initiative !== null) fail("A iniciativa de {name} já foi rolada. Só o mestre muda.", { name: c.name });
+  return c;
+}
+
 /** Oculto fica fora da iniciativa até o mestre revelar (E21). */
 function notHidden(c: Combatant): Combatant {
-  if (c.hidden) fail(`${c.name} está oculto: revele antes de pôr na iniciativa.`);
+  if (c.hidden) fail("{name} está oculto: revele antes de pôr na iniciativa.", { name: c.name });
   return c;
 }
 
@@ -75,11 +84,11 @@ function currentOf(store: Store, player: ServerPlayer): Combatant {
 
 export const initiativeHandlers: HandlerMap = {
   "init:roll": (store, player, payload) => {
-    const c = notHidden(editable(store, player, payload?.id));
+    const c = onceForPlayers(player, notHidden(editable(store, player, payload?.id)));
     const result = rollInitiative(c.dexMod);
     applyRoll(store, c, result);
     // Iniciativa de mob e NPC fica só para o mestre no log; a de aliado, para todos.
-    logRoll(store, player, result, { label: "Iniciativa", as: c.name, hidden: c.type !== "ally", color: c.color });
+    logRoll(store, player, result, { label: [{ key: "Iniciativa" }], as: c.name, hidden: c.type !== "ally", color: c.color });
   },
 
   "init:rollMobs": (store, player, payload) => {
@@ -102,7 +111,7 @@ export const initiativeHandlers: HandlerMap = {
   },
 
   "init:set": (store, player, payload) => {
-    const c = notHidden(editable(store, player, payload?.id));
+    const c = onceForPlayers(player, notHidden(editable(store, player, payload?.id)));
     if (payload.value === null) {
       c.initiative = c.initRoll = null;
       removeFromOrder(store, c.id);
@@ -132,7 +141,7 @@ export const initiativeHandlers: HandlerMap = {
     if (combat.active || combat.order.length > 0) {
       const result = rollInitiative(c.dexMod);
       applyRoll(store, c, result);
-      logRoll(store, player, result, { label: "Iniciativa (revelado)", as: c.name, hidden: true, color: c.color });
+      logRoll(store, player, result, { label: [{ key: "Iniciativa (revelado)" }], as: c.name, hidden: true, color: c.color });
     }
   },
 
@@ -161,7 +170,7 @@ export const initiativeHandlers: HandlerMap = {
   "combat:pass": (store, player) => {
     requireActive(store);
     currentOf(store, player);
-    if (player.role !== "gm") logSystem(store, `${whoIs(store, player)} passou a vez.`);
+    if (player.role !== "gm") logSystem(store, "{who} passou a vez.", { who: whoIs(store, player) });
     advance(store);
   },
 
@@ -181,7 +190,7 @@ export const initiativeHandlers: HandlerMap = {
     // A iniciativa acompanha o novo lugar (empata com quem ele esperou).
     for (const g of group) if (after?.initiative !== null && after?.initiative !== undefined) g.initiative = after.initiative;
     combat.delayed = { ids: moved, round: combat.round };
-    logSystem(store, `${group.length > 1 ? groupName(group.map((g) => g.name)) : c.name} vai agir depois de ${after?.name ?? "?"}.`);
+    logSystem(store, "{name} vai agir depois de {after}.", { name: group.length > 1 ? groupName(group.map((g) => g.name)) : c.name, after: after?.name ?? "?" });
     newTurn(store);
     startTurn(store);
   },

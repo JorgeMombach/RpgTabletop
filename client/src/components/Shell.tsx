@@ -1,6 +1,6 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { IconBrush, IconDeviceMobile, IconLogout } from "@tabler/icons-react";
-import { APP_VERSION, groupName, type ClientState, type Combatant } from "@rpg/shared";
+import { groupName, type ClientState } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
 import { currentGroup } from "../format";
@@ -9,7 +9,6 @@ import { leave } from "../session";
 import { useT } from "../i18n";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
-import { BestiaryPanel } from "./BestiaryPanel";
 import { ClearBattleDialog } from "./ClearBattleDialog";
 import { CloseGuard } from "./CloseGuard";
 import { D20Emblem } from "./D20Emblem";
@@ -18,19 +17,15 @@ import { DiceOverlay } from "./DiceOverlay";
 import { DicePanel } from "./DicePanel";
 import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
+import { GmTabs } from "./GmTabs";
+import { HandoutButton, HandoutModal } from "./Handout";
 import { InitiativePanel } from "./InitiativePanel";
-import { InvitePanel } from "./InvitePanel";
 import { LanguageMenu } from "./LanguageMenu";
-import { MapPanel } from "./MapPanel";
+import { AboutLink, AboutModal } from "./About";
 import { MobileShell } from "./MobileShell";
-import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
-import { ScenesPanel } from "./ScenesPanel";
-import { SessionPanel } from "./SessionPanel";
-import { SoundPanel } from "./SoundPanel";
 import { SoundSync } from "./SoundSync";
 import { VolumeControl } from "./VolumeControl";
-import { WeatherPanel } from "./WeatherPanel";
 import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
@@ -65,9 +60,11 @@ function DesktopShell({ state }: { state: ClientState }) {
   const t = useT();
   const small = useSmallScreen();
   const connected = useApp((s) => s.connected);
-  const logDetached = useApp((s) => s.logDetached);
+  // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
+  const logDetached = useApp((s) => s.logDetached && !s.logOut);
   const [clearing, setClearing] = useState(false);
-  const { widths, max, set, reset } = useColumnWidths();
+  const [about, setAbout] = useState(false);
+  const { widths, max, collapsed, resize, collapse, toggle, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
 
   return (
@@ -85,9 +82,7 @@ function DesktopShell({ state }: { state: ClientState }) {
           <Text fw={700} ff="heading" c="bronze.4" fz={18}>
             Jamal's Tabletop
           </Text>
-          <Text size="xs" c="dimmed">
-            v{APP_VERSION}
-          </Text>
+          <AboutLink onOpen={() => setAbout(true)} />
         </Group>
         <TurnStatus state={state} />
         <Group gap="sm" wrap="nowrap">
@@ -110,6 +105,7 @@ function DesktopShell({ state }: { state: ClientState }) {
               </Button>
             </Tooltip>
           )}
+          <HandoutButton />
           <LanguageMenu size="md" />
           <VolumeControl />
           <Group gap={6} wrap="nowrap">
@@ -128,30 +124,45 @@ function DesktopShell({ state }: { state: ClientState }) {
         </Group>
       </Group>
 
-      <aside className="col left">
-        <InitiativePanel state={state} />
-        {gm && <MobsPanel mobs={state.battle.mobs as Combatant[]} />}
-        {gm && <NpcsPanel npcs={state.battle.npcs as Combatant[]} />}
-        <AlliesPanel state={state} />
-        <EffectsPanel state={state} />
-        {gm && <ScenesPanel state={state} />}
-        {gm && <MapPanel map={state.battle.map} />}
-        {gm && <WeatherPanel state={state} />}
-        {gm && <SoundPanel state={state} />}
-        {gm && <BestiaryPanel templates={state.templates} />}
-        <PlayersPanel state={state} />
-        {gm && <SessionPanel />}
-        {gm && state.host && <InvitePanel host={state.host} />}
+      <aside className={`col left ${gm ? "with-tabs" : ""} ${collapsed.left ? "collapsed" : ""}`}>
+        {gm ? (
+          <GmTabs state={state} />
+        ) : (
+          <>
+            <InitiativePanel state={state} />
+            <AlliesPanel state={state} />
+            <EffectsPanel state={state} />
+            <PlayersPanel state={state} />
+          </>
+        )}
       </aside>
-      <ColumnResizer side="left" width={widths.left} max={max.left} onResize={(w) => set("left", w)} onReset={() => reset("left")} />
+      <ColumnResizer
+        side="left"
+        width={widths.left}
+        max={max.left}
+        collapsed={collapsed.left}
+        onResize={(w) => resize("left", w)}
+        onCollapse={() => collapse("left")}
+        onReset={() => reset("left")}
+        onToggle={() => toggle("left")}
+      />
 
       <main className="map-area">
         <BattleMap state={state} />
         <DiceOverlay />
       </main>
 
-      <ColumnResizer side="right" width={widths.right} max={max.right} onResize={(w) => set("right", w)} onReset={() => reset("right")} />
-      <aside className="col right">
+      <ColumnResizer
+        side="right"
+        width={widths.right}
+        max={max.right}
+        collapsed={collapsed.right}
+        onResize={(w) => resize("right", w)}
+        onCollapse={() => collapse("right")}
+        onReset={() => reset("right")}
+        onToggle={() => toggle("right")}
+      />
+      <aside className={`col right ${collapsed.right ? "collapsed" : ""}`}>
         <SelectedPanel state={state} />
         <DicePanel state={state} />
       </aside>
@@ -160,6 +171,8 @@ function DesktopShell({ state }: { state: ClientState }) {
       {gm && <CloseGuard />}
       {logDetached && <FloatingLog />}
       <SoundSync sound={state.sound} />
+      <AboutModal opened={about} onClose={() => setAbout(false)} />
+      <HandoutModal />
     </div>
   );
 }

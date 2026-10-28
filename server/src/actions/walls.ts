@@ -18,7 +18,7 @@ export function parseWall(raw: unknown): Omit<Wall, "id"> {
   const to = corner(w.to);
   const len = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
   if (len === 0) fail("A parede precisa ir de um canto a outro.");
-  if (len > LIMITS.wallLength) fail(`Parede longa demais (máximo de ${LIMITS.wallLength} casas): trace em partes.`);
+  if (len > LIMITS.wallLength) fail("Parede longa demais (máximo de {n} casas): trace em partes.", { n: LIMITS.wallLength });
   const out: Omit<Wall, "id"> = { from, to };
   if (w.door !== undefined) {
     const d = w.door as Partial<Door>;
@@ -40,7 +40,7 @@ export const wallHandlers: HandlerMap = {
     const { battle } = store.game;
     const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to }) };
     if (payload.door === true) wall.door = { open: false };
-    if (battle.walls.length >= LIMITS.walls) fail(`Limite de ${LIMITS.walls} paredes e portas no mapa.`);
+    if (battle.walls.length >= LIMITS.walls) fail("Limite de {n} paredes e portas no mapa.", { n: LIMITS.walls });
     battle.walls.push(wall);
     return [wall.id];
   },

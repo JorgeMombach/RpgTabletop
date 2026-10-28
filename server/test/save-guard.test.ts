@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { Combatant, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, WeatherState } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -26,6 +26,9 @@ function fullGame(playerId: string, gmId: string): GameState {
     hpMax: 30,
     tempHp: 5,
     aura: 10,
+    description: "Anão de barba trançada, guardião do passo norte.",
+    gmNotes: "Deve dinheiro à guilda.",
+    auraColor: "#5ba3e6",
     deathSaves: { successes: 2, failures: 1 },
     turnUsed: ["action", "move"],
     dexMod: 1,
@@ -51,6 +54,11 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "c2", name: "Abençoado", rounds: 3 },
     ],
     animal: true,
+    darkvision: true,
+    torch: true,
+    // Fases de chefe valem para qualquer tipo no arquivo (a interface só oferece em mob e NPC).
+    phases: [{ hpMax: 40 }],
+    phase: 2,
     summonerId: "lia",
     summonConcentration: true,
     summonRounds: 10,
@@ -59,7 +67,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   const lich: Combatant = { id: "lich", name: "Lich", type: "mob", templateId: "t1", hp: 90, hpMax: 135, dexMod: 3, color: "#7a5ba3", pos: { col: 8, row: 8 }, initiative: 20, initRoll: 17, conditions: [] };
   const sombra: Required<Combatant> = { ...thorin, id: "sombra", name: "Sombra", type: "mob", ownerId: gmId, hidden: true, summonerId: "lich", size: "huge", pos: { col: 10, row: 8 }, initiative: null, initRoll: null };
   const guarda: Combatant = { id: "guarda", name: "Guarda", type: "npc", hp: 11, hpMax: 11, dexMod: 0, color: "#4fae8c", pos: { col: 1, row: 1 }, initiative: 5, initRoll: 5, conditions: [], hidden: true };
-  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, notes: "Filactéria escondida", animal: true };
+  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>] };
   const effect: Required<MapEffect> = {
     id: "e1",
     name: "Graxa em chamas",
@@ -72,6 +80,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     concentration: true,
     active: false,
     revertTo: { name: "Graxa", preset: "grease", color: "#3b3a2a", ownerId: playerId, casterId: "lia", rounds: null, concentration: false },
+    followId: "thorin",
   };
   const roll: Required<LogEntry> = {
     id: "l1",
@@ -96,6 +105,10 @@ function fullGame(playerId: string, gmId: string): GameState {
     kind: "attack",
     crit: true,
     turn: { seq: 4, round: 2, name: "Thorin" },
+    textKey: "{who} usou a reação.",
+    textParams: { who: "Thorin" },
+    labelParts: [{ key: "Recarga de {name} ({n}–6)", params: { name: "Sopro", n: 5 } }, { key: "Secreto" }],
+    gm: true,
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
@@ -112,6 +125,7 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, door: { open: true, locked: true, secret: true } satisfies Required<Door> },
     ],
     weather,
+    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }] } satisfies Required<FogState>,
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -123,6 +137,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     weather,
+    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [] },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];
@@ -133,6 +148,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     log: [roll],
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
+    rules: { moveOnTurn: true, summonOnTurn: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);
 }

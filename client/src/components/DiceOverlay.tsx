@@ -5,6 +5,7 @@ import { diceBox, fitBox, notationFor, paintBox, setDiceVolume } from "../dice3d
 import { rollerName } from "../format";
 import { useApp, useVolume } from "../store";
 import { naturalD20 } from "./RollLog";
+import { useT, logLabel } from "../i18n";
 
 /** Tempo do resultado na tela depois que os dados param. */
 const SHOW_MS = 2500;
@@ -111,10 +112,11 @@ export function DiceOverlay() {
 }
 
 function ResultBanner({ e }: { e: LogEntry }) {
+  const t = useT();
   const r = e.roll!;
   const nat = naturalD20(r.terms);
   const color = nat === 20 ? "copper.4" : nat === 1 ? "red.4" : "bronze.4";
-  const note = e.kind === "attack" && nat === 20 ? "Crítico!" : nat === 20 ? "20 natural" : nat === 1 ? "1 natural" : null;
+  const note = e.kind === "attack" && nat === 20 ? t("log.crit") : nat === 20 ? t("log.nat20") : nat === 1 ? t("log.nat1") : null;
 
   return (
     <div className="dice-overlay-result">
@@ -125,7 +127,7 @@ function ResultBanner({ e }: { e: LogEntry }) {
             {e.label && (
               <Text span size="sm" c="dimmed" fw={400}>
                 {" · "}
-                {e.label}
+                {logLabel(e)}
               </Text>
             )}
           </Text>
@@ -134,8 +136,8 @@ function ResultBanner({ e }: { e: LogEntry }) {
           </Text>
           <Text size="xs" c="dimmed">
             {r.expr}
-            {r.mode !== "normal" && ` · ${r.mode === "adv" ? "vantagem" : "desvantagem"}`}
-            {e.hidden && " · oculta"}
+            {r.mode !== "normal" && ` · ${r.mode === "adv" ? t("log.adv") : t("log.dis")}`}
+            {e.hidden && ` · ${t("log.hidden")}`}
           </Text>
           {note && (
             <Text size="sm" fw={700} c={color}>

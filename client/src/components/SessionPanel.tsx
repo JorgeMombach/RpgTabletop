@@ -3,6 +3,7 @@ import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
 import type { ActionResult, SessionFile } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "../confirm";
+import { localizeError, t as tr, useLang, useT } from "../i18n";
 import { toast } from "../notify";
 import { desktop, isUnsaved, markSaved, saveSessionFile } from "../sessionFile";
 import { socket } from "../socket";
@@ -13,20 +14,21 @@ import { Panel } from "./Panel";
 function summary(f: Partial<SessionFile>): string {
   const g = f.game;
   const n = (list: unknown) => (Array.isArray(list) ? list.length : 0);
-  const saved = f.savedAt ? new Date(f.savedAt).toLocaleString("pt-BR") : "data desconhecida";
+  const saved = f.savedAt ? new Date(f.savedAt).toLocaleString(useLang.getState().lang) : tr("session.unknownDate");
   const parts = [
-    `${n(g?.allies)} personagem(ns)`,
-    `${n(g?.battle?.mobs)} mob(s)`,
-    `${n(g?.battle?.npcs)} NPC(s)`,
-    `${n(g?.templates)} template(s)`,
-    `${n(g?.battle?.effects)} efeito(s)`,
-    g?.battle?.map?.image ? "mapa com imagem" : "mapa sem imagem",
+    tr("session.characters", { n: n(g?.allies) }),
+    tr("session.mobs", { n: n(g?.battle?.mobs) }),
+    tr("session.npcs", { n: n(g?.battle?.npcs) }),
+    tr("session.templates", { n: n(g?.templates) }),
+    tr("session.effects", { n: n(g?.battle?.effects) }),
+    g?.battle?.map?.image ? tr("session.withImage") : tr("session.noImage"),
   ];
-  return `Salvo em ${saved}: ${parts.join(", ")}.`;
+  return tr("session.savedAt", { when: saved, parts: parts.join(", ") });
 }
 
 /** Mestre: salvar a sessão num arquivo e carregar depois (ADR-17, E18). */
 export function SessionPanel() {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const { state, savedSnapshot, savedAt } = useApp();
   const unsaved = isUnsaved(state, savedSnapshot);
@@ -49,7 +51,7 @@ export function SessionPanel() {
   async function save() {
     setBusy(true);
     try {
-      if (await saveSessionFile()) toast({ kind: "info", text: "Sessão salva. Guarde o arquivo para continuar na próxima vez." });
+      if (await saveSessionFile()) toast({ kind: "info", text: t("session.saved") });
     } catch (err) {
       toast({ kind: "error", text: (err as Error).message });
     } finally {
@@ -63,12 +65,12 @@ export function SessionPanel() {
     try {
       parsed = JSON.parse(await file.text());
     } catch {
-      return toast({ kind: "error", text: "Esse arquivo não é um JSON válido." });
+      return toast({ kind: "error", text: t("session.badJson") });
     }
     const ok = await confirmAction({
-      title: "Carregar esta sessão?",
-      message: `${summary(parsed)} Tudo o que está na mesa agora é substituído. Jogadores reencontram os personagens entrando com o mesmo nome.`,
-      confirmLabel: "Carregar",
+      title: t("session.loadTitle"),
+      message: `${summary(parsed)} ${t("session.loadMessage")}`,
+      confirmLabel: t("session.load"),
       danger: true,
     });
     if (!ok) return;
@@ -77,9 +79,9 @@ export function SessionPanel() {
       const res: ActionResult = await socket.timeout(60_000).emitWithAck("session:import", parsed);
       // O estado novo chega antes da resposta: o que está na mesa agora é o do arquivo.
       if (res.ok) markSaved(parsed.savedAt ? new Date(parsed.savedAt) : new Date());
-      toast(res.ok ? { kind: "info", text: "Sessão carregada." } : { kind: "error", text: res.error });
+      toast(res.ok ? { kind: "info", text: t("session.loaded") } : { kind: "error", text: localizeError(res) });
     } catch {
-      toast({ kind: "error", text: "Sem resposta do servidor." });
+      toast({ kind: "error", text: t("common.noServer") });
     } finally {
       setBusy(false);
     }
@@ -87,31 +89,30 @@ export function SessionPanel() {
 
   return (
     <Panel
-      title="Sessão"
+      title={t("session.title")}
       aside={
         unsaved ? (
           <Badge color="yellow" variant="light" size="sm">
-            Não salvo
+            {t("session.unsaved")}
           </Badge>
         ) : savedAt ? (
           <Badge color="copper" variant="light" size="sm">
-            Salvo {savedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            {t("session.savedTime", { time: savedAt.toLocaleTimeString(useLang.getState().lang, { hour: "2-digit", minute: "2-digit" }) })}
           </Badge>
         ) : undefined
       }
     >
       <Text size="xs" c="dimmed">
-        Nada fica salvo sozinho. Salve num arquivo para continuar na próxima vez (mapa, personagens, bestiário, combate e efeitos). Fechar
-        {desktop ? " o app" : " a aba"} com alterações não salvas pede confirmação.
+        {t(desktop ? "session.hintApp" : "session.hintTab")}
       </Text>
       <Group gap="xs" grow>
         <Button variant="default" loading={busy} leftSection={<IconDeviceFloppy size={14} />} onClick={() => void save()}>
-          Salvar
+          {t("common.save")}
         </Button>
         <FileButton onChange={(f) => void load(f)} accept="application/json,.json">
           {(props) => (
             <Button {...props} variant="default" loading={busy} leftSection={<IconFolderOpen size={14} />}>
-              Carregar
+              {t("session.load")}
             </Button>
           )}
         </FileButton>

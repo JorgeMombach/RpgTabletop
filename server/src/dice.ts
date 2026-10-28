@@ -23,7 +23,7 @@ export function parseExpression(raw: string): ParsedTerm[] {
   if (expr.length > exprLength) fail("Expressão longa demais.");
 
   const tokens = expr.match(/[+-]?[^+-]+/g) ?? [];
-  if (tokens.join("") !== expr) fail(`Não entendi "${raw}". Use algo como 2d6+1d4+3.`);
+  if (tokens.join("") !== expr) fail("Não entendi \"{expr}\". Use algo como 2d6+1d4+3.", { expr: raw });
   if (tokens.length > maxTerms) fail("Termos demais na rolagem.");
 
   let totalDice = 0;
@@ -33,7 +33,7 @@ export function parseExpression(raw: string): ParsedTerm[] {
       const count = dice[2] ? Number(dice[2]) : 1;
       const f = dice[3] === "%" ? 100 : Number(dice[3]);
       if (count < 1) fail("Quantidade de dados precisa ser pelo menos 1.");
-      if (f < faces.min || f > faces.max) fail(`Dado d${f} não existe aqui (use d${faces.min} a d${faces.max}).`);
+      if (f < faces.min || f > faces.max) fail("Dado d{f} não existe aqui (use d{min} a d{max}).", { f, min: faces.min, max: faces.max });
       totalDice += count;
       return { kind: "dice", sign: dice[1] === "-" ? -1 : 1, count, faces: f };
     }
@@ -43,11 +43,11 @@ export function parseExpression(raw: string): ParsedTerm[] {
       if (value > constant) fail("Modificador grande demais.");
       return { kind: "const", sign: c[1] === "-" ? -1 : 1, value };
     }
-    return fail(`Não entendi "${tok.replace(/^[+-]/, "")}". Use algo como 2d6+1d4+3.`);
+    return fail("Não entendi \"{expr}\". Use algo como 2d6+1d4+3.", { expr: tok.replace(/^[+-]/, "") });
   });
 
   if (!terms.some((t) => t.kind === "dice")) fail("A rolagem precisa de pelo menos um dado.");
-  if (totalDice > maxCount) fail(`Dados demais (máximo ${maxCount}).`);
+  if (totalDice > maxCount) fail("Dados demais (máximo {n}).", { n: maxCount });
   return terms;
 }
 

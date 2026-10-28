@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  emptyFog,
   ABILITIES,
   APP_VERSION,
   COINS,
@@ -38,6 +39,9 @@ import {
   type Spell,
   type SpellLevel,
   type SpellSlot,
+  type FogState,
+  type BossPhase,
+  type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
 import { parseWall } from "./actions/walls";
@@ -68,23 +72,32 @@ export function exportSession(store: Store): SessionFile {
 type Obj = Record<string, unknown>;
 
 function obj(raw: unknown, what: string): Obj {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("Arquivo inválido: {what}.", { what });
   return raw as Obj;
 }
 
 function list(raw: unknown, what: string, max: number): unknown[] {
-  if (!Array.isArray(raw)) fail(`Arquivo inválido: ${what}.`);
-  if (raw.length > max) fail(`Arquivo inválido: ${what} demais.`);
+  if (!Array.isArray(raw)) fail("Arquivo inválido: {what}.", { what });
+  if (raw.length > max) fail("Arquivo inválido: {what} demais.", { what });
   return raw;
 }
 
 function text(raw: unknown, what: string, max: number): string {
-  if (typeof raw !== "string") fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "string") fail("Arquivo inválido: {what}.", { what });
   return raw.slice(0, max);
 }
 
 function optText(raw: unknown, what: string, max: number): string | undefined {
   return raw === undefined ? undefined : text(raw, what, max);
+}
+
+function tableRules(raw: unknown): TableRules {
+  const r = obj(raw, "regras da mesa");
+  return {
+    moveOnTurn: bool(r.moveOnTurn ?? false, "regra da mesa"),
+    summonOnTurn: bool(r.summonOnTurn ?? false, "regra da mesa"),
+    darkReminder: bool(r.darkReminder ?? false, "regra da mesa"),
+  };
 }
 
 function outsideRolls(raw: unknown): OutsideRolls {
@@ -93,12 +106,12 @@ function outsideRolls(raw: unknown): OutsideRolls {
 }
 
 function bool(raw: unknown, what: string): boolean {
-  if (typeof raw !== "boolean") fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "boolean") fail("Arquivo inválido: {what}.", { what });
   return raw;
 }
 
 function int(raw: unknown, what: string, min: number, max: number): number {
-  if (typeof raw !== "number" || !Number.isInteger(raw)) fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "number" || !Number.isInteger(raw)) fail("Arquivo inválido: {what}.", { what });
   return requireInt(raw, what, min, max);
 }
 
@@ -172,6 +185,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   }
   if (c.tempHp !== undefined) out.tempHp = int(c.tempHp, "vida temporária", 1, LIMITS.hpMax.max);
   if (c.aura !== undefined) out.aura = int(c.aura, "alcance", LIMITS.aura.min, LIMITS.aura.max);
+  if (c.auraColor !== undefined) out.auraColor = isColor(c.auraColor) ? c.auraColor : fail("Arquivo inválido: cor do alcance.");
   if (c.deathSaves !== undefined) {
     const d = obj(c.deathSaves, "testes contra a morte");
     out.deathSaves = { successes: int(d.successes, "testes contra a morte", 0, 3), failures: int(d.failures, "testes contra a morte", 0, 3) };
@@ -183,10 +197,18 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.spells !== undefined) out.spells = list(c.spells, "magias", LIMITS.spells).map(spell);
   // Marcas do E21: arquivos da 2.0 não têm (ausente = não).
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
+  if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
+  if (c.torch !== undefined && bool(c.torch, "tocha")) out.torch = true;
+  if (c.phases !== undefined) out.phases = bossPhases(c.phases);
+  if (c.phase !== undefined) out.phase = int(c.phase, "fase do chefe", 1, LIMITS.phases + 1);
+  const description = optText(c.description, "descrição", LIMITS.description);
+  if (description) out.description = description;
+  const gmNotes = optText(c.gmNotes, "notas do mestre", LIMITS.notes);
+  if (gmNotes) out.gmNotes = gmNotes;
   if (c.hidden !== undefined && bool(c.hidden, "oculto") && type !== "ally") out.hidden = true;
-  if (c.summonerId !== undefined) out.summonerId = requireString(c.summonerId, "Conjurador");
-  if (c.summonConcentration !== undefined && bool(c.summonConcentration, "concentração do conjurado")) out.summonConcentration = true;
-  if (c.summonRounds !== undefined) out.summonRounds = int(c.summonRounds, "duração do conjurado", LIMITS.conditionRounds.min, LIMITS.conditionRounds.max);
+  if (c.summonerId !== undefined) out.summonerId = requireString(c.summonerId, "Invocador");
+  if (c.summonConcentration !== undefined && bool(c.summonConcentration, "concentração do invocado")) out.summonConcentration = true;
+  if (c.summonRounds !== undefined) out.summonRounds = int(c.summonRounds, "duração do invocado", LIMITS.conditionRounds.min, LIMITS.conditionRounds.max);
   return out;
 }
 
@@ -267,7 +289,21 @@ function template(raw: unknown): MobTemplate {
   const notes = optText(t.notes, "notas", LIMITS.notes);
   if (notes) out.notes = notes;
   if (t.animal !== undefined && bool(t.animal, "animal")) out.animal = true;
+  const description = optText(t.description, "descrição", LIMITS.description);
+  if (description) out.description = description;
+  if (t.phases !== undefined) out.phases = bossPhases(t.phases);
   return out;
+}
+
+/** Fases de chefe (as próximas): vida, e nome e CA se tiverem. */
+function bossPhases(raw: unknown): BossPhase[] {
+  return list(raw, "fases do chefe", LIMITS.phases).map((r) => {
+    const p = obj(r, "fase do chefe");
+    const out: BossPhase = { hpMax: int(p.hpMax, "vida da fase", LIMITS.hpMax.min, LIMITS.hpMax.max) };
+    if (p.name !== undefined) out.name = requireName(p.name);
+    if (p.ac !== undefined) out.ac = int(p.ac, "CA da fase", LIMITS.ac.min, LIMITS.ac.max);
+    return out;
+  });
 }
 
 function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
@@ -278,6 +314,8 @@ function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
     area: validArea(e.area) ?? fail("Arquivo inválido: área do efeito."),
     active: bool(e.active, "efeito ligado"),
   };
+  // Efeito que anda com o token: se o combatente não existe mais, só fica parado.
+  if (e.followId !== undefined && combatantIds.has(requireString(e.followId, "Efeito"))) out.followId = e.followId as string;
   // Estado de antes de "Transformar" (E24); arquivos da 2.x anteriores não têm.
   if (e.revertTo !== undefined) out.revertTo = effectState(obj(e.revertTo, "efeito"), combatantIds);
   return out;
@@ -346,6 +384,27 @@ function logEntry(raw: unknown): LogEntry {
     const t = obj(e.turn, "log");
     out.turn = { seq: int(t.seq, "log", 0, 1e9), round: int(t.round, "log", 0, 1e6), name: text(t.name, "log", 64) };
   }
+  // Modelo e valores dos avisos e pedaços do rótulo (arquivos antigos não têm: ficam em português).
+  if (e.textKey !== undefined) out.textKey = text(e.textKey, "log", 500);
+  if (e.textParams !== undefined) out.textParams = logParams(e.textParams);
+  if (e.labelParts !== undefined) {
+    out.labelParts = list(e.labelParts, "log", 10).map((raw) => {
+      const p = obj(raw, "log");
+      return { key: text(p.key, "log", 120), ...(p.params !== undefined && { params: logParams(p.params) }) };
+    });
+  }
+  if (e.gm === true) out.gm = true;
+  return out;
+}
+
+/** Valores de um modelo do log: textos curtos ou números. */
+function logParams(raw: unknown): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  for (const [k, v] of Object.entries(obj(raw, "log"))) {
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+    else if (typeof v === "string") out[k] = v.slice(0, 500);
+    else fail("Arquivo inválido: {what}.", { what: "log" });
+  }
   return out;
 }
 
@@ -374,7 +433,7 @@ export function parseSession(raw: unknown): ParsedSession {
   if (f.app !== SESSION_FILE_APP) fail("Este arquivo não é uma sessão do Jamal's Tabletop.");
   if (typeof f.format !== "number" || !Number.isInteger(f.format) || f.format < 1) fail("Arquivo inválido: versão do formato.");
   if (f.format > SESSION_FILE_FORMAT) {
-    fail(`Este arquivo foi salvo por uma versão mais nova do app (formato ${f.format}). Atualize o Jamal's Tabletop para abrir.`);
+    fail("Este arquivo foi salvo por uma versão mais nova do app (formato {format}). Atualize o Jamal's Tabletop para abrir.", { format: String(f.format) });
   }
 
   const players = list(f.players, "jogadores", 1000).map((raw) => {
@@ -422,6 +481,8 @@ export function parseSession(raw: unknown): ParsedSession {
     log: list(g.log, "log", LIMITS.logSize).map(logEntry),
     scenes,
     sceneId,
+    // Arquivo de antes das regras da mesa: tudo desligado.
+    rules: tableRules(g.rules ?? {}),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
@@ -442,7 +503,7 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
   for (const c of all) {
     if (!c.summonerId) continue;
     const by = all.find((o) => o.id === c.summonerId);
-    if (!by || by.type !== c.type || by.summonerId) fail("Arquivo inválido: conjurado sem conjurador.");
+    if (!by || by.type !== c.type || by.summonerId) fail("Arquivo inválido: invocado sem invocador.");
   }
   const rotation = int(m.rotation ?? 0, "rotação do mapa", 0, 270);
   if (rotation % 90 !== 0) fail("Arquivo inválido: rotação do mapa.");
@@ -465,7 +526,47 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
     walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
     weather: weatherFromFile(b.weather),
+    // Arquivos anteriores à névoa: sem névoa.
+    fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
   };
+}
+
+/** Névoa da cena: intervalos de colunas por linha, conferidos (ordenados, sem sobreposição). */
+function fogFromFile(raw: unknown): FogState {
+  const f = obj(raw, "névoa");
+  return {
+    enabled: bool(f.enabled, "névoa"),
+    revealed: fogRows(f.revealed),
+    // Arquivos da parte 1 e 2 da névoa: sem visão dos personagens.
+    vision: bool(f.vision ?? false, "névoa"),
+    explored: fogRows(f.explored),
+    lastSeen: list(f.lastSeen ?? [], "névoa", 500).map((raw) => {
+      const m = obj(raw, "névoa");
+      const pos = obj(m.pos, "névoa");
+      const lim = LIMITS.gridCoord;
+      return {
+        id: requireString(m.id, "névoa"),
+        name: requireName(m.name),
+        pos: { col: int(pos.col, "névoa", -lim, lim), row: int(pos.row, "névoa", -lim, lim) },
+        span: int(m.span, "névoa", 1, 4),
+      };
+    }),
+  };
+}
+
+function fogRows(raw: unknown): Record<string, number[]> {
+  const rows = obj(raw ?? {}, "névoa");
+  const lim = LIMITS.gridCoord;
+  const out: Record<string, number[]> = {};
+  for (const [key, value] of Object.entries(rows)) {
+    const row = Number(key);
+    if (!Number.isInteger(row) || Math.abs(row) > lim) fail("Arquivo inválido: névoa.");
+    const nums = list(value, "névoa", 2000).map((n) => int(n, "névoa", -lim, lim + 1));
+    if (nums.length === 0 || nums.length % 2 !== 0) fail("Arquivo inválido: névoa.");
+    for (let i = 1; i < nums.length; i++) if (nums[i] <= nums[i - 1]) fail("Arquivo inválido: névoa.");
+    out[String(row)] = nums;
+  }
+  return out;
 }
 
 /** Onde cada aliado estava numa cena guardada (aliado que não existe mais é ignorado). */

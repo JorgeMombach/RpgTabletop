@@ -41,7 +41,7 @@ function startTurnOf(store: Store, c: Combatant) {
     expired.push(k.name);
     return false;
   });
-  for (const name of expired) logSystem(store, `${name} acabou em ${c.name}.`);
+  for (const name of expired) logSystem(store, "{condition} acabou em {name}.", { condition: name, name: c.name });
   if (expired.some(isConcentration)) endConcentration(store, c.id);
 }
 
@@ -60,7 +60,7 @@ export const conditionHandlers: HandlerMap = {
       same.rounds = rounds;
       return [same.id];
     }
-    if (c.conditions.length >= LIMITS.conditions) fail(`Limite de ${LIMITS.conditions} condições por combatente.`);
+    if (c.conditions.length >= LIMITS.conditions) fail("Limite de {n} condições por combatente.", { n: LIMITS.conditions });
     const condition = { id: randomUUID(), name, rounds };
     c.conditions.push(condition);
     return [condition.id];

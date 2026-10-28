@@ -20,16 +20,18 @@ import { IconWindowMaximize } from "@tabler/icons-react";
 import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
+import { useT, type MessageKey } from "../i18n";
+import { bringLogBack, popOutLog } from "../logWindow";
 import { allCombatants } from "../format";
 import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
 import { naturalD20, RollLog } from "./RollLog";
 
-const MODES: { value: RollMode; label: string }[] = [
-  { value: "normal", label: "Normal" },
-  { value: "adv", label: "Vantagem" },
-  { value: "dis", label: "Desvant." },
+const MODES: { value: RollMode; label: MessageKey }[] = [
+  { value: "normal", label: "dice.normal" },
+  { value: "adv", label: "dice.adv" },
+  { value: "dis", label: "dice.dis" },
 ];
 
 const ATTACK_KEY = "rpg.attack";
@@ -78,7 +80,9 @@ function SectionTitle({ children }: { children: ReactNode }) {
 
 /** `inline` = tela de celular (E23): o log fica sempre no painel, sem janela flutuante. */
 export function DicePanel({ state, inline = false }: { state: ClientState; inline?: boolean }) {
+  const t = useT();
   const logDetached = useApp((s) => s.logDetached) && !inline;
+  const logOut = useApp((s) => s.logOut);
   const gm = state.self.role === "gm";
   const { combat, rolls } = state.battle;
   const saved = useState(readAttack)[0];
@@ -155,12 +159,12 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   }
 
   return (
-    <Panel title="Dados">
+    <Panel title={t("dice.title")}>
       {gm && side.length > 0 && (
-        <Tooltip label="Nome que aparece no log. Muda sozinho para o combatente selecionado no mapa ou, sem seleção, para o da vez.">
+        <Tooltip label={t("dice.asTip")}>
           <Select
-            label="Rolar como"
-            data={[{ value: AS_MASTER, label: "Mestre" }, ...side.map((c) => ({ value: c.id, label: c.name }))]}
+            label={t("dice.as")}
+            data={[{ value: AS_MASTER, label: t("common.gm") }, ...side.map((c) => ({ value: c.id, label: c.name }))]}
             value={asId}
             onChange={(v) => setAsChoice(v ? { key: asKey, id: v } : null)}
             allowDeselect={false}
@@ -175,13 +179,13 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
       {gm && <RequestControl state={state} />}
       {waiting && (
         <Text size="xs" c="dimmed">
-          Esperando seus dados pararem…
+          {t("dice.waiting")}
         </Text>
       )}
 
-      <SectionTitle>Ataque</SectionTitle>
+      <SectionTitle>{t("dice.attack")}</SectionTitle>
       <Group component="form" gap="xs" wrap="nowrap" align="flex-end" onSubmit={rollAttack}>
-        <Tooltip label="Bônus de ataque (d20 + este valor)">
+        <Tooltip label={t("dice.attackBonusTip")}>
           <NumberInput
             w={96}
             leftSection={<Text size="xs" c="dimmed">d20 +</Text>}
@@ -189,39 +193,39 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
             allowDecimal={false}
             value={attackMod}
             onChange={setAttackMod}
-            aria-label="Bônus de ataque"
+            aria-label={t("dice.attackBonus")}
           />
         </Tooltip>
         <Button type="submit" style={{ flex: 1 }} disabled={blocked}>
-          Rolar ataque
+          {t("dice.rollAttack")}
         </Button>
       </Group>
-      <Tooltip label="Vale para o ataque e para o d20: rola dois e usa o maior (vantagem) ou o menor (desvantagem)">
-        <SegmentedControl data={MODES} value={mode} onChange={(v) => setMode(v as RollMode)} aria-label="Modo do d20" />
+      <Tooltip label={t("dice.modeTip")}>
+        <SegmentedControl data={MODES.map((m) => ({ value: m.value, label: t(m.label) }))} value={mode} onChange={(v) => setMode(v as RollMode)} aria-label={t("dice.mode")} />
       </Tooltip>
 
-      <SectionTitle>Dano</SectionTitle>
+      <SectionTitle>{t("dice.damage")}</SectionTitle>
       <Group component="form" gap="xs" wrap="nowrap" onSubmit={rollDamage}>
         <TextInput
           style={{ flex: 1, minWidth: 0 }}
           value={damage}
           maxLength={LIMITS.dice.exprLength}
           onChange={(e) => setDamage(e.currentTarget.value)}
-          placeholder="Ex.: 1d8+3"
-          aria-label="Dano"
+          placeholder={t("dice.damagePlaceholder")}
+          aria-label={t("dice.damage")}
         />
         <Button type="submit" disabled={blocked || !damage.trim()}>
-          Rolar dano
+          {t("dice.rollDamage")}
         </Button>
       </Group>
-      <Tooltip label="Dobra a quantidade de dados (2d6+3 → 4d6+3). Marca sozinho quando o ataque tira 20 natural.">
-        <Checkbox checked={crit} onChange={(e) => setCrit(e.currentTarget.checked)} label={crit && damage.trim() ? `Crítico: ${doubleDice(damage)}` : "Crítico"} />
+      <Tooltip label={t("dice.critTip")}>
+        <Checkbox checked={crit} onChange={(e) => setCrit(e.currentTarget.checked)} label={crit && damage.trim() ? t("dice.critWith", { expr: doubleDice(damage) }) : t("dice.crit")} />
       </Tooltip>
 
-      <Divider label="Dados livres" labelPosition="left" />
+      <Divider label={t("dice.free")} labelPosition="left" />
       <SimpleGrid cols={4} spacing={6} verticalSpacing={6}>
         {DICE.map((f) => (
-          <Tooltip key={f} label={`Rolar ${Number(count) > 1 ? `${count}` : "1"}d${f}${Number(mod) ? ` ${Number(mod) > 0 ? "+" : ""}${mod}` : ""}`}>
+          <Tooltip key={f} label={t("dice.rollDie", { expr: `${Number(count) > 1 ? `${count}` : "1"}d${f}${Number(mod) ? ` ${Number(mod) > 0 ? "+" : ""}${mod}` : ""}` })}>
             <Button variant="default" size="sm" fw={700} px={0} disabled={blocked} onClick={() => rollDie(f)}>
               d{f}
             </Button>
@@ -231,7 +235,7 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
 
       <Group grow gap="sm" align="flex-start">
         <NumberInput
-          label={<Abbr title="Quantidade de dados">Qtd.</Abbr>}
+          label={<Abbr title={t("dice.countTitle")}>{t("dice.count")}</Abbr>}
           min={1}
           max={LIMITS.dice.count}
           allowDecimal={false}
@@ -240,7 +244,7 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
           value={count}
           onChange={setCount}
         />
-        <NumberInput label="Modificador" allowDecimal={false} value={mod} onChange={setMod} />
+        <NumberInput label={t("dice.modifier")} allowDecimal={false} value={mod} onChange={setMod} />
       </Group>
 
       <Group component="form" gap="xs" wrap="nowrap" onSubmit={rollExpr}>
@@ -249,21 +253,30 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
           value={expr}
           maxLength={LIMITS.dice.exprLength}
           onChange={(e) => setExpr(e.currentTarget.value)}
-          placeholder="Ex.: 2d6+1d4+3"
-          aria-label="Expressão de dados"
+          placeholder={t("dice.exprPlaceholder")}
+          aria-label={t("dice.expr")}
         />
         <Button type="submit" disabled={blocked || !expr.trim()}>
-          Rolar
+          {t("dice.roll")}
         </Button>
       </Group>
 
-      {gm && <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label="Rolagem oculta (só você vê)" />}
+      {gm && <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label={t("dice.hidden")} />}
 
       <Divider />
       <LogHeader canDetach={!inline} />
-      {logDetached ? (
+      {logOut && !inline ? (
+        <Group gap="xs" wrap="nowrap" justify="space-between">
+          <Text size="xs" c="dimmed">
+            {t("logWindow.isOut")}
+          </Text>
+          <Button size="compact-xs" variant="default" onClick={bringLogBack} style={{ flex: "none" }}>
+            {t("logWindow.bringBack")}
+          </Button>
+        </Group>
+      ) : logDetached ? (
         <Text size="xs" c="dimmed">
-          O log está numa janela flutuante. Minimize a janela para ele voltar aqui.
+          {t("dice.logFloating")}
         </Text>
       ) : (
         <RollLog log={state.log} selfId={state.self.id} />
@@ -274,16 +287,17 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
 
 /** Cabeçalho do log (E22): animação dos dados no centro e destacar o log numa janela. Valem só para este navegador. */
 function LogHeader({ canDetach }: { canDetach: boolean }) {
+  const t = useT();
   const diceAnim = useApp((s) => s.diceAnim);
-  const logDetached = useApp((s) => s.logDetached) || !canDetach;
+  const logDetached = useApp((s) => s.logDetached || s.logOut) || !canDetach;
   return (
     <Group justify="space-between" wrap="nowrap" gap="xs">
-      <Tooltip label="Dados rolando no centro do mapa a cada rolagem (só neste navegador)">
-        <Switch size="xs" label="Animar rolagens" checked={diceAnim} onChange={(e) => setDicePrefs({ diceAnim: e.currentTarget.checked })} />
+      <Tooltip label={t("dice.animTip")}>
+        <Switch size="xs" label={t("dice.anim")} checked={diceAnim} onChange={(e) => setDicePrefs({ diceAnim: e.currentTarget.checked })} />
       </Tooltip>
       {!logDetached && (
-        <Tooltip label="Abrir o log numa janela que dá para arrastar e redimensionar">
-          <ActionIcon size="sm" aria-label="Destacar o log" onClick={() => setDicePrefs({ logDetached: true })}>
+        <Tooltip label={t("logWindow.detachTip")}>
+          <ActionIcon size="sm" aria-label={t("logWindow.open")} onClick={() => popOutLog()}>
             <IconWindowMaximize size={16} />
           </ActionIcon>
         </Tooltip>
@@ -295,48 +309,56 @@ function LogHeader({ canDetach }: { canDetach: boolean }) {
 /** Jogador em combate: de quem é a vez e o que pode rolar fora dela. */
 function TurnLock(props: { state: ClientState; myTurn: boolean; requested: boolean; reactionOpen: boolean; reactionUsed: boolean }) {
   const { state, myTurn, requested, reactionOpen, reactionUsed } = props;
+  const t = useT();
   if (myTurn) return null;
   if (requested)
     return (
-      <Alert variant="light" color="bronze" p="xs" title={`O mestre pediu: ${state.battle.rolls.request?.label}`}>
-        <Text size="xs">Role uma vez (ex.: d20 + modificador nos dados livres).</Text>
+      <Alert variant="light" color="bronze" p="xs" title={t("dice.requested", { label: state.battle.rolls.request?.label ?? "" })}>
+        <Text size="xs">{t("dice.rollOnce")}</Text>
       </Alert>
     );
   if (reactionOpen)
     return (
-      <Alert variant="light" color="bronze" p="xs" title="Reação liberada">
-        <Text size="xs">Pode rolar até o turno mudar.</Text>
+      <Alert variant="light" color="bronze" p="xs" title={t("dice.reactionOpen")}>
+        <Text size="xs">{t("dice.reactionUntil")}</Text>
       </Alert>
     );
   return (
     <Group gap="xs" wrap="nowrap" justify="space-between">
       <Text size="xs" c="dimmed" style={{ minWidth: 0 }}>
-        Fora da sua vez: dados travados.
+        {t("dice.offTurn")}
       </Text>
-      <Tooltip label={reactionUsed ? "Você já usou a reação neste round" : "Ataque de oportunidade, Escudo… Libera a rolagem até o turno mudar (1 por round)"}>
+      <Tooltip label={reactionUsed ? t("dice.reactionUsed") : t("dice.reactionTip")}>
         <Button variant="default" disabled={reactionUsed} onClick={() => act("reaction:use", {})} style={{ flex: "none" }}>
-          Usar reação
+          {t("dice.useReaction")}
         </Button>
       </Tooltip>
     </Group>
   );
 }
 
-const OUTSIDE: { value: OutsideRolls; label: string }[] = [
-  { value: "free", label: "Livres" },
-  { value: "request", label: "Só com pedido" },
-  { value: "locked", label: "Travadas" },
+const OUTSIDE: { value: OutsideRolls; label: MessageKey }[] = [
+  { value: "free", label: "dice.outsideFree" },
+  { value: "request", label: "dice.outsideRequest" },
+  { value: "locked", label: "dice.outsideLocked" },
 ];
 
 /** Mestre, fora de combate (E26): os jogadores rolam livres, só quando ele pedir, ou nada. */
 function OutsideControl({ mode }: { mode: OutsideRolls }) {
+  const t = useT();
   return (
     <Stack gap={4}>
       <Text size="xs" c="dimmed">
-        Rolagens dos jogadores fora de combate
+        {t("dice.outside")}
       </Text>
-      <Tooltip label="Livres: todos rolam. Só com pedido: cada um rola uma vez quando você pedir (Percepção…). Travadas: só você rola.">
-        <SegmentedControl fullWidth data={OUTSIDE} value={mode} onChange={(v) => act("roll:outside", { mode: v as OutsideRolls })} aria-label="Rolagens fora de combate" />
+      <Tooltip label={t("dice.outsideTip")}>
+        <SegmentedControl
+          fullWidth
+          data={OUTSIDE.map((o) => ({ value: o.value, label: t(o.label) }))}
+          value={mode}
+          onChange={(v) => act("roll:outside", { mode: v as OutsideRolls })}
+          aria-label={t("dice.outside")}
+        />
       </Tooltip>
     </Stack>
   );
@@ -344,21 +366,23 @@ function OutsideControl({ mode }: { mode: OutsideRolls }) {
 
 /** Jogador fora de combate com as rolagens limitadas pelo mestre (E26). */
 function OutsideLock({ state, requested }: { state: ClientState; requested: boolean }) {
+  const t = useT();
   if (requested)
     return (
-      <Alert variant="light" color="bronze" p="xs" title={`O mestre pediu: ${state.battle.rolls.request?.label}`}>
-        <Text size="xs">Role uma vez (ex.: d20 + modificador nos dados livres).</Text>
+      <Alert variant="light" color="bronze" p="xs" title={t("dice.requested", { label: state.battle.rolls.request?.label ?? "" })}>
+        <Text size="xs">{t("dice.rollOnce")}</Text>
       </Alert>
     );
   return (
     <Text size="xs" c="dimmed">
-      {state.battle.rolls.outside === "locked" ? "O mestre travou as rolagens por enquanto." : "Dados travados: role quando o mestre pedir."}
+      {state.battle.rolls.outside === "locked" ? t("dice.lockedByGm") : t("dice.waitRequest")}
     </Text>
   );
 }
 
 /** Mestre: pedir uma rolagem fora da vez (ex.: "Resistência DES") a todos ou a alguns jogadores. */
 function RequestControl({ state }: { state: ClientState }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
   const [who, setWho] = useState<string[]>([]);
@@ -368,13 +392,13 @@ function RequestControl({ state }: { state: ClientState }) {
 
   if (request)
     return (
-      <Alert variant="light" color="bronze" p="xs" title={`Pedido: ${request.label}`}>
+      <Alert variant="light" color="bronze" p="xs" title={t("dice.request", { label: request.label })}>
         <Stack gap={6}>
           <Text size="xs">
             {request.playerIds.map((id) => `${request.done.includes(id) ? "✓" : "…"} ${nameOf(id)}`).join(" · ")}
           </Text>
           <Button variant="default" onClick={() => act("roll:cancel", {})}>
-            Cancelar pedido
+            {t("dice.cancelRequest")}
           </Button>
         </Stack>
       </Alert>
@@ -382,9 +406,9 @@ function RequestControl({ state }: { state: ClientState }) {
 
   if (!open)
     return (
-      <Tooltip label="Pede uma rolagem a todos ou a alguns jogadores (resistência, Percepção…). Cada um rola uma vez; em combate, acaba quando o turno mudar.">
+      <Tooltip label={t("dice.askTip")}>
         <Button variant="default" disabled={players.length === 0} onClick={() => setOpen(true)}>
-          Pedir rolagem
+          {t("dice.ask")}
         </Button>
       </Tooltip>
     );
@@ -403,26 +427,26 @@ function RequestControl({ state }: { state: ClientState }) {
     <Stack component="form" gap="xs" onSubmit={submit}>
       <TextInput
         autoFocus
-        placeholder="Ex.: Resistência DES"
+        placeholder={t("dice.askPlaceholder")}
         maxLength={LIMITS.rollLabel}
         value={label}
         onChange={(e) => setLabel(e.currentTarget.value)}
-        aria-label="O que rolar"
+        aria-label={t("dice.askWhat")}
       />
       <MultiSelect
-        placeholder={who.length === 0 ? "Todos os jogadores" : undefined}
+        placeholder={who.length === 0 ? t("dice.allPlayers") : undefined}
         data={players.map((p) => ({ value: p.id, label: p.name }))}
         value={who}
         onChange={setWho}
-        aria-label="Quem rola"
+        aria-label={t("dice.askWho")}
         comboboxProps={{ withinPortal: true }}
       />
       <Group justify="flex-end" gap="xs">
         <Button variant="default" onClick={() => setOpen(false)}>
-          Fechar
+          {t("common.close")}
         </Button>
         <Button type="submit" disabled={!label.trim()}>
-          Pedir
+          {t("dice.askSend")}
         </Button>
       </Group>
     </Stack>

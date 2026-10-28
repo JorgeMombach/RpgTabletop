@@ -1,5 +1,6 @@
 import type { Combatant } from "@rpg/shared";
 import { act } from "./actions";
+import { t } from "./i18n";
 import { toast } from "./notify";
 import { select, useApp } from "./store";
 
@@ -10,7 +11,7 @@ export async function removeMob(m: Combatant) {
   if (useApp.getState().selectedId === m.id) select(null);
   toast({
     kind: "info",
-    text: `${m.name} removido.`,
-    action: { label: "Desfazer", run: () => void act("mob:restore", { id: m.id }) },
+    text: t("mobs.removed", { name: m.name }),
+    action: { label: t("common.undo"), run: () => void act("mob:restore", { id: m.id }) },
   });
 }

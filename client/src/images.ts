@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { LIMITS } from "@rpg/shared";
 
 const ACCEPTED = ["image/png", "image/jpeg", "image/webp"];
@@ -15,7 +16,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Não consegui abrir a imagem."));
+    img.onerror = () => reject(new Error(t("image.openFailed")));
     img.src = src;
   });
 }
@@ -27,7 +28,7 @@ function canvasToDataUrl(canvas: HTMLCanvasElement, quality: number) {
 }
 
 function assertImage(file: File) {
-  if (!ACCEPTED.includes(file.type)) throw new Error("Use uma imagem PNG, JPG ou WebP.");
+  if (!ACCEPTED.includes(file.type)) throw new Error(t("image.badType"));
 }
 
 /**
@@ -52,7 +53,7 @@ export async function mapImageFromFile(file: File): Promise<string> {
     const out = canvasToDataUrl(canvas, quality);
     if (out.length <= LIMITS.mapImageChars) return out;
   }
-  throw new Error("Imagem do mapa grande demais, mesmo depois de comprimir.");
+  throw new Error(t("image.tooBig"));
 }
 
 /** Avatar: recorte quadrado central, reduzido para 128 px. */

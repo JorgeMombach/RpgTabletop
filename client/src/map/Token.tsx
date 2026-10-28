@@ -4,7 +4,9 @@ import { Circle, Group, Image as KImage, Line, Path, Rect, RegularPolygon, Text 
 import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
 import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
+import { t } from "../i18n";
 import { useApp } from "../store";
+import { TorchBadge } from "./Torch";
 import { useImage } from "./useImage";
 
 // Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
@@ -274,6 +276,12 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
         </Group>
       )}
 
+      {c.torch && (
+        <Group x={r * 0.78} y={r * 0.78} listening={false}>
+          <TorchBadge id={c.id} radius={badgeR * 1.2} />
+        </Group>
+      )}
+
       {summon && (
         <Group x={-r * 0.78} y={r * 0.78} listening={false}>
           <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, ref * 0.03)} />
@@ -296,7 +304,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
           <Text
             text={
               (dragFeet !== null ? `${c.name} · ${dragFeet} ft` : c.name) +
-              (hidden ? " (oculto)" : "") +
+              (hidden ? ` (${t("kind.hidden")})` : "") +
               (conditionText ? `\n${conditionText}` : "")
             }
             lineHeight={1.2}

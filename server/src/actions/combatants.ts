@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  type BossPhase,
   ABILITIES,
   ALLY_COLORS,
   LIMITS,
@@ -24,6 +25,7 @@ import { endConcentration, ensureConcentration, isConcentration } from "./effect
 import { logSystem } from "./dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireImage, requireInt, requireName, requireString } from "../validate";
+import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
 
 /** Janela do "Desfazer" depois de remover um mob. */
@@ -99,6 +101,47 @@ function applyAvatar(target: { avatar?: string }, raw: unknown) {
   else if (avatar !== undefined) target.avatar = avatar;
 }
 
+/** Fases de chefe: `undefined` = não mexe; lista (vazia apaga) já validada. */
+function phasesOf(raw: unknown): BossPhase[] | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return [];
+  if (!Array.isArray(raw)) fail("Fases inválidas.");
+  if (raw.length > LIMITS.phases) fail("Até {n} fases além da primeira.", { n: LIMITS.phases });
+  return raw.map((p: unknown) => {
+    if (typeof p !== "object" || p === null) fail("Fase inválida.");
+    const o = p as Record<string, unknown>;
+    const phase: BossPhase = { hpMax: hpMaxOf(o.hpMax) };
+    if (typeof o.name === "string" && o.name.trim()) phase.name = requireName(o.name);
+    const ac = acOf(o.ac);
+    if (typeof ac === "number") phase.ac = ac;
+    return phase;
+  });
+}
+
+function applyPhases(target: { phases?: BossPhase[] }, phases: BossPhase[] | undefined) {
+  if (phases === undefined) return;
+  if (phases.length > 0) target.phases = phases;
+  else delete target.phases;
+}
+
+/**
+ * Chefe com a vida da fase zerada: começa a próxima, com vida cheia (o dano que sobrou não passa)
+ * e, se a fase tiver, nome e CA novos. Avisa no log (só o mestre vê se o chefe estiver oculto).
+ */
+function nextPhase(store: Store, c: Combatant) {
+  const next = c.phases?.shift();
+  if (!next) return;
+  if (c.phases?.length === 0) delete c.phases;
+  const before = c.name;
+  c.phase = (c.phase ?? 1) + 1;
+  c.hpMax = next.hpMax;
+  c.hp = next.hpMax;
+  if (next.name) c.name = next.name;
+  if (next.ac !== undefined) c.ac = next.ac;
+  if (next.name && next.name !== before) logSystem(store, "{name} passou para a fase {n}: agora é {newName}.", { name: before, n: c.phase, newName: next.name }, !!c.hidden);
+  else logSystem(store, "{name} passou para a fase {n}.", { name: before, n: c.phase }, !!c.hidden);
+}
+
 function clampHp(c: Combatant, value: number) {
   c.hp = Math.max(0, Math.min(c.hpMax, value));
 }
@@ -129,13 +172,32 @@ export function editable(store: Store, player: ServerPlayer, rawId: unknown): Co
   return c;
 }
 
-/** Marcas opcionais (E21): animal em qualquer combatente; oculto só em mob/NPC. */
-function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown } | undefined) {
+/** Marcas opcionais (E21): animal em qualquer combatente; oculto só em mob/NPC; visão no escuro só em aliado. */
+function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown; darkvision?: unknown } | undefined) {
   if (typeof input?.animal === "boolean") c.animal = input.animal || undefined;
+  if (c.type === "ally" && typeof input?.darkvision === "boolean") c.darkvision = input.darkvision || undefined;
   if (c.type !== "ally" && input?.hidden === true) c.hidden = true;
 }
 
-function newCombatant(type: Combatant["type"], input: CombatantInput, color: string): Combatant {
+/** Texto opcional: `undefined` = não mexe; vazio = apaga. */
+function textOf(raw: unknown, max: number): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw !== null && typeof raw !== "string") fail("Texto inválido.");
+  return raw?.trim().slice(0, max) || null;
+}
+
+/** Descrição (pública) e notas do mestre. Só o mestre escreve as notas (o servidor confere aqui). */
+function applyTexts(c: Combatant, input: { description?: unknown; gmNotes?: unknown } | undefined, gm: boolean) {
+  const description = textOf(input?.description, LIMITS.description);
+  const gmNotes = textOf(input?.gmNotes, LIMITS.notes);
+  if (gmNotes !== undefined && !gm) fail("Só o mestre escreve notas do mestre.");
+  if (description === null) delete c.description;
+  else if (description !== undefined) c.description = description;
+  if (gmNotes === null) delete c.gmNotes;
+  else if (gmNotes !== undefined) c.gmNotes = gmNotes;
+}
+
+function newCombatant(type: Combatant["type"], input: CombatantInput, color: string, gm = true): Combatant {
   const hpMax = hpMaxOf(input?.hpMax);
   const ac = acOf(input?.ac);
   const abilities = abilitiesOf(input?.abilities);
@@ -157,12 +219,24 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
   applySize(c, size);
   applyAvatar(c, input?.avatar);
   applyFlags(c, input);
+  applyTexts(c, input, gm);
+  if (type !== "ally" && gm) applyPhases(c, phasesOf(input?.phases));
   return c;
 }
 
 /** Dados de um template para criar mob/NPC (cópia dos atributos: cada um muda o seu depois). */
 function fromTemplate(t: MobTemplate) {
-  return { hpMax: t.hpMax, dexMod: t.dexMod, ac: t.ac, abilities: t.abilities ? { ...t.abilities } : undefined, size: t.size, animal: t.animal };
+  return {
+    hpMax: t.hpMax,
+    dexMod: t.dexMod,
+    ac: t.ac,
+    abilities: t.abilities ? { ...t.abilities } : undefined,
+    size: t.size,
+    animal: t.animal,
+    description: t.description,
+    gmNotes: t.notes,
+    phases: t.phases?.map((p) => ({ ...p })),
+  };
 }
 
 /** Lista onde o combatente mora, pelo tipo. */
@@ -215,6 +289,24 @@ function pruneRemoved(store: Store, now = Date.now()) {
   for (const [id, r] of store.removedMobs) if (now - r.at > UNDO_WINDOW_MS) store.removedMobs.delete(id);
 }
 
+/**
+ * Maior número já usado com este nome em qualquer combatente de qualquer cena: "Zumbi 3" → 3;
+ * "Zumbi" sozinho conta como 1. Sem ninguém com o nome: 0. Ignora maiúsculas.
+ */
+function numberInUse(store: Store, base: string): number {
+  const { game } = store;
+  const stored = game.scenes.flatMap((s) => (s.stored ? [...s.stored.mobs, ...s.stored.npcs] : []));
+  const key = base.trim().toLocaleLowerCase("pt-BR");
+  let max = 0;
+  for (const c of [...allCombatants(store), ...stored]) {
+    const name = c.name.toLocaleLowerCase("pt-BR");
+    if (name === key) max = Math.max(max, 1);
+    const m = /^(.*\S)\s+(\d+)$/.exec(name);
+    if (m && m[1] === key) max = Math.max(max, Number(m[2]));
+  }
+  return max;
+}
+
 export const combatantHandlers: HandlerMap = {
   "template:upsert": (store, player, input) => {
     requireGm(player);
@@ -224,8 +316,10 @@ export const combatantHandlers: HandlerMap = {
       hpMax: hpMaxOf(input?.hpMax),
       dexMod: dexModOf(input?.dexMod),
       notes: typeof input?.notes === "string" ? input.notes.trim().slice(0, LIMITS.notes) || undefined : undefined,
+      description: typeof input?.description === "string" ? input.description.trim().slice(0, LIMITS.description) || undefined : undefined,
       animal: input?.animal === true || undefined,
     };
+    const phases = phasesOf(input?.phases);
     const ac = acOf(input?.ac);
     const abilities = abilitiesOf(input?.abilities);
     const size = sizeOf(input?.size);
@@ -234,6 +328,7 @@ export const combatantHandlers: HandlerMap = {
     if (input.id) {
       const t = templates.find((t) => t.id === input.id) ?? fail("Template não encontrado.");
       Object.assign(t, fields);
+      applyPhases(t, phases);
       if (isColor(input.color)) t.color = input.color;
       applyStats(t, ac, abilities);
       applySize(t, size);
@@ -241,6 +336,7 @@ export const combatantHandlers: HandlerMap = {
       return [t.id];
     }
     const t: MobTemplate = { id: randomUUID(), ...fields, color: colorOf(input.color, MOB_COLORS, templates.length) };
+    applyPhases(t, phases);
     applyStats(t, ac, abilities);
     applySize(t, size);
     applyAvatar(t, input.avatar);
@@ -262,7 +358,8 @@ export const combatantHandlers: HandlerMap = {
     const t = store.game.templates.find((t) => t.id === payload?.templateId) ?? fail("Template não encontrado.");
     const qty = requireInt(payload.qty, "Quantidade", LIMITS.qty.min, LIMITS.qty.max);
 
-    let n = store.mobCounters.get(t.id) ?? 0;
+    // Continua do maior número em uso (o *Conjurar* também numera) e nunca volta atrás (mob removido não "libera" o número).
+    let n = Math.max(store.mobCounters.get(t.id) ?? 0, numberInUse(store, t.name));
     const ids: string[] = [];
     for (let i = 0; i < qty; i++) {
       n++;
@@ -311,7 +408,8 @@ export const combatantHandlers: HandlerMap = {
 
   "summon:add": (store, player, payload) => {
     const summoner = editable(store, player, payload?.summonerId);
-    if (summoner.summonerId) fail("Um conjurado não conjura outro (conjure a partir de quem lançou a magia).");
+    if (summoner.summonerId) fail("Um invocado não invoca outro (invoque a partir de quem lançou a magia).");
+    requireTurnFor(store, player, "summonOnTurn", "Em combate, só dá para invocar na sua vez.");
     const qty = requireInt(payload.qty, "Quantidade", LIMITS.qty.min, LIMITS.qty.max);
     const { min, max } = LIMITS.conditionRounds;
     const rounds = payload.rounds === undefined || payload.rounds === null ? null : requireInt(payload.rounds, "Duração", min, max);
@@ -320,15 +418,17 @@ export const combatantHandlers: HandlerMap = {
     const palette = summoner.type === "ally" ? ALLY_COLORS : summoner.type === "mob" ? MOB_COLORS : NPC_COLORS;
     // Valida o resto (vida, DES, avatar) antes de criar qualquer um.
     const color = colorOf(payload.color, palette, list.length);
-    newCombatant(summoner.type, { ...payload, name: base }, color);
+    newCombatant(summoner.type, { ...payload, name: base }, color, player.role === "gm");
 
     const occupied = () => blockedCells(allCombatants(store));
     const ids: string[] = [];
+    // Vários iguais: "Esqueleto 1", "Esqueleto 2"…, continuando do maior número em uso ("Zumbi 4" se já há
+    // Zumbi 1 a 3, vindos do bestiário ou de outra conjuração). Um só e sem ninguém com o nome: sem número.
+    const used = numberInUse(store, base);
     for (let i = 1; i <= qty; i++) {
-      // Vários iguais: "Esqueleto 1", "Esqueleto 2"… (o número nunca é cortado).
-      const suffix = qty > 1 ? ` ${i}` : "";
+      const suffix = qty > 1 || used > 0 ? ` ${used + i}` : "";
       const name = base.slice(0, NAME_MAX_LENGTH - suffix.length).trimEnd() + suffix;
-      const s = newCombatant(summoner.type, { ...payload, name, hidden: summoner.hidden }, color);
+      const s = newCombatant(summoner.type, { ...payload, name, hidden: summoner.hidden }, color, player.role === "gm");
       s.summonerId = summoner.id;
       if (summoner.ownerId) s.ownerId = summoner.ownerId;
       if (payload.concentration === true) s.summonConcentration = true;
@@ -372,7 +472,7 @@ export const combatantHandlers: HandlerMap = {
     if (player.role === "player" && allies.some((a) => a.ownerId === player.id && !a.summonerId)) {
       fail("Você já tem um personagem. Para mudar nome, vida ou mod. DES, use Editar no painel Selecionado.");
     }
-    const ally = newCombatant("ally", input, colorOf(input?.color, ALLY_COLORS, allies.length));
+    const ally = newCombatant("ally", input, colorOf(input?.color, ALLY_COLORS, allies.length), player.role === "gm");
     ally.ownerId = player.id;
     allies.push(ally);
     return [ally.id];
@@ -394,14 +494,18 @@ export const combatantHandlers: HandlerMap = {
     const abilities = abilitiesOf(payload.abilities);
     const size = sizeOf(payload.size);
     avatarOf(payload.avatar);
+    if (payload.gmNotes !== undefined && player.role !== "gm") fail("Só o mestre escreve notas do mestre.");
+    const phases = c.type === "ally" ? undefined : phasesOf(payload.phases);
     Object.assign(c, { name, dexMod, hpMax });
+    applyPhases(c, phases);
+    applyTexts(c, payload, player.role === "gm");
     applyStats(c, ac, abilities);
     // Crescer no mapa pode encostar em alguém: o app não empurra ninguém (a mesa ajeita os tokens).
     applySize(c, size);
     if (isColor(payload.color)) c.color = payload.color;
     applyAvatar(c, payload.avatar);
-    // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só a marca de animal.
-    applyFlags(c, { animal: payload.animal });
+    // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só as marcas de animal e visão no escuro.
+    applyFlags(c, { animal: payload.animal, darkvision: payload.darkvision });
     clampHp(c, c.hp);
     // Mod. DES desempata a iniciativa.
     if (payload.dexMod !== undefined && store.game.battle.combat.order.includes(c.id)) placeInOrder(store, c);
@@ -415,7 +519,7 @@ export const combatantHandlers: HandlerMap = {
     // Só lembra; quem joga rola e decide. Mob/NPC: só o mestre vê o aviso.
     if (delta < 0 && c.conditions.some((k) => isConcentration(k.name))) {
       const dc = Math.max(10, Math.floor(-delta / 2));
-      logSystem(store, `Teste de Concentração para ${c.name}: CD ${dc} (resistência de CON).`, c.type !== "ally");
+      logSystem(store, "Teste de Concentração para {name}: CD {dc} (resistência de CON).", { name: c.name, dc }, c.type !== "ally");
     }
     // Dano tira primeiro da vida temporária; a cura não mexe nela.
     if (delta < 0 && c.tempHp) {
@@ -424,11 +528,13 @@ export const combatantHandlers: HandlerMap = {
       rest = delta + absorbed;
     }
     setHp(c, c.hp + rest);
+    if (c.hp === 0) nextPhase(store, c);
   },
 
   "hp:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
     setHp(c, requireInt(payload.value, "Vida", 0, LIMITS.hpMax.max));
+    if (c.hp === 0) nextPhase(store, c);
   },
 
   "hp:full": (store, player, payload) => {
@@ -441,10 +547,26 @@ export const combatantHandlers: HandlerMap = {
     setTempHp(c, requireInt(payload.value, "Vida temporária", 0, LIMITS.hpMax.max));
   },
 
+  "torch:set": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    if (typeof payload.lit !== "boolean") fail("Informe se a tocha fica acesa.");
+    if (payload.lit) c.torch = true;
+    else delete c.torch;
+  },
+
   "aura:set": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    if (payload.feet === null) delete c.aura;
-    else c.aura = requireInt(payload.feet, "Alcance", LIMITS.aura.min, LIMITS.aura.max);
+    const feet = payload.feet === null ? null : requireInt(payload.feet, "Alcance", LIMITS.aura.min, LIMITS.aura.max);
+    if (payload.color !== undefined && payload.color !== null && !isColor(payload.color)) fail("Cor inválida.");
+    if (feet === null) {
+      // Sem círculo, sem cor.
+      delete c.aura;
+      delete c.auraColor;
+      return;
+    }
+    c.aura = feet;
+    if (payload.color === null) delete c.auraColor;
+    else if (payload.color !== undefined) c.auraColor = payload.color;
   },
 
   "death:set": (store, player, payload) => {

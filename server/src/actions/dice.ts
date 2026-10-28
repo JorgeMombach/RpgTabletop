@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { ABILITIES, LIMITS, groupName, type Ability, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult } from "@rpg/shared";
+import { ABILITIES, LIMITS, groupName, type Ability, type Combatant, type LogEntry, type RollKind, type RollMode, type RollResult, type LogPart } from "@rpg/shared";
 import { byId, currentGroup } from "../combat";
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
-import { fail, requireString } from "../validate";
+import { fail, requireString, fillMessage, type ErrorParams } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -36,15 +36,19 @@ export function logRoll(
   store: Store,
   player: ServerPlayer,
   result: RollResult,
-  opts: Pick<LogEntry, "hidden" | "label" | "as" | "kind" | "crit" | "color"> = {},
+  opts: Pick<LogEntry, "hidden" | "as" | "kind" | "crit" | "color"> & { label?: LogPart[] } = {},
 ): string {
+  const parts = opts.label?.length ? opts.label : undefined;
+  const label = parts?.map((p) => fillMessage(p.key, p.params)).join(" · ");
   return pushLog(store, {
     authorId: player.id,
     // Padrão do log (E26): "Personagem (jogador)"; do lado do mestre, "Goblin 2 (Mestre)".
     author: player.role === "gm" ? "Mestre" : player.name,
-    text: `${opts.label ? `${opts.label}: ` : ""}${result.expr} = ${result.total}`,
+    ...(player.role === "gm" && { gm: true }),
+    text: `${label ? `${label}: ` : ""}${result.expr} = ${result.total}`,
     hidden: opts.hidden || undefined,
-    label: opts.label,
+    label,
+    labelParts: parts,
     as: opts.as,
     color: opts.color,
     kind: opts.kind,
@@ -53,9 +57,20 @@ export function logRoll(
   });
 }
 
-/** Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. `hidden` = só o mestre. */
-export function logSystem(store: Store, text: string, hidden = false) {
-  pushLog(store, { authorId: "system", author: "Mesa", text, system: true, hidden: hidden || undefined });
+/**
+ * Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. `hidden` = só o mestre.
+ * Escrito como modelo, igual às recusas: `logSystem(store, "{who} passou a vez.", { who })`; a tradução
+ * fica em client/src/i18n/serverText.ts.
+ */
+export function logSystem(store: Store, template: string, params?: ErrorParams, hidden = false) {
+  pushLog(store, {
+    authorId: "system",
+    author: "Mesa",
+    text: fillMessage(template, params),
+    ...(params && { textKey: template, textParams: params }),
+    system: true,
+    hidden: hidden || undefined,
+  });
 }
 
 /**
@@ -98,20 +113,20 @@ function takeRequest(store: Store, player: ServerPlayer): string | undefined {
  * Fora de combate, conforme o mestre escolheu (E26): livre, só com pedido ou travado.
  * Devolve o rótulo da rolagem ("Resistência DES", "Reação"); consome o pedido.
  */
-function outOfTurn(store: Store, player: ServerPlayer): string | undefined {
+function outOfTurn(store: Store, player: ServerPlayer): LogPart | undefined {
   const { combat, rolls } = store.game.battle;
   if (player.role === "gm") return undefined;
   if (!combat.active) {
     // Livre: um pedido aberto ainda dá o rótulo à rolagem.
     const label = takeRequest(store, player);
-    if (label || rolls.outside === "free") return label;
+    if (label || rolls.outside === "free") return label ? { key: label } : undefined;
     fail(rolls.outside === "locked" ? "O mestre travou as rolagens por enquanto." : "Fora de combate, só quando o mestre pedir uma rolagem.");
   }
   const current = byId(store, combat.order[combat.turnIndex]);
   if (current?.ownerId === player.id) return undefined;
   const label = takeRequest(store, player);
-  if (label) return label;
-  if (reactionOpen(store, player.id)) return "Reação";
+  if (label) return { key: label };
+  if (reactionOpen(store, player.id)) return { key: "Reação" };
   fail("Não é a sua vez. Fora da vez, só com pedido do mestre (resistência) ou usando a Reação.");
 }
 
@@ -143,7 +158,13 @@ export const diceHandlers: HandlerMap = {
     const context = outOfTurn(store, player);
     const kindLabel = kind === "attack" ? "Ataque" : kind === "damage" ? (crit ? "Dano (crítico)" : "Dano") : undefined;
     const death = payload?.death === true ? "Teste contra a morte" : undefined;
-    const label = [context, kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death].filter(Boolean).join(" · ") || undefined;
+    // Mestre rolando oculto como o personagem de um jogador (ex.: Percepção sem ele saber): marca "Secreto".
+    const secret = gm && payload.hidden === true && by?.type === "ally" ? "Secreto" : undefined;
+    // Cada pedaço traduzível à parte; o pedido do mestre ("Resistência DES") fica como ele escreveu.
+    const label: LogPart[] = [
+      ...(context ? [context] : []),
+      ...[kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death, secret].filter((s): s is string => !!s).map((key) => ({ key })),
+    ];
     if (!gm) player.lastRollAt = now;
     return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit, color })];
   },
@@ -185,6 +206,6 @@ export const diceHandlers: HandlerMap = {
     }
     rolls.reactions = rolls.reactions.filter((r) => r.playerId !== player.id);
     rolls.reactions.push({ playerId: player.id, round: combat.round, turn: combat.turn });
-    logSystem(store, `${whoIs(store, player)} usou a reação.`);
+    logSystem(store, "{who} usou a reação.", { who: whoIs(store, player) });
   },
 };

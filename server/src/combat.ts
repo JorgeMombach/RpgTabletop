@@ -23,6 +23,11 @@ export function currentGroup(store: Store): Combatant[] {
   return combat.order.slice(start, end).flatMap((id) => byId(store, id) ?? []);
 }
 
+/** Com combate ativo, é a vez de algum combatente deste jogador (o personagem ou um invocado dele). */
+export function isPlayersTurn(store: Store, playerId: string): boolean {
+  return currentGroup(store).some((c) => c.ownerId === playerId);
+}
+
 /** Para o combate e esquece pedidos e reações (o modo fora de combate continua). `turn` continua contando, para nunca repetir o número de um turno antigo. */
 export function resetCombat(store: Store) {
   const { battle } = store.game;
