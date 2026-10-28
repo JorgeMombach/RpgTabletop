@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
+import type { FogShape } from "./map/Fog";
 import type { Area, AreaKind, ClientState, Handout, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "ping";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "ping" | "fog";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -58,6 +59,10 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Paredes do mestre: modo e a porta escolhida (para trancar, esconder ou apagar). */
   wallMode: WallMode;
   selectedDoorId: string | null;
+  /** Ferramenta Névoa do mestre: revelar ou cobrir, pincel ou retângulo, lado do pincel em casas. */
+  fogReveal: boolean;
+  fogShape: FogShape;
+  fogBrush: number;
   /** Combatente aberto no painel "Selecionado" (local, não sincroniza). */
   selectedId: string | null;
   /** Nome usado antes de "Sair", para preencher a tela de entrada. */
@@ -107,6 +112,9 @@ export const useApp = create<AppStore>(() => ({
   drawHidden: false,
   wallMode: "wall",
   selectedDoorId: null,
+  fogReveal: true,
+  fogShape: "brush",
+  fogBrush: 3,
   selectedId: null,
   lastName: "",
   tool: "move",

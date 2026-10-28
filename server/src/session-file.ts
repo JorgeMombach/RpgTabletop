@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  emptyFog,
   ABILITIES,
   APP_VERSION,
   COINS,
@@ -38,6 +39,7 @@ import {
   type Spell,
   type SpellLevel,
   type SpellSlot,
+  type FogState,
   type BossPhase,
   type TableRules,
 } from "@rpg/shared";
@@ -502,7 +504,26 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
     walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
     weather: weatherFromFile(b.weather),
+    // Arquivos anteriores à névoa: sem névoa.
+    fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
   };
+}
+
+/** Névoa da cena: intervalos de colunas por linha, conferidos (ordenados, sem sobreposição). */
+function fogFromFile(raw: unknown): FogState {
+  const f = obj(raw, "névoa");
+  const rows = obj(f.revealed ?? {}, "névoa");
+  const lim = LIMITS.gridCoord;
+  const revealed: Record<string, number[]> = {};
+  for (const [key, value] of Object.entries(rows)) {
+    const row = Number(key);
+    if (!Number.isInteger(row) || Math.abs(row) > lim) fail("Arquivo inválido: névoa.");
+    const nums = list(value, "névoa", 2000).map((n) => int(n, "névoa", -lim, lim + 1));
+    if (nums.length === 0 || nums.length % 2 !== 0) fail("Arquivo inválido: névoa.");
+    for (let i = 1; i < nums.length; i++) if (nums[i] <= nums[i - 1]) fail("Arquivo inválido: névoa.");
+    revealed[String(row)] = nums;
+  }
+  return { enabled: bool(f.enabled, "névoa"), revealed };
 }
 
 /** Onde cada aliado estava numa cena guardada (aliado que não existe mais é ignorado). */

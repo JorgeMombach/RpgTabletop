@@ -9,6 +9,7 @@ import { magicHandlers } from "./magic";
 import { mapHandlers } from "./map";
 import { sheetHandlers } from "./sheet";
 import { soundHandlers } from "./sound";
+import { fogHandlers } from "./fog";
 import { handoutHandlers } from "./handout";
 import { ruleHandlers } from "./rules";
 import { sceneHandlers } from "./scenes";
@@ -27,6 +28,7 @@ export const handlers: HandlerMap = {
   ...wallHandlers,
   ...sceneHandlers,
   ...handoutHandlers,
+  ...fogHandlers,
   ...ruleHandlers,
   ...soundHandlers,
   ...sheetHandlers,

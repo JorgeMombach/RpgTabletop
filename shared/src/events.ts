@@ -1,5 +1,6 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { FogRect } from "./fog";
 
 export interface JoinPayload {
   name: string;
@@ -265,6 +266,12 @@ export interface ActionPayloads {
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   "wall:add": { from: GridPos; to: GridPos; door?: boolean };
   "wall:remove": { id: string };
+  /** Mestre: liga ou desliga a névoa de guerra da cena. */
+  "fog:set": { enabled: boolean };
+  /** Mestre: revela (ou cobre) retângulos de casas. */
+  "fog:paint": { reveal: boolean; rects: FogRect[] };
+  /** Mestre: cobre o mapa inteiro de novo. */
+  "fog:reset": Record<string, never>;
   /** Mestre: liga ou desliga regras da mesa (só as que vierem). */
   "rules:set": Partial<TableRules>;
   /** Mestre: mostra para a mesa (abre na tela de todos); substitui o que estava sendo mostrado. */
@@ -404,6 +411,9 @@ export const LIMITS = {
   handoutText: 2000,
   /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */
   walls: 600,
+  /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
+  fogRects: 500,
+  fogRectSide: 400,
   wallLength: 200,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,

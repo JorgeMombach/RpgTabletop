@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudOff, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudFog, IconCloudOff, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type Wall } from "@rpg/shared";
@@ -17,6 +17,7 @@ import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions } from "./DrawingShape";
 import { cornerAt, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
 import { Token } from "./Token";
@@ -63,7 +64,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId, fogReveal, fogShape, fogBrush } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -192,6 +193,38 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (w && !sameCell(w.from, w.to)) void act("wall:add", { from: w.from, to: w.to, door: wallMode === "door" });
   }
 
+  // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
+  const fogRef = useRef<{ draft: FogDraft; start: GridPos; seen: Set<string> } | null>(null);
+  const [fogDraft, setFogDraft] = useState<FogDraft | null>(null);
+  function fogAt(cell: GridPos) {
+    const f = fogRef.current;
+    if (!f) return;
+    if (fogShape === "rect") f.draft = { ...f.draft, rects: [rectBetween(f.start, cell)] };
+    else {
+      const key = `${cell.col},${cell.row}`;
+      if (f.seen.has(key)) return;
+      f.seen.add(key);
+      f.draft = { ...f.draft, rects: [...f.draft.rects, brushRect(cell, fogBrush)] };
+    }
+    setFogDraft(f.draft);
+  }
+  function finishFog() {
+    const f = fogRef.current;
+    fogRef.current = null;
+    if (!f) return;
+    // A prévia fica até o servidor responder (sem piscar a névoa de volta).
+    void sendFog(f.draft).then(() => setFogDraft(null));
+  }
+  /** "Revelar o mapa": todas as casas da imagem. */
+  const revealMap =
+    image && layout
+      ? () => {
+          const a = cellAt({ x: 0, y: 0 }, grid);
+          const b = cellAt({ x: layout.bounds.width - 0.01, y: layout.bounds.height - 0.01 }, grid);
+          void sendFog({ reveal: true, rects: [rectBetween(a, b)] });
+        }
+      : null;
+
   /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
   function onWallClick(w: Wall) {
     if (tool === "walls" && wallMode === "erase") return void act("wall:remove", { id: w.id });
@@ -292,6 +325,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       setWallDraft(wallRef.current);
       return;
     }
+    if (tool === "fog") {
+      if (!state.battle.fog.enabled) return;
+      const cell = cellAt(p, grid);
+      fogRef.current = { draft: { reveal: fogReveal, rects: [] }, start: cell, seen: new Set() };
+      fogAt(cell);
+      return;
+    }
     if (tool === "draw") {
       if (drawMode === "erase") return;
       strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
@@ -314,6 +354,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    if (fogRef.current) {
+      fogAt(cellAt(p, grid));
+      return;
+    }
     if (wallRef.current) {
       const to = cornerAt(p, grid);
       if (!sameCell(to, wallRef.current.to)) {
@@ -354,6 +398,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   function onMouseUp() {
     finishStroke();
     finishWall();
+    finishFog();
     calibStart.current = null;
     areaDragging.current = false;
     updateRuler(null);
@@ -504,6 +549,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             {wallDraft && !sameCell(wallDraft.from, wallDraft.to) && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
           </Layer>
 
+          {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos e paredes; os tokens ficam por cima. */}
+          <FogLayer fog={state.battle.fog} grid={grid} gm={gm} draft={fogDraft} />
+
           {/* Alcance e aura: abaixo dos tokens. */}
           <Layer listening={false}>
             {tokens.map((c) => (
@@ -613,6 +661,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
       {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
       {gm && tool === "walls" && <WallOptions walls={state.battle.walls} />}
+      {gm && tool === "fog" && <FogOptions fog={state.battle.fog} onRevealMap={revealMap} />}
       {fixing && myArea && (
         <FixEffectModal
           state={state}
@@ -806,6 +855,7 @@ function MapToolbar({
       ? ([
           { id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil },
           { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
+          { id: "fog", text: t("fog.tool"), label: t("fog.toolTip"), icon: IconCloudFog },
         ] as const)
       : []),
   ] as const;

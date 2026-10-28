@@ -1,4 +1,4 @@
-import type { ClientState, Combatant, CombatantView, HostInfo } from "@rpg/shared";
+import { anyRevealed, cellsAroundPoint, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 
 /** Ficha pessoal (magias, recursos, ataques, inventário, moedas): só o dono e o mestre veem (SPEC E6). */
@@ -24,6 +24,43 @@ function forPlayers(list: Combatant[]): CombatantView[] {
 }
 
 /**
+ * Névoa de guerra (G): o jogador não recebe o que está todo na parte coberta. Mob/NPC fora do mapa
+ * continua indo (não está em lugar nenhum); aliados sempre vão. A imagem do mapa vai inteira (a névoa
+ * é desenhada por cima), mas inimigos, efeitos, desenhos e paredes cobertos nem chegam.
+ */
+function inSight(fog: FogState) {
+  const cells = (c: Combatant) => {
+    if (!c.pos) return true;
+    const span = sizeSpan(c.size);
+    const out: GridPos[] = [];
+    for (let dc = 0; dc < span; dc++) for (let dr = 0; dr < span; dr++) out.push({ col: c.pos.col + dc, row: c.pos.row + dr });
+    return anyRevealed(fog, out);
+  };
+  return {
+    combatant: cells,
+    effect: (e: MapEffect) => anyRevealed(fog, cellsAroundPoint(e.area.origin.col, e.area.origin.row)),
+    drawing: (d: Drawing, grid: MapConfig) => {
+      const pts: GridPos[] = [];
+      for (let i = 0; i + 1 < d.points.length; i += 2) {
+        pts.push({ col: Math.floor((d.points[i] - grid.offsetX) / grid.cellPx), row: Math.floor((d.points[i + 1] - grid.offsetY) / grid.cellPx) });
+      }
+      return anyRevealed(fog, pts);
+    },
+    // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
+    wall: (w: Wall) => {
+      const steps = Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row));
+      const pts: GridPos[] = [];
+      for (let i = 0; i <= steps; i++) {
+        const col = Math.round(w.from.col + ((w.to.col - w.from.col) * i) / steps);
+        const row = Math.round(w.from.row + ((w.to.row - w.from.row) * i) / steps);
+        pts.push(...cellsAroundPoint(col, row));
+      }
+      return anyRevealed(fog, pts);
+    },
+  };
+}
+
+/**
  * Estado filtrado por papel (ADR-05): jogadores nunca recebem a vida de mobs e NPCs,
  * nem mobs/NPCs ocultos, nem a lista de magias de outros jogadores.
  */
@@ -31,6 +68,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
   const { game } = store;
   const gm = player.role === "gm";
   const { image, ...map } = game.battle.map;
+  const fog = game.battle.fog;
+  const sight = inSight(fog);
 
   const players = [...store.players.values()]
     .map(toPublic)
@@ -44,17 +83,18 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     allies: game.allies.map((a) => allyFor(player, a)),
     battle: {
       map: { ...map, hasImage: image !== null },
-      mobs: gm ? game.battle.mobs : forPlayers(game.battle.mobs),
-      npcs: gm ? game.battle.npcs : forPlayers(game.battle.npcs),
+      mobs: gm ? game.battle.mobs : forPlayers(game.battle.mobs.filter(sight.combatant)),
+      npcs: gm ? game.battle.npcs : forPlayers(game.battle.npcs.filter(sight.combatant)),
       combat: game.battle.combat,
       rolls: game.battle.rolls,
       // Efeito desligado fica guardado só para o mestre (E19).
-      effects: gm ? game.battle.effects : game.battle.effects.filter((e) => e.active),
+      effects: gm ? game.battle.effects : game.battle.effects.filter((e) => e.active && sight.effect(e)),
       // Anotação só do mestre não vai para os jogadores.
-      drawings: gm ? game.battle.drawings : game.battle.drawings.filter((d) => !d.hidden),
+      drawings: gm ? game.battle.drawings : game.battle.drawings.filter((d) => !d.hidden && sight.drawing(d, map)),
       // Porta secreta: o jogador nem recebe (parece parede nenhuma) até o mestre revelar.
-      walls: gm ? game.battle.walls : game.battle.walls.filter((w) => !w.door?.secret),
+      walls: gm ? game.battle.walls : game.battle.walls.filter((w) => !w.door?.secret && sight.wall(w)),
       weather: game.battle.weather,
+      fog,
     },
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
     sceneId: game.sceneId,

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, type Combatant, type GameState, type Handout, type PublicPlayer, type Role, type SoundState } from "@rpg/shared";
+import { emptyFog, LIMITS, type Combatant, type GameState, type Handout, type PublicPlayer, type Role, type SoundState } from "@rpg/shared";
 import { defaultWeather } from "./weather";
 
 /** Mob ou NPC removido recentemente, guardado para o "Desfazer". */
@@ -51,6 +51,7 @@ export function createGame(): GameState {
       drawings: [],
       walls: [],
       weather: defaultWeather(),
+      fog: emptyFog(),
     },
     log: [],
     scenes: [{ id: sceneId, name: "Cena 1" }],

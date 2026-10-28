@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -120,6 +120,7 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, door: { open: true, locked: true, secret: true } satisfies Required<Door> },
     ],
     weather,
+    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] } } satisfies Required<FogState>,
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -131,6 +132,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     weather,
+    fog: { enabled: false, revealed: {} },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];

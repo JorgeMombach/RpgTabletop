@@ -48,7 +48,10 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [ ] **i18n completo: inglês e espanhol.** Migrar os textos do client para o catálogo; mensagens de erro do servidor viram códigos traduzidos no client; escolha do idioma (padrão: o do navegador).
 
 ## G. Névoa de guerra
-- [ ] **Névoa de guerra:** o mapa começa coberto para os jogadores e o mestre revela por áreas (retângulo, pincel, cômodo entre paredes) e cobre de novo. O mestre vê tudo, com a névoa translúcida. Tokens debaixo da névoa não vão para os jogadores (como os ocultos). Uma névoa por cena, no arquivo de sessão. Usa as paredes do bloco D para revelar "o cômodo".
+Em três partes (cada uma um commit), decididas com o mestre: visão da mesa **compartilhada** (o que um vê, todos veem); área já explorada fica **escurecida e sem os inimigos atuais**.
+- [x] **1. Névoa pintada pelo mestre:** o mapa começa coberto para os jogadores; ferramenta *Névoa* com pincel (1, 3 ou 5 casas) e retângulo para revelar ou cobrir, *Revelar o mapa* e *Cobrir tudo*. O mestre vê através (bruma translúcida). Mobs, NPCs, efeitos, desenhos e paredes cobertos não vão para os jogadores. Uma névoa por cena, no arquivo de sessão.
+- [ ] **2. Revelar o cômodo:** com a ferramenta *Névoa*, um clique dentro de uma sala revela tudo até as paredes e portas fechadas (usa as paredes do bloco D).
+- [ ] **3. Visão dos personagens:** cada aliado no mapa revela em volta dele (raio pela luz do clima e *Visão no escuro*), com paredes e portas fechadas bloqueando a linha de visão; o que já foi visto fica explorado (escurecido, sem os inimigos de agora).
 
 ## H. Ajustes do que já existe (vindos do jogo)
 - [x] **Ping sem atrapalhar o arrasto:** hoje segurar para arrastar a visão ou um token também dispara ping. Arrastar cancela o ping; no computador o ping passa a ser Alt+clique (ou botão do meio), e segurar parado fica só para o toque.

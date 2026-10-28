@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, type GridPos, type Scene, type StoredScene } from "@rpg/shared";
+import { emptyFog, LIMITS, type GridPos, type Scene, type StoredScene } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import type { Store } from "../store";
 import { fail } from "../validate";
@@ -27,6 +27,7 @@ function emptyScene(store: Store): StoredScene {
     drawings: [],
     walls: [],
     weather: defaultWeather(),
+    fog: emptyFog(),
     allyPos: {},
   };
 }
@@ -36,8 +37,8 @@ function storeActive(store: Store): StoredScene {
   const { battle, allies } = store.game;
   const allyPos: Record<string, GridPos> = {};
   for (const a of allies) if (a.pos) allyPos[a.id] = a.pos;
-  const { map, mobs, npcs, effects, drawings, walls, weather } = battle;
-  return { map, mobs, npcs, effects, drawings, walls, weather, allyPos };
+  const { map, mobs, npcs, effects, drawings, walls, weather, fog } = battle;
+  return { map, mobs, npcs, effects, drawings, walls, weather, fog, allyPos };
 }
 
 export const sceneHandlers: HandlerMap = {

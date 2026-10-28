@@ -1,5 +1,6 @@
 // Modelo de dados compartilhado entre servidor e cliente (ver SPEC.md §4).
 import type { Area } from "./events";
+import type { FogState } from "./fog";
 
 export type Role = "gm" | "player";
 
@@ -452,6 +453,8 @@ export interface SceneContent {
   drawings: Drawing[];
   walls: Wall[];
   weather: WeatherState;
+  /** Névoa de guerra da cena (G). */
+  fog: FogState;
 }
 
 /** Cena guardada (não ativa): o conteúdo dela e onde cada aliado estava nela. */
@@ -511,6 +514,7 @@ export interface GameState {
     drawings: Drawing[];
     walls: Wall[];
     weather: WeatherState;
+    fog: FogState;
   };
   log: LogEntry[];
   /** Cenas da sessão, na ordem do painel; a ativa é `sceneId` (o conteúdo dela está em `battle`). */
@@ -640,6 +644,7 @@ export interface ClientState {
     drawings: Drawing[];
     walls: Wall[];
     weather: WeatherState;
+    fog: FogState;
   };
   log: LogEntry[];
   /** Cena ativa (todos) e a lista de cenas (só o mestre: nome, se tem imagem e quantos mobs). */
