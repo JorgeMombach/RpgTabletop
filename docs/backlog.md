@@ -1,6 +1,6 @@
 # Backlog — melhorias da mesa
 
-Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D; agora `feat/melhorias-da-mesa-2`, a partir da 2.8.1): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
+Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D, a 2.9.0 de `feat/melhorias-da-mesa-2` com E–K; agora `feat/melhorias-visuais`, para a 2.10.0): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
 
 Regras que valem para tudo: o app registra, não aplica regras (ADR-06); permissões no servidor; dado novo sensível passa pelo filtro de `view.ts` com teste; tudo novo entra no arquivo de sessão (e no teste de proteção do save); textos novos já nascem traduzíveis (depois da base de i18n).
 
@@ -74,6 +74,25 @@ Em três partes (cada uma um commit), decididas com o mestre: visão da mesa **c
 ## K. Combate avançado
 - [x] **Chefe com fases:** várias barras de vida em sequência (fase 1, 2, 3…); zerou uma, começa a próxima com aviso no log (e, se quiser, nome e CA novos).
 - [x] **Efeitos que andam com o token:** um efeito de área preso a um combatente (ex.: espírito protetor do clérigo) acompanha o token quando ele anda.
+
+## L. Cara de jogo (2.10.0)
+Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a base do guia visual (tema, fontes, cores e componentes ficam). Arte gerada no código só entra se ficar caprichada: cada peça passa por protótipo visual aprovado antes de ir para o app. Tudo animado desliga com *Reduzir o clima*.
+- [x] **1. Revisão de usabilidade:** mestre (sessão vazia e combate) e jogadora nova no celular, mais a tela mínima. Bom: dano em 2 ações, condição em 3, abas do celular claras. Os achados viraram os itens abaixo (marcados *revisão*).
+- [x] **Ganhos rápidos** (*revisão*, antes do kit visual):
+  - [x] **+ Mobs no painel Mobs na batalha** (agora só *Mobs*, botão **+**): abre o bestiário ali mesmo (hoje fica na aba Mesa, no fim, e o painel só diz "adicione pelo bestiário").
+  - [x] **Faixa na ficha de quem chega no meio do combate:** "Role sua iniciativa" e "Colocar no mapa" enquanto faltar (hoje só aparece "Sem iniciativa" na aba Combate).
+- [ ] **2. Kit visual:** geradores de textura e moldura (metal, pedra, madeira, pergaminho) num lugar só, reaproveitados por tokens, paredes e painéis. Ícones de jogo do game-icons.net (CC BY 3.0, crédito no *Sobre*; exceção registrada na SPEC ao "só Tabler").
+- [ ] **3. Tokens:** moldura por tipo (aliado, mob, NPC, invocado), estados (na vez, selecionado, escondido, caído), placa do nome, condições como ícones em volta do token. *Revisão:* mobs de mesmo nome ganham selo com o número ("Goblin 2" hoje só aparece no hover; no celular nem isso); o rótulo não pode cobrir os vizinhos.
+- [ ] **4. Barra de vida com cara de jogo:** moldura, marcas, vida temporária como escudo, dano fantasma, fases do chefe; o mesmo estilo no painel.
+- [ ] **5. Paredes, portas e mesa:** pedra e madeira com textura, porta aberta desenhada aberta, mesa (madeira/couro) e vinheta em volta do mapa.
+- [ ] **6. Efeitos:** números de dano/cura subindo do token, tremida ao tomar dano, destaque no início da vez (*revisão:* hoje a vez quase não aparece no mapa, só o anel muda), brilho no crítico/falha do d20, partículas leves em algumas condições.
+- [ ] **7. Interface geral:** trilha de iniciativa no topo do mapa, textura sutil nos painéis, divisórias, microanimações, avisos e estados vazios no estilo do jogo, tela de entrada.
+- [ ] **8. Fluxo:**
+  - [ ] Menu de contexto no token (dano, cura, condição, esconder, remover) e atalhos de teclado com ajuda (`?`); hoje não há nenhum dos dois.
+  - [ ] *Revisão:* cartão **Preparar a mesa** na sessão vazia (Mapa → Monstros → Convidar jogadores, cada passo leva ao lugar; some quando a mesa estiver montada).
+  - [ ] *Revisão:* painel **Selecionado** com as ações raras (Tirar do mapa, Invocar, Tocha, Alcance, Ocultar) num menu *Mais* e *Remover* isolado.
+  - [ ] *Revisão:* **Limpar campo** sai da barra do topo (aba Mesa → Sessão ou menu).
+  - [ ] *Revisão:* ataques salvos do personagem como botões rápidos na aba **Dados** do jogador.
 
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).

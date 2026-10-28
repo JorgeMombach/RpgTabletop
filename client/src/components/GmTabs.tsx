@@ -88,7 +88,7 @@ export function GmTabs({ state }: { state: ClientState }) {
 
       <Tabs.Panel value="combat" className="gm-tabs-panel">
         <InitiativePanel state={state} />
-        <MobsPanel mobs={state.battle.mobs as Combatant[]} />
+        <MobsPanel mobs={state.battle.mobs as Combatant[]} templates={state.templates} />
         <NpcsPanel npcs={state.battle.npcs as Combatant[]} />
         <AlliesPanel state={state} />
         <EffectsPanel state={state} />

@@ -25,7 +25,7 @@ import { SheetTabs } from "./SheetTabs";
 import { Panel } from "./Panel";
 
 /** Coloca o token no quadrado livre mais perto do centro da visão do mapa. */
-function placeOnMap(state: ClientState, id: string) {
+export function placeOnMap(state: ClientState, id: string) {
   const { viewCenter } = useApp.getState();
   const all = allCombatants(state);
   const c = all.find((o) => o.id === id);

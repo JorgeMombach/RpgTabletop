@@ -6,6 +6,13 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Adicionado
+- **Pôr mobs sem sair do combate:** o botão **+** no painel *Mobs* (aba Combate) abre o bestiário numa janela, com as mesmas opções da aba Mesa (quantidade, *+ Mobs*, *+ NPC*, ocultos, avulso e template). Ao adicionar, a janela fecha e os mobs novos aparecem na lista, prontos para arrastar ao mapa.
+- **Faixa para quem chega com o combate andando:** o jogador cujo personagem está sem iniciativa ou fora do mapa vê no topo da ficha "O combate já começou", com os botões que faltam (*Rolar iniciativa*, *Colocar no mapa*). A faixa some quando os dois estiverem feitos.
+
+### Alterado
+- O painel *Mobs na batalha* passou a se chamar só *Mobs*, como *NPCs* e *Aliados*.
+
 ## [2.9.0] - 2026-10-28
 
 ### Adicionado

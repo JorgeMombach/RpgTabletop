@@ -26,6 +26,7 @@ import { MobileShell } from "./MobileShell";
 import { PlayersPanel } from "./PlayersPanel";
 import { SoundSync } from "./SoundSync";
 import { VolumeControl } from "./VolumeControl";
+import { JoinFightBanner } from "./JoinFightBanner";
 import { SelectedPanel } from "./SelectedPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
@@ -163,6 +164,7 @@ function DesktopShell({ state }: { state: ClientState }) {
         onToggle={() => toggle("right")}
       />
       <aside className={`col right ${collapsed.right ? "collapsed" : ""}`}>
+        <JoinFightBanner state={state} />
         <SelectedPanel state={state} />
         <DicePanel state={state} />
       </aside>

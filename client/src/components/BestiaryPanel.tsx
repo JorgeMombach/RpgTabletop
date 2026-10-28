@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Checkbox, Group, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Group, Modal, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import { IconPaw, IconPencil, IconTrash } from "@tabler/icons-react";
 import { LIMITS, MOB_COLORS, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
@@ -17,13 +17,38 @@ type Mode = { kind: "none" } | { kind: "newTemplate" } | { kind: "newMob" } | { 
 export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
   const t = useT();
   const [mode, setMode] = useState<Mode>({ kind: "none" });
-  const close = () => setMode({ kind: "none" });
-
   return (
-    <Panel
-      title={t("bestiary.title")}
-      aside={
-        mode.kind === "none" && (
+    <Panel title={t("bestiary.title")} aside={mode.kind === "none" && <BestiaryActions setMode={setMode} />}>
+      <BestiaryBody templates={templates} mode={mode} setMode={setMode} />
+    </Panel>
+  );
+}
+
+/** Bestiário numa janela, aberto do painel *Mobs* (o painel fica na aba Mesa, longe do combate). */
+export function BestiaryModal({ templates, opened, onClose }: { templates: MobTemplate[]; opened: boolean; onClose: () => void }) {
+  const t = useT();
+  const [mode, setMode] = useState<Mode>({ kind: "none" });
+  const close = () => {
+    setMode({ kind: "none" });
+    onClose();
+  };
+  return (
+    <Modal opened={opened} onClose={close} title={t("bestiary.title")} size="md">
+      <Stack gap="sm">
+        {mode.kind === "none" && (
+          <Group justify="flex-end">
+            <BestiaryActions setMode={setMode} />
+          </Group>
+        )}
+        <BestiaryBody templates={templates} mode={mode} setMode={setMode} onAdded={close} />
+      </Stack>
+    </Modal>
+  );
+}
+
+function BestiaryActions({ setMode }: { setMode: (m: Mode) => void }) {
+  const t = useT();
+  return (
           <Group gap="xs">
             <Tooltip label={t("bestiary.singleTip")}>
               <Button variant="default" onClick={() => setMode({ kind: "newMob" })}>
@@ -36,9 +61,19 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
               </Button>
             </Tooltip>
           </Group>
-        )
-      }
-    >
+  );
+}
+
+/**
+ * Formulários e templates do bestiário. `onAdded`: chamado quando mobs ou NPCs entram na batalha
+ * (a janela fecha para o mestre ver os novos na lista e arrastá-los ao mapa).
+ */
+function BestiaryBody({ templates, mode, setMode, onAdded }: { templates: MobTemplate[]; mode: Mode; setMode: (m: Mode) => void; onAdded?: () => void }) {
+  const t = useT();
+  const close = () => setMode({ kind: "none" });
+
+  return (
+    <>
       {mode.kind === "newTemplate" && (
         <CombatantForm
           palette={MOB_COLORS}
@@ -64,7 +99,10 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
           onCancel={close}
           onSubmit={async (v) => {
             const ok = (await act("mob:add", v)).ok;
-            if (ok) close();
+            if (ok) {
+              close();
+              onAdded?.();
+            }
             return ok;
           }}
         />
@@ -93,14 +131,14 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
             }}
           />
         ) : (
-          <TemplateRow key={tpl.id} t={tpl} onEdit={() => setMode({ kind: "edit", id: tpl.id })} />
+          <TemplateRow key={tpl.id} t={tpl} onEdit={() => setMode({ kind: "edit", id: tpl.id })} onAdded={onAdded} />
         ),
       )}
-    </Panel>
+    </>
   );
 }
 
-function TemplateRow({ t: tpl, onEdit }: { t: MobTemplate; onEdit: () => void }) {
+function TemplateRow({ t: tpl, onEdit, onAdded }: { t: MobTemplate; onEdit: () => void; onAdded?: () => void }) {
   const t = useT();
   const [qty, setQty] = useState<string | number>(1);
   const [hidden, setHidden] = useState(false);
@@ -154,7 +192,7 @@ function TemplateRow({ t: tpl, onEdit }: { t: MobTemplate; onEdit: () => void })
           wrap="wrap"
           onSubmit={(e) => {
             e.preventDefault();
-            void act("mob:addFromTemplate", { templateId: tpl.id, qty: Number(qty) || 1, hidden });
+            void act("mob:addFromTemplate", { templateId: tpl.id, qty: Number(qty) || 1, hidden }).then((res) => res.ok && onAdded?.());
           }}
         >
           <Tooltip label={t("summon.qty")}>
@@ -176,7 +214,7 @@ function TemplateRow({ t: tpl, onEdit }: { t: MobTemplate; onEdit: () => void })
             </Button>
           </Tooltip>
           <Tooltip label={t("bestiary.addNpcTip")}>
-            <Button variant="default" style={{ flex: "1 1 auto" }} onClick={() => act("npc:addFromTemplate", { templateId: tpl.id, hidden })}>
+            <Button variant="default" style={{ flex: "1 1 auto" }} onClick={() => void act("npc:addFromTemplate", { templateId: tpl.id, hidden }).then((res) => res.ok && onAdded?.())}>
               {t("npcs.add")}
             </Button>
           </Tooltip>

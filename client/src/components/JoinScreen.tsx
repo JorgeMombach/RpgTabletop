@@ -63,7 +63,8 @@ export function JoinScreen() {
                 {t("join.connecting")}
               </Badge>
             ) : (
-              <Text size="sm">
+              // div: o Badge é um bloco e não pode ficar dentro de <p>.
+              <Text size="sm" component="div">
                 {t("join.joiningAs")}{" "}
                 <Badge color={gm ? "bronze" : "player"} variant="light">
                   {gm ? t("join.roleGm") : t("common.player")}

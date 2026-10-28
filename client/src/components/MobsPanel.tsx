@@ -1,11 +1,12 @@
-import { ActionIcon, Badge, Button, Group, Text, Tooltip } from "@mantine/core";
-import { IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
-import { NPC_COLORS, type Combatant } from "@rpg/shared";
+import { ActionIcon, Button, Group, Text, Tooltip } from "@mantine/core";
+import { IconEye, IconEyeOff, IconPlus, IconTrash } from "@tabler/icons-react";
+import { NPC_COLORS, type Combatant, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { removeMob } from "../commands";
 import { select, useApp } from "../store";
+import { BestiaryModal } from "./BestiaryPanel";
 import { CombatantForm } from "./CombatantForm";
 import { CombatantRow } from "./CombatantRow";
 import { Panel } from "./Panel";
@@ -71,19 +72,28 @@ function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
   );
 }
 
-const count = (n: number) => (
-  <Badge variant="default" size="sm">
-    {n}
-  </Badge>
-);
-
-/** Mestre: mobs da batalha atual. */
-export function MobsPanel({ mobs }: { mobs: Combatant[] }) {
+/** Mestre: mobs da batalha atual; *+ Mobs* abre o bestiário sem sair do combate. */
+export function MobsPanel({ mobs, templates }: { mobs: Combatant[]; templates: MobTemplate[] }) {
   const t = useT();
+  const [bestiary, setBestiary] = useState(false);
+  // A janela fica fora do painel: com o painel recolhido, o conteúdo dele não é desenhado.
   return (
-    <Panel title={t("mobs.title")} aside={count(mobs.length)}>
-      <GmList list={mobs} empty={t("mobs.empty")} />
-    </Panel>
+    <>
+      <Panel
+        title={t("mobs.title")}
+        aside={
+          // Só o ícone: o título do painel é longo e a coluna pode estar estreita.
+          <Tooltip label={t("mobs.addTip")}>
+            <ActionIcon variant="default" size="md" aria-label={t("mobs.addTip")} onClick={() => setBestiary(true)}>
+              <IconPlus size={16} />
+            </ActionIcon>
+          </Tooltip>
+        }
+      >
+        <GmList list={mobs} empty={t("mobs.empty")} />
+      </Panel>
+      <BestiaryModal templates={templates} opened={bestiary} onClose={() => setBestiary(false)} />
+    </>
   );
 }
 

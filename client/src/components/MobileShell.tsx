@@ -14,6 +14,7 @@ import { DicePanel } from "./DicePanel";
 import { EffectsPanel } from "./EffectsPanel";
 import { InitiativePanel } from "./InitiativePanel";
 import { PlayersPanel } from "./PlayersPanel";
+import { JoinFightBanner } from "./JoinFightBanner";
 import { SelectedPanel } from "./SelectedPanel";
 import { HandoutButton, HandoutModal } from "./Handout";
 import { AboutModal } from "./About";
@@ -142,6 +143,7 @@ export function MobileShell({ state }: { state: ClientState }) {
         {tab === "sheet" && (
           <Pane>
             {/* Sem ninguém escolhido (ainda sem personagem), o painel vazio só ocuparia a tela. */}
+            <JoinFightBanner state={state} />
             {selectedId && <SelectedPanel state={state} />}
             <AlliesPanel state={state} />
           </Pane>
