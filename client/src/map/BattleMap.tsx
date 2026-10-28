@@ -644,10 +644,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         <Paper className="map-hint" px="md" py="sm" shadow="md">
           <MText size="sm" c="dimmed" ta="center">
             {gm
-              ? "Suba a imagem do mapa no painel Mapa, ou use só o grid. Arraste aliados e mobs da lista para cá."
+              ? t("map.emptyGm")
               : compact
-                ? "Aguardando o mestre montar o campo. Na aba Ficha, use Colocar no mapa para pôr seu personagem."
-                : "Aguardando o mestre montar o campo. Arraste seu personagem da lista para o mapa."}
+                ? t("map.waitingMobile")
+                : t("map.waiting")}
           </MText>
         </Paper>
       )}
@@ -686,7 +686,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {tool === "calibrate" && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">
-            Arraste um retângulo sobre um ou mais quadrados do mapa.
+            {t("map.calibrateHint")}
           </MText>
         </Paper>
       )}
@@ -749,12 +749,13 @@ function RulerShape({
   /** Só a casa de destino com o nome, sem medir (colocar no mapa sem ninguém de referência). */
   cellOnly?: boolean;
 }) {
+  const t = useT();
   const a = cellCenter(ruler.from, grid);
   const b = cellCenter(ruler.to, grid);
   const cells = cellDistance(ruler.from, ruler.to);
   const feet = cells * grid.feetPerCell;
   const fs = 14 / scale;
-  const text = cellOnly ? (label ?? "") : `${feet} ft · ${cells} ${cells === 1 ? "quadrado" : "quadrados"}${label ? ` (${label})` : ""}`;
+  const text = cellOnly ? (label ?? "") : `${feet} ft · ${t("map.squares", { n: cells })}${label ? ` (${label})` : ""}`;
 
   return (
     <Group>
@@ -804,13 +805,13 @@ function MapToolbar({
   const t = useT();
   const reduceFx = useApp((s) => s.reduceFx);
   const reduceButton = weather && (
-    <Tooltip label={reduceFx ? "Clima completo (só neste navegador)" : "Reduzir o clima: menos partículas e sem clarão (só neste navegador)"}>
+    <Tooltip label={reduceFx ? t("map.fullFx") : t("map.reduceFxTip")}>
       <ActionIcon
         size={compact ? "lg" : undefined}
         variant={reduceFx ? "filled" : "subtle"}
         color={reduceFx ? undefined : "gray"}
         onClick={() => setDicePrefs({ reduceFx: !reduceFx })}
-        aria-label="Reduzir o clima"
+        aria-label={t("map.reduceFx")}
         aria-pressed={reduceFx}
       >
         <IconCloudOff size={compact ? 18 : 16} />
@@ -822,8 +823,8 @@ function MapToolbar({
     // Celular (E23): só ícones, alvos de toque maiores; zoom é com pinça.
     const tools = [
       { id: "move", label: t("map.moveTip"), icon: IconHandStop },
-      { id: "ruler", label: "Régua: arraste para medir em pés", icon: IconRuler2 },
-      { id: "area", label: "Área de magia para todos", icon: IconSparkles },
+      { id: "ruler", label: t("map.rulerTipMobile"), icon: IconRuler2 },
+      { id: "area", label: t("map.areaTipMobile"), icon: IconSparkles },
       { id: "ping", label: t("map.pingTip"), icon: IconHandFinger },
     ] as const;
     return (
@@ -844,8 +845,8 @@ function MapToolbar({
             </Tooltip>
           ))}
           <Divider orientation="vertical" mx={2} />
-          <Tooltip label="Enquadrar o mapa inteiro">
-            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label="Enquadrar o mapa inteiro">
+          <Tooltip label={t("map.fit")}>
+            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label={t("map.fit")}>
               <IconFocusCentered size={18} />
             </ActionIcon>
           </Tooltip>
@@ -857,9 +858,9 @@ function MapToolbar({
 
   // Mapa estreito (colunas largas): as ferramentas ficam só com o ícone, para a barra caber.
   const tools = [
-    { id: "move", text: "Mover", label: t("map.moveTip"), icon: IconHandStop },
-    { id: "ruler", text: "Régua", label: "Medir distância em pés (ou segure Shift e arraste)", icon: IconRuler2 },
-    { id: "area", text: "Área", label: "Mostrar a área de uma magia para todos (cone, esfera, cilindro, linha, cubo)", icon: IconSparkles },
+    { id: "move", text: t("map.move"), label: t("map.moveTip"), icon: IconHandStop },
+    { id: "ruler", text: t("map.ruler"), label: t("map.rulerTip"), icon: IconRuler2 },
+    { id: "area", text: t("map.area"), label: t("map.areaTip"), icon: IconSparkles },
     { id: "ping", text: t("map.ping"), label: t("map.pingTip"), icon: IconHandFinger },
     ...(gm
       ? ([
@@ -897,26 +898,26 @@ function MapToolbar({
             )}
           </Tooltip>
         ))}
-        {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>Cancelar calibração</Button>}
+        {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>{t("map.cancelCalibration")}</Button>}
         <Divider orientation="vertical" mx={2} />
-        <Tooltip label="Afastar">
-          <ActionIcon onClick={() => onZoom(1 / 1.25)} aria-label="Afastar">
+        <Tooltip label={t("map.zoomOut")}>
+          <ActionIcon onClick={() => onZoom(1 / 1.25)} aria-label={t("map.zoomOut")}>
             −
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Aproximar">
-          <ActionIcon onClick={() => onZoom(1.25)} aria-label="Aproximar">
+        <Tooltip label={t("map.zoomIn")}>
+          <ActionIcon onClick={() => onZoom(1.25)} aria-label={t("map.zoomIn")}>
             +
           </ActionIcon>
         </Tooltip>
-        <Tooltip label="Enquadrar o mapa inteiro">
+        <Tooltip label={t("map.fit")}>
           {narrow ? (
-            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label="Enquadrar o mapa inteiro">
+            <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label={t("map.fit")}>
               <IconFocusCentered size={16} />
             </ActionIcon>
           ) : (
             <Button variant="subtle" color="gray" onClick={onFit}>
-              Ajustar
+              {t("map.fitShort")}
             </Button>
           )}
         </Tooltip>
@@ -930,18 +931,19 @@ const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
 
 /** Forma e tamanho da área (ferramenta Área). */
 function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) {
+  const t = useT();
   const { areaKind, areaFeet } = useApp();
   return (
     <Paper className="map-options" p="xs" shadow="md" radius="md">
       <MGroup gap="xs" wrap="nowrap" align="flex-end">
         <SegmentedControl
           size="xs"
-          data={AREA_KINDS.map((k) => ({ value: k, label: AREA_LABEL[k] }))}
+          data={AREA_KINDS.map((k) => ({ value: k, label: t(AREA_LABEL[k]) }))}
           value={areaKind}
           onChange={(v) => useApp.setState({ areaKind: v as AreaKind, areaFeet: AREA_DEFAULT_FEET[v as AreaKind] })}
-          aria-label="Forma da área"
+          aria-label={t("area.shape")}
         />
-        <Tooltip label={`Em pés: ${AREA_MEASURE[areaKind]}`}>
+        <Tooltip label={t("area.feetOf", { what: t(AREA_MEASURE[areaKind]) })}>
           <NumberInput
             w={84}
             min={LIMITS.areaFeet.min}
@@ -956,17 +958,17 @@ function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) 
               const n = Number(v);
               if (Number.isInteger(n) && n >= LIMITS.areaFeet.min && n <= LIMITS.areaFeet.max) useApp.setState({ areaFeet: n });
             }}
-            aria-label={`Tamanho em pés (${AREA_MEASURE[areaKind]})`}
+            aria-label={t("area.sizeOf", { what: t(AREA_MEASURE[areaKind]) })}
           />
         </Tooltip>
       </MGroup>
       <MGroup gap="xs" wrap="nowrap" justify="space-between" mt={4}>
         <MText size="xs" c="dimmed">
-          Clique para pôr a origem e arraste para apontar. Esc apaga.
+          {t("area.hint")}
         </MText>
-        <Tooltip label="Deixa a área no mapa (graxa, teia, fogo…), com duração e concentração">
+        <Tooltip label={t("area.fixTip")}>
           <Button size="compact-xs" disabled={!canFix} leftSection={<IconPin size={12} />} onClick={onFix} style={{ flex: "none" }}>
-            Fixar como efeito
+            {t("area.fix")}
           </Button>
         </Tooltip>
       </MGroup>

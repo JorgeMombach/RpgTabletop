@@ -106,7 +106,7 @@ export function FloatingLog() {
       shadow="xl"
       style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
       role="dialog"
-      aria-label="Rolagens"
+      aria-label={t("log.title")}
     >
       <Group
         className="floating-log-title"
@@ -123,7 +123,7 @@ export function FloatingLog() {
         }}
       >
         <Text ff="heading" fw={700} size="sm" c="bronze.4" truncate>
-          {leaving ? t("logWindow.dropHint") : "Rolagens"}
+          {leaving ? t("logWindow.dropHint") : t("log.title")}
         </Text>
         <Group gap={4} wrap="nowrap">
           <Tooltip label={t("logWindow.openTip")}>
@@ -131,8 +131,8 @@ export function FloatingLog() {
               <IconExternalLink size={16} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Minimizar (volta para o painel Dados)">
-            <ActionIcon size="sm" aria-label="Minimizar o log" onClick={() => setDicePrefs({ logDetached: false })}>
+          <Tooltip label={t("log.minimizeTip")}>
+            <ActionIcon size="sm" aria-label={t("log.minimize")} onClick={() => setDicePrefs({ logDetached: false })}>
               <IconWindowMinimize size={16} />
             </ActionIcon>
           </Tooltip>

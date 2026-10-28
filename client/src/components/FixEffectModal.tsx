@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { allCombatants } from "../format";
 import { useT } from "../i18n";
+import { presetLabel } from "../labels";
 import { effectPreview } from "../map/effectTextures";
 
 export const PRESETS = Object.keys(EFFECT_PRESETS) as EffectPreset[];
@@ -33,7 +34,7 @@ export function useEffectForm(state: ClientState, initialPreset: EffectPreset) {
     fields: { preset, setPreset, name, setName, color, setColor, casterId, setCasterId, rounds, setRounds, concentration, setConcentration, follow, setFollow, hasCaster },
     /** Valores para enviar ao servidor. */
     values: () => ({
-      name: name.trim() || EFFECT_PRESETS[preset].label,
+      name: name.trim() || presetLabel(preset),
       preset,
       color: preset === "custom" ? color : undefined,
       casterId: hasCaster ? casterId : null,
@@ -52,14 +53,14 @@ export function EffectFormFields({ form, suggested = [], withFollow = false }: {
   const t = useT();
   const { gm, casters } = form;
   const f = form.fields;
-  const item = (p: EffectPreset) => ({ value: p, label: EFFECT_PRESETS[p].label });
+  const item = (p: EffectPreset) => ({ value: p, label: presetLabel(p) });
   const others = PRESETS.filter((p) => !suggested.includes(p));
-  const data = suggested.length > 0 ? [{ group: "Sugeridos", items: suggested.map(item) }, { group: "Outros", items: others.map(item) }] : PRESETS.map(item);
+  const data = suggested.length > 0 ? [{ group: t("effects.suggested"), items: suggested.map(item) }, { group: t("effects.others"), items: others.map(item) }] : PRESETS.map(item);
 
   return (
     <>
       <Select
-        label="Efeito"
+        label={t("effects.effect")}
         data={data}
         value={f.preset}
         onChange={(v) => v && f.setPreset(v as EffectPreset)}
@@ -73,23 +74,23 @@ export function EffectFormFields({ form, suggested = [], withFollow = false }: {
         )}
         comboboxProps={{ withinPortal: true }}
       />
-      {f.preset === "custom" && <ColorInput label="Cor" value={f.color} onChange={f.setColor} format="hex" />}
+      {f.preset === "custom" && <ColorInput label={t("form.color")} value={f.color} onChange={f.setColor} format="hex" />}
       <TextInput
-        label="Nome"
-        placeholder={EFFECT_PRESETS[f.preset].label}
+        label={t("effects.name")}
+        placeholder={presetLabel(f.preset)}
         maxLength={LIMITS.effectName}
         value={f.name}
         onChange={(e) => f.setName(e.currentTarget.value)}
       />
       {form.blocked ? (
         <Text size="sm" c="red.4">
-          Crie seu personagem antes de conjurar um efeito.
+          {t("effects.needCharacter")}
         </Text>
       ) : (
         <Select
-          label="Quem conjurou"
-          description="A duração desconta no início do turno de quem conjurou."
-          data={[...(gm ? [{ value: NO_CASTER, label: "Ninguém (ambiente: conta a cada round)" }] : []), ...casters.map((c) => ({ value: c.id, label: c.name }))]}
+          label={t("effects.caster")}
+          description={t("effects.casterHint")}
+          data={[...(gm ? [{ value: NO_CASTER, label: t("effects.noCaster") }] : []), ...casters.map((c) => ({ value: c.id, label: c.name }))]}
           value={f.casterId}
           onChange={(v) => v && f.setCasterId(v)}
           allowDeselect={false}
@@ -97,8 +98,8 @@ export function EffectFormFields({ form, suggested = [], withFollow = false }: {
         />
       )}
       <NumberInput
-        label="Duração em rounds"
-        placeholder="Sem duração (fica até alguém tirar)"
+        label={t("conditions.duration")}
+        placeholder={t("effects.noDuration")}
         min={LIMITS.conditionRounds.min}
         max={LIMITS.conditionRounds.max}
         allowDecimal={false}
@@ -111,8 +112,8 @@ export function EffectFormFields({ form, suggested = [], withFollow = false }: {
         checked={f.concentration && f.hasCaster}
         disabled={!f.hasCaster}
         onChange={(e) => f.setConcentration(e.currentTarget.checked)}
-        label="Concentração"
-        description={f.hasCaster ? "Some quando o conjurador perder a Concentração (ele ganha a condição agora)." : "Escolha quem conjurou."}
+        label={t("condition.concentration")}
+        description={f.hasCaster ? t("effects.concentrationHint") : t("effects.pickCaster")}
       />
       {withFollow && (
         <Checkbox
@@ -120,7 +121,7 @@ export function EffectFormFields({ form, suggested = [], withFollow = false }: {
           disabled={!f.hasCaster}
           onChange={(e) => f.setFollow(e.currentTarget.checked)}
           label={t("effects.follow")}
-          description={f.hasCaster ? t("effects.followHint") : "Escolha quem conjurou."}
+          description={f.hasCaster ? t("effects.followHint") : t("effects.pickCaster")}
         />
       )}
     </>
@@ -129,6 +130,7 @@ export function EffectFormFields({ form, suggested = [], withFollow = false }: {
 
 /** Fixar a área desenhada como efeito no mapa (E19). */
 export function FixEffectModal({ state, area, onClose, onFixed }: { state: ClientState; area: Area; onClose: () => void; onFixed: () => void }) {
+  const t = useT();
   const form = useEffectForm(state, "web");
 
   async function submit(e: FormEvent) {
@@ -138,15 +140,15 @@ export function FixEffectModal({ state, area, onClose, onFixed }: { state: Clien
   }
 
   return (
-    <Modal opened onClose={onClose} title="Fixar como efeito no mapa" centered>
+    <Modal opened onClose={onClose} title={t("effects.fixTitle")} centered>
       <Stack component="form" gap="sm" onSubmit={submit}>
         <EffectFormFields form={form} withFollow />
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={onClose}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={form.blocked}>
-            Fixar
+            {t("effects.fix")}
           </Button>
         </Group>
       </Stack>

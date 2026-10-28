@@ -1,6 +1,7 @@
 // Salvar a sessão em arquivo (E18) e o controle de "alterações não salvas", usados pelo painel Sessão
 // e pelo aviso ao fechar o app do mestre (E12).
 import type { ClientState, SessionExportResult } from "@rpg/shared";
+import { t } from "./i18n";
 import { socket } from "./socket";
 import { useApp } from "./store";
 
@@ -58,7 +59,7 @@ export async function saveSessionFile(): Promise<boolean> {
   try {
     res = await socket.timeout(30_000).emitWithAck("session:export");
   } catch {
-    throw new Error("Sem resposta do servidor.");
+    throw new Error(t("common.noServer"));
   }
   if (!res.ok) throw new Error(res.error);
   const json = JSON.stringify(res.file);

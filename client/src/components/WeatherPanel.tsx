@@ -1,22 +1,23 @@
 import { Button, SegmentedControl, Select, Slider, Stack, Text } from "@mantine/core";
 import { IconVolume } from "@tabler/icons-react";
-import { GEN_SOUNDS, LIGHTS, LIMITS, WEATHERS, type ClientState, type LightId, type WeatherId } from "@rpg/shared";
+import { LIGHTS, LIMITS, WEATHERS, type ClientState, type LightId, type WeatherId } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
 import { inTheDark } from "../format";
-import { useT } from "../i18n";
+import { t as tr, useT } from "../i18n";
+import { lightLabel, soundLabel, weatherGroupLabel, weatherLabel } from "../labels";
 import { Panel } from "./Panel";
 
 const NONE = "__nenhum";
 
-/** Climas agrupados para o seletor, com "Sem clima" no topo. */
-const OPTIONS = [
-  { group: "Céu limpo", items: [{ value: NONE, label: "Sem clima" }] },
+/** Climas agrupados para o seletor, com "Sem clima" no topo (no idioma de quem lê). */
+const options = () => [
+  { group: tr("weather.clearSky"), items: [{ value: NONE, label: tr("weather.none") }] },
   ...[...new Set(Object.values(WEATHERS).map((w) => w.group))].map((group) => ({
-    group,
+    group: weatherGroupLabel(group),
     items: Object.entries(WEATHERS)
       .filter(([, w]) => w.group === group)
-      .map(([id, w]) => ({ value: id, label: w.label })),
+      .map(([id]) => ({ value: id, label: weatherLabel(id as WeatherId) })),
   })),
 ];
 
@@ -55,10 +56,10 @@ export function WeatherPanel({ state }: { state: ClientState }) {
   const soundPlaying = !!sound && ambient?.kind === "gen" && ambient.id === sound;
 
   return (
-    <Panel title="Clima">
+    <Panel title={t("weather.title")}>
       <Select
-        label="Clima"
-        data={OPTIONS}
+        label={t("weather.title")}
+        data={options()}
         value={w.kind ?? NONE}
         onChange={(v) => v && act("weather:set", { kind: v === NONE ? null : (v as WeatherId) })}
         allowDeselect={false}
@@ -70,7 +71,7 @@ export function WeatherPanel({ state }: { state: ClientState }) {
         <>
           <Stack gap={2}>
             <Text size="xs" c="dimmed">
-              Intensidade
+              {t("weather.intensity")}
             </Text>
             <LiveSlider
               min={Math.round(LIMITS.weatherIntensity.min * 100)}
@@ -78,20 +79,20 @@ export function WeatherPanel({ state }: { state: ClientState }) {
               value={Math.round(w.intensity * 100)}
               label={(v) => `${v}%`}
               onCommit={(v) => act("weather:set", { intensity: v / 100 })}
-              ariaLabel="Intensidade do clima"
+              ariaLabel={t("weather.intensityLabel")}
             />
           </Stack>
           <Stack gap={2}>
             <Text size="xs" c="dimmed">
-              Vento
+              {t("weather.wind")}
             </Text>
             <LiveSlider
               min={LIMITS.weatherWind.min}
               max={LIMITS.weatherWind.max}
               value={w.wind}
-              label={(v) => (v === 0 ? "sem vento" : `${Math.abs(v)}° para a ${v < 0 ? "esquerda" : "direita"}`)}
+              label={(v) => (v === 0 ? t("weather.noWind") : t(v < 0 ? "weather.windLeft" : "weather.windRight", { deg: Math.abs(v) }))}
               onCommit={(v) => act("weather:set", { wind: v })}
-              ariaLabel="Direção do vento"
+              ariaLabel={t("weather.windLabel")}
             />
           </Stack>
           {sound && !soundPlaying && (
@@ -100,21 +101,21 @@ export function WeatherPanel({ state }: { state: ClientState }) {
               leftSection={<IconVolume size={14} />}
               onClick={() => act("sound:play", { channel: "ambient", source: { kind: "gen", id: sound } })}
             >
-              Tocar ambiente: {GEN_SOUNDS.ambient[sound]}
+              {t("weather.playAmbient", { name: soundLabel(sound) })}
             </Button>
           )}
         </>
       )}
       <Stack gap={2}>
         <Text size="xs" c="dimmed">
-          Luz
+          {t("weather.light")}
         </Text>
         <SegmentedControl
           fullWidth
-          data={Object.entries(LIGHTS).map(([value, label]) => ({ value, label }))}
+          data={(Object.keys(LIGHTS) as LightId[]).map((value) => ({ value, label: lightLabel(value) }))}
           value={w.light}
           onChange={(v) => act("weather:set", { light: v as LightId })}
-          aria-label="Luz da cena"
+          aria-label={t("weather.lightLabel")}
         />
         {dark.length > 0 && (
           <Text size="xs" c="bronze.4" mt={4}>

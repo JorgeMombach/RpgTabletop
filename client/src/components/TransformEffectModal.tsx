@@ -3,12 +3,14 @@ import { EFFECT_TRANSITIONS, type ClientState, type MapEffect } from "@rpg/share
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { EffectFormFields, EffectSwatch, PRESETS, useEffectForm } from "./FixEffectModal";
+import { useT } from "../i18n";
 
 /**
  * Mudança de estado de um efeito (E24): mesma área, outro tipo (Graxa → Fogo, Água → Eletrificado…).
  * As transformações comuns aparecem primeiro, mas qualquer uma vale (o app não aplica regra, ADR-06).
  */
 export function TransformEffectModal({ state, effect, onClose }: { state: ClientState; effect: MapEffect; onClose: () => void }) {
+  const t = useT();
   const suggested = EFFECT_TRANSITIONS[effect.preset] ?? [];
   const form = useEffectForm(state, suggested[0] ?? PRESETS.find((p) => p !== effect.preset) ?? "fire");
   // Quando o estado novo acabar, volta ao de antes (ex.: água eletrificada por 1 round volta a ser água).
@@ -25,12 +27,12 @@ export function TransformEffectModal({ state, effect, onClose }: { state: Client
   }
 
   return (
-    <Modal opened onClose={onClose} title="Transformar efeito" centered>
+    <Modal opened onClose={onClose} title={t("effects.transformTitle")} centered>
       <Stack component="form" gap="sm" onSubmit={submit}>
         <Group gap="xs" wrap="nowrap">
           <EffectSwatch preset={effect.preset} color={effect.color} size={24} />
           <Text size="sm">
-            <strong>{effect.name}</strong> muda de estado na mesma área.
+            <strong>{effect.name}</strong> {t("effects.transformText")}
           </Text>
         </Group>
         <EffectFormFields form={form} suggested={suggested} />
@@ -38,15 +40,15 @@ export function TransformEffectModal({ state, effect, onClose }: { state: Client
           checked={revert && temporary}
           disabled={!temporary}
           onChange={(e) => setRevert(e.currentTarget.checked)}
-          label={`Quando acabar, volta a ser ${backTo}`}
-          description={temporary ? "Senão, a área some quando o novo estado acabar." : "Dê uma duração ou concentração para poder voltar."}
+          label={t("effects.revert", { name: backTo })}
+          description={temporary ? t("effects.revertHint") : t("effects.revertNeeds")}
         />
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={onClose}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={form.blocked}>
-            Transformar
+            {t("effects.transform")}
           </Button>
         </Group>
       </Stack>

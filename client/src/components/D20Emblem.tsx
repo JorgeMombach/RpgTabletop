@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 /** Emblema do app: um d20 em bronze em vetor (tela de entrada). */
 export function D20Emblem({ size = 112 }: { size?: number }) {
   // Hexágono externo e triângulo central da vista frontal de um icosaedro.
@@ -14,7 +15,7 @@ export function D20Emblem({ size = 112 }: { size?: number }) {
   const line = (a: number[], b: number[]) => <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />;
 
   return (
-    <svg width={size} height={size} viewBox="0 0 200 200" role="img" aria-label="Dado de 20 lados">
+    <svg width={size} height={size} viewBox="0 0 200 200" role="img" aria-label={t("about.d20")}>
       <defs>
         <linearGradient id="d20-face" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#e8d4ab" />

@@ -1,5 +1,6 @@
 import { toast } from "./notify";
 import { setDicePrefs, useApp } from "./store";
+import { t } from "./i18n";
 
 /**
  * Log de rolagens fora da mesa (para arrastar a outro monitor): é o próprio app aberto com `?janela=log`.
@@ -31,7 +32,7 @@ export function popOutLog(at?: { x: number; y: number; w: number; h: number }) {
   child = window.open(url, NAME, `popup,width=${Math.round(w)},height=${Math.round(h)},left=${Math.round(x)},top=${Math.round(y)}`);
   if (!child) {
     setDicePrefs({ logDetached: true });
-    toast({ kind: "info", text: "O navegador bloqueou a janela do log; ele abriu flutuando na mesa. Libere as janelas pop-up deste endereço para abrir fora." });
+    toast({ kind: "info", text: t("logWindow.blocked") });
     return;
   }
   child.focus();

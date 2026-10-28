@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { toast } from "../notify";
 import { desktop, isUnsaved, saveSessionFile } from "../sessionFile";
 import { useApp } from "../store";
+import { useT } from "../i18n";
 
 /**
  * App do mestre (E12): ao fechar a janela com alterações não salvas, pergunta antes —
  * Salvar e sair / Sair sem salvar / Cancelar. Sem alterações, fecha direto. No navegador não faz nada.
  */
 export function CloseGuard() {
+  const t = useT();
   const [asking, setAsking] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -35,18 +37,18 @@ export function CloseGuard() {
 
   if (!desktop) return null;
   return (
-    <Modal opened={asking} onClose={() => setAsking(false)} title="Fechar o Jamal's Tabletop?" closeOnClickOutside={!saving}>
+    <Modal opened={asking} onClose={() => setAsking(false)} title={t("close.title")} closeOnClickOutside={!saving}>
       <Stack gap="md">
-        <Text>Você tem alterações não salvas. Fechar encerra a sessão para todos os jogadores.</Text>
+        <Text>{t("close.message")}</Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" disabled={saving} onClick={() => setAsking(false)}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button variant="subtle" color="red" disabled={saving} onClick={() => desktop?.confirmClose()}>
-            Sair sem salvar
+            {t("close.discard")}
           </Button>
           <Button loading={saving} leftSection={<IconDeviceFloppy size={14} />} onClick={() => void saveAndClose()}>
-            Salvar e sair
+            {t("close.save")}
           </Button>
         </Group>
       </Stack>

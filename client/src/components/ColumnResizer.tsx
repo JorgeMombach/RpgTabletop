@@ -207,12 +207,12 @@ export function ColumnResizer({ side, width, max, collapsed, onResize, onCollaps
       className={`col-resizer ${side} ${collapsed ? "collapsed" : ""} ${willCollapse ? "will-collapse" : ""}`}
       role="separator"
       aria-orientation="vertical"
-      aria-label={side === "left" ? "Largura da coluna esquerda" : "Largura da coluna direita"}
+      aria-label={t(side === "left" ? "columns.widthLeft" : "columns.widthRight")}
       aria-valuemin={COLUMN_LIMITS.min}
       aria-valuemax={max}
       aria-valuenow={width}
       tabIndex={0}
-      title="Arraste para ajustar a largura (duplo clique: padrão)"
+      title={t("columns.dragTip")}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

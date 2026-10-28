@@ -4,6 +4,7 @@ import { Circle, Group, Image as KImage, Line, Path, Rect, RegularPolygon, Text 
 import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
 import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
+import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
 import { useImage } from "./useImage";
@@ -303,7 +304,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
           <Text
             text={
               (dragFeet !== null ? `${c.name} · ${dragFeet} ft` : c.name) +
-              (hidden ? " (oculto)" : "") +
+              (hidden ? ` (${t("kind.hidden")})` : "") +
               (conditionText ? `\n${conditionText}` : "")
             }
             lineHeight={1.2}

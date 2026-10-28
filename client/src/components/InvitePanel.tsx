@@ -4,9 +4,11 @@ import type { HostInfo } from "@rpg/shared";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import { Panel } from "./Panel";
+import { useT } from "../i18n";
 
 /** QR code do endereço, para o jogador apontar a câmera do celular (E12). Gerado aqui mesmo, sem internet. */
 function QrImage({ value }: { value: string }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -16,10 +18,11 @@ function QrImage({ value }: { value: string }) {
       alive = false;
     };
   }, [value]);
-  return src ? <Image src={src} w={180} h={180} radius="sm" mx="auto" alt={`QR code de ${value}`} /> : null;
+  return src ? <Image src={src} w={180} h={180} radius="sm" mx="auto" alt={t("invite.qrOf", { value })} /> : null;
 }
 
 function CopyRow({ value, label }: { value: string; label?: string }) {
+  const t = useT();
   const [showQr, setShowQr] = useState(false);
   return (
     <Stack gap={6}>
@@ -35,12 +38,12 @@ function CopyRow({ value, label }: { value: string; label?: string }) {
           )}
         </div>
         <Group gap={4} wrap="nowrap" style={{ flex: "none" }}>
-          <Tooltip label={showQr ? "Esconder QR code" : "Mostrar QR code para o celular"}>
+          <Tooltip label={showQr ? t("invite.hideQr") : t("invite.showQrTip")}>
             <ActionIcon
               variant={showQr ? "light" : "default"}
               color={showQr ? "bronze" : undefined}
               size="input-xs"
-              aria-label={showQr ? "Esconder QR code" : "Mostrar QR code"}
+              aria-label={showQr ? t("invite.hideQr") : t("invite.showQr")}
               aria-pressed={showQr}
               onClick={() => setShowQr((v) => !v)}
             >
@@ -50,7 +53,7 @@ function CopyRow({ value, label }: { value: string; label?: string }) {
           <CopyButton value={value} timeout={1500}>
             {({ copied, copy }) => (
               <Button variant={copied ? "light" : "default"} color={copied ? "copper" : undefined} onClick={copy}>
-                {copied ? "Copiado" : "Copiar"}
+                {copied ? t("invite.copied") : t("invite.copy")}
               </Button>
             )}
           </CopyButton>
@@ -62,15 +65,15 @@ function CopyRow({ value, label }: { value: string; label?: string }) {
 }
 
 export function InvitePanel({ host }: { host: HostInfo }) {
+  const t = useT();
   // Outro dispositivo não alcança o "localhost" daqui: usa o primeiro endereço de convite.
   const gmLink = `${host.addresses[0]?.url ?? location.origin}/?gm=${host.gmKey}`;
 
   return (
-    <Panel title="Convidar jogadores">
+    <Panel title={t("invite.title")}>
       {host.addresses.length === 0 ? (
         <Text size="xs" c="dimmed">
-          Nenhum endereço detectado. No Docker, defina <Code>PUBLIC_URLS</Code> com o endereço que os jogadores usam (ex.:{" "}
-          <Code>http://192.168.0.10:3000</Code>).
+          {t("invite.none")} <Code>PUBLIC_URLS</Code> {t("invite.noneHint")} <Code>http://192.168.0.10:3000</Code>
         </Text>
       ) : (
         <Stack gap="xs">
@@ -83,13 +86,13 @@ export function InvitePanel({ host }: { host: HostInfo }) {
         <Accordion.Item value="gm">
           <Accordion.Control>
             <Text size="xs" c="dimmed">
-              Abrir como mestre em outro dispositivo
+              {t("invite.gmOther")}
             </Text>
           </Accordion.Control>
           <Accordion.Panel>
             <Stack gap="xs">
               <Text size="xs" c="dimmed">
-                Quem abrir este link entra como mestre. Não compartilhe com os jogadores.
+                {t("invite.gmWarn")}
               </Text>
               <CopyRow value={gmLink} />
             </Stack>

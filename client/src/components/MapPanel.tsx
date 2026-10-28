@@ -8,6 +8,7 @@ import { toast } from "../notify";
 import { setTool, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
+import { useT } from "../i18n";
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
 function useThrottledGrid() {
@@ -27,6 +28,7 @@ function useThrottledGrid() {
 }
 
 export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
+  const t = useT();
   const [uploading, setUploading] = useState(false);
   const { tool, calibRect } = useApp();
   const sendGrid = useThrottledGrid();
@@ -53,7 +55,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
     try {
       const image = await mapImageFromFile(file);
       const res = await act("battle:setMap", { image });
-      if (res.ok) toast({ kind: "info", text: "Mapa enviado. Calibre o grid se os quadrados não baterem." });
+      if (res.ok) toast({ kind: "info", text: t("mapPanel.sent") });
     } catch (err) {
       toast({ kind: "error", text: (err as Error).message });
     } finally {
@@ -62,23 +64,23 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   }
 
   async function removeImage() {
-    const ok = await confirmAction({ title: "Remover a imagem do mapa?", message: "Os tokens e o grid continuam.", confirmLabel: "Remover", danger: true });
+    const ok = await confirmAction({ title: t("mapPanel.removeTitle"), message: t("mapPanel.removeMessage"), confirmLabel: t("common.remove"), danger: true });
     if (ok) void act("battle:setMap", { image: null });
   }
 
   return (
-    <Panel title="Mapa">
+    <Panel title={t("mapPanel.title")}>
       <Group gap="xs">
         <FileButton onChange={upload} accept="image/png,image/jpeg,image/webp">
           {(props) => (
             <Button {...props} loading={uploading}>
-              {map.hasImage ? "Trocar imagem" : "Enviar imagem"}
+              {map.hasImage ? t("mapPanel.change") : t("mapPanel.upload")}
             </Button>
           )}
         </FileButton>
         {map.hasImage && (
           <Button variant="default" onClick={() => void removeImage()}>
-            Remover
+            {t("common.remove")}
           </Button>
         )}
       </Group>
@@ -86,15 +88,15 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
       {map.hasImage && (
         <Group gap="xs" wrap="nowrap">
           <Text size="sm" style={{ flex: 1 }}>
-            Girar imagem ({map.rotation}°)
+            {t("mapPanel.rotate", { deg: map.rotation })}
           </Text>
-          <Tooltip label="Girar 90° para a esquerda">
-            <ActionIcon variant="default" aria-label="Girar 90° para a esquerda" onClick={() => act("battle:grid", { rotation: map.rotation - 90 })}>
+          <Tooltip label={t("mapPanel.left")}>
+            <ActionIcon variant="default" aria-label={t("mapPanel.left")} onClick={() => act("battle:grid", { rotation: map.rotation - 90 })}>
               ⟲
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Girar 90° para a direita">
-            <ActionIcon variant="default" aria-label="Girar 90° para a direita" onClick={() => act("battle:grid", { rotation: map.rotation + 90 })}>
+          <Tooltip label={t("mapPanel.right")}>
+            <ActionIcon variant="default" aria-label={t("mapPanel.right")} onClick={() => act("battle:grid", { rotation: map.rotation + 90 })}>
               ⟳
             </ActionIcon>
           </Tooltip>
@@ -103,8 +105,8 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
       {map.hasImage && (
         <Input.Wrapper
           label={
-            <Tooltip label="Muda só a imagem: o grid e os tokens ficam onde estão. Use para casar os quadrados do desenho com o grid.">
-              <span>Tamanho da imagem: {Math.round(local.imageScale * 100)}%</span>
+            <Tooltip label={t("mapPanel.scaleTip")}>
+              <span>{t("mapPanel.scale", { n: Math.round(local.imageScale * 100) })}</span>
             </Tooltip>
           }
         >
@@ -117,9 +119,9 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
               value={Math.round(local.imageScale * 100)}
               onChange={(v) => change({ imageScale: v / 100 })}
               label={(v) => `${v}%`}
-              aria-label="Tamanho da imagem"
+              aria-label={t("mapPanel.scaleLabel")}
             />
-            <Tooltip label="Tamanho original">
+            <Tooltip label={t("mapPanel.original")}>
               <Button variant="default" size="compact-xs" disabled={map.imageScale === 1} onClick={() => change({ imageScale: 1 })}>
                 100%
               </Button>
@@ -133,19 +135,19 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
         onChange={(e) => void act("battle:grid", { showGrid: e.currentTarget.checked })}
         label={
           <>
-            Mostrar grid (1 quadrado = {map.feetPerCell} <Abbr title="pés (1 ft ≈ 30 cm; 5 ft = 1,5 m)">ft</Abbr>)
+            {t("mapPanel.showGrid", { n: map.feetPerCell })} <Abbr title={t("mapPanel.ftTitle")}>ft</Abbr>)
           </>
         }
       />
 
-      <Input.Wrapper label={`Tamanho do quadrado: ${local.cellPx.toFixed(1)} px`}>
+      <Input.Wrapper label={t("mapPanel.cell", { px: local.cellPx.toFixed(1) })}>
         <Slider mt={6} min={LIMITS.cellPx.min} max={200} step={0.5} value={Math.min(local.cellPx, 200)} onChange={(v) => change({ cellPx: v })} />
       </Input.Wrapper>
       <Group grow gap="md">
-        <Input.Wrapper label={<Abbr title="Deslocamento horizontal do grid sobre a imagem">Desloc. X</Abbr>}>
+        <Input.Wrapper label={<Abbr title={t("mapPanel.offsetXTitle")}>{t("mapPanel.offsetX")}</Abbr>}>
           <Slider mt={6} min={0} max={offsetMax} step={0.5} value={Math.min(local.offsetX, offsetMax)} onChange={(v) => change({ offsetX: v })} />
         </Input.Wrapper>
-        <Input.Wrapper label={<Abbr title="Deslocamento vertical do grid sobre a imagem">Desloc. Y</Abbr>}>
+        <Input.Wrapper label={<Abbr title={t("mapPanel.offsetYTitle")}>{t("mapPanel.offsetY")}</Abbr>}>
           <Slider mt={6} min={0} max={offsetMax} step={0.5} value={Math.min(local.offsetY, offsetMax)} onChange={(v) => change({ offsetY: v })} />
         </Input.Wrapper>
       </Group>
@@ -155,12 +157,12 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
           <CalibrateForm rect={calibRect} cellPx={map.cellPx} />
         ) : (
           <Text size="xs" c="bronze.4">
-            Arraste um retângulo no mapa cobrindo um ou mais quadrados inteiros.
+            {t("mapPanel.calibrateHint")}
           </Text>
         )
       ) : (
         <Button variant="default" onClick={() => setTool("calibrate")}>
-          Calibrar pelo mapa
+          {t("mapPanel.calibrate")}
         </Button>
       )}
     </Panel>
@@ -168,6 +170,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
 }
 
 function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: number }; cellPx: number }) {
+  const t = useT();
   const [cells, setCells] = useState<string | number>(Math.max(1, Math.round(rect.width / cellPx)));
   const n = Math.max(1, Math.trunc(Number(cells)) || 1);
   const size = rect.width / n;
@@ -182,7 +185,7 @@ function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: 
     <Paper p="sm" bg="dark.7" style={{ borderColor: "var(--mantine-primary-color-filled)" }}>
       <Stack gap="xs">
         <NumberInput
-          label="Quantos quadrados cabem na largura da seleção?"
+          label={t("mapPanel.howMany")}
           min={1}
           allowDecimal={false}
           allowNegative={false}
@@ -190,14 +193,14 @@ function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: 
           onChange={setCells}
         />
         <Text size="xs" c="dimmed">
-          {Math.round(rect.width)} px ÷ {n} = {size.toFixed(1)} px por quadrado
+          {t("mapPanel.perCell", { w: Math.round(rect.width), n, px: size.toFixed(1) })}
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={() => setTool("move")}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
           <Button disabled={size < LIMITS.cellPx.min} onClick={apply}>
-            Aplicar
+            {t("common.apply")}
           </Button>
         </Group>
       </Stack>
