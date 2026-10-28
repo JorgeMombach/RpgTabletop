@@ -88,7 +88,7 @@ export const initiativeHandlers: HandlerMap = {
     const result = rollInitiative(c.dexMod);
     applyRoll(store, c, result);
     // Iniciativa de mob e NPC fica só para o mestre no log; a de aliado, para todos.
-    logRoll(store, player, result, { label: "Iniciativa", as: c.name, hidden: c.type !== "ally", color: c.color });
+    logRoll(store, player, result, { label: [{ key: "Iniciativa" }], as: c.name, hidden: c.type !== "ally", color: c.color });
   },
 
   "init:rollMobs": (store, player, payload) => {
@@ -141,7 +141,7 @@ export const initiativeHandlers: HandlerMap = {
     if (combat.active || combat.order.length > 0) {
       const result = rollInitiative(c.dexMod);
       applyRoll(store, c, result);
-      logRoll(store, player, result, { label: "Iniciativa (revelado)", as: c.name, hidden: true, color: c.color });
+      logRoll(store, player, result, { label: [{ key: "Iniciativa (revelado)" }], as: c.name, hidden: true, color: c.color });
     }
   },
 
@@ -170,7 +170,7 @@ export const initiativeHandlers: HandlerMap = {
   "combat:pass": (store, player) => {
     requireActive(store);
     currentOf(store, player);
-    if (player.role !== "gm") logSystem(store, `${whoIs(store, player)} passou a vez.`);
+    if (player.role !== "gm") logSystem(store, "{who} passou a vez.", { who: whoIs(store, player) });
     advance(store);
   },
 
@@ -190,7 +190,7 @@ export const initiativeHandlers: HandlerMap = {
     // A iniciativa acompanha o novo lugar (empata com quem ele esperou).
     for (const g of group) if (after?.initiative !== null && after?.initiative !== undefined) g.initiative = after.initiative;
     combat.delayed = { ids: moved, round: combat.round };
-    logSystem(store, `${group.length > 1 ? groupName(group.map((g) => g.name)) : c.name} vai agir depois de ${after?.name ?? "?"}.`);
+    logSystem(store, "{name} vai agir depois de {after}.", { name: group.length > 1 ? groupName(group.map((g) => g.name)) : c.name, after: after?.name ?? "?" });
     newTurn(store);
     startTurn(store);
   },

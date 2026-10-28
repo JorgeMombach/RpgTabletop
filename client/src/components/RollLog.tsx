@@ -1,7 +1,7 @@
 import { Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import type { LogEntry, RollTerm } from "@rpg/shared";
 import { rollerName } from "../format";
-import { t as tr, useLang, useT } from "../i18n";
+import { logLabel, logText, t as tr, useLang, useT } from "../i18n";
 import { useApp } from "../store";
 
 interface TurnGroup {
@@ -81,13 +81,13 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
         <Group gap={6} wrap="nowrap">
           <Loader size={12} color="bronze" />
           <Text size="sm" c="dimmed">
-            {e.label ? tr("log.rollingLabel", { label: e.label }) : tr("log.rolling")}
+            {e.label ? tr("log.rollingLabel", { label: logLabel(e) ?? "" }) : tr("log.rolling")}
           </Text>
         </Group>
       ) : e.roll ? (
         <RollBody entry={e} />
       ) : (
-        <Text size="sm">{e.text}</Text>
+        <Text size="sm">{logText(e)}</Text>
       )}
     </Paper>
   );
@@ -110,8 +110,8 @@ function RollBody({ entry }: { entry: LogEntry }) {
     <Group gap="sm" wrap="nowrap" align="center">
       <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
         {entry.label && (
-          <Text size="xs" fw={600} truncate title={entry.label}>
-            {entry.label}
+          <Text size="xs" fw={600} truncate title={logLabel(entry)}>
+            {logLabel(entry)}
           </Text>
         )}
         <Group gap={6}>

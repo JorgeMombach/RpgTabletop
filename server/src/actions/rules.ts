@@ -34,7 +34,7 @@ export const ruleHandlers: HandlerMap = {
     for (const [key, value] of changes) {
       if (store.game.rules[key] === value) continue;
       store.game.rules[key] = value;
-      logSystem(store, `Regra da mesa ${value ? "ligada" : "desligada"}: ${RULE_LABEL[key]}.`);
+      logSystem(store, value ? "Regra da mesa ligada: {rule}." : "Regra da mesa desligada: {rule}.", { rule: RULE_LABEL[key] });
     }
   },
 };

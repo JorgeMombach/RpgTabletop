@@ -74,6 +74,8 @@ Recarregar a página ou cair a conexão devolve o jogador com a mesma identidade
 
 **Clima**: no painel *Clima*, o mestre põe um clima sobre o mapa inteiro, igual para todos: chuva, chuva forte, **tempestade com relâmpagos** (clarão e trovão chegam juntos para todos), granizo, neve, nevasca, névoa, vento com folhas, tempestade de areia, cinzas caindo, brasas subindo, calor (miragem), vagalumes, luzes mágicas, esporos, pétalas e chuva de sangue, com **intensidade** e **vento**. A **luz** (dia, entardecer, noite, luar) é separada e combina com qualquer clima. O painel sugere o ambiente sonoro que combina (*Tocar ambiente: Chuva*), sem ligar sozinho. Limpar o campo volta para sem clima, de dia. Em computador mais fraco, o botão de **reduzir o clima** na barra do mapa alivia (vale só naquele navegador).
 
+**Idioma**: o app fala português, inglês e espanhol. Começa no idioma do navegador e cada um troca no menu de idioma do topo (no celular, no menu ☰); vale só para quem trocou, então cada pessoa da mesa pode jogar no seu. Avisos e erros do servidor também são traduzidos; o que a mesa digita (nomes, notas) fica como foi escrito.
+
 **Sobre**: clicar na versão ao lado do nome, no topo (no celular, *Sobre* no menu ☰), mostra versão, autor e os créditos e licenças das bibliotecas, fontes e ícones usados.
 
 ## Opções

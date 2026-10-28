@@ -51,7 +51,8 @@ export function inTheDark(state: ClientState): CombatantView[] {
 
 /** Quem rolou, no padrão da mesa (E26): "Thorin (Jorge)", "Goblin 2 (Mestre)", "Mestre". */
 export function rollerName(e: LogEntry): string {
-  return e.as ? `${e.as} (${e.author})` : e.author;
+  const author = e.authorId === "system" ? t("log.table") : e.gm ? t("common.gm") : e.author;
+  return e.as ? `${e.as} (${author})` : author;
 }
 
 /** Condições da lista: o nome gravado é o em português (o servidor reconhece a Concentração por ele). */

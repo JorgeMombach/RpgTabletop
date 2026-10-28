@@ -47,8 +47,6 @@ function damageOf(raw: unknown): string | undefined {
   return s;
 }
 
-const REST_LABEL = { short: "descanso curto", long: "descanso longo" } as const;
-
 function restKind(raw: unknown): "short" | "long" {
   return raw === "short" || raw === "long" ? raw : fail("Descanso curto ou longo?");
 }
@@ -80,7 +78,7 @@ export function rechargeOnTurn(store: Store, c: Combatant) {
     const back = result.total >= (r.rechargeOn ?? 6);
     if (back) r.used = 0;
     logRoll(store, gmOf(store), result, {
-      label: `Recarga de ${r.name} (${r.rechargeOn ?? 6}–6)${back ? ": voltou" : ""}`,
+      label: [{ key: back ? "Recarga de {name} ({n}–6): voltou" : "Recarga de {name} ({n}–6)", params: { name: r.name, n: r.rechargeOn ?? 6 } }],
       as: c.name,
       hidden: c.type !== "ally",
       color: c.color,
@@ -132,7 +130,7 @@ export const sheetHandlers: HandlerMap = {
     applyRest(c, kind);
     // No log, para a mesa ver quem descansou. De mob/NPC, só o mestre vê.
     const who = player.role === "gm" ? `${c.name} (Mestre)` : c.name === player.name ? c.name : `${c.name} (${player.name})`;
-    logSystem(store, `${who} fez um ${REST_LABEL[kind]}.`, c.type !== "ally");
+    logSystem(store, kind === "short" ? "{who} fez um descanso curto." : "{who} fez um descanso longo.", { who }, c.type !== "ally");
   },
 
   "rest:all": (store, player, payload) => {
@@ -141,7 +139,7 @@ export const sheetHandlers: HandlerMap = {
     const { allies } = store.game;
     if (allies.length === 0) fail("Nenhum aliado na mesa.");
     for (const a of allies) applyRest(a, kind);
-    logSystem(store, `Mestre: ${REST_LABEL[kind]} para o grupo (${allies.map((a) => a.name).join(", ")}).`);
+    logSystem(store, kind === "short" ? "Mestre: descanso curto para o grupo ({names})." : "Mestre: descanso longo para o grupo ({names}).", { names: allies.map((a) => a.name).join(", ") });
   },
 
   "attack:upsert": (store, player, payload) => {

@@ -1,10 +1,11 @@
 /**
- * Recusas do servidor traduzidas (F, parte 3). A chave é o modelo em português que o servidor usa em
- * `fail()` (com `{nome}` no lugar dos valores); o valor é [inglês, espanhol]. Rótulos que entram como
- * parâmetro ("Vida", "CA", "mapa"…) também ficam aqui. O que faltar aparece em português.
- * O teste `server/test/errors-catalog.test.ts` falha se uma recusa nova do servidor ficar sem tradução.
+ * Textos do servidor traduzidos (F, partes 3 e 4): recusas (`fail()`) e avisos automáticos do log
+ * (`logSystem()` e pedaços do rótulo das rolagens). A chave é o modelo em português (com `{nome}` no
+ * lugar dos valores); o valor é [inglês, espanhol]. Rótulos e valores conhecidos que entram como
+ * parâmetro ("Vida", "mapa", nomes de condição, regras da mesa) também ficam aqui. O que faltar aparece
+ * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
-export const ERRORS: Record<string, [string, string]> = {
+export const SERVER_TEXT: Record<string, [string, string]> = {
   "A iniciativa de {name} já foi rolada. Só o mestre muda.": ["{name}'s initiative was already rolled. Only the GM can change it.", "La iniciativa de {name} ya se tiró. Solo el máster la cambia."],
   "A parede precisa ir de um canto a outro.": ["The wall has to go from one corner to another.", "La pared tiene que ir de una esquina a otra."],
   "A pasta de sons não está configurada (opção --sounds-dir).": ["The sounds folder isn't set (--sounds-dir option).", "La carpeta de sonidos no está configurada (opción --sounds-dir)."],
@@ -329,4 +330,68 @@ export const ERRORS: Record<string, [string, string]> = {
   "vida máxima": ["max HP", "vida máxima"],
   "vida temporária": ["temporary HP", "vida temporal"],
   "visão no escuro": ["darkvision", "visión en la oscuridad"],
+
+  // Avisos automáticos do log, pedaços do rótulo das rolagens e valores conhecidos (parte 4).
+  "{who} passou a vez.": ["{who} passed the turn.", "{who} pasó el turno."],
+  "{name} vai agir depois de {after}.": ["{name} will act after {after}.", "{name} actuará después de {after}."],
+  "{who} fez um descanso curto.": ["{who} took a short rest.", "{who} hizo un descanso corto."],
+  "{who} fez um descanso longo.": ["{who} took a long rest.", "{who} hizo un descanso largo."],
+  "Mestre: descanso curto para o grupo ({names}).": ["GM: short rest for the party ({names}).", "Máster: descanso corto para el grupo ({names})."],
+  "Mestre: descanso longo para o grupo ({names}).": ["GM: long rest for the party ({names}).", "Máster: descanso largo para el grupo ({names})."],
+  "{name} passou para a fase {n}.": ["{name} moved to phase {n}.", "{name} pasó a la fase {n}."],
+  "{name} passou para a fase {n}: agora é {newName}.": ["{name} moved to phase {n}: now it's {newName}.", "{name} pasó a la fase {n}: ahora es {newName}."],
+  "Teste de Concentração para {name}: CD {dc} (resistência de CON).": ["Concentration check for {name}: DC {dc} (CON save).", "Prueba de Concentración para {name}: CD {dc} (salvación de CON)."],
+  "{condition} acabou em {name}.": ["{condition} ended on {name}.", "{condition} terminó en {name}."],
+  "{who} usou a reação.": ["{who} used their reaction.", "{who} usó la reacción."],
+  "O mestre mostrou: {title}.": ["The GM showed: {title}.", "El máster mostró: {title}."],
+  "O mestre mostrou algo para a mesa.": ["The GM showed something to the table.", "El máster mostró algo a la mesa."],
+  "Regra da mesa ligada: {rule}.": ["Table rule on: {rule}.", "Regla de la mesa activada: {rule}."],
+  "Regra da mesa desligada: {rule}.": ["Table rule off: {rule}.", "Regla de la mesa desactivada: {rule}."],
+  "{who} transformou {from} em {to}.": ["{who} turned {from} into {to}.", "{who} transformó {from} en {to}."],
+  "{effect} acabou.": ["{effect} ended.", "{effect} terminó."],
+  "{effect} acabou; voltou a ser {before}.": ["{effect} ended; it's back to {before}.", "{effect} terminó; volvió a ser {before}."],
+  "{effect} acabou (concentração perdida).": ["{effect} ended (concentration lost).", "{effect} terminó (concentración perdida)."],
+  "{effect} acabou (concentração perdida); voltou a ser {before}.": ["{effect} ended (concentration lost); it's back to {before}.", "{effect} terminó (concentración perdida); volvió a ser {before}."],
+  "{effect} de {caster} acabou.": ["{caster}'s {effect} ended.", "{effect} de {caster} terminó."],
+  "{effect} de {caster} acabou; voltou a ser {before}.": ["{caster}'s {effect} ended; it's back to {before}.", "{effect} de {caster} terminó; volvió a ser {before}."],
+  "{effect} de {caster} acabou (concentração perdida).": ["{caster}'s {effect} ended (concentration lost).", "{effect} de {caster} terminó (concentración perdida)."],
+  "{effect} de {caster} acabou (concentração perdida); voltou a ser {before}.": ["{caster}'s {effect} ended (concentration lost); it's back to {before}.", "{effect} de {caster} terminó (concentración perdida); volvió a ser {before}."],
+  "{name} sumiu (concentração perdida).": ["{name} vanished (concentration lost).", "{name} desapareció (concentración perdida)."],
+  "{name} sumiu (duração acabou).": ["{name} vanished (duration ended).", "{name} desapareció (duración terminada)."],
+  "{name} de {caster} sumiu (concentração perdida).": ["{caster}'s {name} vanished (concentration lost).", "{name} de {caster} desapareció (concentración perdida)."],
+  "{name} de {caster} sumiu (duração acabou).": ["{caster}'s {name} vanished (duration ended).", "{name} de {caster} desapareció (duración terminada)."],
+  Reação: ["Reaction", "Reacción"],
+  Dano: ["Damage", "Daño"],
+  "Dano (crítico)": ["Damage (critical)", "Daño (crítico)"],
+  "Teste contra a morte": ["Death save", "Salvación de muerte"],
+  Secreto: ["Secret", "Secreto"],
+  "Iniciativa (revelado)": ["Initiative (revealed)", "Iniciativa (revelado)"],
+  "Recarga de {name} ({n}–6)": ["{name} recharge ({n}–6)", "Recarga de {name} ({n}–6)"],
+  "Recarga de {name} ({n}–6): voltou": ["{name} recharge ({n}–6): back", "Recarga de {name} ({n}–6): volvió"],
+  "Teste de FOR": ["STR check", "Prueba de FUE"],
+  "Teste de DES": ["DEX check", "Prueba de DES"],
+  "Teste de CON": ["CON check", "Prueba de CON"],
+  "Teste de INT": ["INT check", "Prueba de INT"],
+  "Teste de SAB": ["WIS check", "Prueba de SAB"],
+  "Teste de CAR": ["CHA check", "Prueba de CAR"],
+  Mestre: ["GM", "Máster"],
+  "Movimento só na sua vez": ["Move only on your turn", "Moverse solo en tu turno"],
+  "Invocar só na sua vez": ["Summon only on your turn", "Invocar solo en tu turno"],
+  "Lembrete de escuridão": ["Darkness reminder", "Recordatorio de oscuridad"],
+  Agarrado: ["Grappled", "Agarrado"],
+  Amedrontado: ["Frightened", "Asustado"],
+  Atordoado: ["Stunned", "Aturdido"],
+  Caído: ["Prone", "Derribado"],
+  Cego: ["Blinded", "Cegado"],
+  Concentração: ["Concentration", "Concentración"],
+  Contido: ["Restrained", "Apresado"],
+  Enfeitiçado: ["Charmed", "Hechizado"],
+  Envenenado: ["Poisoned", "Envenenado"],
+  Exausto: ["Exhausted", "Agotado"],
+  Incapacitado: ["Incapacitated", "Incapacitado"],
+  Inconsciente: ["Unconscious", "Inconsciente"],
+  Invisível: ["Invisible", "Invisible"],
+  Paralisado: ["Paralyzed", "Paralizado"],
+  Petrificado: ["Petrified", "Petrificado"],
+  Surdo: ["Deafened", "Ensordecido"],
 };

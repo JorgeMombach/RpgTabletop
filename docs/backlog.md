@@ -45,7 +45,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 
 ## F. Produto
 - [x] **Sobre / Créditos:** versão, licenças de terceiros (biblioteca e sons dos dados, MIT; fontes, OFL; ícones Tabler, MIT…) e crédito do SRD 5.1 (CC-BY 4.0) se usarmos texto dele (hoje não usamos). Nada de "D&D" e outras marcas da Wizards no app.
-- [ ] **i18n completo: inglês e espanhol.** Em partes: 1. combate (feito); 2. mapa, ambiente e mesa (feito); 3. erros do servidor (feito); 4. mensagens automáticas do log. Migrar os textos do client para o catálogo; mensagens de erro do servidor viram códigos traduzidos no client; escolha do idioma (padrão: o do navegador).
+- [x] **i18n completo: inglês e espanhol.** Em partes: 1. combate; 2. mapa, ambiente e mesa; 3. erros do servidor; 4. mensagens automáticas do log. O que a mesa digita (nomes, notas, pedidos de rolagem) fica como foi escrito. Migrar os textos do client para o catálogo; mensagens de erro do servidor viram códigos traduzidos no client; escolha do idioma (padrão: o do navegador).
 
 ## G. Névoa de guerra
 Em três partes (cada uma um commit), decididas com o mestre: visão da mesa **compartilhada** (o que um vê, todos veem); área já explorada fica **escurecida e sem os inimigos atuais**.

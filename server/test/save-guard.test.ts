@@ -105,6 +105,10 @@ function fullGame(playerId: string, gmId: string): GameState {
     kind: "attack",
     crit: true,
     turn: { seq: 4, round: 2, name: "Thorin" },
+    textKey: "{who} usou a reação.",
+    textParams: { who: "Thorin" },
+    labelParts: [{ key: "Recarga de {name} ({n}–6)", params: { name: "Sopro", n: 5 } }, { key: "Secreto" }],
+    gm: true,
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {

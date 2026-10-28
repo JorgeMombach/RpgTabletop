@@ -743,6 +743,7 @@ export const en: Partial<Messages> = {
   "sound.unavailable": "Sound \"{name}\" unavailable.",
   "about.d20": "20-sided die",
   "logWindow.blocked": "The browser blocked the log window; it opened floating on the table. Allow pop-ups for this address to open it outside.",
+  "log.table": "Table",
   "top.round": "Round {round}",
   "top.turnOf": " · turn of ",
   "top.yourTurn": "Your turn!",

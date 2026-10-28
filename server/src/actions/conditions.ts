@@ -41,7 +41,7 @@ function startTurnOf(store: Store, c: Combatant) {
     expired.push(k.name);
     return false;
   });
-  for (const name of expired) logSystem(store, `${name} acabou em ${c.name}.`);
+  for (const name of expired) logSystem(store, "{condition} acabou em {name}.", { condition: name, name: c.name });
   if (expired.some(isConcentration)) endConcentration(store, c.id);
 }
 

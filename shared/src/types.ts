@@ -329,6 +329,22 @@ export interface LogEntry {
   crit?: boolean;
   /** Turno do combate em que a rolagem aconteceu, para o log agrupar. */
   turn?: { seq: number; round: number; name: string };
+  /**
+   * Aviso automático com valores: o modelo em português (`{nome}` no lugar dos valores) e os valores,
+   * para cada um ler no próprio idioma. Sem eles, o modelo é o próprio `text` (ou é texto de alguém).
+   */
+  textKey?: string;
+  textParams?: Record<string, string | number>;
+  /** Rótulo da rolagem em pedaços ("Reação", "Ataque", "Secreto"), cada um traduzível; `label` é a versão pronta. */
+  labelParts?: LogPart[];
+  /** Quem rolou é o mestre (o nome aparece como "Mestre" no idioma de cada um). */
+  gm?: boolean;
+}
+
+/** Pedaço de texto do log: modelo em português e valores. */
+export interface LogPart {
+  key: string;
+  params?: Record<string, string | number>;
 }
 
 /** Efeitos predefinidos (cada um tem textura própria no mapa); "custom" = só a cor escolhida. */

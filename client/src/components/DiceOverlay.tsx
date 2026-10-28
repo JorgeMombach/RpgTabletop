@@ -5,7 +5,7 @@ import { diceBox, fitBox, notationFor, paintBox, setDiceVolume } from "../dice3d
 import { rollerName } from "../format";
 import { useApp, useVolume } from "../store";
 import { naturalD20 } from "./RollLog";
-import { useT } from "../i18n";
+import { useT, logLabel } from "../i18n";
 
 /** Tempo do resultado na tela depois que os dados param. */
 const SHOW_MS = 2500;
@@ -127,7 +127,7 @@ function ResultBanner({ e }: { e: LogEntry }) {
             {e.label && (
               <Text span size="sm" c="dimmed" fw={400}>
                 {" · "}
-                {e.label}
+                {logLabel(e)}
               </Text>
             )}
           </Text>

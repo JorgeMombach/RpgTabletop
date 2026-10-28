@@ -743,6 +743,7 @@ export const es: Partial<Messages> = {
   "sound.unavailable": "Sonido \"{name}\" no disponible.",
   "about.d20": "Dado de 20 caras",
   "logWindow.blocked": "El navegador bloqueó la ventana del registro; se abrió flotando en la mesa. Permite las ventanas emergentes de esta dirección para abrirla fuera.",
+  "log.table": "Mesa",
   "top.round": "Ronda {round}",
   "top.turnOf": " · turno de ",
   "top.yourTurn": "¡Tu turno!",

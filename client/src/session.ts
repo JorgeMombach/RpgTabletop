@@ -1,4 +1,5 @@
 import { socket } from "./socket";
+import { logText } from "./i18n";
 import { toast } from "./notify";
 import { IS_LOG_WINDOW } from "./logWindow";
 import { PING_MS, useApp } from "./store";
@@ -108,7 +109,7 @@ socket.on("state:full", (state) => {
   // Na janela do log, não: a janela principal já avisa.
   if (!previous || IS_LOG_WINDOW) return;
   const seen = new Set(previous.log.map((e) => e.id));
-  for (const e of state.log) if (e.system && !seen.has(e.id)) toast({ kind: "info", text: e.text });
+  for (const e of state.log) if (e.system && !seen.has(e.id)) toast({ kind: "info", text: logText(e) });
 });
 
 socket.on("toast", (t) => toast(t));

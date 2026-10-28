@@ -750,6 +750,7 @@ export const ptBR = {
   "sound.unavailable": "Som \"{name}\" indisponível.",
   "about.d20": "Dado de 20 lados",
   "logWindow.blocked": "O navegador bloqueou a janela do log; ele abriu flutuando na mesa. Libere as janelas pop-up deste endereço para abrir fora.",
+  "log.table": "Mesa",
   "top.round": "Round {round}",
   "top.turnOf": " · vez de ",
   "top.yourTurn": "Sua vez!",

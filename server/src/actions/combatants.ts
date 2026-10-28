@@ -138,8 +138,8 @@ function nextPhase(store: Store, c: Combatant) {
   c.hp = next.hpMax;
   if (next.name) c.name = next.name;
   if (next.ac !== undefined) c.ac = next.ac;
-  const renamed = next.name && next.name !== before ? `: agora é ${next.name}` : "";
-  logSystem(store, `${before} passou para a fase ${c.phase}${renamed}.`, !!c.hidden);
+  if (next.name && next.name !== before) logSystem(store, "{name} passou para a fase {n}: agora é {newName}.", { name: before, n: c.phase, newName: next.name }, !!c.hidden);
+  else logSystem(store, "{name} passou para a fase {n}.", { name: before, n: c.phase }, !!c.hidden);
 }
 
 function clampHp(c: Combatant, value: number) {
@@ -519,7 +519,7 @@ export const combatantHandlers: HandlerMap = {
     // Só lembra; quem joga rola e decide. Mob/NPC: só o mestre vê o aviso.
     if (delta < 0 && c.conditions.some((k) => isConcentration(k.name))) {
       const dc = Math.max(10, Math.floor(-delta / 2));
-      logSystem(store, `Teste de Concentração para ${c.name}: CD ${dc} (resistência de CON).`, c.type !== "ally");
+      logSystem(store, "Teste de Concentração para {name}: CD {dc} (resistência de CON).", { name: c.name, dc }, c.type !== "ally");
     }
     // Dano tira primeiro da vida temporária; a cura não mexe nela.
     if (delta < 0 && c.tempHp) {

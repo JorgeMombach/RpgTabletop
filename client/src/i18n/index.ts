@@ -1,14 +1,15 @@
+import type { LogEntry } from "@rpg/shared";
 import { create } from "zustand";
 import { en } from "./en";
 import { es } from "./es";
-import { ERRORS } from "./errors";
+import { SERVER_TEXT } from "./serverText";
 import { ptBR, type MessageKey, type Messages } from "./pt-BR";
 
 /**
  * Tradução da interface. O português é a fonte (pt-BR.ts); inglês e espanhol traduzem as mesmas
  * chaves e, no que faltar, aparece o português. O idioma é de cada navegador: começa no do sistema
- * e a pessoa troca no menu de idioma. As recusas do servidor vêm em português com o modelo e os
- * parâmetros e são traduzidas aqui (`localizeError`); os avisos automáticos do log ainda vêm em português.
+ * e a pessoa troca no menu de idioma. As recusas e os avisos automáticos do log vêm do servidor em
+ * português, com o modelo e os valores, e são traduzidos aqui (`localizeServer`).
  */
 
 export type Lang = "pt-BR" | "en" | "es";
@@ -66,21 +67,41 @@ export function allLabels(key: MessageKey): string[] {
 }
 
 /**
- * Recusa do servidor no idioma de quem lê: o modelo (`errorKey`, ou a própria mensagem) é procurado no
- * catálogo de erros e os parâmetros que forem rótulos conhecidos ("Vida", "mapa") também são traduzidos.
- * Sem tradução, fica a mensagem em português que o servidor mandou.
+ * Texto do servidor (recusa ou aviso do log) no idioma de quem lê: o modelo (`key`, ou o próprio texto)
+ * é procurado no catálogo e os valores que forem rótulos conhecidos ("Vida", "Mestre", "Caído") também são
+ * traduzidos. Sem tradução, fica o texto em português que o servidor mandou.
  */
-export function localizeError(res: { error: string; errorKey?: string; errorParams?: Record<string, string | number> }): string {
+export function localizeServer(text: string, key?: string, params?: Record<string, string | number>): string {
   const lang = useLang.getState().lang;
-  if (lang === "pt-BR") return res.error;
+  if (lang === "pt-BR") return text;
   const i = lang === "en" ? 0 : 1;
-  const tr = (s: string) => ERRORS[s]?.[i];
-  const msg = tr(res.errorKey ?? res.error);
-  if (!msg) return res.error;
-  const params = res.errorParams ?? {};
+  const tr = (s: string) => SERVER_TEXT[s]?.[i];
+  const msg = tr(key ?? text);
+  if (!msg) return text;
+  const values = params ?? {};
   return msg.replace(/\{(\w+)\}/g, (m, k: string) => {
-    if (!(k in params)) return m;
-    const v = params[k];
+    if (!(k in values)) return m;
+    const v = values[k];
     return typeof v === "string" ? (tr(v) ?? v) : String(v);
   });
+}
+
+/** Recusa do servidor no idioma de quem lê. */
+export function localizeError(res: { error: string; errorKey?: string; errorParams?: Record<string, string | number> }): string {
+  return localizeServer(res.error, res.errorKey, res.errorParams);
+}
+
+/** Aviso automático do log no idioma de quem lê (logs antigos, sem modelo, ficam como vieram). */
+export function logText(e: LogEntry): string {
+  return localizeServer(e.text, e.textKey, e.textParams);
+}
+
+/** Rótulo da rolagem ("Reação · Ataque · Secreto") no idioma de quem lê, pedaço por pedaço. */
+export function logLabel(e: LogEntry): string | undefined {
+  if (!e.labelParts) return e.label;
+  return e.labelParts.map((p) => localizeServer(fill(p.key, p.params), p.key, p.params)).join(" · ");
+}
+
+function fill(template: string, params?: Record<string, string | number>): string {
+  return params ? template.replace(/\{(\w+)\}/g, (m, k: string) => (k in params ? String(params[k]) : m)) : template;
 }

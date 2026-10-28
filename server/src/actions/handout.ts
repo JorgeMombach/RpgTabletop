@@ -23,7 +23,8 @@ export const handoutHandlers: HandlerMap = {
     const handout: Handout = { id: randomUUID(), ...(title && { title }), ...(text && { text }), ...(image && { image }) };
     store.handout = handout;
     store.handoutVersion++;
-    logSystem(store, title ? `O mestre mostrou: ${title}.` : "O mestre mostrou algo para a mesa.");
+    if (title) logSystem(store, "O mestre mostrou: {title}.", { title });
+    else logSystem(store, "O mestre mostrou algo para a mesa.");
     return [handout.id];
   },
 

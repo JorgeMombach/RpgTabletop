@@ -384,6 +384,27 @@ function logEntry(raw: unknown): LogEntry {
     const t = obj(e.turn, "log");
     out.turn = { seq: int(t.seq, "log", 0, 1e9), round: int(t.round, "log", 0, 1e6), name: text(t.name, "log", 64) };
   }
+  // Modelo e valores dos avisos e pedaços do rótulo (arquivos antigos não têm: ficam em português).
+  if (e.textKey !== undefined) out.textKey = text(e.textKey, "log", 500);
+  if (e.textParams !== undefined) out.textParams = logParams(e.textParams);
+  if (e.labelParts !== undefined) {
+    out.labelParts = list(e.labelParts, "log", 10).map((raw) => {
+      const p = obj(raw, "log");
+      return { key: text(p.key, "log", 120), ...(p.params !== undefined && { params: logParams(p.params) }) };
+    });
+  }
+  if (e.gm === true) out.gm = true;
+  return out;
+}
+
+/** Valores de um modelo do log: textos curtos ou números. */
+function logParams(raw: unknown): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  for (const [k, v] of Object.entries(obj(raw, "log"))) {
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+    else if (typeof v === "string") out[k] = v.slice(0, 500);
+    else fail("Arquivo inválido: {what}.", { what: "log" });
+  }
   return out;
 }
 
