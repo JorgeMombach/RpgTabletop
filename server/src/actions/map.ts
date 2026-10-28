@@ -121,7 +121,7 @@ export const mapHandlers: HandlerMap = {
           overlaps(pos, span, o.pos, sizeSpan(o.size)) &&
           (player.role === "gm" || (!o.hidden && seen(o))),
       );
-    if (other) fail(span > 1 ? `Não cabe aí: ${other.name} está no caminho.` : `Essa casa já está ocupada por ${other.name}.`);
+    if (other) fail(span > 1 ? "Não cabe aí: {name} está no caminho." : "Essa casa já está ocupada por {name}.", { name: other.name });
     moveFollowers(store, c, c.pos, pos);
     c.pos = pos;
   },

@@ -45,7 +45,7 @@ export const sceneHandlers: HandlerMap = {
   "scene:add": (store, player, payload) => {
     requireGm(player);
     const { scenes } = store.game;
-    if (scenes.length >= LIMITS.scenes) fail(`Limite de ${LIMITS.scenes} cenas.`);
+    if (scenes.length >= LIMITS.scenes) fail("Limite de {n} cenas.", { n: LIMITS.scenes });
     const scene: Scene = { id: randomUUID(), name: sceneName(payload?.name), stored: emptyScene(store) };
     scenes.push(scene);
     return [scene.id];

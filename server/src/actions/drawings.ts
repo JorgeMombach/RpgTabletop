@@ -32,7 +32,7 @@ export const drawingHandlers: HandlerMap = {
     requireGm(player);
     const { battle } = store.game;
     const drawing = { id: randomUUID(), ...parseDrawing(payload) };
-    if (battle.drawings.length >= LIMITS.drawings) fail(`Limite de ${LIMITS.drawings} desenhos no mapa: apague alguns.`);
+    if (battle.drawings.length >= LIMITS.drawings) fail("Limite de {n} desenhos no mapa: apague alguns.", { n: LIMITS.drawings });
     battle.drawings.push(drawing);
     return [drawing.id];
   },

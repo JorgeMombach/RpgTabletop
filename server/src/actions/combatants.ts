@@ -106,7 +106,7 @@ function phasesOf(raw: unknown): BossPhase[] | undefined {
   if (raw === undefined) return undefined;
   if (raw === null) return [];
   if (!Array.isArray(raw)) fail("Fases inválidas.");
-  if (raw.length > LIMITS.phases) fail(`Até ${LIMITS.phases} fases além da primeira.`);
+  if (raw.length > LIMITS.phases) fail("Até {n} fases além da primeira.", { n: LIMITS.phases });
   return raw.map((p: unknown) => {
     if (typeof p !== "object" || p === null) fail("Fase inválida.");
     const o = p as Record<string, unknown>;

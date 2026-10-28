@@ -3,7 +3,7 @@ import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
 import type { ActionResult, SessionFile } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "../confirm";
-import { t as tr, useLang, useT } from "../i18n";
+import { localizeError, t as tr, useLang, useT } from "../i18n";
 import { toast } from "../notify";
 import { desktop, isUnsaved, markSaved, saveSessionFile } from "../sessionFile";
 import { socket } from "../socket";
@@ -79,7 +79,7 @@ export function SessionPanel() {
       const res: ActionResult = await socket.timeout(60_000).emitWithAck("session:import", parsed);
       // O estado novo chega antes da resposta: o que está na mesa agora é o do arquivo.
       if (res.ok) markSaved(parsed.savedAt ? new Date(parsed.savedAt) : new Date());
-      toast(res.ok ? { kind: "info", text: t("session.loaded") } : { kind: "error", text: res.error });
+      toast(res.ok ? { kind: "info", text: t("session.loaded") } : { kind: "error", text: localizeError(res) });
     } catch {
       toast({ kind: "error", text: t("common.noServer") });
     } finally {

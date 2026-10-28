@@ -3,7 +3,7 @@ import { IconFolderOpen, IconPlayerPlay, IconPlayerStop, IconRefresh, IconUpload
 import { GEN_SOUNDS, LIMITS, type ClientState, type GenAmbientId, type GenSfxId, type SoundChannel, type SoundSource } from "@rpg/shared";
 import { useEffect, useState } from "react";
 import { act } from "../actions";
-import { t as tr, useT } from "../i18n";
+import { localizeError, t as tr, useT } from "../i18n";
 import { soundLabel } from "../labels";
 import { toast } from "../notify";
 import { desktop } from "../sessionFile";
@@ -95,7 +95,7 @@ function LoopChannel({ state, channel, label }: { state: ClientState; channel: S
 
 async function fireSfx(source: SoundSource) {
   const res = await socket.timeout(5000).emitWithAck("sound:sfx", source).catch(() => ({ ok: false as const, error: tr("common.noServer") }));
-  if (!res.ok) toast({ kind: "error", text: res.error });
+  if (!res.ok) toast({ kind: "error", text: localizeError(res) });
 }
 
 async function upload(files: File[]) {
@@ -108,7 +108,7 @@ async function upload(files: File[]) {
       .timeout(120_000)
       .emitWithAck("sound:upload", { name: file.name, data: await file.arrayBuffer() })
       .catch(() => ({ ok: false as const, error: tr("common.noServer") }));
-    toast(res.ok ? { kind: "info", text: tr("sound.added", { name: file.name }) } : { kind: "error", text: `${file.name}: ${res.error}` });
+    toast(res.ok ? { kind: "info", text: tr("sound.added", { name: file.name }) } : { kind: "error", text: `${file.name}: ${localizeError(res)}` });
   }
 }
 

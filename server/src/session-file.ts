@@ -72,18 +72,18 @@ export function exportSession(store: Store): SessionFile {
 type Obj = Record<string, unknown>;
 
 function obj(raw: unknown, what: string): Obj {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("Arquivo inválido: {what}.", { what });
   return raw as Obj;
 }
 
 function list(raw: unknown, what: string, max: number): unknown[] {
-  if (!Array.isArray(raw)) fail(`Arquivo inválido: ${what}.`);
-  if (raw.length > max) fail(`Arquivo inválido: ${what} demais.`);
+  if (!Array.isArray(raw)) fail("Arquivo inválido: {what}.", { what });
+  if (raw.length > max) fail("Arquivo inválido: {what} demais.", { what });
   return raw;
 }
 
 function text(raw: unknown, what: string, max: number): string {
-  if (typeof raw !== "string") fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "string") fail("Arquivo inválido: {what}.", { what });
   return raw.slice(0, max);
 }
 
@@ -106,12 +106,12 @@ function outsideRolls(raw: unknown): OutsideRolls {
 }
 
 function bool(raw: unknown, what: string): boolean {
-  if (typeof raw !== "boolean") fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "boolean") fail("Arquivo inválido: {what}.", { what });
   return raw;
 }
 
 function int(raw: unknown, what: string, min: number, max: number): number {
-  if (typeof raw !== "number" || !Number.isInteger(raw)) fail(`Arquivo inválido: ${what}.`);
+  if (typeof raw !== "number" || !Number.isInteger(raw)) fail("Arquivo inválido: {what}.", { what });
   return requireInt(raw, what, min, max);
 }
 
@@ -412,7 +412,7 @@ export function parseSession(raw: unknown): ParsedSession {
   if (f.app !== SESSION_FILE_APP) fail("Este arquivo não é uma sessão do Jamal's Tabletop.");
   if (typeof f.format !== "number" || !Number.isInteger(f.format) || f.format < 1) fail("Arquivo inválido: versão do formato.");
   if (f.format > SESSION_FILE_FORMAT) {
-    fail(`Este arquivo foi salvo por uma versão mais nova do app (formato ${f.format}). Atualize o Jamal's Tabletop para abrir.`);
+    fail("Este arquivo foi salvo por uma versão mais nova do app (formato {format}). Atualize o Jamal's Tabletop para abrir.", { format: String(f.format) });
   }
 
   const players = list(f.players, "jogadores", 1000).map((raw) => {

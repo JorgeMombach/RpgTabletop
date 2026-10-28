@@ -148,7 +148,7 @@ function ownEffect(store: Store, player: ServerPlayer, rawId: unknown): MapEffec
 export const effectHandlers: HandlerMap = {
   "effect:add": (store, player, payload) => {
     const { battle } = store.game;
-    if (battle.effects.length >= LIMITS.effects) fail(`Limite de ${LIMITS.effects} efeitos no mapa.`);
+    if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
     const fields = effectFields(store, player, payload);
     const area = validArea(payload.area) ?? fail("Área inválida.");
     const { casterId, concentration } = fields;

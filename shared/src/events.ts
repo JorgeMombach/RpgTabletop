@@ -318,11 +318,17 @@ export interface SessionFile {
   game: GameState;
 }
 
-export type SessionExportResult = { ok: true; file: SessionFile } | { ok: false; error: string };
+/**
+ * Recusa: `error` em português, pronto para mostrar. Com parâmetros, vão também o modelo (`errorKey`,
+ * a frase com `{nome}`) e os valores, para o cliente traduzir (sem eles, o modelo é o próprio `error`).
+ */
+export type ActionFailure = { ok: false; error: string; errorKey?: string; errorParams?: Record<string, string | number> };
+
+export type SessionExportResult = { ok: true; file: SessionFile } | ActionFailure;
 
 export type ActionName = keyof ActionPayloads;
 
-export type ActionResult = { ok: true; ids?: string[] } | { ok: false; error: string };
+export type ActionResult = { ok: true; ids?: string[] } | ActionFailure;
 
 type ActionEvents = {
   [K in ActionName]: (payload: ActionPayloads[K], ack?: (res: ActionResult) => void) => void;

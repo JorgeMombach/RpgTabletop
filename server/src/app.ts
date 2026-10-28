@@ -5,6 +5,7 @@ import { Server, type Socket } from "socket.io";
 import {
   LIMITS,
   type ActionName,
+  type ActionFailure,
   type ActionResult,
   type ClientToServerEvents,
   type GridPos,
@@ -22,6 +23,11 @@ import { exportSession, importSession } from "./session-file";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
+
+/** Recusa para o cliente: a mensagem e, se tiver parâmetros, o modelo para ele traduzir. */
+function failure(err: ActionError): ActionFailure {
+  return { ok: false, error: err.message, ...(err.params && { errorKey: err.template, errorParams: err.params }) };
+}
 import { serveClient } from "./static";
 import { refreshLibrary, soundSource } from "./actions/sound";
 import { whoIs } from "./actions/dice";
@@ -198,7 +204,7 @@ export function createApp(opts: AppOptions) {
       broadcast();
       return ids ? { ok: true, ids } : { ok: true };
     } catch (err) {
-      if (err instanceof ActionError) return { ok: false, error: err.message };
+      if (err instanceof ActionError) return failure(err);
       console.error(`[${name}]`, err);
       return { ok: false, error: "Ação inválida." };
     }
@@ -263,7 +269,7 @@ export function createApp(opts: AppOptions) {
       try {
         importSession(store, player, file);
       } catch (err) {
-        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        if (err instanceof ActionError) return ack(failure(err));
         console.error("[session:import]", err);
         return ack({ ok: false, error: "Arquivo inválido." });
       }
@@ -279,7 +285,7 @@ export function createApp(opts: AppOptions) {
       try {
         io.to(SESSION_ROOM).emit("sound:sfx", soundSource(store, source, false));
       } catch (err) {
-        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        if (err instanceof ActionError) return ack(failure(err));
         throw err;
       }
       ack({ ok: true });
@@ -293,7 +299,7 @@ export function createApp(opts: AppOptions) {
       try {
         saveSound(store.soundsDir, file?.name, file?.data);
       } catch (err) {
-        if (err instanceof ActionError) return ack({ ok: false, error: err.message });
+        if (err instanceof ActionError) return ack(failure(err));
         console.error("[sound:upload]", err);
         return ack({ ok: false, error: "Não consegui gravar o arquivo na pasta de sons." });
       }

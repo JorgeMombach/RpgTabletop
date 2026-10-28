@@ -46,13 +46,13 @@ function rollGmSide(store: Store, list: Combatant[], grouped: boolean) {
  * só enquanto não tem valor. Depois, mudar ou rolar de novo é com o mestre (ou *Iniciativa de novo*, que zera todas).
  */
 function onceForPlayers(player: ServerPlayer, c: Combatant): Combatant {
-  if (player.role !== "gm" && c.initiative !== null) fail(`A iniciativa de ${c.name} já foi rolada. Só o mestre muda.`);
+  if (player.role !== "gm" && c.initiative !== null) fail("A iniciativa de {name} já foi rolada. Só o mestre muda.", { name: c.name });
   return c;
 }
 
 /** Oculto fica fora da iniciativa até o mestre revelar (E21). */
 function notHidden(c: Combatant): Combatant {
-  if (c.hidden) fail(`${c.name} está oculto: revele antes de pôr na iniciativa.`);
+  if (c.hidden) fail("{name} está oculto: revele antes de pôr na iniciativa.", { name: c.name });
   return c;
 }
 

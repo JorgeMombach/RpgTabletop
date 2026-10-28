@@ -1,12 +1,14 @@
 import { create } from "zustand";
 import { en } from "./en";
 import { es } from "./es";
+import { ERRORS } from "./errors";
 import { ptBR, type MessageKey, type Messages } from "./pt-BR";
 
 /**
  * Tradução da interface. O português é a fonte (pt-BR.ts); inglês e espanhol traduzem as mesmas
  * chaves e, no que faltar, aparece o português. O idioma é de cada navegador: começa no do sistema
- * e a pessoa troca no menu de idioma. Mensagens do servidor (erros, avisos no log) ainda vêm em português.
+ * e a pessoa troca no menu de idioma. As recusas do servidor vêm em português com o modelo e os
+ * parâmetros e são traduzidas aqui (`localizeError`); os avisos automáticos do log ainda vêm em português.
  */
 
 export type Lang = "pt-BR" | "en" | "es";
@@ -61,4 +63,24 @@ export function useT() {
 /** O texto de uma chave em todos os idiomas (para reconhecer o que foi digitado em qualquer um). */
 export function allLabels(key: MessageKey): string[] {
   return Object.values(CATALOGS).map((c) => c[key] ?? ptBR[key]);
+}
+
+/**
+ * Recusa do servidor no idioma de quem lê: o modelo (`errorKey`, ou a própria mensagem) é procurado no
+ * catálogo de erros e os parâmetros que forem rótulos conhecidos ("Vida", "mapa") também são traduzidos.
+ * Sem tradução, fica a mensagem em português que o servidor mandou.
+ */
+export function localizeError(res: { error: string; errorKey?: string; errorParams?: Record<string, string | number> }): string {
+  const lang = useLang.getState().lang;
+  if (lang === "pt-BR") return res.error;
+  const i = lang === "en" ? 0 : 1;
+  const tr = (s: string) => ERRORS[s]?.[i];
+  const msg = tr(res.errorKey ?? res.error);
+  if (!msg) return res.error;
+  const params = res.errorParams ?? {};
+  return msg.replace(/\{(\w+)\}/g, (m, k: string) => {
+    if (!(k in params)) return m;
+    const v = params[k];
+    return typeof v === "string" ? (tr(v) ?? v) : String(v);
+  });
 }

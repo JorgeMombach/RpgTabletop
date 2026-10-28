@@ -65,7 +65,7 @@ export function saveSound(dir: string, rawName: unknown, data: unknown): string 
   if (typeof rawName !== "string") fail("Arquivo sem nome.");
   const bytes = Buffer.isBuffer(data) ? data : data instanceof ArrayBuffer ? Buffer.from(data) : fail("Arquivo inválido.");
   if (bytes.length === 0) fail("Arquivo vazio.");
-  if (bytes.length > LIMITS.soundBytes) fail(`Arquivo grande demais (máximo ${Math.round(LIMITS.soundBytes / 1024 / 1024)} MB).`);
+  if (bytes.length > LIMITS.soundBytes) fail("Arquivo grande demais (máximo {mb} MB).", { mb: Math.round(LIMITS.soundBytes / 1024 / 1024) });
   fs.mkdirSync(dir, { recursive: true });
   const name = safeName(dir, rawName);
   fs.writeFileSync(path.join(dir, name), bytes);

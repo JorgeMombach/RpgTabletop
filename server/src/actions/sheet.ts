@@ -28,7 +28,7 @@ function optLine(raw: unknown, max: number): string | undefined {
 /** Item de uma lista do combatente pelo id, ou recusa. */
 function findIn<T extends { id: string }>(list: T[] | undefined, raw: unknown, what: string): T {
   const id = requireString(raw, what);
-  return list?.find((x) => x.id === id) ?? fail(`${what} não encontrado.`);
+  return list?.find((x) => x.id === id) ?? fail("{what} não encontrado.", { what });
 }
 
 /** Tira um item de uma das listas; a lista vazia some do combatente. */
@@ -107,7 +107,7 @@ export const sheetHandlers: HandlerMap = {
       return [r.id];
     }
     const resources = (c.resources ??= []);
-    if (resources.length >= LIMITS.resources) fail(`Limite de ${LIMITS.resources} recursos.`);
+    if (resources.length >= LIMITS.resources) fail("Limite de {n} recursos.", { n: LIMITS.resources });
     const r = { id: randomUUID(), name, max, used: 0, recharge: kind, ...(rechargeOn && { rechargeOn }) };
     resources.push(r);
     return [r.id];
@@ -159,7 +159,7 @@ export const sheetHandlers: HandlerMap = {
       return [a.id];
     }
     const attacks = (c.attacks ??= []);
-    if (attacks.length >= LIMITS.attacks) fail(`Limite de ${LIMITS.attacks} ataques.`);
+    if (attacks.length >= LIMITS.attacks) fail("Limite de {n} ataques.", { n: LIMITS.attacks });
     const a = { id: randomUUID(), ...fields };
     attacks.push(a);
     return [a.id];
@@ -182,7 +182,7 @@ export const sheetHandlers: HandlerMap = {
       return [item.id];
     }
     const inventory = (c.inventory ??= []);
-    if (inventory.length >= LIMITS.items) fail(`Limite de ${LIMITS.items} itens.`);
+    if (inventory.length >= LIMITS.items) fail("Limite de {n} itens.", { n: LIMITS.items });
     const item = { id: randomUUID(), ...fields };
     inventory.push(item);
     return [item.id];

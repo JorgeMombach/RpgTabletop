@@ -60,7 +60,7 @@ export const conditionHandlers: HandlerMap = {
       same.rounds = rounds;
       return [same.id];
     }
-    if (c.conditions.length >= LIMITS.conditions) fail(`Limite de ${LIMITS.conditions} condições por combatente.`);
+    if (c.conditions.length >= LIMITS.conditions) fail("Limite de {n} condições por combatente.", { n: LIMITS.conditions });
     const condition = { id: randomUUID(), name, rounds };
     c.conditions.push(condition);
     return [condition.id];
