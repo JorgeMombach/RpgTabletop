@@ -1,4 +1,5 @@
 import { groupRange, type ClientState, type CombatantView, type Condition, type LogEntry, type TableRules } from "@rpg/shared";
+import { allLabels, t, type MessageKey } from "./i18n";
 
 export function fmtMod(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -53,7 +54,43 @@ export function rollerName(e: LogEntry): string {
   return e.as ? `${e.as} (${e.author})` : e.author;
 }
 
+/** Condições da lista: o nome gravado é o em português (o servidor reconhece a Concentração por ele). */
+const CONDITION_KEYS: Record<string, MessageKey> = {
+  "Agarrado": "condition.grappled",
+  "Amedrontado": "condition.frightened",
+  "Atordoado": "condition.stunned",
+  "Caído": "condition.prone",
+  "Cego": "condition.blinded",
+  "Concentração": "condition.concentration",
+  "Contido": "condition.restrained",
+  "Enfeitiçado": "condition.charmed",
+  "Envenenado": "condition.poisoned",
+  "Exausto": "condition.exhaustion",
+  "Incapacitado": "condition.incapacitated",
+  "Inconsciente": "condition.unconscious",
+  "Invisível": "condition.invisible",
+  "Paralisado": "condition.paralyzed",
+  "Petrificado": "condition.petrified",
+  "Surdo": "condition.deafened",
+};
+
+/** Nome da condição no idioma de quem lê (texto livre fica como foi escrito). */
+export function conditionLabel(name: string): string {
+  const key = CONDITION_KEYS[name];
+  return key ? t(key) : name;
+}
+
+/** Do que a pessoa escolheu ou digitou (em qualquer idioma) para o nome gravado. */
+export function conditionName(typed: string): string {
+  const clean = typed.trim().toLocaleLowerCase();
+  for (const [pt, key] of Object.entries(CONDITION_KEYS)) {
+    if (pt.toLocaleLowerCase() === clean || allLabels(key).some((l) => l.toLocaleLowerCase() === clean)) return pt;
+  }
+  return typed;
+}
+
 /** "Atordoado (2)" ou só "Envenenado" (sem duração). */
 export function fmtCondition(k: Condition): string {
-  return k.rounds === null ? k.name : `${k.name} (${k.rounds})`;
+  const name = conditionLabel(k.name);
+  return k.rounds === null ? name : `${name} (${k.rounds})`;
 }

@@ -57,3 +57,8 @@ export function useT() {
   useLang((s) => s.lang);
   return t;
 }
+
+/** O texto de uma chave em todos os idiomas (para reconhecer o que foi digitado em qualquer um). */
+export function allLabels(key: MessageKey): string[] {
+  return Object.values(CATALOGS).map((c) => c[key] ?? ptBR[key]);
+}

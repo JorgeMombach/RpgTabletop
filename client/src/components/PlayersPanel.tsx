@@ -1,16 +1,18 @@
 import { Badge, Box, Group, Stack, Text } from "@mantine/core";
 import type { ClientState } from "@rpg/shared";
+import { useT } from "../i18n";
 import { Panel } from "./Panel";
 
 export function PlayersPanel({ state }: { state: ClientState }) {
+  const t = useT();
   const online = state.players.filter((p) => p.role === "player" && p.connected).length;
 
   return (
     <Panel
-      title="Na sessão"
+      title={t("players.title")}
       aside={
         <Text size="xs" c="dimmed">
-          {online}/{state.maxPlayers} jogadores
+          {t("players.count", { n: online, max: state.maxPlayers })}
         </Text>
       }
     >
@@ -29,13 +31,13 @@ export function PlayersPanel({ state }: { state: ClientState }) {
               {p.id === state.self.id && (
                 <Text span size="xs" c="dimmed">
                   {" "}
-                  (você)
+                  {t("players.you")}
                 </Text>
               )}
             </Text>
             {p.role === "gm" ? (
               <Badge size="xs" variant="light">
-                Mestre
+                {t("common.gm")}
               </Badge>
             ) : (
               !p.connected && (

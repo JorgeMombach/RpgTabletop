@@ -22,18 +22,18 @@ interface Props {
 
 /** Linha de aliado/mob nas listas laterais: clicar seleciona, arrastar posiciona no mapa. */
 export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props) {
-  const down = c.hp <= 0;
-  const status = down ? (c.type === "mob" ? "Abatido" : "Caído") : `${c.hp}/${c.hpMax}`;
-  const hint = draggable && !c.pos ? "Fora do mapa: arraste para posicionar" : undefined;
-  const summoner = useApp((s) => (c.summonerId && s.state ? allCombatants(s.state).find((o) => o.id === c.summonerId)?.name : undefined));
-  const rounds = c.summonRounds !== undefined ? `${c.summonRounds} ${c.summonRounds === 1 ? "round" : "rounds"}` : null;
-  // Chefe: fase atual (e o total, para o mestre, que recebe as próximas fases).
   const t = useT();
+  const down = c.hp <= 0;
+  const status = down ? (c.type === "mob" ? t("hp.downMob") : t("hp.down")) : `${c.hp}/${c.hpMax}`;
+  const hint = draggable && !c.pos ? t("row.dragHint") : undefined;
+  const summoner = useApp((s) => (c.summonerId && s.state ? allCombatants(s.state).find((o) => o.id === c.summonerId)?.name : undefined));
+  const rounds = c.summonRounds !== undefined ? t("common.rounds", { n: c.summonRounds }) : null;
+  // Chefe: fase atual (e o total, para o mestre, que recebe as próximas fases).
   const nextPhases = "phases" in c ? (c.phases?.length ?? 0) : 0;
   const phase = c.phase ?? 1;
   const phaseText = nextPhases > 0 || phase > 1 ? t(nextPhases > 0 ? "phases.short" : "phases.only", { n: phase, total: phase + nextPhases }) : null;
   // Na coluna estreita o complemento corta: o texto completo fica no title.
-  const full = [c.name, summoner && `invocado por ${summoner}`, rounds && `faltam ${rounds}`].filter(Boolean).join(" · ");
+  const full = [c.name, summoner && t("kind.summonedBy", { name: summoner }), rounds && t("row.left", { rounds })].filter(Boolean).join(" · ");
 
   return (
     <Box
@@ -49,10 +49,10 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
         <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
           <Group gap={6} wrap="nowrap" justify="space-between">
             <Text size="sm" truncate title={full} style={{ minWidth: 0 }}>
-              {down && c.type === "mob" && <IconSkull size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Abatido" />}
-              {c.hidden && <IconEyeOff size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Oculto" />}
-              {c.animal && <IconPaw size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Animal" />}
-              {c.summonerId && <IconWand size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label="Invocado" />}
+              {down && c.type === "mob" && <IconSkull size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label={t("hp.downMob")} />}
+              {c.hidden && <IconEyeOff size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label={t("kind.hidden")} />}
+              {c.animal && <IconPaw size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label={t("kind.animal")} />}
+              {c.summonerId && <IconWand size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label={t("row.summoned")} />}
               {c.torch && <IconFlame size={14} color="var(--mantine-color-bronze-4)" style={{ verticalAlign: -2, marginRight: 4 }} aria-label={t("torch.lit")} />}
               {c.name}
               {suffix && (
@@ -64,7 +64,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
               {summoner && (
                 <Text span size="xs" c="dimmed">
                   {" "}
-                  · de {summoner}
+                  · {t("row.of", { name: summoner })}
                   {rounds && ` · ${rounds}`}
                 </Text>
               )}
@@ -77,13 +77,13 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
               {c.hidden && (
                 <Text span size="xs" c="dimmed">
                   {" "}
-                  · oculto
+                  · {t("kind.hidden")}
                 </Text>
               )}
               {draggable && !c.pos && (
                 <Text span size="xs" c="dimmed">
                   {" "}
-                  · fora do mapa
+                  · {t("row.offMap")}
                 </Text>
               )}
             </Text>

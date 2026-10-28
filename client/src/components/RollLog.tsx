@@ -1,6 +1,7 @@
 import { Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import type { LogEntry, RollTerm } from "@rpg/shared";
 import { rollerName } from "../format";
+import { t as tr, useLang, useT } from "../i18n";
 import { useApp } from "../store";
 
 interface TurnGroup {
@@ -19,7 +20,7 @@ function groupByTurn(log: LogEntry[]): TurnGroup[] {
     else
       groups.push({
         key: e.turn ? `t${e.turn.seq}` : e.id,
-        title: e.turn ? `Round ${e.turn.round} · ${e.turn.name}` : undefined,
+        title: e.turn ? `${tr("top.round", { round: e.turn.round })} · ${e.turn.name}` : undefined,
         entries: [e],
       });
   }
@@ -27,11 +28,12 @@ function groupByTurn(log: LogEntry[]): TurnGroup[] {
 }
 
 export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
+  useT();
   const rolling = useApp((s) => s.rolling);
   if (log.length === 0)
     return (
       <Text size="xs" c="dimmed">
-        Nenhuma rolagem ainda.
+        {tr("log.empty")}
       </Text>
     );
 
@@ -56,6 +58,7 @@ export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
 }
 
 function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: boolean }) {
+  const lang = useLang((st) => st.lang);
   // "Personagem (jogador)"; do lado do mestre, "Goblin 2 (Mestre)" (E26).
   const author = rollerName(e);
   return (
@@ -66,11 +69,11 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
         </Text>
         {e.hidden && (
           <Badge size="xs" variant="default">
-            oculta
+            {tr("log.hidden")}
           </Badge>
         )}
         <Text size="xs" c="dimmed" ml="auto" style={{ flex: "none" }}>
-          {new Date(e.ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          {new Date(e.ts).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
         </Text>
       </Group>
       {rolling ? (
@@ -78,7 +81,7 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
         <Group gap={6} wrap="nowrap">
           <Loader size={12} color="bronze" />
           <Text size="sm" c="dimmed">
-            {e.label ? `${e.label}: rolando…` : "Rolando…"}
+            {e.label ? tr("log.rollingLabel", { label: e.label }) : tr("log.rolling")}
           </Text>
         </Group>
       ) : e.roll ? (
@@ -115,7 +118,7 @@ function RollBody({ entry }: { entry: LogEntry }) {
           <Code>{r.expr}</Code>
           {r.mode !== "normal" && (
             <Text size="xs" c="dimmed">
-              {r.mode === "adv" ? "vantagem" : "desvantagem"}
+              {r.mode === "adv" ? tr("log.adv") : tr("log.dis")}
             </Text>
           )}
         </Group>
@@ -128,7 +131,7 @@ function RollBody({ entry }: { entry: LogEntry }) {
                   const dropped = t.keptIndex !== undefined && t.keptIndex !== j;
                   const color = t.faces === 20 && v === 20 ? "copper" : t.faces === 20 && v === 1 ? "red" : "gray";
                   return (
-                    <Tooltip key={j} label={`d${t.faces}${dropped ? " (descartado)" : ""}`}>
+                    <Tooltip key={j} label={`d${t.faces}${dropped ? ` ${tr("log.dropped")}` : ""}`}>
                       <Badge
                         size="sm"
                         radius="sm"
@@ -158,16 +161,16 @@ function RollBody({ entry }: { entry: LogEntry }) {
         </Text>
         {critHit ? (
           <Text size="xs" fw={700} c="copper.4">
-            Crítico!
+            {tr("log.crit")}
           </Text>
         ) : nat === 20 ? (
           <Text size="xs" c="copper.4">
-            20 natural
+            {tr("log.nat20")}
           </Text>
         ) : null}
         {nat === 1 && (
           <Text size="xs" c="red.4">
-            1 natural
+            {tr("log.nat1")}
           </Text>
         )}
       </Stack>

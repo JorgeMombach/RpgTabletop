@@ -11,9 +11,8 @@ import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
 import { TurnControls } from "./TurnControls";
 
-const INIT_TIP = "Iniciativa = d20 + bônus de iniciativa";
-
 export function InitiativePanel({ state }: { state: ClientState }) {
+  const t = useT();
   const selectedId = useApp((s) => s.selectedId);
   const [grouped, setGrouped] = useState(false);
   const gm = state.self.role === "gm";
@@ -32,38 +31,37 @@ export function InitiativePanel({ state }: { state: ClientState }) {
 
   async function rerollAll() {
     const ok = await confirmAction({
-      title: "Rolar a iniciativa de novo?",
-      message:
-        "Todas as iniciativas são zeradas; os mobs em campo e os NPCs que já lutavam rolam agora, e os jogadores rolam de novo. O combate pausa neste round até você retomar.",
-      confirmLabel: "Rolar de novo",
+      title: t("init.rerollTitle"),
+      message: t("init.rerollMessage"),
+      confirmLabel: t("init.rerollConfirm"),
     });
     if (ok) void act("init:rerollAll", { grouped });
   }
 
   async function endCombat() {
     const ok = await confirmAction({
-      title: "Encerrar o combate?",
-      message: "As iniciativas e o round são zerados. Os combatentes continuam.",
-      confirmLabel: "Encerrar",
+      title: t("init.endTitle"),
+      message: t("init.endMessage"),
+      confirmLabel: t("init.end"),
     });
     if (ok) void act("combat:end", {});
   }
 
   return (
     <Panel
-      title="Iniciativa"
+      title={t("init.title")}
       highlighted={myTurn}
       aside={
         combat.active && (
           <Badge color="copper" variant="light" size="sm">
-            Round {combat.round}
+            {t("top.round", { round: combat.round })}
           </Badge>
         )
       }
     >
       {myTurn && (
         <Alert variant="filled" p={6} styles={{ message: { textAlign: "center", fontWeight: 700 } }}>
-          Sua vez!
+          {t("init.yourTurn")}
         </Alert>
       )}
 
@@ -71,20 +69,20 @@ export function InitiativePanel({ state }: { state: ClientState }) {
         <Group gap="xs" wrap="wrap">
           {combat.active ? (
             <>
-              <Tooltip label="Turno anterior">
-                <Button variant="default" onClick={() => act("combat:prev", {})} aria-label="Turno anterior">
+              <Tooltip label={t("init.prev")}>
+                <Button variant="default" onClick={() => act("combat:prev", {})} aria-label={t("init.prev")}>
                   <IconPlayerTrackPrev size={14} />
                 </Button>
               </Tooltip>
               <Button style={{ flex: "1 1 120px" }} rightSection={<IconPlayerTrackNext size={14} />} onClick={() => act("combat:next", {})}>
-                Próximo turno
+                {t("init.next")}
               </Button>
               <Button variant="default" onClick={() => void endCombat()}>
-                Encerrar
+                {t("init.end")}
               </Button>
-              <Tooltip label={`Zera todas as iniciativas, rola os mobs em campo e os NPCs que já lutavam e pausa até os jogadores rolarem (${INIT_TIP})`}>
+              <Tooltip label={t("init.rerollTip")}>
                 <Button variant="default" leftSection={<IconDice5 size={14} />} onClick={() => void rerollAll()}>
-                  Iniciativa de novo
+                  {t("init.reroll")}
                 </Button>
               </Tooltip>
             </>
@@ -93,16 +91,16 @@ export function InitiativePanel({ state }: { state: ClientState }) {
               <Tooltip
                 label={
                   inField === 0
-                    ? "Nenhum mob visível no mapa: coloque os tokens no mapa (ou revele os ocultos)"
-                    : `Rola para os mobs no mapa e visíveis. NPCs entram quando você rolar a de cada um, abaixo (${INIT_TIP})`
+                    ? t("init.rollMobsNone")
+                    : t("init.rollMobsTip")
                 }
               >
                 <Button variant="default" disabled={inField === 0} leftSection={<IconDice5 size={14} />} onClick={() => act("init:rollMobs", { grouped })}>
-                  Rolar mobs em campo
+                  {t("init.rollMobs")}
                 </Button>
               </Tooltip>
               <Button style={{ flex: "1 1 120px" }} disabled={order.length === 0} onClick={() => act("combat:start", {})}>
-                {combat.round > 0 ? `Retomar (round ${combat.round})` : "Iniciar combate"}
+                {combat.round > 0 ? t("init.resume", { round: combat.round }) : t("init.start")}
               </Button>
             </>
           )}
@@ -113,15 +111,15 @@ export function InitiativePanel({ state }: { state: ClientState }) {
         <Checkbox
           checked={grouped}
           onChange={(e) => setGrouped(e.currentTarget.checked)}
-          label="Uma rolagem por template (mobs iguais agem juntos)"
+          label={t("init.grouped")}
         />
       )}
 
       {order.length === 0 ? (
         <Text size="xs" c="dimmed">
           {gm
-            ? "Role a iniciativa dos mobs em campo e, um a um, a dos NPCs que entram na luta; os jogadores rolam a dos personagens."
-            : "Role sua iniciativa abaixo quando o mestre pedir."}
+            ? t("init.emptyGm")
+            : t("init.emptyPlayer")}
         </Text>
       ) : (
         <ol className="init-list">
@@ -157,7 +155,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
 
       {pending.length > 0 && (
         <>
-          <Divider label="Sem iniciativa" labelPosition="left" />
+          <Divider label={t("init.pending")} labelPosition="left" />
           <Stack gap={6}>
             {pending.map((c) => (
               <PendingRow key={c.id} c={c} />
@@ -235,6 +233,7 @@ function InitRow(props: {
   gm: boolean;
 }) {
   const { c, index, last, current, selected, mine, editable, gm } = props;
+  const t = useT();
   const [editing, setEditing] = useState<string | number | null>(null);
   const down = c.hp !== undefined && c.hp <= 0;
 
@@ -252,7 +251,7 @@ function InitRow(props: {
   return (
     <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={stop(() => select(c.id))}>
       <Group gap={4} wrap="nowrap">
-        <Text component="span" c="bronze.4" w={12} style={{ display: "flex", flex: "none" }} aria-label={current ? "Na vez" : undefined}>
+        <Text component="span" c="bronze.4" w={12} style={{ display: "flex", flex: "none" }} aria-label={current ? t("init.onTurn") : undefined}>
           {current && <IconCaretRightFilled size={12} />}
         </Text>
         <Box
@@ -267,7 +266,7 @@ function InitRow(props: {
           {mine && (
             <Text span size="xs" c="dimmed">
               {" "}
-              (seu)
+              {t("common.yours")}
             </Text>
           )}
         </Text>
@@ -284,11 +283,11 @@ function InitRow(props: {
               onChange={setEditing}
               onBlur={() => commit()}
               onKeyDown={(e) => e.key === "Escape" && setEditing(null)}
-              aria-label={`Iniciativa de ${c.name}`}
+              aria-label={t("init.of", { name: c.name })}
             />
           </form>
         ) : (
-          <Tooltip label={c.initRoll !== null ? `d20: ${c.initRoll}${editable ? " · clique para editar" : ""}` : `Valor informado${editable ? " · clique para editar" : ""}`}>
+          <Tooltip label={(c.initRoll !== null ? `d20: ${c.initRoll}` : t("init.typed")) + (editable ? ` · ${t("init.clickEdit")}` : "")}>
             <Button
               variant="subtle"
               color="gray"
@@ -304,8 +303,8 @@ function InitRow(props: {
         )}
 
         {editable && (
-          <Tooltip label={`Rolar de novo (${INIT_TIP})`}>
-            <ActionIcon size="sm" aria-label={`Rolar iniciativa de ${c.name} de novo`} onClick={stop(() => void act("init:roll", { id: c.id }))}>
+          <Tooltip label={t("init.rollAgainTip")}>
+            <ActionIcon size="sm" aria-label={t("init.rollAgainOf", { name: c.name })} onClick={stop(() => void act("init:roll", { id: c.id }))}>
               <IconDice5 size={16} />
             </ActionIcon>
           </Tooltip>
@@ -313,13 +312,13 @@ function InitRow(props: {
         {gm && (
           // Empilhados para sobrar largura para o nome em colunas estreitas.
           <Stack gap={0}>
-            <Tooltip label="Subir (desempate)">
-              <ActionIcon size={16} disabled={index === 0} aria-label="Subir" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index - 1 }))}>
+            <Tooltip label={t("init.upTip")}>
+              <ActionIcon size={16} disabled={index === 0} aria-label={t("init.up")} onClick={stop(() => void act("init:move", { id: c.id, toIndex: index - 1 }))}>
                 <IconChevronUp size={12} stroke={2.5} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Descer (desempate)">
-              <ActionIcon size={16} disabled={last} aria-label="Descer" onClick={stop(() => void act("init:move", { id: c.id, toIndex: index + 1 }))}>
+            <Tooltip label={t("init.downTip")}>
+              <ActionIcon size={16} disabled={last} aria-label={t("init.down")} onClick={stop(() => void act("init:move", { id: c.id, toIndex: index + 1 }))}>
                 <IconChevronDown size={12} stroke={2.5} />
               </ActionIcon>
             </Tooltip>
@@ -336,6 +335,7 @@ function InitRow(props: {
 }
 
 function PendingRow({ c }: { c: CombatantView }) {
+  const t = useT();
   const [value, setValue] = useState<string | number>("");
 
   return (
@@ -352,20 +352,20 @@ function PendingRow({ c }: { c: CombatantView }) {
       <Text size="sm" truncate title={c.name} style={{ flex: 1, minWidth: 0 }}>
         {c.name}
       </Text>
-      <Tooltip label="Valor do dado físico (d20 + bônus de iniciativa). Enter confirma.">
+      <Tooltip label={t("init.physicalTip")}>
         <NumberInput
           w={60}
-          placeholder="Valor"
+          placeholder={t("init.value")}
           value={value}
           min={LIMITS.initiative.min}
           max={LIMITS.initiative.max}
           allowDecimal={false}
           onChange={setValue}
-          aria-label={`Iniciativa de ${c.name}`}
+          aria-label={t("init.of", { name: c.name })}
         />
       </Tooltip>
-      <Tooltip label={`Rolar iniciativa (${INIT_TIP})`}>
-        <ActionIcon variant="default" size="md" aria-label={`Rolar iniciativa de ${c.name}`} onClick={() => act("init:roll", { id: c.id })}>
+      <Tooltip label={t("init.rollTip")}>
+        <ActionIcon variant="default" size="md" aria-label={t("init.rollOf", { name: c.name })} onClick={() => act("init:roll", { id: c.id })}>
           <IconDice5 size={16} />
         </ActionIcon>
       </Tooltip>
