@@ -1,6 +1,6 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { IconBrush, IconDeviceMobile, IconLogout } from "@tabler/icons-react";
-import { APP_VERSION, groupName, type ClientState } from "@rpg/shared";
+import { groupName, type ClientState } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
 import { currentGroup } from "../format";
@@ -21,6 +21,7 @@ import { GmTabs } from "./GmTabs";
 import { HandoutButton, HandoutModal } from "./Handout";
 import { InitiativePanel } from "./InitiativePanel";
 import { LanguageMenu } from "./LanguageMenu";
+import { AboutLink, AboutModal } from "./About";
 import { MobileShell } from "./MobileShell";
 import { PlayersPanel } from "./PlayersPanel";
 import { SoundSync } from "./SoundSync";
@@ -62,6 +63,7 @@ function DesktopShell({ state }: { state: ClientState }) {
   // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
   const logDetached = useApp((s) => s.logDetached && !s.logOut);
   const [clearing, setClearing] = useState(false);
+  const [about, setAbout] = useState(false);
   const { widths, max, collapsed, resize, collapse, toggle, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
 
@@ -80,9 +82,7 @@ function DesktopShell({ state }: { state: ClientState }) {
           <Text fw={700} ff="heading" c="bronze.4" fz={18}>
             Jamal's Tabletop
           </Text>
-          <Text size="xs" c="dimmed">
-            v{APP_VERSION}
-          </Text>
+          <AboutLink onOpen={() => setAbout(true)} />
         </Group>
         <TurnStatus state={state} />
         <Group gap="sm" wrap="nowrap">
@@ -171,6 +171,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       {gm && <CloseGuard />}
       {logDetached && <FloatingLog />}
       <SoundSync sound={state.sound} />
+      <AboutModal opened={about} onClose={() => setAbout(false)} />
       <HandoutModal />
     </div>
   );

@@ -44,7 +44,7 @@ Ordem sugerida: a base primeiro (protege o resto), depois por assunto. Dá para 
 - [x] **Rolagem secreta por um jogador:** o mestre rola (ex.: Percepção) com o modificador do personagem sem o jogador ver.
 
 ## F. Produto
-- [ ] **Sobre / Créditos:** versão, licenças de terceiros (biblioteca e sons dos dados, MIT; fontes, OFL; ícones Tabler, MIT…) e crédito do SRD 5.1 (CC-BY 4.0) se usarmos texto dele. Nada de "D&D" e outras marcas da Wizards no app.
+- [x] **Sobre / Créditos:** versão, licenças de terceiros (biblioteca e sons dos dados, MIT; fontes, OFL; ícones Tabler, MIT…) e crédito do SRD 5.1 (CC-BY 4.0) se usarmos texto dele (hoje não usamos). Nada de "D&D" e outras marcas da Wizards no app.
 - [ ] **i18n completo: inglês e espanhol.** Migrar os textos do client para o catálogo; mensagens de erro do servidor viram códigos traduzidos no client; escolha do idioma (padrão: o do navegador).
 
 ## G. Névoa de guerra

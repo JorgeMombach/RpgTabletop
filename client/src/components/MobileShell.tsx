@@ -1,5 +1,5 @@
 import { ActionIcon, Badge, Group, Indicator, Menu, Text, UnstyledButton } from "@mantine/core";
-import { IconCheck, IconDeviceDesktop, IconDice5, IconLogout, IconMap, IconMenu2, IconSwords, IconUser } from "@tabler/icons-react";
+import { IconCheck, IconDeviceDesktop, IconDice5, IconInfoCircle, IconLogout, IconMap, IconMenu2, IconSwords, IconUser } from "@tabler/icons-react";
 import type { ClientState } from "@rpg/shared";
 import { useEffect, useState, type ReactNode } from "react";
 import { BattleMap } from "../map/BattleMap";
@@ -16,6 +16,7 @@ import { InitiativePanel } from "./InitiativePanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { SelectedPanel } from "./SelectedPanel";
 import { HandoutButton, HandoutModal } from "./Handout";
+import { AboutModal } from "./About";
 import { TurnStatus } from "./Shell";
 import { SoundSync } from "./SoundSync";
 import { VolumeControl } from "./VolumeControl";
@@ -51,6 +52,7 @@ export function MobileShell({ state }: { state: ClientState }) {
   const connected = useApp((s) => s.connected);
   const selectedId = useApp((s) => s.selectedId);
   const [tab, setTab] = useState<Tab>(readTab);
+  const [about, setAbout] = useState(false);
   const me = state.self.id;
   const { combat, rolls } = state.battle;
   const currentId = combat.active ? combat.order[combat.turnIndex] : null;
@@ -123,6 +125,9 @@ export function MobileShell({ state }: { state: ClientState }) {
               </Menu.Item>
             ))}
             <Menu.Divider />
+            <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => setAbout(true)}>
+              {t("about.title")}
+            </Menu.Item>
             <Menu.Item leftSection={<IconLogout size={14} />} onClick={leave}>
               {t("top.leave")}
             </Menu.Item>
@@ -171,6 +176,7 @@ export function MobileShell({ state }: { state: ClientState }) {
       </nav>
 
       <SoundSync sound={state.sound} />
+      <AboutModal opened={about} onClose={() => setAbout(false)} />
       <HandoutModal />
     </div>
   );
