@@ -37,6 +37,8 @@ export interface CombatantInput {
   avatar?: string | null;
   /** Marca de animal (E21). */
   animal?: boolean;
+  /** Chefe (mob/NPC): moldura de ouro no mapa e fita com o nome, para todos. */
+  boss?: boolean;
   /** Visão no escuro (só personagens dos jogadores). */
   darkvision?: boolean;
   /** Chefe: as próximas fases (só mob, NPC e template; só o mestre). `[]` apaga. */

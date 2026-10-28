@@ -323,6 +323,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   templates: ["templates", "plantillas"],
   "testes contra a morte": ["death saves", "salvaciones de muerte"],
   tocha: ["torch", "antorcha"],
+  chefe: ["boss", "jefe"],
   turno: ["turn", "turno"],
   vez: ["turn", "turno"],
   vida: ["HP", "vida"],

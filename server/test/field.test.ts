@@ -202,6 +202,28 @@ describe("animais", () => {
   });
 });
 
+describe("chefe", () => {
+  it("template de chefe gera mobs e NPCs marcados; o jogador vê a marca; aliado nunca é chefe", async () => {
+    const g = await gm();
+    const ana = await player("Ana");
+    const [tid] = idsOf(await act(g, "template:upsert", { name: "Avanthir", hpMax: 200, dexMod: 0, boss: true }));
+    assert.equal(game().templates[0].boss, true);
+    const [dragao] = idsOf(await act(g, "mob:addFromTemplate", { templateId: tid, qty: 1 }));
+    const [npc] = idsOf(await act(g, "npc:addFromTemplate", { templateId: tid }));
+    assert.equal(find(dragao).boss, true);
+    assert.equal(find(npc).boss, true);
+
+    // A moldura de chefe não é segredo (as fases, sim).
+    const seen = await stateWhere(ana, (s) => s.battle.mobs.length === 1);
+    assert.equal(seen.battle.mobs[0].boss, true);
+
+    assert.ok((await act(g, "combatant:update", { id: dragao, boss: false })).ok);
+    assert.equal(find(dragao).boss, undefined);
+    const [thorin] = idsOf(await act(ana, "ally:create", { name: "Thorin", hpMax: 20, dexMod: 1, boss: true }));
+    assert.equal(find(thorin).boss, undefined);
+  });
+});
+
 describe("arquivo de sessão", () => {
   const exportFile = (s: Client) => s.timeout(2000).emitWithAck("session:export");
   const importFile = (s: Client, file: unknown) => s.timeout(2000).emitWithAck("session:import", file);

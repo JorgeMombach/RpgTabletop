@@ -681,3 +681,10 @@ Os itens e o detalhe de cada um estão em [docs/backlog.md](docs/backlog.md) e n
 - **Mostrar para a mesa** viaja num evento próprio (como a imagem do mapa) e **não** vai no arquivo de sessão: é do momento.
 - **Tradução completa (en, es):** interface no catálogo do cliente; **textos do servidor** (recusas e avisos do log) continuam escritos em português, mas como **modelo com valores** (`fail("… {name}.", { name })`, `logSystem(store, "…", { … })`), e o cliente traduz com `client/src/i18n/serverText.ts`. `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução. O que a mesa digita fica como foi escrito.
 - **Arquivo de sessão:** continua no formato 2; os campos novos (névoa, regras, tochas, fases, modelos do log) são opcionais, então arquivos da 2.8 abrem normalmente. Uma versão 2.8 abrindo arquivo da 2.9 ignora esses campos.
+
+### 2.10.0 — Cara de jogo (backlog L, em andamento)
+Release de interface e fluxo sobre a base do guia visual (tema, fontes e componentes ficam). Itens em [docs/backlog.md](docs/backlog.md). Decisões até aqui:
+- **Arte desenhada no código, aprovada em protótipo antes de entrar no app**. Nada de imagens soltas: o kit visual (`client/src/map/tokenArt.ts`) desenha metal, ouro, rebites e rubis no canvas, como a névoa.
+- **Tokens:** moldura "bronze forjado" para todos (bronze no aliado, ferro no mob, prata no NPC; a cor do token vira uma faixa por dentro). Cada token pronto vira uma imagem guardada, refeita só quando muda o que aparece nela (avatar, cor, tamanho na tela em degraus de 2^¼, caído); o que anima (halo e contorno da vez, tracejado da seleção) é desenhado ao vivo e para com *Reduzir o clima*.
+- **Chefe** é uma marca própria do mob/NPC (e do template), **pública**: todos veem a moldura de chefe (estilo carta de jogo, sempre quadrada). As fases continuam só com o mestre; por isso o brasão não depende delas. Vai no arquivo de sessão (formato 2, campo opcional).
+- **Ícones de jogo:** exceção ao "só Tabler" para ornamentos e ícones desenhados no mapa: game-icons.net (CC BY 3.0), só os caminhos usados, em `client/src/map/gameIcons.ts`, com crédito na tela *Sobre*.

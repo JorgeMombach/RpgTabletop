@@ -1,12 +1,13 @@
-import { useRef, useState } from "react";
-import type Konva from "konva";
-import { Circle, Group, Image as KImage, Line, Path, Rect, RegularPolygon, Text } from "react-konva";
+import { useEffect, useRef, useState } from "react";
+import Konva from "konva";
+import { Circle, Group, Path, Rect, RegularPolygon, Shape as KShape, Text } from "react-konva";
 import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
 import { fmtCondition, hpLevel, hpRatio } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
+import { drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind } from "./tokenArt";
 import { useImage } from "./useImage";
 
 // Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
@@ -35,12 +36,62 @@ interface Props {
   onMove: (pos: GridPos) => Promise<boolean>;
 }
 
-/** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). */
+/**
+ * O que anima em volta do token (L3), desenhado ao vivo e leve: por baixo da imagem pronta, o halo da vez;
+ * por cima, o contorno aceso da vez e o tracejado da seleção. Parado com *Reduzir o clima*.
+ */
+function TokenFx({ kind, boss, r, active, selected, over }: { kind: FrameKind; boss: boolean; r: number; active: boolean; selected: boolean; over: boolean }) {
+  const ref = useRef<Konva.Shape>(null);
+  const reduceFx = useApp((s) => s.reduceFx);
+  const time = useRef(0);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || reduceFx) return;
+    let last = 0;
+    const anim = new Konva.Animation((frame) => {
+      if (!frame || frame.time - last < 33) return false;
+      last = frame.time;
+      time.current = frame.time / 1000;
+      return true;
+    }, node.getLayer());
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, [reduceFx]);
+  return (
+    <KShape
+      ref={ref}
+      listening={false}
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        if (!over) {
+          if (active) drawTurnHalo(ctx, r, time.current);
+          return;
+        }
+        if (active) drawTurnRing(ctx, kind, boss, r, time.current);
+        if (selected) drawSelection(ctx, kind, boss, r, time.current);
+      }}
+    />
+  );
+}
+
+/** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
 export function Token({ c, grid, selected, active, draggable, onSelect, onMove }: Props) {
   const avatar = useImage(c.avatar);
   const [hover, setHover] = useState(false);
   const [dragFeet, setDragFeet] = useState<number | null>(null);
   const dragStart = useRef<GridPos | null>(null);
+  const groupRef = useRef<Konva.Group>(null);
+
+  // As iniciais usam a Cinzel: quando ela termina de carregar, redesenha (a imagem do token é refeita com ela).
+  useEffect(() => {
+    let alive = true;
+    void document.fonts?.ready.then(() => alive && groupRef.current?.getLayer()?.batchDraw());
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   if (!c.pos) return null;
   // Tamanho (E26+): `pos` é a casa de cima à esquerda; o token cobre `span` × `span` casas.
@@ -72,6 +123,13 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
   const badgeR = Math.max(7, grid.cellPx * 0.86 * 0.17);
   const conditionText = c.conditions.map(fmtCondition).join(", ");
 
+  const kind: FrameKind = isNpc ? "npc" : isMob ? "mob" : "ally";
+  const boss = c.boss === true && c.type !== "ally";
+  const art = { kind, boss, r, color: c.color, avatar, initials: initials(c.name), down };
+  // A moldura de chefe é sempre quadrada (também no NPC chefe): halo e seleção acompanham.
+  const fxKind: FrameKind = boss ? "mob" : kind;
+
+  /** Área de clique: a forma do token. */
   const clip = (ctx: Konva.Context) => {
     ctx.beginPath();
     if (isNpc) {
@@ -80,7 +138,7 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
         ctx.lineTo(Math.cos(a) * hexR, Math.sin(a) * hexR);
       }
     } else if (isMob) {
-      const k = size * 0.18;
+      const k = r * 0.36;
       ctx.moveTo(-r + k, -r);
       ctx.arcTo(r, -r, r, r, k);
       ctx.arcTo(r, r, -r, r, k);
@@ -91,15 +149,6 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
     }
     ctx.closePath();
   };
-
-  const Shape = (extra: Konva.ShapeConfig) =>
-    isNpc ? (
-      <RegularPolygon sides={6} radius={hexR} {...extra} />
-    ) : isMob ? (
-      <Rect x={-r} y={-r} width={size} height={size} cornerRadius={size * 0.18} {...extra} />
-    ) : (
-      <Circle radius={r} {...extra} />
-    );
 
   /**
    * Contorno de seleção/turno, afastado `gap` da borda. Calculado em vez de escalar a forma:
@@ -138,10 +187,11 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
 
   return (
     <Group
+      ref={groupRef}
       x={center.x}
       y={center.y}
       draggable={draggable}
-      opacity={hidden ? 0.45 : down ? 0.5 : 1}
+      opacity={hidden ? 0.45 : 1}
       onMouseEnter={(e) => {
         setHover(true);
         // O mapa desenha este token por último: o nome fica por cima dos vizinhos (E26).
@@ -174,47 +224,25 @@ export function Token({ c, grid, selected, active, draggable, onSelect, onMove }
       }}
       onDragEnd={handleDragEnd}
     >
-      {(selected || active) &&
-        RingShape(ring * 2, {
-          stroke: active ? "#d8b47a" : "#ece4d4",
-          strokeWidth: ring,
-          dash: selected && !active ? undefined : [ring * 2, ring],
-          listening: false,
-        })}
+      {active && <TokenFx kind={fxKind} boss={boss} r={r} active selected={false} over={false} />}
 
-      {Shape({ fill: c.color, shadowColor: "black", shadowBlur: 6, shadowOpacity: 0.5 })}
+      <KShape
+        sceneFunc={(kctx) => {
+          // Pixels de tela por unidade do mapa (zoom do mapa × densidade da tela): a imagem sai nítida.
+          const ctx = kctx._context;
+          const m = ctx.getTransform();
+          const img = tokenArt(art, Math.hypot(m.a, m.b));
+          ctx.drawImage(img.canvas, -img.extent, -img.extent, img.extent * 2, img.extent * 2);
+        }}
+        hitFunc={(kctx, shape) => {
+          clip(kctx);
+          kctx.fillStrokeShape(shape);
+        }}
+      />
 
-      {avatar ? (
-        <Group clipFunc={clip}>
-          <KImage image={avatar} x={-r} y={-r} width={size} height={size} />
-        </Group>
-      ) : (
-        <Text
-          text={initials(c.name)}
-          width={size}
-          height={size}
-          x={-r}
-          y={-r}
-          align="center"
-          verticalAlign="middle"
-          fontStyle="bold"
-          fontSize={size * 0.34}
-          fill="#ffffff"
-          listening={false}
-        />
-      )}
+      {(active || selected) && <TokenFx kind={fxKind} boss={boss} r={r} active={!!active} selected={selected} over />}
 
-      {Shape({ stroke: c.color, strokeWidth: ring, listening: false })}
-      {/* Contorno escuro por fora do anel: o token se destaca sobre efeitos (fogo, graxa…) e mapas de qualquer cor. */}
-      {RingShape(ring * 0.9, { stroke: "#0b0c10", strokeWidth: ring * 0.8, opacity: 0.9, listening: false })}
       {hidden && RingShape(ring * 0.9, { stroke: "#ece4d4", strokeWidth: ring * 0.6, dash: [ring * 1.5, ring * 1.5], listening: false })}
-
-      {down && isMob && (
-        <>
-          <Line points={[-r * 0.6, -r * 0.6, r * 0.6, r * 0.6]} stroke="#e5534b" strokeWidth={ring * 1.4} listening={false} />
-          <Line points={[r * 0.6, -r * 0.6, -r * 0.6, r * 0.6]} stroke="#e5534b" strokeWidth={ring * 1.4} listening={false} />
-        </>
-      )}
 
       {c.hp !== undefined && c.hpMax !== undefined && (
         <Group y={r + ring * 1.7} listening={false}>

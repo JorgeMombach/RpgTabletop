@@ -199,6 +199,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
   if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
   if (c.torch !== undefined && bool(c.torch, "tocha")) out.torch = true;
+  if (c.boss !== undefined && bool(c.boss, "chefe")) out.boss = true;
   if (c.phases !== undefined) out.phases = bossPhases(c.phases);
   if (c.phase !== undefined) out.phase = int(c.phase, "fase do chefe", 1, LIMITS.phases + 1);
   const description = optText(c.description, "descrição", LIMITS.description);
@@ -289,6 +290,7 @@ function template(raw: unknown): MobTemplate {
   const notes = optText(t.notes, "notas", LIMITS.notes);
   if (notes) out.notes = notes;
   if (t.animal !== undefined && bool(t.animal, "animal")) out.animal = true;
+  if (t.boss !== undefined && bool(t.boss, "chefe")) out.boss = true;
   const description = optText(t.description, "descrição", LIMITS.description);
   if (description) out.description = description;
   if (t.phases !== undefined) out.phases = bossPhases(t.phases);

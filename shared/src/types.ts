@@ -178,6 +178,8 @@ export interface Combatant {
   darkvision?: boolean;
   /** Tocha acesa: ilumina em volta (20 ft de luz forte e 20 de meia-luz). */
   torch?: boolean;
+  /** Chefe (mob/NPC): moldura de ouro e fita com o nome no mapa. Todos veem (as fases, não). */
+  boss?: boolean;
   /** Chefe (mob/NPC): fases que ainda vão começar, em ordem. Só o mestre recebe (têm vida). */
   phases?: BossPhase[];
   /** Fase atual de um chefe (ausente = 1). */
@@ -221,6 +223,8 @@ export interface MobTemplate {
   notes?: string;
   /** Mobs e NPCs criados com o template já vêm com a marca de animal. */
   animal?: boolean;
+  /** Mobs e NPCs criados com o template já vêm marcados como chefe. */
+  boss?: boolean;
   /** Chefe: fases depois da primeira (que é a vida/nome/CA do próprio template). */
   phases?: BossPhase[];
 }

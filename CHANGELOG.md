@@ -7,6 +7,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Adicionado
+- **Tokens com moldura de metal:** todo token no mapa ganhou uma moldura forjada com rebites e relevo: bronze nos aliados, ferro nos mobs e prata nos NPCs (o formato continua dizendo o lado), e a cor do token aparece numa faixa fina por dentro. Na vez, o token ganha um halo quente e um contorno aceso com luzes girando; selecionado, um tracejado que anda em volta; caído, o retrato fica cinza com uma caveira. Com *Reduzir o clima*, nada anima.
+- **Chefe:** no formulário de mob, NPC e template, a marca *Chefe* dá ao token uma moldura de carta de jogo: ferro escuro com um arco gótico no alto, um filete de ouro que corre a borda e se enrola em volutas nas quinas, rubis lapidados e uma caveira de ouro embaixo. Todos veem a moldura (as fases continuam só com o mestre). Vai no arquivo de sessão.
 - **Pôr mobs sem sair do combate:** o botão **+** no painel *Mobs* (aba Combate) abre o bestiário numa janela, com as mesmas opções da aba Mesa (quantidade, *+ Mobs*, *+ NPC*, ocultos, avulso e template). Ao adicionar, a janela fecha e os mobs novos aparecem na lista, prontos para arrastar ao mapa.
 - **Faixa para quem chega com o combate andando:** o jogador cujo personagem está sem iniciativa ou fora do mapa vê no topo da ficha "O combate já começou", com os botões que faltam (*Rolar iniciativa*, *Colocar no mapa*). A faixa some quando os dois estiverem feitos.
 

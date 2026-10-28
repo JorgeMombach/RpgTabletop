@@ -56,6 +56,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     animal: true,
     darkvision: true,
     torch: true,
+    boss: true,
     // Fases de chefe valem para qualquer tipo no arquivo (a interface só oferece em mob e NPC).
     phases: [{ hpMax: 40 }],
     phase: 2,
@@ -67,7 +68,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   const lich: Combatant = { id: "lich", name: "Lich", type: "mob", templateId: "t1", hp: 90, hpMax: 135, dexMod: 3, color: "#7a5ba3", pos: { col: 8, row: 8 }, initiative: 20, initRoll: 17, conditions: [] };
   const sombra: Required<Combatant> = { ...thorin, id: "sombra", name: "Sombra", type: "mob", ownerId: gmId, hidden: true, summonerId: "lich", size: "huge", pos: { col: 10, row: 8 }, initiative: null, initRoll: null };
   const guarda: Combatant = { id: "guarda", name: "Guarda", type: "npc", hp: 11, hpMax: 11, dexMod: 0, color: "#4fae8c", pos: { col: 1, row: 1 }, initiative: 5, initRoll: 5, conditions: [], hidden: true };
-  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>] };
+  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>] };
   const effect: Required<MapEffect> = {
     id: "e1",
     name: "Graxa em chamas",

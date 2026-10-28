@@ -56,7 +56,7 @@ Cinzel **só** em títulos (nunca em botões ou texto corrido). Escala 12/14/16/
 
 ## Ícones
 
-Biblioteca **Tabler** (`@tabler/icons-react`), traço 1,6–1,8 px, sempre na cor do texto ao redor. **Nada de emoji** na interface.
+Biblioteca **Tabler** (`@tabler/icons-react`), traço 1,6–1,8 px, sempre na cor do texto ao redor. **Nada de emoji** na interface. Ornamentos e ícones de jogo desenhados no mapa (moldura de chefe e, depois, condições) vêm do **game-icons.net** (CC BY 3.0, crédito na tela *Sobre*), pintados no código com o kit visual (`client/src/map/tokenArt.ts`).
 
 | Uso | Ícone Tabler |
 |---|---|

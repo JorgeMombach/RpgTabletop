@@ -172,9 +172,10 @@ export function editable(store: Store, player: ServerPlayer, rawId: unknown): Co
   return c;
 }
 
-/** Marcas opcionais (E21): animal em qualquer combatente; oculto só em mob/NPC; visão no escuro só em aliado. */
-function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown; darkvision?: unknown } | undefined) {
+/** Marcas opcionais (E21): animal em qualquer combatente; oculto e chefe só em mob/NPC; visão no escuro só em aliado. */
+function applyFlags(c: Combatant, input: { animal?: unknown; hidden?: unknown; darkvision?: unknown; boss?: unknown } | undefined) {
   if (typeof input?.animal === "boolean") c.animal = input.animal || undefined;
+  if (c.type !== "ally" && typeof input?.boss === "boolean") c.boss = input.boss || undefined;
   if (c.type === "ally" && typeof input?.darkvision === "boolean") c.darkvision = input.darkvision || undefined;
   if (c.type !== "ally" && input?.hidden === true) c.hidden = true;
 }
@@ -233,6 +234,7 @@ function fromTemplate(t: MobTemplate) {
     abilities: t.abilities ? { ...t.abilities } : undefined,
     size: t.size,
     animal: t.animal,
+    boss: t.boss,
     description: t.description,
     gmNotes: t.notes,
     phases: t.phases?.map((p) => ({ ...p })),
@@ -318,6 +320,7 @@ export const combatantHandlers: HandlerMap = {
       notes: typeof input?.notes === "string" ? input.notes.trim().slice(0, LIMITS.notes) || undefined : undefined,
       description: typeof input?.description === "string" ? input.description.trim().slice(0, LIMITS.description) || undefined : undefined,
       animal: input?.animal === true || undefined,
+      boss: input?.boss === true || undefined,
     };
     const phases = phasesOf(input?.phases);
     const ac = acOf(input?.ac);
@@ -504,8 +507,8 @@ export const combatantHandlers: HandlerMap = {
     applySize(c, size);
     if (isColor(payload.color)) c.color = payload.color;
     applyAvatar(c, payload.avatar);
-    // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só as marcas de animal e visão no escuro.
-    applyFlags(c, { animal: payload.animal, darkvision: payload.darkvision });
+    // Ocultar/revelar tem ação própria (mexe na iniciativa): aqui só as marcas de animal, chefe e visão no escuro.
+    applyFlags(c, { animal: payload.animal, darkvision: payload.darkvision, boss: payload.boss });
     clampHp(c, c.hp);
     // Mod. DES desempata a iniciativa.
     if (payload.dexMod !== undefined && store.game.battle.combat.order.includes(c.id)) placeInOrder(store, c);
