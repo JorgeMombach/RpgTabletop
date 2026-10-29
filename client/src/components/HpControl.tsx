@@ -1,5 +1,5 @@
 import { ActionIcon, Badge, Button, Group, NumberInput, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import { IconX } from "@tabler/icons-react";
+import { IconArrowBigUpLine, IconX } from "@tabler/icons-react";
 import type { Combatant } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
@@ -113,9 +113,17 @@ export function HpControl({ c }: { c: Combatant }) {
           </Tooltip>
         )}
         {down && (
-          <Badge color="red" variant="light" ml="auto">
-            {c.type === "mob" ? t("hp.downMob") : t("hp.down")}
-          </Badge>
+          <Group gap={6} ml="auto" wrap="nowrap">
+            <Badge color="red" variant="light">
+              {c.type === "mob" ? t("hp.downMob") : t("hp.down")}
+            </Badge>
+            {/* Levantar = cura de 1 (zera os testes contra a morte); curar mais também levanta. */}
+            <Tooltip label={t("hp.raiseTip")} multiline w={240}>
+              <Button size="compact-xs" variant="light" color="copper" leftSection={<IconArrowBigUpLine size={12} />} onClick={() => void act("hp:change", { id: c.id, delta: 1 })}>
+                {t("hp.raise")}
+              </Button>
+            </Tooltip>
+          </Group>
         )}
       </Group>
 

@@ -131,4 +131,31 @@ describe("paredes e portas", () => {
     await act(g, "battle:clear", { keepTemplates: true });
     assert.equal(game().battle.walls.length, 0);
   });
+
+  it("borracha nas paredes: corta por onde passa (mantém a espessura), porta tocada some inteira; só o mestre", async () => {
+    const { g, ana } = await setup();
+    await act(g, "wall:clear", {});
+    idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 10, row: 0 }, thickness: 0.5 }));
+    idsOf(await act(g, "wall:add", { from: { col: 0, row: 4 }, to: { col: 1, row: 4 }, door: true }));
+    assert.equal((await act(ana, "wall:erase", { points: [5, -1, 5, 1], radius: 0.5 })).ok, false);
+
+    // Passa no meio da parede: sobram 0–4,5 e 5,5–10.
+    const ids = idsOf(await act(g, "wall:erase", { points: [5, -1, 5, 1], radius: 0.5 }));
+    const walls = game().battle.walls.filter((w) => !w.door);
+    assert.equal(ids.length, 2);
+    assert.equal(walls.length, 2);
+    const spans = walls.map((w) => [w.from.col, w.to.col]).sort((a, b) => a[0] - b[0]);
+    assert.ok(Math.abs(spans[0][1] - 4.5) < 0.1 && spans[0][0] === 0, JSON.stringify(spans));
+    assert.ok(Math.abs(spans[1][0] - 5.5) < 0.1 && spans[1][1] === 10, JSON.stringify(spans));
+    assert.ok(walls.every((w) => w.thickness === 0.5));
+
+    // Longe de tudo: nada muda (nem os ids).
+    const before = game().battle.walls.map((w) => w.id);
+    idsOf(await act(g, "wall:erase", { points: [50, 50], radius: 0.5 }));
+    assert.deepEqual(game().battle.walls.map((w) => w.id), before);
+
+    // Encostou na porta: some inteira.
+    idsOf(await act(g, "wall:erase", { points: [0.5, 4.2], radius: 0.3 }));
+    assert.ok(!game().battle.walls.some((w) => w.door));
+  });
 });

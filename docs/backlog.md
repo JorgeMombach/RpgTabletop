@@ -111,10 +111,10 @@ Bugs:
 - [x] Tradução: duração das condições aparece como "Rounds" em português. Agora "rodada" em toda a interface em português.
 Decisões e novidades:
 - [x] Visão dos personagens em mapa aberto revela demais (de dia são 120 ft). Decisão: alcance por cena (30, 60, 120 ft ou pela luz do clima).
-- [ ] Desenho para os jogadores (setas?), com o mestre podendo apagar os de todos. Decisão: só setas; cada um apaga as suas, o mestre apaga todas.
-- [ ] Borracha de verdade no desenho e nas paredes/portas: apaga só por onde passa, arrastando.
-- [ ] Efeito de mapa novo: **Luz sagrada**.
-- [ ] Levantar personagem caído: botão próprio (1 de vida ou o valor da cura) além de levantar ao receber cura. Decisão: botão *Levantar* (1 de vida) no Selecionado e no menu do token; a cura continua levantando.
+- [x] Desenho para os jogadores (setas?), com o mestre podendo apagar os de todos. Decisão: só setas; cada um apaga as suas, o mestre apaga todas.
+- [x] Borracha de verdade no desenho e nas paredes/portas: apaga só por onde passa, arrastando.
+- [x] Efeito de mapa novo: **Luz sagrada**. Escolhida a versão "Guardiões com redemoinho": brilho no meio, riscos girando e luzinhas rondando a borda.
+- [x] Levantar personagem caído: botão próprio (1 de vida ou o valor da cura) além de levantar ao receber cura. Decisão: botão *Levantar* (1 de vida) no Selecionado e no menu do token; a cura continua levantando.
 
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).

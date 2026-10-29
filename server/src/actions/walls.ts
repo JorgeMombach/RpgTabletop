@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { LIMITS, WALL_THICKNESS, type Door, type GridPos, type Wall } from "@rpg/shared";
+import { eraseWall, pathOf } from "../erase";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
@@ -63,6 +64,35 @@ export const wallHandlers: HandlerMap = {
     const { battle } = store.game;
     const wall = findWall(battle.walls, payload?.id);
     battle.walls = battle.walls.filter((w) => w !== wall);
+  },
+
+  "wall:erase": (store, player, payload) => {
+    requireGm(player);
+    const raw = payload?.points;
+    const coord = (n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord;
+    if (!Array.isArray(raw) || raw.length < 2 || raw.length % 2 !== 0 || raw.length > LIMITS.eraserNumbers || !raw.every(coord)) fail("Caminho da borracha inválido.");
+    const { min, max } = LIMITS.wallEraserRadius;
+    const radius = requireNumber(payload.radius, "Tamanho da borracha", min, max);
+    const path = pathOf(raw);
+    const { battle } = store.game;
+    const out: Wall[] = [];
+    const ids: string[] = [];
+    for (const w of battle.walls) {
+      const left = eraseWall(w, path, radius);
+      if (left === null) {
+        out.push(w);
+        continue;
+      }
+      // Os trechos que sobram continuam a parede (mesma espessura), com ids novos.
+      for (const part of left) {
+        const piece: Wall = { id: randomUUID(), ...part, ...(w.thickness !== undefined && { thickness: w.thickness }) };
+        out.push(piece);
+        ids.push(piece.id);
+      }
+    }
+    if (out.length > LIMITS.walls) fail("Limite de {n} paredes e portas no mapa.", { n: LIMITS.walls });
+    battle.walls = out;
+    return ids;
   },
 
   "wall:clear": (store, player) => {

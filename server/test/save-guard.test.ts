@@ -121,7 +121,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     // Pedido e reações valem só no turno: não vão no arquivo. O modo fora de combate vai.
     rolls: { request: null, reactions: [], outside: "locked" },
     effects: [effect],
-    drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true } satisfies Required<Drawing>],
+    drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true, authorId: playerId } satisfies Required<Drawing>],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door> } satisfies Required<Wall>,

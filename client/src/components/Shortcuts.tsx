@@ -110,7 +110,7 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
         { keys: keys("R"), label: k("map.ruler") },
         { keys: keys("A"), label: k("map.area") },
         { keys: keys("P"), label: k("map.ping") },
-        { keys: keys("B"), label: k("draw.tool"), gm: true },
+        { keys: keys("B"), label: k("draw.tool") },
         { keys: keys("W"), label: k("walls.tool"), gm: true },
         { keys: keys("F"), label: k("fog.tool"), gm: true },
         { keys: keys("Shift", { text: k("keys.drag") }), label: k("keys.quickRuler") },

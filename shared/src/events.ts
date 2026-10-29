@@ -262,14 +262,22 @@ export interface ActionPayloads {
    * Mantém jogadores, aliados (vida/slots/magias), grid e log; templates se `keepTemplates`.
    */
   "battle:clear": { keepTemplates: boolean };
-  /** Mestre: desenho no mapa (traço, seta, círculo). */
-  "draw:add": Omit<Drawing, "id">;
+  /** Desenho no mapa (traço, seta, círculo). Jogador: só seta, e o servidor marca de quem é (`authorId`). */
+  "draw:add": Omit<Drawing, "id" | "authorId">;
+  /** Mestre apaga qualquer desenho; jogador, só as próprias setas. */
   "draw:remove": { id: string };
-  /** Mestre: apaga todos os desenhos. */
+  /** Mestre: apaga todos os desenhos. Jogador: apaga as próprias setas. */
   "draw:clear": Record<string, never>;
+  /**
+   * Borracha: apaga por onde passa o caminho `points` (x, y em pixels do mapa) com raio `radius`. Traço
+   * livre é cortado; seta e círculo tocados somem inteiros. Jogador: só nas próprias setas.
+   */
+  "draw:erase": { points: number[]; radius: number };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
   "wall:remove": { id: string };
+  /** Mestre: borracha nas paredes (`points` = col, row em casas). Parede é cortada; porta tocada some inteira. */
+  "wall:erase": { points: number[]; radius: number };
   /** Mestre: liga ou desliga a névoa de guerra da cena. */
   "fog:set": { enabled: boolean };
   /** Mestre: revela (ou cobre) retângulos de casas. */
@@ -431,6 +439,12 @@ export const LIMITS = {
   drawingWidth: { min: 1, max: 24 },
   /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
   drawingCoord: 100_000,
+  /** Setas de cada jogador no mapa: a mais antiga some quando ele passa disso. */
+  playerArrows: 10,
+  /** Borracha: números do caminho (x e y) por envio e raio (pixels do mapa no desenho, casas nas paredes). */
+  eraserNumbers: 400,
+  eraserRadius: { min: 1, max: 400 },
+  wallEraserRadius: { min: 0.05, max: 3 },
   /** Cenas na sessão e tamanho do nome. */
   scenes: 20,
   sceneName: 40,

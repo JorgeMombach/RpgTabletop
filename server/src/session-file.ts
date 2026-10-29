@@ -530,7 +530,11 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     npcs,
     effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
     // Arquivos anteriores à 2.8 não têm desenhos nem paredes.
-    drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
+    drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => {
+      const raw = obj(d, "desenho");
+      // Seta de jogador: guarda de quem é (religado ao carregar, como os donos).
+      return { id: requireString(raw.id, "Desenho"), ...parseDrawing(d), ...(raw.authorId !== undefined && { authorId: requireString(raw.authorId, "Desenho") }) };
+    }),
     walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
@@ -623,6 +627,7 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
     if (e.revertTo) e.revertTo.ownerId = owner(e.revertTo.ownerId);
   }
   for (const e of game.log) e.authorId = owner(e.authorId);
+  for (const d of [...game.battle.drawings, ...game.scenes.flatMap((sc) => sc.stored?.drawings ?? [])]) if (d.authorId) d.authorId = owner(d.authorId);
 
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
   game.battle.map.imageVersion = store.game.battle.map.imageVersion + 1;

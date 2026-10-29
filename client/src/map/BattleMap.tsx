@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type TableStyle, type Wall } from "@rpg/shared";
@@ -19,9 +19,9 @@ import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
-import { DrawingShape, DrawOptions } from "./DrawingShape";
+import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
 import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
-import { addWall, removeWall, undoWall } from "./wallHistory";
+import { addWall, recordErase, undoWall } from "./wallHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -61,6 +61,9 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "A", ping: "P", draw: "B", walls: "W", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
+/** Raio da borracha das paredes, em casas. */
+const WALL_ERASER = 0.25;
+
 export function BattleMap({ state, compact = false }: { state: ClientState; compact?: boolean }) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -87,6 +90,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const grid = state.battle.map;
   const layout = image ? imageLayout(image, grid.rotation, grid.imageScale) : null;
   const gm = state.self.role === "gm";
+  // Jogador desenha só setas (e apaga as dele com a borracha).
+  const myDrawMode: DrawMode = gm || drawMode === "erase" ? drawMode : "arrow";
   const rulerMode = !placing && (tool === "ruler" || (tool === "move" && shiftHeld));
   // Próximo da fila que já chegou no estado e está fora do mapa (a resposta da ação pode vir antes do estado).
   const placingNext = placing
@@ -236,12 +241,61 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     // O último trecho (entre o último movimento e o soltar) também entra.
     const end = worldPointer();
     const cur = strokeRef.current;
-    const pts = cur && end ? (drawMode === "free" ? [...cur, end.x, end.y] : [cur[0], cur[1], end.x, end.y]) : cur;
+    const pts = cur && end ? (myDrawMode === "free" ? [...cur, end.x, end.y] : [cur[0], cur[1], end.x, end.y]) : cur;
     strokeRef.current = null;
     setStroke(null);
-    if (!pts || drawMode === "erase") return;
-    const long = drawMode === "free" ? pts.length >= 4 : Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) > 4 / view.scale;
-    if (long) void act("draw:add", { kind: drawMode, points: pts, color: drawColor, width: drawWidth, ...(drawHidden && { hidden: true }) });
+    if (!pts || myDrawMode === "erase") return;
+    const long = myDrawMode === "free" ? pts.length >= 4 : Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) > 4 / view.scale;
+    if (long) void act("draw:add", { kind: myDrawMode, points: pts, color: drawColor, width: drawWidth, ...(gm && drawHidden && { hidden: true }) });
+  }
+
+  // Borracha (M): apaga só por onde passa, como uma borracha de verdade. O caminho vai ao servidor em
+  // pedaços enquanto arrasta (o apagado some na hora); nas paredes, a passada inteira vira um passo do Desfazer.
+  const eraseMode = (tool === "draw" && drawMode === "erase") || (gm && tool === "walls" && wallMode === "erase");
+  /** Raio da borracha (pixels do mapa): no desenho, pelo tamanho escolhido; nas paredes, um quarto de casa. */
+  const eraserRadius = tool === "walls" ? grid.cellPx * WALL_ERASER : Math.max(4 / view.scale, grid.cellPx * (ERASER_CELLS[drawWidth] ?? 0.25));
+  const eraserRef = useRef<{ kind: "draw" | "walls"; pending: number[]; sent: boolean; timer: number | null; before: Wall[]; acts: Promise<unknown>[] } | null>(null);
+  const [eraserAt, setEraserAt] = useState<Point | null>(null);
+  useEffect(() => {
+    if (!eraseMode) setEraserAt(null);
+  }, [eraseMode]);
+  function flushErase() {
+    const e = eraserRef.current;
+    if (!e) return;
+    if (e.timer !== null) window.clearTimeout(e.timer);
+    e.timer = null;
+    const pts = e.pending;
+    // Depois do primeiro envio, um ponto só é o fim do pedaço anterior: nada novo.
+    if (pts.length < 2 || (e.sent && pts.length < 4)) return;
+    e.sent = true;
+    // O próximo pedaço começa onde este acabou (sem falha no caminho).
+    e.pending = pts.slice(-2);
+    if (e.kind === "draw") {
+      const radius = Math.min(LIMITS.eraserRadius.max, Math.max(LIMITS.eraserRadius.min, eraserRadius));
+      e.acts.push(act("draw:erase", { points: pts.map((n) => Math.round(n * 2) / 2), radius }));
+    } else {
+      const cells = pts.map((n, i) => Math.round(((n - (i % 2 ? grid.offsetY : grid.offsetX)) / grid.cellPx) * 100) / 100);
+      e.acts.push(act("wall:erase", { points: cells, radius: WALL_ERASER }));
+    }
+  }
+  function eraseTo(p: Point) {
+    const e = eraserRef.current;
+    if (!e) return;
+    const n = e.pending.length;
+    if (n >= 2 && Math.hypot(p.x - e.pending[n - 2], p.y - e.pending[n - 1]) < eraserRadius / 3) return;
+    e.pending.push(p.x, p.y);
+    if (e.pending.length >= LIMITS.eraserNumbers - 2) flushErase();
+    else if (e.timer === null) e.timer = window.setTimeout(flushErase, 60);
+  }
+  function finishErase() {
+    const e = eraserRef.current;
+    if (!e) return;
+    // O último trecho (entre o último movimento e o soltar) também apaga.
+    const end = worldPointer();
+    if (end) eraseTo(end);
+    flushErase();
+    eraserRef.current = null;
+    if (e.kind === "walls") void Promise.all(e.acts).then(() => recordErase(e.before, useApp.getState().state?.battle.walls ?? []));
   }
 
   // Parede sendo traçada pelo mestre: de canto a canto do grid (ou livre); ao soltar vai para todos.
@@ -288,7 +342,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
   function onWallClick(w: Wall) {
-    if (tool === "walls" && wallMode === "erase") return void removeWall(w);
     if (!w.door) return;
     if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
     if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
@@ -379,8 +432,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       setTool("move");
       return;
     }
+    if (eraseMode) {
+      eraserRef.current = { kind: tool === "walls" ? "walls" : "draw", pending: [], sent: false, timer: null, before: state.battle.walls, acts: [] };
+      setEraserAt(p);
+      eraseTo(p);
+      return;
+    }
     if (tool === "walls") {
-      if (wallMode === "erase") return;
       const c = wallPointAt(p, grid, wallSnap);
       wallRef.current = { from: c, to: c };
       setWallDraft(wallRef.current);
@@ -396,8 +454,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       return;
     }
     if (tool === "draw") {
-      if (drawMode === "erase") return;
-      strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
+      strokeRef.current = myDrawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
       setStroke(strokeRef.current);
       return;
     }
@@ -417,6 +474,11 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    if (eraseMode) {
+      setEraserAt(p);
+      eraseTo(p);
+      return;
+    }
     if (fogRef.current) {
       fogAt(cellAt(p, grid));
       return;
@@ -431,7 +493,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     }
     if (strokeRef.current) {
       const s = strokeRef.current;
-      if (drawMode !== "free") strokeRef.current = [s[0], s[1], p.x, p.y];
+      if (myDrawMode !== "free") strokeRef.current = [s[0], s[1], p.x, p.y];
       // Ponto novo só depois de andar um pouco (na tela), para o traço não ficar pesado.
       else if (Math.hypot(p.x - s[s.length - 2], p.y - s[s.length - 1]) > 3 / view.scale && s.length < LIMITS.drawingNumbers - 2) strokeRef.current = [...s, p.x, p.y];
       else return;
@@ -459,6 +521,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseUp() {
+    finishErase();
     finishStroke();
     finishWall();
     finishFog();
@@ -559,7 +622,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", a: "area", p: "ping", ...(gm ? { b: "draw", w: "walls", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", a: "area", p: "ping", b: "draw", ...(gm ? { w: "walls", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -665,12 +728,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             ))}
           </Layer>
 
-          {/* Desenhos do mestre: acima dos efeitos, abaixo dos tokens. Borracha: clicar num desenho apaga. */}
-          <Layer listening={gm && tool === "draw" && drawMode === "erase"}>
+          {/* Desenhos (do mestre e setas dos jogadores): acima dos efeitos, abaixo dos tokens. */}
+          <Layer listening={false}>
             {state.battle.drawings.map((d) => (
-              <DrawingShape key={d.id} d={d} onErase={() => void act("draw:remove", { id: d.id })} />
+              <DrawingShape key={d.id} d={d} />
             ))}
-            {stroke && <DrawingShape d={{ kind: drawMode === "erase" ? "free" : drawMode, points: stroke, color: drawColor, width: drawWidth, hidden: drawHidden }} />}
+            {stroke && myDrawMode !== "erase" && <DrawingShape d={{ kind: myDrawMode, points: stroke, color: drawColor, width: drawWidth, hidden: gm && drawHidden }} />}
           </Layer>
 
           {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga. */}
@@ -743,6 +806,17 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
+            {eraseMode && eraserAt && (
+              <Circle
+                x={eraserAt.x}
+                y={eraserAt.y}
+                radius={eraserRadius}
+                stroke="#f1e6d0"
+                strokeWidth={1.5 / view.scale}
+                dash={[4 / view.scale, 3 / view.scale]}
+                fill="rgba(241, 230, 208, 0.1)"
+              />
+            )}
             {placing && hoverCell && (
               // Distância até quem conjurou; sem ele no mapa, só a casa.
               // Mede da borda de quem conjurou (criatura grande ocupa várias casas).
@@ -815,7 +889,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Paper>
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
-      {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
+      {tool === "draw" && <DrawOptions drawings={state.battle.drawings} gm={gm} selfId={state.self.id} />}
       {gm && tool === "walls" && <WallOptions walls={state.battle.walls} style={wallStyle} />}
       {gm && tool === "fog" && <FogOptions fog={state.battle.fog} onRevealMap={revealMap} />}
       {fixing && myArea && (
@@ -1059,6 +1133,7 @@ function MapToolbar({
       { id: "ruler", label: t("map.rulerTipMobile"), icon: IconRuler2 },
       { id: "area", label: t("map.areaTipMobile"), icon: IconSparkles },
       { id: "ping", label: t("map.pingTip"), icon: IconHandFinger },
+      { id: "draw", label: t("draw.arrowsTip"), icon: IconArrowUpRight },
     ] as const;
     return (
       <Paper className="map-toolbar" p={4} shadow="md" radius="md">
@@ -1096,9 +1171,11 @@ function MapToolbar({
     { id: "ruler", text: t("map.ruler"), label: t("map.rulerTip"), icon: IconRuler2 },
     { id: "area", text: t("map.area"), label: t("map.areaTip"), icon: IconSparkles },
     { id: "ping", text: t("map.ping"), label: t("map.pingTip"), icon: IconHandFinger },
+    gm
+      ? ({ id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil } as const)
+      : ({ id: "draw", text: t("draw.arrows"), label: t("draw.arrowsTip"), icon: IconArrowUpRight } as const),
     ...(gm
       ? ([
-          { id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil },
           { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
           { id: "fog", text: t("fog.tool"), label: t("fog.toolTip"), icon: IconCloudFog },
         ] as const)

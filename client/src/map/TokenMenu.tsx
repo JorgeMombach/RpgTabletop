@@ -1,6 +1,7 @@
 import { Button, Group, Kbd, NumberInput, Portal, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import {
   IconArrowBarToDown,
+  IconArrowBigUpLine,
   IconChevronRight,
   IconDroplet,
   IconEye,
@@ -146,6 +147,11 @@ export function TokenMenu({ state, id, x, y, focus, onClose }: { state: ClientSt
           </Group>
         )}
 
+        {canEdit && knownHp && c.hp! <= 0 && (
+          <MenuItem icon={<IconArrowBigUpLine size={16} />} onClick={run(() => act("hp:change", { id: c.id, delta: 1 }))} onMouseEnter={() => setCondOpen(false)}>
+            {t("hp.raise")}
+          </MenuItem>
+        )}
         {canEdit && (
           <MenuItem
             ref={condRef}

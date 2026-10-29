@@ -678,6 +678,106 @@ const darkness: Painter = (ctx, st, t, dt, area, cell) => {
   ctx.restore();
 };
 
+/** Brilho redondo com paradas de cor (raio e cores livres, por isso desenhado na hora). */
+function disc(ctx: Ctx, x: number, y: number, r: number, stops: [number, string][]) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  for (const [o, c] of stops) g.addColorStop(o, c);
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+
+/**
+ * Luz sagrada (M, no espírito dos Espíritos Guardiões): brilho dourado no meio, riscos de luz girando no chão
+ * e seis luzinhas cor de chama rondando perto da borda, com rastro; fagulhas subindo. Em área que não é
+ * redonda, a ronda vira uma elipse dentro da caixa (a máscara recorta o formato).
+ */
+const holy: Painter = (ctx, st, t, dt, area, cell) => {
+  const { box } = area;
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  // A caixa inclui a borda difusa: a ronda fica um pouco para dentro, onde a máscara ainda é forte.
+  const rx = (box.w / 2) * 0.7;
+  const ry = (box.h / 2) * 0.7;
+  const r = Math.min(box.w, box.h) / 2;
+  const at = (theta: number, k: number) => ({ x: cx + Math.cos(theta) * rx * k, y: cy + Math.sin(theta) * ry * k });
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  // Brilho do meio, respirando.
+  const breathe = 0.85 + 0.15 * Math.sin(t * 1.3);
+  disc(ctx, cx, cy, r, [
+    [0, `rgba(255,240,200,${0.4 * breathe})`],
+    [0.35, `rgba(255,214,140,${0.21 * breathe})`],
+    [1, "rgba(255,190,90,0)"],
+  ]);
+  disc(ctx, cx, cy, cell * 0.9, [
+    [0, `rgba(255,255,245,${0.45 * breathe})`],
+    [1, "rgba(255,240,200,0)"],
+  ]);
+  // Riscos de luz girando no chão, cada um no seu raio e ritmo, afinando nas pontas (espiral leve para dentro).
+  const rand = rng(31);
+  for (let i = 0; i < 12; i++) {
+    const k0 = (0.3 + rand() * 0.6) / 0.7;
+    const len = 0.6 + rand() * 0.9;
+    const start = rand() * Math.PI * 2 + t * (0.35 + rand() * 0.35);
+    const a = 0.12 + 0.08 * Math.sin(t * 0.9 + i);
+    const N = 14;
+    for (let s = 0; s < N; s++) {
+      const f = Math.sin((Math.PI * (s + 0.5)) / N);
+      const p = at(start - (s / N) * len, k0 * (1 - (0.08 * s) / N));
+      const q = at(start - ((s + 1) / N) * len, k0 * (1 - (0.08 * (s + 1)) / N));
+      ctx.strokeStyle = `rgba(255,220,160,${a * f})`;
+      ctx.lineWidth = cell * 0.07 * f;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    }
+  }
+  // As luzinhas: cabeça brilhante e rastro que afina e some.
+  for (let i = 0; i < 6; i++) {
+    const theta = (i / 6) * Math.PI * 2 + t * 0.8;
+    const N = 22;
+    const tail = 1.1;
+    let prev = at(theta, 1);
+    for (let s = 1; s <= N; s++) {
+      const f = 1 - s / N;
+      const p = at(theta - (s / N) * tail, 1);
+      ctx.strokeStyle = `rgba(255,${165 + 75 * f},${70 + 120 * f},${0.9 * f * f})`;
+      ctx.lineWidth = cell * (0.02 + 0.13 * f);
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      prev = p;
+    }
+    const head = at(theta, 1);
+    const flick = 0.9 + 0.1 * Math.sin(t * 9 + i);
+    disc(ctx, head.x, head.y, cell * 0.55 * flick, [
+      [0, "rgba(255,220,150,0.7)"],
+      [0.35, "rgba(255,170,70,0.3)"],
+      [1, "rgba(255,140,40,0)"],
+    ]);
+    sprite(ctx, glow(255, 250, 235), head.x, head.y, cell * 0.28);
+  }
+  // Fagulhas subindo devagar, balançando.
+  st.a = step(st.a, dt);
+  keep(st.a, budget(area, cell, 0.8, 30), () => ({
+    ...spawnPoint(area),
+    vx: 0,
+    vy: -cell * (0.2 + Math.random() * 0.35),
+    age: 0,
+    life: 1.8 + Math.random() * 2.2,
+    size: cell * (0.03 + Math.random() * 0.04),
+    seed: Math.random() * 9,
+  }));
+  for (const p of st.a) {
+    ctx.globalAlpha = Math.sin(Math.PI * (p.age / p.life)) * 0.9;
+    sprite(ctx, glow(255, 190, 110), p.x + Math.sin(p.age * 2 + p.seed) * cell * 0.05, p.y, p.size * 6);
+  }
+  ctx.restore();
+};
+
 /** Personalizado: a cor escolhida com uma ondulação suave. */
 const custom: Painter = (ctx, _st, t, _dt, area, cell, color) => {
   const { box } = area;
@@ -705,6 +805,7 @@ const PAINTERS: Record<EffectPreset, Painter> = {
   fog,
   ice,
   darkness,
+  holy,
   custom,
 };
 

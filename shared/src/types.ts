@@ -388,6 +388,7 @@ export const EFFECT_PRESETS = {
   fog: { label: "Névoa", color: "#c9d1d9" },
   ice: { label: "Gelo", color: "#9fdcf0" },
   darkness: { label: "Escuridão", color: "#1a1424" },
+  holy: { label: "Luz sagrada", color: "#ffd98a" },
   custom: { label: "Personalizado", color: "#d4a24c" },
 } as const;
 
@@ -465,6 +466,8 @@ export interface Drawing {
   width: number;
   /** Só o mestre vê (anotação de preparo: armadilha, porta secreta). */
   hidden?: boolean;
+  /** Seta de jogador: quem desenhou (ele apaga as próprias; o mestre, todas). Ausente = do mestre. */
+  authorId?: string;
 }
 
 /** Porta numa parede: abre e fecha com um clique; trancada só o mestre abre; secreta só o mestre vê. */
