@@ -11,6 +11,7 @@ import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
 import { InitiativeTrack } from "./InitiativeTrack";
+import { TokenMenu } from "./TokenMenu";
 import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
@@ -62,6 +63,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ x: 40, y: 40, scale: 1 });
   // Visão atual para efeitos que não devem rodar a cada mudança dela (câmera seguindo a vez).
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
   const [shiftHeld, setShiftHeld] = useState(false);
@@ -532,6 +534,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const rank = (c: CombatantView) => (c.id === hoverId ? 2 : c.id === selectedId ? 1 : 0);
   tokens.sort((a, b) => rank(a) - rank(b));
 
+  // Menu de contexto do token (L8): botão direito ou tocar e segurar.
+  const closeMenu = useCallback(() => setMenu(null), []);
+
   // Trilha de iniciativa no topo (L7): só no combate e com alguém visível na ordem; os avisos do topo descem.
   const trackShown = state.battle.combat.active && state.battle.combat.order.some((id) => allCombatants(state).some((c) => c.id === id && !c.hidden));
 
@@ -648,6 +653,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 turnKey={state.battle.combat.turn}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
+                onMenu={(x, y) => {
+                  select(c.id);
+                  setMenu({ id: c.id, x, y });
+                }}
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}
               />
             ))}
@@ -703,6 +712,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
       {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
+      {menu && <TokenMenu state={state} id={menu.id} x={menu.x} y={menu.y} onClose={closeMenu} />}
       {trackShown && <InitiativeTrack state={state} width={size.width} onFocus={glideTo} />}
       <MapToolbar
         tool={tool}

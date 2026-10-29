@@ -3,8 +3,7 @@ import { IconEye, IconEyeOff, IconFlame, IconPencil, IconPointer, IconWand, Icon
 import { ALLY_COLORS, MOB_COLORS, NPC_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
-import { removeMob } from "../commands";
-import { confirmAction } from "../confirm";
+import { removeCombatant } from "../commands";
 import { allCombatants, fmtMod, turnLocked } from "../format";
 import { useT } from "../i18n";
 import { cellAt, placeFor } from "../map/geometry";
@@ -100,12 +99,6 @@ export function SelectedPanel({ state }: { state: ClientState }) {
     (c.animal ? ` · ${t("kind.animal")}` : "") +
     (c.darkvision ? ` · ${t("form.darkvision").toLocaleLowerCase()}` : "") +
     (c.hidden ? ` · ${t("kind.hidden")}` : "");
-
-  async function remove(target: Combatant) {
-    if (target.type !== "ally") return void removeMob(target);
-    const ok = await confirmAction({ title: t("selected.removeTitle", { name: target.name }), message: t("selected.removeMessage"), confirmLabel: t("common.remove"), danger: true });
-    if (ok) void act("ally:remove", { id: target.id }).then((r) => r.ok && select(null));
-  }
 
   return (
     <Panel title={t("selected.title")} aside={close}>
@@ -221,7 +214,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
                 </Button>
               </Tooltip>
             )}
-            <Button variant="subtle" color="red" onClick={() => void remove(c)}>
+            <Button variant="subtle" color="red" onClick={() => void removeCombatant(c)}>
               {t("common.remove")}
             </Button>
           </Group>

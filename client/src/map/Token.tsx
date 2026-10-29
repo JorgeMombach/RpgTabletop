@@ -38,6 +38,8 @@ interface Props {
   turnKey?: number;
   draggable: boolean;
   onSelect: () => void;
+  /** Menu de contexto (L8): botão direito, ou tocar e segurar no celular. Posição na tela (clientX/Y). */
+  onMenu?: (x: number, y: number) => void;
   /** Devolve false se o servidor recusou (o token volta para o lugar). */
   onMove: (pos: GridPos) => Promise<boolean>;
 }
@@ -264,7 +266,7 @@ function ConditionFx({ names, r, seed }: { names: string[]; r: number; seed: str
 }
 
 /** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
-export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onMove }: Props) {
+export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onMenu, onMove }: Props) {
   const reduceFx = useApp((s) => s.reduceFx);
   const hits = useHits((s) => s.byId[c.id]);
   const body = useRef<Konva.Group>(null);
@@ -273,6 +275,13 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
   const [dragFeet, setDragFeet] = useState<number | null>(null);
   const dragStart = useRef<GridPos | null>(null);
   const groupRef = useRef<Konva.Group>(null);
+  // Tocar e segurar (celular) abre o menu: meio segundo quase parado (até 8 px); mexer mais o dedo cancela.
+  const press = useRef<{ timer: number; x: number; y: number } | null>(null);
+  const cancelPress = () => {
+    if (press.current) window.clearTimeout(press.current.timer);
+    press.current = null;
+  };
+  useEffect(() => cancelPress, []);
 
   // As iniciais usam a Cinzel: quando ela termina de carregar, redesenha (a imagem do token é refeita com ela).
   useEffect(() => {
@@ -410,6 +419,29 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
       }}
       onClick={onSelect}
       onTap={onSelect}
+      onContextMenu={(e) => {
+        e.evt.preventDefault();
+        if (onMenu) onMenu(e.evt.clientX, e.evt.clientY);
+      }}
+      onTouchStart={(e) => {
+        const touch = e.evt.touches[0];
+        if (!onMenu || !touch || e.evt.touches.length > 1) return cancelPress();
+        const { clientX: x, clientY: y } = touch;
+        press.current = {
+          x,
+          y,
+          timer: window.setTimeout(() => {
+            press.current = null;
+            groupRef.current?.stopDrag();
+            onMenu(x, y);
+          }, 500),
+        };
+      }}
+      onTouchMove={(e) => {
+        const touch = e.evt.touches[0];
+        if (press.current && touch && Math.hypot(touch.clientX - press.current.x, touch.clientY - press.current.y) > 8) cancelPress();
+      }}
+      onTouchEnd={cancelPress}
       onDragStart={(e) => {
         dragStart.current = c.pos;
         e.target.moveToTop();
