@@ -44,7 +44,7 @@ import {
   type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
-import { wallStyleOf } from "./actions/map";
+import { tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseWall } from "./actions/walls";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
@@ -523,6 +523,7 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       imageScale: requireNumber(m.imageScale ?? 1, "Escala do mapa", LIMITS.imageScale.min, LIMITS.imageScale.max),
       // Arquivos anteriores à 2.10 não têm (pedra lavrada).
       ...(m.wallStyle !== undefined && { wallStyle: wallStyleOf(m.wallStyle) }),
+      ...(m.tableStyle !== undefined && { tableStyle: tableStyleOf(m.tableStyle) }),
     },
     mobs,
     npcs,

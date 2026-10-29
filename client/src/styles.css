@@ -950,3 +950,11 @@ button:hover > .ability-cell {
     transition: none;
   }
 }
+
+/* Vinheta da área do mapa (L5): luz de cena no centro, bordas escurecidas. Não pega clique. */
+.map-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 48%, transparent 55%, rgb(0 0 0 / 0.55) 100%);
+}

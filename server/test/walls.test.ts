@@ -83,13 +83,16 @@ describe("paredes e portas", () => {
     const { g, ana } = await setup();
     assert.equal((await act(ana, "battle:grid", { wallStyle: "wood" })).ok, false);
     assert.match(errorOf(await act(g, "battle:grid", { wallStyle: "lava" as never })), /Estilo de parede inválido/);
-    assert.ok((await act(g, "battle:grid", { wallStyle: "rock" })).ok);
+    assert.ok((await act(g, "battle:grid", { wallStyle: "rock", tableStyle: "leather" })).ok);
+    assert.match(errorOf(await act(g, "battle:grid", { tableStyle: "marble" as never })), /Estilo de mesa inválido/);
+    assert.equal(game().battle.map.tableStyle, "leather");
     assert.equal(game().battle.map.wallStyle, "rock");
     const exported = await g.timeout(2000).emitWithAck("session:export");
     assert.ok((await act(g, "battle:grid", { wallStyle: "stone" })).ok);
     assert.equal(game().battle.map.wallStyle, undefined, "pedra lavrada é o padrão (sem campo)");
     assert.ok((await g.timeout(2000).emitWithAck("session:import", exported.file)).ok);
     assert.equal(game().battle.map.wallStyle, "rock");
+    assert.equal(game().battle.map.tableStyle, "leather");
   });
 
   it("jogador abre e fecha a porta, menos a trancada; só o mestre tranca", async () => {

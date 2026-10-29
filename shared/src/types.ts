@@ -241,7 +241,13 @@ export interface MapConfig {
   imageScale: number;
   /** Como as paredes desta cena são desenhadas (L5). Ausente = pedra lavrada. */
   wallStyle?: WallStyle;
+  /** A mesa em volta do mapa (L5): o que aparece fora da imagem. Ausente = madeira. */
+  tableStyle?: TableStyle;
 }
+
+/** Mesa em volta do mapa: madeira escura (padrão), tapete de couro ou ardósia. */
+export const TABLE_STYLES = ["wood", "leather", "slate"] as const;
+export type TableStyle = (typeof TABLE_STYLES)[number];
 
 /** Espessura padrão da parede (casas) e os limites da escolha do mestre. */
 export const WALL_THICKNESS = { default: 0.18, min: 0.1, max: 1 };

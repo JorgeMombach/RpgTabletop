@@ -1,5 +1,5 @@
-import { ActionIcon, Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, Slider, Stack, Text, Tooltip } from "@mantine/core";
-import { LIMITS, type GridInput, type MapConfig } from "@rpg/shared";
+import { ActionIcon, Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { LIMITS, TABLE_STYLES, type GridInput, type MapConfig, type TableStyle } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
@@ -8,7 +8,10 @@ import { toast } from "../notify";
 import { setTool, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
-import { useT } from "../i18n";
+import { useT, type MessageKey } from "../i18n";
+
+/** Mesa em volta do mapa (L5), por cena. */
+const TABLE_LABEL: Record<TableStyle, MessageKey> = { wood: "mapPanel.tableWood", leather: "mapPanel.tableLeather", slate: "mapPanel.tableSlate" };
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
 function useThrottledGrid() {
@@ -129,6 +132,16 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
           </Group>
         </Input.Wrapper>
       )}
+
+      <Input.Wrapper label={t("mapPanel.table")}>
+        <SegmentedControl
+          mt={4}
+          fullWidth
+          data={TABLE_STYLES.map((v) => ({ value: v, label: t(TABLE_LABEL[v]) }))}
+          value={map.tableStyle ?? "wood"}
+          onChange={(v) => void act("battle:grid", { tableStyle: v as TableStyle })}
+        />
+      </Input.Wrapper>
 
       <Checkbox
         checked={map.showGrid}

@@ -8,6 +8,7 @@
 export const SERVER_TEXT: Record<string, [string, string]> = {
   "A iniciativa de {name} já foi rolada. Só o mestre muda.": ["{name}'s initiative was already rolled. Only the GM can change it.", "La iniciativa de {name} ya se tiró. Solo el máster la cambia."],
   "Espessura da parede": ["Wall thickness", "Grosor de la pared"],
+  "Estilo de mesa inválido.": ["Invalid table style.", "Estilo de mesa no válido."],
   "Estilo de parede inválido.": ["Invalid wall style.", "Estilo de pared no válido."],
   "Parede curta demais: arraste de uma ponta à outra.": ["Wall too short: drag from one end to the other.", "Pared demasiado corta: arrastra de un extremo al otro."],
   "A pasta de sons não está configurada (opção --sounds-dir).": ["The sounds folder isn't set (--sounds-dir option).", "La carpeta de sonidos no está configurada (opción --sounds-dir)."],

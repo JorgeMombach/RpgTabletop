@@ -87,7 +87,7 @@ Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a b
 - [x] **4. Barra de vida com cara de jogo:** moldura, marcas, vida temporária como escudo, dano fantasma, fases do chefe; o mesmo estilo no painel.
 - [x] **5a. Paredes livres e desfazer:** pontas da parede em qualquer ponto (centésimos de casa) ou nos cantos; *Desfazer* e Ctrl+Z para a última parede/porta colocada ou apagada.
 - [x] **5b. Texturas de paredes e portas:** pedra lavrada, rocha bruta e madeira (por cena), porta de madeira com ferragem, porta aberta girada com arco, marcas de trancada e secreta para o mestre, portas duplas abrindo cada folha para a sua ponta; espessura escolhida por parede (0,1 a 1 casa).
-- [ ] **5. Paredes, portas e mesa:** pedra e madeira com textura, porta aberta desenhada aberta, mesa (madeira/couro) e vinheta em volta do mapa.
+- [x] **5c. Mesa e vinheta:** madeira escura (padrão), couro com costura ou ardósia por cena; mapa pousado com sombra e borda escurecida; vinheta na área do mapa (some com *Reduzir o clima*).
 - [ ] **6. Efeitos:** números de dano/cura subindo do token, tremida ao tomar dano, destaque no início da vez (*revisão:* hoje a vez quase não aparece no mapa, só o anel muda), brilho no crítico/falha do d20, partículas leves em algumas condições.
 - [ ] **7. Interface geral:** trilha de iniciativa no topo do mapa, textura sutil nos painéis, divisórias, microanimações, avisos e estados vazios no estilo do jogo, tela de entrada.
 - [ ] **8. Fluxo:**

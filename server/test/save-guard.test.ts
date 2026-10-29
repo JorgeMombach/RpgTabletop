@@ -113,7 +113,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
-    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood" },
+    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate" },
     mobs: [lich, sombra],
     npcs: [guarda],
     combat: { active: true, round: 2, turnIndex: 1, order: ["lich", "thorin", "lia"], turn: 4 },

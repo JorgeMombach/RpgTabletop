@@ -1,4 +1,4 @@
-import { emptyFog, inRows, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, WALL_STYLES, type Combatant, type GridPos, type WallStyle } from "@rpg/shared";
+import { emptyFog, inRows, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
@@ -31,6 +31,12 @@ function gridPosOf(raw: unknown): GridPos | null {
 function rotationOf(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isInteger(raw) || raw % 90 !== 0) fail("Rotação: use passos de 90°.");
   return ((raw % 360) + 360) % 360;
+}
+
+/** Mesa em volta do mapa (L5); madeira é o padrão e fica sem campo. */
+export function tableStyleOf(raw: unknown): TableStyle | undefined {
+  if (!TABLE_STYLES.includes(raw as TableStyle)) fail("Estilo de mesa inválido.");
+  return raw === "wood" ? undefined : (raw as TableStyle);
 }
 
 /** Estilo das paredes da cena (L5); pedra lavrada é o padrão e fica sem campo. */
@@ -74,6 +80,7 @@ export const mapHandlers: HandlerMap = {
     });
     if (typeof input.showGrid === "boolean") map.showGrid = input.showGrid;
     if (input.wallStyle !== undefined) map.wallStyle = wallStyleOf(input.wallStyle);
+    if (input.tableStyle !== undefined) map.tableStyle = tableStyleOf(input.tableStyle);
   },
 
   "battle:clear": (store, player, payload) => {

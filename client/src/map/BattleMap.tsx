@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconCloudFog, IconCloudOff, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type Wall } from "@rpg/shared";
+import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type TableStyle, type Wall } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -18,6 +18,7 @@ import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions } from "./DrawingShape";
 import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
 import { addWall, removeWall, undoWall } from "./wallHistory";
+import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
@@ -67,7 +68,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, fogReveal, fogShape, fogBrush } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, fogReveal, fogShape, fogBrush, reduceFx } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -536,10 +537,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           }}
         >
           <Layer listening={false}>
+            <TableShape style={state.battle.map.tableStyle ?? "wood"} grid={grid} view={view} size={size} bounds={layout?.bounds ?? null} />
             {image && layout && (
               <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
             )}
-            {grid.showGrid && <GridLines grid={grid} view={view} size={size} onImage={!!image} />}
+            {layout && !reduceFx && <MapEdgeShape bounds={layout.bounds} grid={grid} />}
+            {grid.showGrid && <GridLines grid={grid} view={view} size={size} onImage />}
           </Layer>
 
           {/* Efeitos no mapa: acima da imagem e do grid, abaixo dos tokens (E19). */}
@@ -653,6 +656,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Stage>
       )}
 
+      {/* Vinheta: bordas da área do mapa escurecidas (luz de cena no centro); some com "Reduzir o clima". */}
+      {!reduceFx && <div className="map-vignette" />}
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
       <WeatherOverlay weather={state.battle.weather} lights={screenLights(tokens, grid, view)} />
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
@@ -722,6 +727,78 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   );
 }
 
+/**
+ * A mesa em volta do mapa (L5): o ladrilho do estilo da cena cobre a parte visível (acompanha o zoom: o
+ * tamanho é em casas) e, com imagem, o mapa ganha uma sombra projetada, como papel pousado na mesa.
+ */
+function TableShape({ style, grid, view, size, bounds }: { style: TableStyle; grid: MapConfig; view: View; size: { width: number; height: number }; bounds: { width: number; height: number } | null }) {
+  return (
+    <Shape
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const x0 = -view.x / view.scale;
+        const y0 = -view.y / view.scale;
+        const w = size.width / view.scale;
+        const h = size.height / view.scale;
+        const tile = tableTile(style);
+        const pattern = ctx.createPattern(tile, "repeat");
+        if (pattern) {
+          const k = (TILE_CELLS[style] * grid.cellPx) / tile.width;
+          pattern.setTransform(new DOMMatrix().translate(grid.offsetX, grid.offsetY).scale(k));
+          ctx.fillStyle = pattern;
+          ctx.fillRect(x0, y0, w, h);
+        }
+        if (bounds && style === "leather") {
+          // Tapete de mestre: costura em volta do mapa.
+          const m = grid.cellPx * 0.3;
+          ctx.save();
+          ctx.setLineDash([grid.cellPx * 0.18, grid.cellPx * 0.12]);
+          ctx.lineCap = "round";
+          ctx.lineWidth = grid.cellPx * 0.045;
+          ctx.strokeStyle = "rgba(0,0,0,.6)";
+          ctx.strokeRect(-m, -m + ctx.lineWidth, bounds.width + m * 2, bounds.height + m * 2);
+          ctx.strokeStyle = "rgba(226,200,150,.75)";
+          ctx.strokeRect(-m, -m, bounds.width + m * 2, bounds.height + m * 2);
+          ctx.restore();
+        }
+        if (bounds) {
+          ctx.save();
+          ctx.shadowColor = "rgba(0,0,0,.75)";
+          ctx.shadowBlur = grid.cellPx * 0.6;
+          ctx.shadowOffsetY = grid.cellPx * 0.2;
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, bounds.width, bounds.height);
+          ctx.restore();
+        }
+      }}
+    />
+  );
+}
+
+/** Borda do mapa escurecida por dentro (o papel pousado na mesa); some com "Reduzir o clima". */
+function MapEdgeShape({ bounds, grid }: { bounds: { width: number; height: number }; grid: MapConfig }) {
+  return (
+    <Shape
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const { width: W, height: H } = bounds;
+        const e = Math.min(grid.cellPx * 0.6, W / 4, H / 4);
+        const side = (x: number, y: number, w: number, h: number, gx0: number, gy0: number, gx1: number, gy1: number) => {
+          const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+          g.addColorStop(0, "rgba(10,6,2,.45)");
+          g.addColorStop(1, "rgba(10,6,2,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(x, y, w, h);
+        };
+        side(0, 0, W, e, 0, 0, 0, e);
+        side(0, H - e, W, e, 0, H, 0, H - e);
+        side(0, 0, e, H, 0, 0, e, 0);
+        side(W - e, 0, e, H, W, 0, W - e, 0);
+      }}
+    />
+  );
+}
+
 function GridLines({
   grid,
   view,
@@ -753,6 +830,7 @@ function GridLines({
           ctx.moveTo(x0, y);
           ctx.lineTo(x1, y);
         }
+        // Linhas escuras: sobre a imagem e sobre a mesa (L5).
         ctx.strokeStyle = onImage ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.09)";
         ctx.lineWidth = 1 / view.scale;
         ctx.stroke();
