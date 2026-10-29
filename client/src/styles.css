@@ -800,3 +800,153 @@ abbr.abbr {
 button:hover > .ability-cell {
   border-color: var(--mantine-color-bronze-6);
 }
+
+/* Barra de vida (L4): pílula forjada leve, a mesma do mapa (tokenArt.ts). Losangos de bronze nas pontas. */
+.hpbar {
+  position: relative;
+  padding: 0 5px;
+  --hp-h: 6px;
+}
+
+.hpbar.thick {
+  --hp-h: 10px;
+  padding: 0 7px;
+}
+
+.hpbar::before,
+.hpbar::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: calc(var(--hp-h) * 0.95);
+  height: calc(var(--hp-h) * 0.95);
+  background: linear-gradient(135deg, #f2e6cd, #c19a62 50%, #6e5331);
+  transform: translate(-50%, -50%) rotate(45deg) scaleY(1.25);
+  z-index: 1;
+}
+
+.hpbar::before {
+  left: 4px;
+}
+
+.hpbar.thick::before {
+  left: 6px;
+}
+
+.hpbar::after {
+  left: calc(100% - 4px);
+}
+
+.hpbar.thick::after {
+  left: calc(100% - 6px);
+}
+
+.hpbar-track {
+  position: relative;
+  height: var(--hp-h);
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(#050407, #1f1b25);
+  box-shadow:
+    0 0 0 1px #a9844f,
+    0 1px 3px rgb(0 0 0 / 0.6);
+}
+
+.hpbar-track > div {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.hpbar-ghost {
+  background: rgb(236 228 212 / 0.85);
+  transition: width 0.8s ease-out;
+}
+
+.hpbar-fill {
+  transition: width 0.25s ease-out;
+}
+
+.hpbar-fill::after {
+  content: "";
+  position: absolute;
+  inset: 8% 0 auto;
+  height: 28%;
+  background: rgb(255 255 255 / 0.28);
+}
+
+.hpbar-fill[data-level="full"] {
+  background: linear-gradient(#9fd8c2, #4fae8c 40%, #24624f);
+}
+
+.hpbar-fill[data-level="mid"] {
+  background: linear-gradient(#e8d4ab, #c19a62 40%, #6e5331);
+}
+
+.hpbar-fill[data-level="low"],
+.hpbar-fill[data-level="zero"] {
+  background: linear-gradient(#e58a8f, #c94a52 40%, #6b2a30);
+}
+
+.hpbar-fill[data-level="boss"] {
+  background: linear-gradient(#ff9a8a, #b3221c 40%, #4a0806);
+}
+
+.hpbar-temp {
+  background:
+    repeating-linear-gradient(-60deg, rgb(255 255 255 / 0.45) 0 1px, transparent 1px 4px),
+    linear-gradient(#e2efff, #5b86b8);
+  transition: left 0.25s ease-out;
+}
+
+.hpbar-heal {
+  background: rgb(200 255 220 / 0.6);
+  animation: hpbar-heal 0.9s ease-out forwards;
+}
+
+@keyframes hpbar-heal {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Marcas a cada 25% e a calha funda (sombra por dentro, em cima). */
+.hpbar-marks {
+  right: 0;
+  background:
+    linear-gradient(rgb(0 0 0 / 0.45), transparent 35%),
+    linear-gradient(90deg, transparent calc(25% - 0.5px), rgb(0 0 0 / 0.5) calc(25% - 0.5px) calc(25% + 0.5px), transparent calc(25% + 0.5px)),
+    linear-gradient(90deg, transparent calc(50% - 0.5px), rgb(0 0 0 / 0.5) calc(50% - 0.5px) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(90deg, transparent calc(75% - 0.5px), rgb(0 0 0 / 0.5) calc(75% - 0.5px) calc(75% + 0.5px), transparent calc(75% + 0.5px));
+}
+
+/* Chefe: ferro escuro com filete de ouro, rubis nas pontas. */
+.hpbar.boss .hpbar-track {
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px #e8c070,
+    0 0 0 3px #2a2b30,
+    0 0 0 4px #08080a,
+    0 2px 4px rgb(0 0 0 / 0.6);
+}
+
+.hpbar.boss::before,
+.hpbar.boss::after {
+  background: linear-gradient(135deg, #ff8a7a, #e0392c 45%, #6a0c08);
+  box-shadow: 0 0 0 1px #d6a63c;
+}
+
+.hpbar.still .hpbar-ghost,
+.hpbar.still .hpbar-fill,
+.hpbar.still .hpbar-temp {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hpbar-ghost,
+  .hpbar-fill,
+  .hpbar-temp {
+    transition: none;
+  }
+}

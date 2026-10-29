@@ -920,3 +920,157 @@ export function drawConditionMedal(ctx: CanvasRenderingContext2D, x: number, y: 
   }
   ctx.restore();
 }
+
+// ---------- barra de vida (L4) ----------
+
+/** O que a barra mostra agora: a vida que desliza (`shown`), o dano fantasma e o brilho da cura (0 a 1). */
+export interface HpBarState {
+  shown: number;
+  ghost: number;
+  flash: number;
+  max: number;
+  temp: number;
+}
+
+/** Faixas de vida (as cores do tema, guia visual): claro, meio e escuro de cada uma. */
+const HP_FILL = {
+  full: ["#9fd8c2", "#4fae8c", "#24624f"],
+  mid: ["#e8d4ab", "#c19a62", "#6e5331"],
+  low: ["#e58a8f", "#c94a52", "#6b2a30"],
+  boss: ["#ff9a8a", "#b3221c", "#4a0806"],
+};
+
+/** Vida, fantasma, vida temporária (escudo listrado), brilho e marcas a cada 25%, dentro da área já recortada. */
+function hpFill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, s: HpBarState, boss: boolean) {
+  const total = s.max + s.temp;
+  if (total <= 0) return;
+  ctx.fillStyle = "rgba(236,228,212,.85)";
+  ctx.fillRect(x, y, (w * Math.max(0, s.ghost)) / total, h);
+  const ratio = s.max > 0 ? s.shown / s.max : 0;
+  const [c0, c1, c2] = boss ? HP_FILL.boss : ratio > 0.5 ? HP_FILL.full : ratio > 0.25 ? HP_FILL.mid : HP_FILL.low;
+  const hw = (w * Math.max(0, s.shown)) / total;
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, c0);
+  g.addColorStop(0.4, c1);
+  g.addColorStop(1, c2);
+  ctx.fillStyle = g;
+  ctx.fillRect(x, y, hw, h);
+  if (s.temp > 0) {
+    const tw = (w * s.temp) / total;
+    const sg = ctx.createLinearGradient(0, y, 0, y + h);
+    sg.addColorStop(0, "#e2efff");
+    sg.addColorStop(1, "#5b86b8");
+    ctx.fillStyle = sg;
+    ctx.fillRect(x + hw, y, tw, h);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + hw, y, tw, h);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(255,255,255,.45)";
+    ctx.lineWidth = Math.max(0.6, h * 0.18);
+    for (let i = x + hw + h * 0.6; i < x + hw + tw + h; i += h * 0.7) {
+      ctx.beginPath();
+      ctx.moveTo(i, y);
+      ctx.lineTo(i - h, y + h);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  ctx.fillStyle = "rgba(255,255,255,.28)";
+  ctx.fillRect(x, y + h * 0.08, hw, Math.max(0.5, h * 0.28));
+  if (s.flash > 0) {
+    ctx.fillStyle = `rgba(200,255,220,${s.flash * 0.6})`;
+    ctx.fillRect(x, y, hw, h);
+  }
+  ctx.fillStyle = "rgba(0,0,0,.5)";
+  for (let i = 1; i < 4; i++) ctx.fillRect(x + (w * i) / 4 - 0.25, y, Math.max(0.5, h * 0.12), h);
+  // Calha funda: sombra por dentro, em cima.
+  const inner = ctx.createLinearGradient(0, y, 0, y + h);
+  inner.addColorStop(0, "rgba(0,0,0,.45)");
+  inner.addColorStop(0.3, "rgba(0,0,0,0)");
+  ctx.fillStyle = inner;
+  ctx.fillRect(x, y, w, h);
+}
+
+function bronzeV(ctx: CanvasRenderingContext2D, y0: number, y1: number) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, "#f2e6cd");
+  g.addColorStop(0.5, "#c19a62");
+  g.addColorStop(1, "#6e5331");
+  return g;
+}
+
+function diamond(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - s);
+  ctx.lineTo(x + s * 0.75, y);
+  ctx.lineTo(x, y + s);
+  ctx.lineTo(x - s * 0.75, y);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * Barra de vida do token, centrada em x = 0, com o topo em `y`, largura `w` e altura `h`. Comum: a "pílula
+ * forjada leve" (calha funda, fio de bronze, losangos nas pontas). Chefe: placa de ferro escuro com pontas
+ * em chanfro, filete de ouro, vida em carmesim e um rubi na ponta.
+ */
+export function drawHpBar(ctx: CanvasRenderingContext2D, y: number, w: number, h: number, s: HpBarState, boss: boolean) {
+  const x = -w / 2;
+  ctx.save();
+  if (boss) {
+    const k = h * 0.9;
+    const plate = new Path2D();
+    const px = x - h * 0.5;
+    const pw = w + h;
+    const py = y - h * 0.35;
+    const ph = h * 1.7;
+    plate.moveTo(px + k, py);
+    plate.lineTo(px + pw - k, py);
+    plate.lineTo(px + pw, py + ph / 2);
+    plate.lineTo(px + pw - k, py + ph);
+    plate.lineTo(px + k, py + ph);
+    plate.lineTo(px, py + ph / 2);
+    plate.closePath();
+    metalShape(ctx, plate, IRON_DARK, ph * 2.2);
+    const slot = new Path2D();
+    slot.roundRect(x + h * 0.4, y, w - h * 0.8, h, h * 0.2);
+    ctx.fillStyle = "#070508";
+    ctx.fill(slot);
+    ctx.save();
+    ctx.clip(slot);
+    hpFill(ctx, x + h * 0.4, y, w - h * 0.8, h, s, true);
+    ctx.restore();
+    ctx.lineWidth = Math.max(0.6, h * 0.14);
+    ctx.strokeStyle = "#e8c070";
+    ctx.stroke(slot);
+    ruby(ctx, px + h * 0.15, y + h / 2, h * 0.55);
+    ctx.restore();
+    return;
+  }
+  const r = h / 2;
+  const pill = new Path2D();
+  pill.roundRect(x, y, w, h, r);
+  ctx.shadowColor = "rgba(0,0,0,.6)";
+  ctx.shadowBlur = h * 0.6;
+  ctx.shadowOffsetY = h * 0.15;
+  ctx.fillStyle = "#0b090e";
+  ctx.fill(pill);
+  ctx.shadowColor = "transparent";
+  ctx.save();
+  ctx.clip(pill);
+  const trough = ctx.createLinearGradient(0, y, 0, y + h);
+  trough.addColorStop(0, "#050407");
+  trough.addColorStop(1, "#1f1b25");
+  ctx.fillStyle = trough;
+  ctx.fillRect(x, y, w, h);
+  hpFill(ctx, x, y, w, h, s, false);
+  ctx.restore();
+  ctx.strokeStyle = bronzeV(ctx, y, y + h);
+  ctx.lineWidth = Math.max(0.6, h * 0.18);
+  ctx.stroke(pill);
+  ctx.fillStyle = bronzeV(ctx, y - h * 0.4, y + h * 1.4);
+  diamond(ctx, x - h * 0.15, y + h / 2, h * 0.75);
+  diamond(ctx, x + w + h * 0.15, y + h / 2, h * 0.75);
+  ctx.restore();
+}

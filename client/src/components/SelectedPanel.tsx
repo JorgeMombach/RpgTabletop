@@ -158,7 +158,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
               / {c.hpMax}
             </Text>
           </Text>
-          <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
+          <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick boss={c.boss} />
         </Stack>
       )}
 

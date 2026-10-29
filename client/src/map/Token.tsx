@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Path, Rect, RegularPolygon, Shape as KShape, Text } from "react-konva";
 import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
-import { fmtCondition, hpLevel, hpRatio } from "../format";
+import { fmtCondition } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
-import { drawConditionMedal, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind, type PlateStyle } from "./tokenArt";
+import { drawConditionMedal, drawHpBar, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind, type HpBarState, type PlateStyle } from "./tokenArt";
 import { useImage } from "./useImage";
 
-// Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
-const HP_COLORS = { full: "#4fae8c", mid: "#c19a62", low: "#c94a52", zero: "#c94a52" };
+/** Quanto da casa o token ocupa: sobra folga para a moldura, a barra de vida e os selos caberem na própria casa. */
+const TOKEN_FILL = 0.76;
+
 
 /** Varinha do Tabler (IconWand, MIT), 24 × 24: selo de conjurado, o mesmo das listas (E21). */
 const WAND = "M6 21l15 -15l-3 -3l-15 15l3 3M15 6l3 3M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2";
@@ -78,6 +79,56 @@ function TokenFx({ kind, boss, r, active, selected, over }: { kind: FrameKind; b
   );
 }
 
+/**
+ * Barra de vida do token (L4) com o dano fantasma: ao tomar dano, a vida desliza rápido e o pedaço perdido fica
+ * claro por um instante e desce devagar; na cura, um brilho. Anima só enquanto muda; com *Reduzir o clima*, salta.
+ */
+function TokenHpBar({ hp, max, temp, boss, y, w, h }: { hp: number; max: number; temp: number; boss: boolean; y: number; w: number; h: number }) {
+  const ref = useRef<Konva.Shape>(null);
+  const reduceFx = useApp((s) => s.reduceFx);
+  const bar = useRef<HpBarState>({ shown: hp, ghost: hp, flash: 0, max, temp });
+  const prev = useRef(hp);
+  bar.current.max = max;
+  bar.current.temp = temp;
+  useEffect(() => {
+    const s = bar.current;
+    const was = prev.current;
+    prev.current = hp;
+    const node = ref.current;
+    if (hp === was || reduceFx || !node) {
+      s.shown = s.ghost = hp;
+      s.flash = 0;
+      node?.getLayer()?.batchDraw();
+      return;
+    }
+    let hold = 0;
+    if (hp < was) {
+      s.ghost = Math.max(s.ghost, s.shown);
+      hold = performance.now() + 450;
+    } else {
+      s.flash = 1;
+      s.ghost = hp;
+    }
+    const anim = new Konva.Animation(() => {
+      s.shown += (hp - s.shown) * 0.25;
+      if (Math.abs(hp - s.shown) < 0.05) s.shown = hp;
+      if (performance.now() > hold) {
+        s.ghost += (s.shown - s.ghost) * 0.08;
+        if (Math.abs(s.ghost - s.shown) < 0.05) s.ghost = s.shown;
+      }
+      s.ghost = Math.max(s.ghost, s.shown);
+      s.flash = Math.max(0, s.flash - 0.04);
+      if (s.shown === hp && s.ghost === hp && s.flash === 0) anim.stop();
+      return true;
+    }, node.getLayer());
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, [hp, reduceFx]);
+  return <KShape ref={ref} listening={false} sceneFunc={(kctx) => drawHpBar(kctx._context, y, w, h, bar.current, boss)} />;
+}
+
 /** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
 export function Token({ c, grid, selected, active, plateNumber, draggable, onSelect, onMove }: Props) {
   const avatar = useImage(c.avatar);
@@ -110,9 +161,9 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
   // Conjurado: mesmo formato do lado de quem conjurou, um pouco menor e com selo (E21).
   const summon = !!c.summonerId;
   // Miúdo fica bem menor (divide a casa); conjurado, um pouco menor; grandes cobrem as casas todas.
-  const size = grid.cellPx * span * (c.size === "tiny" ? 0.55 : summon ? 0.7 : 0.86);
+  const size = grid.cellPx * span * (c.size === "tiny" ? 0.5 : summon ? 0.62 : TOKEN_FILL);
   /** Referência para textos e selos: não crescem com o bicho. */
-  const ref = Math.min(size, grid.cellPx * 0.86);
+  const ref = Math.min(size, grid.cellPx * TOKEN_FILL);
   const r = size / 2;
   const ring = Math.max(2, ref * 0.07);
   const isMob = c.type === "mob";
@@ -122,7 +173,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
   const down = c.hp !== undefined && c.hp <= 0;
   // Oculto (só o mestre recebe): translúcido e com contorno tracejado (E21).
   const hidden = c.hidden === true;
-  const badgeR = Math.max(7, grid.cellPx * 0.86 * 0.17);
+  const badgeR = Math.max(6, grid.cellPx * TOKEN_FILL * 0.17);
   const conditionText = c.conditions.map(fmtCondition).join(", ");
 
   const kind: FrameKind = isNpc ? "npc" : isMob ? "mob" : "ally";
@@ -131,10 +182,10 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
   // A moldura de chefe é sempre quadrada (também no NPC chefe): halo e seleção acompanham.
   const fxKind: FrameKind = boss ? "mob" : kind;
   const plateStyle: PlateStyle = boss ? "boss" : summon ? "pet" : kind;
-  const barH = Math.max(3, ref * 0.09);
+  const barH = Math.max(3.5, ref * 0.11);
   const hasBar = c.hp !== undefined && c.hpMax !== undefined;
   // A placa fica logo abaixo da barra de vida (ou do token, para quem não vê a vida).
-  const plateY = hasBar ? r + ring * 1.7 + barH + ref * 0.07 : r + ref * 0.1;
+  const plateY = hasBar ? r + ring * 0.8 + barH * (boss ? 1.4 : 1) + ref * 0.07 : r + ref * 0.1;
   // Placa com o nome: só no hover, selecionado ou arrastando (tokens lado a lado não se cobrem); o chefe, sempre.
   const focused = hover || selected || dragFeet !== null;
   // Rótulo do hover: só o que a placa não mostra (oculto, distância, condições).
@@ -260,26 +311,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
       {hidden && RingShape(ring * 0.9, { stroke: "#ece4d4", strokeWidth: ring * 0.6, dash: [ring * 1.5, ring * 1.5], listening: false })}
 
       {hasBar && c.hp !== undefined && c.hpMax !== undefined && (
-        <Group y={r + ring * 1.7} listening={false}>
-          <Rect x={-r} width={size} height={Math.max(3, ref * 0.09)} fill="#00000099" cornerRadius={2} />
-          <Rect
-            x={-r}
-            width={size * hpRatio(c.hp, c.hpMax + (c.tempHp ?? 0))}
-            height={Math.max(3, ref * 0.09)}
-            fill={HP_COLORS[hpLevel(c.hp, c.hpMax)]}
-            cornerRadius={2}
-          />
-          {!!c.tempHp && (
-            // Vida temporária: trecho claro logo depois da vida.
-            <Rect
-              x={-r + size * hpRatio(c.hp, c.hpMax + c.tempHp)}
-              width={size * (c.tempHp / (c.hpMax + c.tempHp))}
-              height={Math.max(3, ref * 0.09)}
-              fill="#ece4d4"
-              cornerRadius={2}
-            />
-          )}
-        </Group>
+        <TokenHpBar hp={c.hp} max={c.hpMax} temp={c.tempHp ?? 0} boss={boss} y={r + ring * 0.8} w={size * 0.9} h={barH} />
       )}
 
       {c.conditions.length > 0 && (

@@ -117,7 +117,7 @@ export function HpControl({ c }: { c: Combatant }) {
         )}
       </Group>
 
-      <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
+      <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick boss={c.boss} />
       {(c.phases || c.phase) && <PhaseBars c={c} />}
 
       <Group gap="xs" wrap="nowrap">
