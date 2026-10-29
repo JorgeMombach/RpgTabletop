@@ -838,6 +838,8 @@ export const es: Partial<Messages> = {
   "setup.footer": "Desaparece solo cuando la mesa esté lista.",
   "setup.skip": "Omitir",
   "setup.skipTip": "Oculta esta tarjeta en esta sesión.",
+  "selected.more": "Más",
+  "selected.moreTip": "Mapa, invocar, antorcha, alcance y ocultar",
   "top.round": "Ronda {round}",
   "top.turnOf": " · turno de ",
   "top.yourTurn": "¡Tu turno!",

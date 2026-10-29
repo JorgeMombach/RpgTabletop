@@ -838,6 +838,8 @@ export const en: Partial<Messages> = {
   "setup.footer": "Goes away on its own when the table is ready.",
   "setup.skip": "Skip",
   "setup.skipTip": "Hides this card for this session.",
+  "selected.more": "More",
+  "selected.moreTip": "Map, summon, torch, reach and hide",
   "top.round": "Round {round}",
   "top.turnOf": " · turn of ",
   "top.yourTurn": "Your turn!",

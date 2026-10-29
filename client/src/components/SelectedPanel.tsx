@@ -1,5 +1,5 @@
-import { ActionIcon, Button, Divider, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { IconEye, IconEyeOff, IconFlame, IconPencil, IconPointer, IconWand, IconX } from "@tabler/icons-react";
+import { ActionIcon, Button, Divider, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
+import { IconArrowBarToDown, IconCheck, IconChevronUp, IconCircleDashed, IconDots, IconEye, IconEyeOff, IconFlame, IconMapPin, IconPencil, IconPointer, IconTrash, IconWand, IconX } from "@tabler/icons-react";
 import { ALLY_COLORS, MOB_COLORS, NPC_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -38,6 +38,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [summoningId, setSummoningId] = useState<string | null>(null);
+  const [auraOpen, setAuraOpen] = useState(false);
   const t = useT();
 
   const gm = state.self.role === "gm";
@@ -167,54 +168,73 @@ export function SelectedPanel({ state }: { state: ClientState }) {
       {canEdit && !editing && !summoning && (
         <>
           <Divider />
-          <Group justify="space-between" gap="xs" wrap="wrap">
-            <Tooltip label={t("rules.moveLocked")} disabled={!moveLocked}>
-              {c.pos ? (
-                <Button variant="default" data-disabled={moveLocked || undefined} onClick={() => !moveLocked && act("token:move", { id: c.id, pos: null })}>
-                  {t("selected.offMap")}
-                </Button>
-              ) : (
-                // Celular: troca para a aba Mapa e espera o toque onde ele entra.
-                <Button
-                  variant="default"
-                  data-disabled={moveLocked || undefined}
-                  onClick={() => !moveLocked && (mobile ? setPlacing({ ids: [c.id], fromId: c.summonerId }) : placeOnMap(state, c.id))}
-                >
-                  {t("selected.onMap")}
-                </Button>
-              )}
-            </Tooltip>
-            {!c.summonerId && (
-              <Tooltip label={summonLocked ? t("rules.summonLocked") : t("selected.summonTip")}>
-                <Button variant="default" leftSection={<IconWand size={14} />} data-disabled={summonLocked || undefined} onClick={() => !summonLocked && setSummoningId(c.id)}>
-                  {t("selected.summon")}
-                </Button>
-              </Tooltip>
-            )}
-            <Tooltip label={t(c.torch ? "torch.offTip" : "torch.onTip")}>
-              <Button
-                variant={c.torch ? "light" : "default"}
-                color={c.torch ? "bronze" : undefined}
-                leftSection={<IconFlame size={14} />}
-                aria-pressed={!!c.torch}
-                onClick={() => act("torch:set", { id: c.id, lit: !c.torch })}
-              >
-                {t(c.torch ? "torch.off" : "torch.on")}
-              </Button>
-            </Tooltip>
-            <AuraControl c={c} />
-            {gm && c.type !== "ally" && (
-              <Tooltip label={c.hidden ? t("selected.revealTip") : t("selected.hideTip")}>
-                <Button
-                  variant="default"
-                  leftSection={c.hidden ? <IconEye size={14} /> : <IconEyeOff size={14} />}
-                  onClick={() => act("combatant:setHidden", { id: c.id, hidden: !c.hidden })}
-                >
-                  {c.hidden ? t("selected.reveal") : t("selected.hide")}
-                </Button>
-              </Tooltip>
-            )}
-            <Button variant="subtle" color="red" onClick={() => void removeCombatant(c)}>
+          {/* Ações raras no menu Mais (L8); Remover sozinho do outro lado, longe do clique distraído. */}
+          <Group justify="space-between" gap="xs" wrap="nowrap">
+            <Group gap={0} wrap="nowrap">
+              <Menu position="top-start" shadow="md" withinPortal>
+                <Menu.Target>
+                  <Tooltip label={t("selected.moreTip")}>
+                    <Button variant="default" leftSection={<IconDots size={14} />} rightSection={<IconChevronUp size={12} />}>
+                      {t("selected.more")}
+                    </Button>
+                  </Tooltip>
+                </Menu.Target>
+                <Menu.Dropdown className="more-menu">
+                  {c.pos ? (
+                    <Menu.Item
+                      leftSection={<IconArrowBarToDown size={14} />}
+                      disabled={moveLocked}
+                      title={moveLocked ? t("rules.moveLocked") : undefined}
+                      onClick={() => act("token:move", { id: c.id, pos: null })}
+                    >
+                      {t("selected.offMap")}
+                    </Menu.Item>
+                  ) : (
+                    // Celular: troca para a aba Mapa e espera o toque onde ele entra.
+                    <Menu.Item
+                      leftSection={<IconMapPin size={14} />}
+                      disabled={moveLocked}
+                      title={moveLocked ? t("rules.moveLocked") : undefined}
+                      onClick={() => (mobile ? setPlacing({ ids: [c.id], fromId: c.summonerId }) : placeOnMap(state, c.id))}
+                    >
+                      {t("selected.onMap")}
+                    </Menu.Item>
+                  )}
+                  {!c.summonerId && (
+                    <Menu.Item
+                      leftSection={<IconWand size={14} />}
+                      disabled={summonLocked}
+                      title={summonLocked ? t("rules.summonLocked") : t("selected.summonTip")}
+                      onClick={() => setSummoningId(c.id)}
+                    >
+                      {t("selected.summon")}
+                    </Menu.Item>
+                  )}
+                  <Menu.Item
+                    leftSection={<IconFlame size={14} />}
+                    title={t(c.torch ? "torch.offTip" : "torch.onTip")}
+                    rightSection={c.torch ? <IconCheck size={12} /> : undefined}
+                    onClick={() => act("torch:set", { id: c.id, lit: !c.torch })}
+                  >
+                    {t(c.torch ? "torch.off" : "torch.on")}
+                  </Menu.Item>
+                  <Menu.Item leftSection={<IconCircleDashed size={14} />} title={t("aura.tip")} onClick={() => setAuraOpen(true)}>
+                    {c.aura ? t("aura.labelOn", { feet: c.aura }) : t("aura.label")}…
+                  </Menu.Item>
+                  {gm && c.type !== "ally" && (
+                    <Menu.Item
+                      leftSection={c.hidden ? <IconEye size={14} /> : <IconEyeOff size={14} />}
+                      title={c.hidden ? t("selected.revealTip") : t("selected.hideTip")}
+                      onClick={() => act("combatant:setHidden", { id: c.id, hidden: !c.hidden })}
+                    >
+                      {c.hidden ? t("selected.reveal") : t("selected.hide")}
+                    </Menu.Item>
+                  )}
+                </Menu.Dropdown>
+              </Menu>
+              <AuraControl c={c} opened={auraOpen} onOpenChange={setAuraOpen} />
+            </Group>
+            <Button variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => void removeCombatant(c)}>
               {t("common.remove")}
             </Button>
           </Group>

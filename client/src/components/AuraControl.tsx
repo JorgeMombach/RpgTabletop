@@ -1,7 +1,7 @@
 import { Button, ColorSwatch, Group, NumberInput, Popover, Stack, Text, Tooltip } from "@mantine/core";
 import { IconCircleDashed } from "@tabler/icons-react";
 import { LIMITS, type Combatant } from "@rpg/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { DRAW_COLORS } from "../map/DrawingShape";
@@ -9,13 +9,26 @@ import { DRAW_COLORS } from "../map/DrawingShape";
 /** Valores comuns: alcance de arma (5/10 ft) e auras (15, 30 ft). */
 const PRESETS = [5, 10, 15, 30];
 
-/** Alcance ou aura em volta do token (botão no painel Selecionado): escolhe os pés ou apaga. */
-export function AuraControl({ c }: { c: Combatant }) {
+/**
+ * Alcance ou aura em volta do token: escolhe os pés ou apaga. Sozinho, é um botão; com `opened` (o item
+ * "Alcance" do menu Mais do Selecionado, L8), a janelinha abre presa a um ponto invisível no lugar do botão.
+ */
+export function AuraControl({ c, opened, onOpenChange }: { c: Combatant; opened?: boolean; onOpenChange?: (open: boolean) => void }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = opened !== undefined;
+  const open = controlled ? opened : ownOpen;
+  const setOpen = (next: boolean) => (controlled ? onOpenChange?.(next) : setOwnOpen(next));
   const [value, setValue] = useState<string | number>(c.aura ?? "");
   // null = a cor do token.
   const [color, setColor] = useState<string | null>(c.auraColor ?? null);
+  // Aberta pelo menu: começa com o que está no token.
+  useEffect(() => {
+    if (!opened) return;
+    setValue(c.aura ?? "");
+    setColor(c.auraColor ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]);
 
   async function save(feet: number | null) {
     if ((await act("aura:set", { id: c.id, feet, color })).ok) setOpen(false);
@@ -30,19 +43,23 @@ export function AuraControl({ c }: { c: Combatant }) {
   return (
     <Popover opened={open} onChange={setOpen} position="top" withArrow trapFocus>
       <Popover.Target>
-        <Tooltip label={t("aura.tip")} disabled={open}>
-          <Button
-            variant="default"
-            leftSection={<IconCircleDashed size={14} />}
-            onClick={() => {
-              setValue(c.aura ?? "");
-              setColor(c.auraColor ?? null);
-              setOpen(!open);
-            }}
-          >
-            {c.aura ? t("aura.labelOn", { feet: c.aura }) : t("aura.label")}
-          </Button>
-        </Tooltip>
+        {controlled ? (
+          <span className="aura-anchor" aria-hidden />
+        ) : (
+          <Tooltip label={t("aura.tip")} disabled={open}>
+            <Button
+              variant="default"
+              leftSection={<IconCircleDashed size={14} />}
+              onClick={() => {
+                setValue(c.aura ?? "");
+                setColor(c.auraColor ?? null);
+                setOpen(!open);
+              }}
+            >
+              {c.aura ? t("aura.labelOn", { feet: c.aura }) : t("aura.label")}
+            </Button>
+          </Tooltip>
+        )}
       </Popover.Target>
       <Popover.Dropdown>
         <Stack

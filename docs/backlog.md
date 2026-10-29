@@ -93,7 +93,7 @@ Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a b
 - [ ] **8. Fluxo:**
   - [x] Menu de contexto no token (dano, cura, condição, esconder, remover) e atalhos de teclado com ajuda (`?`); hoje não há nenhum dos dois. *(feito: menu de contexto e atalhos com ajuda no `?`)*
   - [x] *Revisão:* cartão **Preparar a mesa** na sessão vazia (Mapa → Monstros → Convidar jogadores, cada passo leva ao lugar; some quando a mesa estiver montada).
-  - [ ] *Revisão:* painel **Selecionado** com as ações raras (Tirar do mapa, Invocar, Tocha, Alcance, Ocultar) num menu *Mais* e *Remover* isolado.
+  - [x] *Revisão:* painel **Selecionado** com as ações raras (Tirar do mapa, Invocar, Tocha, Alcance, Ocultar) num menu *Mais* e *Remover* isolado.
   - [ ] *Revisão:* **Limpar campo** sai da barra do topo (aba Mesa → Sessão ou menu).
   - [ ] *Revisão:* ataques salvos do personagem como botões rápidos na aba **Dados** do jogador.
 

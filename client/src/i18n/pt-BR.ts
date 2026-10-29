@@ -845,6 +845,8 @@ export const ptBR = {
   "setup.footer": "Some sozinho quando a mesa estiver pronta.",
   "setup.skip": "Pular",
   "setup.skipTip": "Esconde este cartão nesta sessão.",
+  "selected.more": "Mais",
+  "selected.moreTip": "Mapa, invocar, tocha, alcance e ocultar",
   "top.round": "Round {round}",
   "top.turnOf": " · vez de ",
   "top.yourTurn": "Sua vez!",
