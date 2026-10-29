@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Path, Rect, RegularPolygon, Shape as KShape, Text } from "react-konva";
 import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
-import { fmtCondition } from "../format";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { t } from "../i18n";
 import { useApp } from "../store";
@@ -165,7 +164,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
   /** Referência para textos e selos: não crescem com o bicho. */
   const ref = Math.min(size, grid.cellPx * TOKEN_FILL);
   const r = size / 2;
-  const ring = Math.max(2, ref * 0.07);
+  const ring = ref * 0.07;
   const isMob = c.type === "mob";
   const isNpc = c.type === "npc";
   // Hexágono com a mesma área visual do círculo: o raio até a ponta é um pouco maior.
@@ -173,8 +172,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
   const down = c.hp !== undefined && c.hp <= 0;
   // Oculto (só o mestre recebe): translúcido e com contorno tracejado (E21).
   const hidden = c.hidden === true;
-  const badgeR = Math.max(6, grid.cellPx * TOKEN_FILL * 0.17);
-  const conditionText = c.conditions.map(fmtCondition).join(", ");
+  const badgeR = grid.cellPx * TOKEN_FILL * 0.17;
 
   const kind: FrameKind = isNpc ? "npc" : isMob ? "mob" : "ally";
   const boss = c.boss === true && c.type !== "ally";
@@ -182,18 +180,18 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
   // A moldura de chefe é sempre quadrada (também no NPC chefe): halo e seleção acompanham.
   const fxKind: FrameKind = boss ? "mob" : kind;
   const plateStyle: PlateStyle = boss ? "boss" : summon ? "pet" : kind;
-  const barH = Math.max(3.5, ref * 0.11);
+  const barH = ref * 0.11;
   const hasBar = c.hp !== undefined && c.hpMax !== undefined;
   // A placa fica logo abaixo da barra de vida (ou do token, para quem não vê a vida).
   const plateY = hasBar ? r + ring * 0.8 + barH * (boss ? 1.4 : 1) + ref * 0.07 : r + ref * 0.1;
   // Placa com o nome: só no hover, selecionado ou arrastando (tokens lado a lado não se cobrem); o chefe, sempre.
   const focused = hover || selected || dragFeet !== null;
-  // Rótulo do hover: só o que a placa não mostra (oculto, distância, condições).
+  // Rótulo do hover: só o que não tem outro sinal (oculto, distância ao arrastar). As condições têm os ícones.
   const head = [hidden ? `(${t("kind.hidden")})` : null, dragFeet !== null ? `${dragFeet} ft` : null]
     .filter(Boolean)
     .join(" · ");
-  const labelLines = [head, conditionText].filter(Boolean);
-  const labelSize = Math.max(11, ref * 0.24);
+  const labelLines = head ? [head] : [];
+  const labelSize = ref * 0.24;
 
   /** Área de clique: a forma do token. */
   const clip = (ctx: Konva.Context) => {
@@ -341,7 +339,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
       {c.animal && (
         // Selo de animal no canto oposto ao das condições (embaixo, se o de cima for do número do mob).
         <Group x={-r * 0.78} y={plateNumber !== undefined ? r * 0.78 : -r * 0.78} listening={false}>
-          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, ref * 0.03)} />
+          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={ref * 0.03} />
           <Path
             data={PAW}
             x={-badgeR * 0.75}
@@ -364,7 +362,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
 
       {summon && (
         <Group x={-r * 0.78} y={r * 0.78} listening={false}>
-          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={Math.max(1.5, ref * 0.03)} />
+          <Circle radius={badgeR} fill="#141218" stroke="#d8b47a" strokeWidth={ref * 0.03} />
           <Path
             data={WAND}
             x={-badgeR * 0.75}
@@ -405,7 +403,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
             fontSize={labelSize}
             fill="#ffffff"
             stroke="#000000"
-            strokeWidth={Math.max(2, ref * 0.05)}
+            strokeWidth={ref * 0.05}
             fillAfterStrokeEnabled
             align="center"
             width={Math.max(size, ref * 4)}

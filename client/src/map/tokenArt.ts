@@ -154,7 +154,7 @@ function metalRing(ctx: CanvasRenderingContext2D, kind: FrameKind, rOut: number,
   ctx.restore();
 
   // Relevo: aresta de fora clara em cima, a de dentro escura em cima (o anel salta).
-  const lw = Math.max(1, rOut * 0.035);
+  const lw = rOut * 0.035;
   const bevel = (path: Path2D, top: string, bottom: string) => {
     const g = ctx.createLinearGradient(0, -rOut, 0, rOut);
     g.addColorStop(0, top);
@@ -217,7 +217,7 @@ function ruby(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   ctx.fill(diamond(1.3));
   ctx.restore();
   ctx.strokeStyle = METALS.gold.edge;
-  ctx.lineWidth = Math.max(0.6, s * 0.06);
+  ctx.lineWidth = s * 0.06;
   ctx.stroke(diamond(1.3));
   // Facetas: cada quarto do losango com um tom (luz de cima à esquerda).
   const top = [x, y - h];
@@ -242,7 +242,7 @@ function ruby(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   }
   // Arestas das facetas, a mesa e o brilho.
   ctx.strokeStyle = "rgba(255,200,190,.45)";
-  ctx.lineWidth = Math.max(0.5, s * 0.04);
+  ctx.lineWidth = s * 0.04;
   ctx.beginPath();
   for (const p of [top, right, bottom, left]) {
     ctx.moveTo(mid[0], mid[1]);
@@ -253,7 +253,7 @@ function ruby(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   ctx.shadowColor = "#ff3a20";
   ctx.shadowBlur = s * 0.8;
   ctx.strokeStyle = "rgba(60,4,2,.9)";
-  ctx.lineWidth = Math.max(0.6, s * 0.05);
+  ctx.lineWidth = s * 0.05;
   ctx.stroke(diamond(1));
   ctx.restore();
   ctx.fillStyle = "rgba(255,255,255,.9)";
@@ -454,7 +454,7 @@ function metalShape(ctx: CanvasRenderingContext2D, path: Path2D, m: Metal, R: nu
   }
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
-  const lw = Math.max(1, R * 0.025);
+  const lw = R * 0.025;
   ctx.lineWidth = lw * 2;
   ctx.save();
   ctx.translate(-lw * 0.4, -lw * 0.6);
@@ -467,7 +467,7 @@ function metalShape(ctx: CanvasRenderingContext2D, path: Path2D, m: Metal, R: nu
   ctx.stroke(path);
   ctx.restore();
   ctx.restore();
-  ctx.lineWidth = Math.max(0.8, R * 0.012);
+  ctx.lineWidth = R * 0.012;
   ctx.strokeStyle = m.edge;
   ctx.stroke(path);
 }
@@ -690,7 +690,7 @@ export function drawTurnRing(ctx: CanvasRenderingContext2D, kind: FrameKind, bos
 export function drawSelection(ctx: CanvasRenderingContext2D, kind: FrameKind, boss: boolean, R: number, t: number) {
   ctx.save();
   ctx.strokeStyle = "rgba(236,228,212,.95)";
-  ctx.lineWidth = Math.max(1.5, R * 0.045);
+  ctx.lineWidth = R * 0.045;
   ctx.setLineDash([R * 0.18, R * 0.12]);
   ctx.lineDashOffset = -t * R * 0.4;
   ctx.shadowColor = "rgba(0,0,0,.8)";
@@ -967,7 +967,7 @@ function hpFill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, 
     ctx.rect(x + hw, y, tw, h);
     ctx.clip();
     ctx.strokeStyle = "rgba(255,255,255,.45)";
-    ctx.lineWidth = Math.max(0.6, h * 0.18);
+    ctx.lineWidth = h * 0.18;
     for (let i = x + hw + h * 0.6; i < x + hw + tw + h; i += h * 0.7) {
       ctx.beginPath();
       ctx.moveTo(i, y);
@@ -977,13 +977,13 @@ function hpFill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, 
     ctx.restore();
   }
   ctx.fillStyle = "rgba(255,255,255,.28)";
-  ctx.fillRect(x, y + h * 0.08, hw, Math.max(0.5, h * 0.28));
+  ctx.fillRect(x, y + h * 0.08, hw, h * 0.28);
   if (s.flash > 0) {
     ctx.fillStyle = `rgba(200,255,220,${s.flash * 0.6})`;
     ctx.fillRect(x, y, hw, h);
   }
   ctx.fillStyle = "rgba(0,0,0,.5)";
-  for (let i = 1; i < 4; i++) ctx.fillRect(x + (w * i) / 4 - 0.25, y, Math.max(0.5, h * 0.12), h);
+  for (let i = 1; i < 4; i++) ctx.fillRect(x + (w * i) / 4 - h * 0.06, y, h * 0.12, h);
   // Calha funda: sombra por dentro, em cima.
   const inner = ctx.createLinearGradient(0, y, 0, y + h);
   inner.addColorStop(0, "rgba(0,0,0,.45)");
@@ -1041,7 +1041,7 @@ export function drawHpBar(ctx: CanvasRenderingContext2D, y: number, w: number, h
     ctx.clip(slot);
     hpFill(ctx, x + h * 0.4, y, w - h * 0.8, h, s, true);
     ctx.restore();
-    ctx.lineWidth = Math.max(0.6, h * 0.14);
+    ctx.lineWidth = h * 0.14;
     ctx.strokeStyle = "#e8c070";
     ctx.stroke(slot);
     ruby(ctx, px + h * 0.15, y + h / 2, h * 0.55);
@@ -1067,7 +1067,7 @@ export function drawHpBar(ctx: CanvasRenderingContext2D, y: number, w: number, h
   hpFill(ctx, x, y, w, h, s, false);
   ctx.restore();
   ctx.strokeStyle = bronzeV(ctx, y, y + h);
-  ctx.lineWidth = Math.max(0.6, h * 0.18);
+  ctx.lineWidth = h * 0.18;
   ctx.stroke(pill);
   ctx.fillStyle = bronzeV(ctx, y - h * 0.4, y + h * 1.4);
   diamond(ctx, x - h * 0.15, y + h / 2, h * 0.75);
