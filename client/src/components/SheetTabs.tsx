@@ -13,7 +13,7 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { IconMinus, IconPlus, IconX } from "@tabler/icons-react";
+import { IconBackpack, IconFlask, IconMinus, IconPlus, IconSword, IconX } from "@tabler/icons-react";
 import { COINS, LIMITS, type Coin, type Combatant, type Recharge } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
@@ -21,6 +21,7 @@ import { fmtMod } from "../format";
 import { useT, type MessageKey } from "../i18n";
 import { doubleDice } from "./DicePanel";
 import { RestButton } from "./RestButton";
+import { EmptyState } from "./EmptyState";
 import { MagicSection } from "./MagicSection";
 
 type Tab = "magic" | "resources" | "attacks" | "items";
@@ -85,9 +86,7 @@ function ResourcesSection({ c, editable }: { c: Combatant; editable: boolean }) 
   return (
     <Stack gap="xs">
       {resources.length === 0 && !adding && (
-        <Text size="xs" c="dimmed">
-          {t(c.type === "ally" ? "sheet.resources.empty" : "sheet.resources.emptyMob")}
-        </Text>
+        <EmptyState icon={IconFlask} text={t(c.type === "ally" ? "sheet.resources.empty" : "sheet.resources.emptyMob")} compact />
       )}
       {resources.map((r) => (
         // Nome numa linha (com o remover) e, embaixo, quando volta e o contador: o nome não corta na coluna estreita.
@@ -238,9 +237,7 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
   return (
     <Stack gap="xs">
       {attacks.length === 0 && !adding && (
-        <Text size="xs" c="dimmed">
-          {t("sheet.attacks.empty")}
-        </Text>
+        <EmptyState icon={IconSword} text={t("sheet.attacks.empty")} compact />
       )}
       {attacks.map((a) => (
         // Nome numa linha e os botões de rolar embaixo: cabe na coluna estreita sem cortar o nome.
@@ -405,9 +402,7 @@ function ItemsSection({ c, editable }: { c: Combatant; editable: boolean }) {
     <Stack gap="xs">
       <Coins c={c} editable={editable} />
       {items.length === 0 && !adding && (
-        <Text size="xs" c="dimmed">
-          {t("sheet.items.empty")}
-        </Text>
+        <EmptyState icon={IconBackpack} text={t("sheet.items.empty")} compact />
       )}
       {items.map((i) => (
         <Group key={i.id} gap="xs" wrap="nowrap">

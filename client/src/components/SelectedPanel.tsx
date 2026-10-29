@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Divider, Group, Stack, Text, Tooltip } from "@mantine/core";
-import { IconEye, IconEyeOff, IconFlame, IconPencil, IconWand, IconX } from "@tabler/icons-react";
+import { IconEye, IconEyeOff, IconFlame, IconPencil, IconPointer, IconWand, IconX } from "@tabler/icons-react";
 import { ALLY_COLORS, MOB_COLORS, NPC_COLORS, type ClientState, type Combatant } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -22,6 +22,7 @@ import { ConditionsSection } from "./ConditionsSection";
 import { HpBar } from "./HpBar";
 import { HpControl } from "./HpControl";
 import { SheetTabs } from "./SheetTabs";
+import { EmptyState } from "./EmptyState";
 import { Panel } from "./Panel";
 
 /** Coloca o token no quadrado livre mais perto do centro da visão do mapa. */
@@ -78,9 +79,7 @@ export function SelectedPanel({ state }: { state: ClientState }) {
   if (!c) {
     return (
       <Panel title={t("selected.title")}>
-        <Text size="xs" c="dimmed">
-          {t(gm ? "selected.emptyGm" : "selected.empty")}
-        </Text>
+        <EmptyState icon={IconPointer} title={t("empty.selected")} text={t(gm ? "selected.emptyGm" : "selected.empty")} />
       </Panel>
     );
   }

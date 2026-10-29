@@ -1,5 +1,5 @@
 import { ActionIcon, Alert, Badge, Box, Button, Checkbox, Divider, Group, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
-import { IconCaretRightFilled, IconChevronDown, IconChevronUp, IconDice5, IconPlayerTrackNext, IconPlayerTrackPrev } from "@tabler/icons-react";
+import { IconCaretRightFilled, IconChevronDown, IconChevronUp, IconDice5, IconPlayerTrackNext, IconPlayerTrackPrev, IconSwords } from "@tabler/icons-react";
 import { LIMITS, groupName, groupRange, type ClientState, type CombatantView } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
@@ -9,6 +9,7 @@ import { allCombatants, fmtCondition } from "../format";
 import { select, useApp } from "../store";
 import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
+import { EmptyState } from "./EmptyState";
 import { TurnControls } from "./TurnControls";
 
 export function InitiativePanel({ state }: { state: ClientState }) {
@@ -116,11 +117,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
       )}
 
       {order.length === 0 ? (
-        <Text size="xs" c="dimmed">
-          {gm
-            ? t("init.emptyGm")
-            : t("init.emptyPlayer")}
-        </Text>
+        <EmptyState icon={IconSwords} title={t("empty.init")} text={gm ? t("init.emptyGm") : t("init.emptyPlayer")} />
       ) : (
         <ol className="init-list">
           {groupsOf(order).map(({ start, members }) => {

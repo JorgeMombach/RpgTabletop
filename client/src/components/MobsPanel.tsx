@@ -1,5 +1,5 @@
-import { ActionIcon, Button, Group, Text, Tooltip } from "@mantine/core";
-import { IconEye, IconEyeOff, IconPlus, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Button, Group, Tooltip } from "@mantine/core";
+import { IconEye, IconEyeOff, IconPlus, IconSkull, IconTrash, IconUser, type Icon } from "@tabler/icons-react";
 import { NPC_COLORS, type Combatant, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -9,6 +9,7 @@ import { select, useApp } from "../store";
 import { BestiaryModal } from "./BestiaryPanel";
 import { CombatantForm } from "./CombatantForm";
 import { CombatantRow } from "./CombatantRow";
+import { EmptyState } from "./EmptyState";
 import { Panel } from "./Panel";
 
 /** Olho na linha do mob/NPC: oculta dos jogadores ou revela (E21). */
@@ -32,15 +33,11 @@ export function HideToggle({ c }: { c: Combatant }) {
 }
 
 /** Lista de mobs ou NPCs (só o mestre), com ocultar e remover + "Desfazer". */
-function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
+function GmList({ list, empty, icon }: { list: Combatant[]; empty: string; icon: Icon }) {
   const t = useT();
   const selectedId = useApp((s) => s.selectedId);
   if (list.length === 0)
-    return (
-      <Text size="xs" c="dimmed">
-        {empty}
-      </Text>
-    );
+    return <EmptyState icon={icon} text={empty} compact />;
   return (
     <ul className="list">
       {list.map((m) => (
@@ -90,7 +87,7 @@ export function MobsPanel({ mobs, templates }: { mobs: Combatant[]; templates: M
           </Tooltip>
         }
       >
-        <GmList list={mobs} empty={t("mobs.empty")} />
+        <GmList list={mobs} empty={t("mobs.empty")} icon={IconSkull} />
       </Panel>
       <BestiaryModal templates={templates} opened={bestiary} onClose={() => setBestiary(false)} />
     </>
@@ -133,7 +130,7 @@ export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
           }}
         />
       )}
-      {!creating && <GmList list={npcs} empty={t("npcs.empty")} />}
+      {!creating && <GmList list={npcs} empty={t("npcs.empty")} icon={IconUser} />}
     </Panel>
   );
 }

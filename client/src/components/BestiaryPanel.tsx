@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Checkbox, Group, Modal, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
-import { IconPaw, IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconBook2, IconPaw, IconPencil, IconTrash } from "@tabler/icons-react";
 import { LIMITS, MOB_COLORS, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -9,6 +9,7 @@ import { useT } from "../i18n";
 import { Abbr } from "./Abbr";
 import { CombatantAvatar } from "./CombatantAvatar";
 import { CombatantForm } from "./CombatantForm";
+import { EmptyState } from "./EmptyState";
 import { Panel } from "./Panel";
 
 type Mode = { kind: "none" } | { kind: "newTemplate" } | { kind: "newMob" } | { kind: "edit"; id: string };
@@ -109,9 +110,7 @@ function BestiaryBody({ templates, mode, setMode, onAdded }: { templates: MobTem
       )}
 
       {templates.length === 0 && mode.kind === "none" && (
-        <Text size="xs" c="dimmed">
-          {t("bestiary.empty")}
-        </Text>
+        <EmptyState icon={IconBook2} title={t("empty.bestiary")} text={t("bestiary.empty")} />
       )}
 
       {templates.map((tpl) =>

@@ -9,7 +9,6 @@ import {
   createTheme,
   Input,
   Modal,
-  Notification,
   NumberInput,
   Paper,
   SegmentedControl,
@@ -165,16 +164,7 @@ export const theme = createTheme({
         title: { fontFamily: "Cinzel, serif", fontWeight: 700, color: "var(--mantine-color-bronze-4)" },
       },
     }),
-    // Avisos como uma placa pequena: couro com borda bronze (perigo em sangue).
-    Notification: Notification.extend({
-      styles: (_theme, props) => ({
-        root: {
-          backgroundColor: "var(--mantine-color-dark-6)",
-          border: `1px solid var(--mantine-color-${props.color === "red" ? "red" : "bronze"}-6)`,
-          boxShadow: "0 6px 18px rgb(0 0 0 / 0.5)",
-        },
-      }),
-    }),
+    // Avisos (toasts): placa de couro com medalhão, em styles.css (.game-toast), L7.
     // Campos "afundados": um tom abaixo da placa em que estão.
     Input: Input.extend({ styles: { input: { backgroundColor: "var(--mantine-color-dark-7)" } } }),
   },

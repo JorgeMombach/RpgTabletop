@@ -2,6 +2,8 @@ import { Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantin
 import type { LogEntry, RollTerm } from "@rpg/shared";
 import { rollerName } from "../format";
 import { logLabel, logText, t as tr, useLang, useT } from "../i18n";
+import { EmptyState } from "./EmptyState";
+import { IconDice5 } from "@tabler/icons-react";
 import { useApp } from "../store";
 
 /** Ouro do 20 natural (L6), o mesmo do resultado no mapa. */
@@ -34,11 +36,7 @@ export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
   useT();
   const rolling = useApp((s) => s.rolling);
   if (log.length === 0)
-    return (
-      <Text size="xs" c="dimmed">
-        {tr("log.empty")}
-      </Text>
-    );
+    return <EmptyState icon={IconDice5} text={tr("log.empty")} compact />;
 
   return (
     <Stack component="ol" gap={6} className="roll-log">

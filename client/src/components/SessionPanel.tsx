@@ -51,7 +51,7 @@ export function SessionPanel() {
   async function save() {
     setBusy(true);
     try {
-      if (await saveSessionFile()) toast({ kind: "info", text: t("session.saved") });
+      if (await saveSessionFile()) toast({ kind: "success", text: t("session.saved") });
     } catch (err) {
       toast({ kind: "error", text: (err as Error).message });
     } finally {
@@ -79,7 +79,7 @@ export function SessionPanel() {
       const res: ActionResult = await socket.timeout(60_000).emitWithAck("session:import", parsed);
       // O estado novo chega antes da resposta: o que está na mesa agora é o do arquivo.
       if (res.ok) markSaved(parsed.savedAt ? new Date(parsed.savedAt) : new Date());
-      toast(res.ok ? { kind: "info", text: t("session.loaded") } : { kind: "error", text: localizeError(res) });
+      toast(res.ok ? { kind: "success", text: t("session.loaded") } : { kind: "error", text: localizeError(res) });
     } catch {
       toast({ kind: "error", text: t("common.noServer") });
     } finally {

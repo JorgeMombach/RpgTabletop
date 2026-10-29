@@ -58,7 +58,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
     try {
       const image = await mapImageFromFile(file);
       const res = await act("battle:setMap", { image });
-      if (res.ok) toast({ kind: "info", text: t("mapPanel.sent") });
+      if (res.ok) toast({ kind: "success", text: t("mapPanel.sent") });
     } catch (err) {
       toast({ kind: "error", text: (err as Error).message });
     } finally {

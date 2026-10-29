@@ -1,4 +1,4 @@
-import { Button, Group, Text } from "@mantine/core";
+import { Button, Group } from "@mantine/core";
 import { ALLY_COLORS, type ClientState } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
@@ -7,6 +7,8 @@ import { select, useApp } from "../store";
 import { CombatantForm } from "./CombatantForm";
 import { CombatantRow } from "./CombatantRow";
 import { Panel } from "./Panel";
+import { EmptyState } from "./EmptyState";
+import { IconUsers } from "@tabler/icons-react";
 import { RestAllMenu } from "./RestButton";
 
 export function AlliesPanel({ state }: { state: ClientState }) {
@@ -52,9 +54,7 @@ export function AlliesPanel({ state }: { state: ClientState }) {
       )}
 
       {state.allies.length === 0 && !creating && (
-        <Text size="xs" c="dimmed">
-          {gm ? t("allies.emptyGm") : t("allies.empty")}
-        </Text>
+        <EmptyState icon={IconUsers} title={t("empty.allies")} text={gm ? t("allies.emptyGm") : t("allies.empty")} />
       )}
 
       {state.allies.length > 0 && (
