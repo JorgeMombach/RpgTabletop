@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { HpBar } from "./HpBar";
+import { usePulse } from "./usePulse";
 
 /** Chefe com fases: "Fase 2 de 3" e uma barra cheia para cada fase que ainda vem. */
 function PhaseBars({ c }: { c: Combatant }) {
@@ -40,6 +41,7 @@ function PhaseBars({ c }: { c: Combatant }) {
  * Vida temporária à parte: o dano tira dela primeiro (o servidor faz a conta).
  */
 export function HpControl({ c }: { c: Combatant }) {
+  const pulse = usePulse(c.hp);
   const t = useT();
   const [amount, setAmount] = useState<string | number>("");
   const [editing, setEditing] = useState<string | number | null>(null);
@@ -70,7 +72,7 @@ export function HpControl({ c }: { c: Combatant }) {
         {editing === null ? (
           <Tooltip label={t("hp.editTip")}>
             <UnstyledButton className="hp-value" onClick={() => setEditing(c.hp)}>
-              <Text fz={24} fw={700} lh={1.1}>
+              <Text key={pulse.pulseKey} fz={24} fw={700} lh={1.1} className={pulse.className}>
                 {c.hp}
               </Text>
             </UnstyledButton>

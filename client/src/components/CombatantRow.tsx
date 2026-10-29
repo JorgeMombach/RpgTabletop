@@ -7,6 +7,7 @@ import { allCombatants } from "../format";
 import { useT } from "../i18n";
 import { select, useApp } from "../store";
 import { CombatantAvatar } from "./CombatantAvatar";
+import { usePulse } from "./usePulse";
 import { HpBar } from "./HpBar";
 
 interface Props {
@@ -24,6 +25,8 @@ interface Props {
 export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props) {
   const t = useT();
   const down = c.hp <= 0;
+  // Vida que muda pisca na lista (L7).
+  const pulse = usePulse(c.hp);
   const status = down ? (c.type === "mob" ? t("hp.downMob") : t("hp.down")) : `${c.hp}/${c.hpMax}`;
   const hint = draggable && !c.pos ? t("row.dragHint") : undefined;
   const summoner = useApp((s) => (c.summonerId && s.state ? allCombatants(s.state).find((o) => o.id === c.summonerId)?.name : undefined));
@@ -87,7 +90,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
                 </Text>
               )}
             </Text>
-            <Text size="xs" c={down ? "red.4" : "dimmed"} style={{ flex: "none" }}>
+            <Text key={pulse.pulseKey} size="xs" c={down ? "red.4" : "dimmed"} className={pulse.className} style={{ flex: "none" }}>
               {status}
             </Text>
           </Group>

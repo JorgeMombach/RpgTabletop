@@ -43,6 +43,7 @@ export function Panel({ title, aside, className, highlighted, children }: PanelP
   return (
     // Placa do guia visual (E20): cantoneiras de bronze e título em Cinzel; estilos em styles.css (.plaque).
     <Paper component="section" className={`plaque ${highlighted ? "highlighted" : ""} ${className ?? ""}`} p="md">
+      <span className="plaque-rivets" aria-hidden />
       <Group justify="space-between" wrap="wrap" gap="xs" mb={collapsed ? 0 : "sm"}>
         <UnstyledButton onClick={toggle} aria-expanded={!collapsed} className="panel-toggle" style={{ flex: "1 1 120px", minWidth: 0 }}>
           <Group gap={8} wrap="nowrap">

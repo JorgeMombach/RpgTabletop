@@ -53,7 +53,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
       highlighted={myTurn}
       aside={
         combat.active && (
-          <Badge color="copper" variant="light" size="sm">
+          <Badge key={combat.round} className="round-flip" color="copper" variant="light" size="sm">
             {t("top.round", { round: combat.round })}
           </Badge>
         )
