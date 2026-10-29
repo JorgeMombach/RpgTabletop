@@ -19,7 +19,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
   const t = useT();
   const [mode, setMode] = useState<Mode>({ kind: "none" });
   return (
-    <Panel title={t("bestiary.title")} aside={mode.kind === "none" && <BestiaryActions setMode={setMode} />}>
+    <Panel title={t("bestiary.title")} anchor="bestiary" aside={mode.kind === "none" && <BestiaryActions setMode={setMode} />}>
       <BestiaryBody templates={templates} mode={mode} setMode={setMode} />
     </Panel>
   );

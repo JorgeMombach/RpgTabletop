@@ -92,7 +92,7 @@ Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a b
 - [x] **7. Interface geral:** *(feito: trilha de iniciativa no topo do mapa, textura nos painéis, divisórias, microanimações, avisos e estados vazios, tela de entrada)* trilha de iniciativa no topo do mapa, textura sutil nos painéis, divisórias, microanimações, avisos e estados vazios no estilo do jogo, tela de entrada.
 - [ ] **8. Fluxo:**
   - [x] Menu de contexto no token (dano, cura, condição, esconder, remover) e atalhos de teclado com ajuda (`?`); hoje não há nenhum dos dois. *(feito: menu de contexto e atalhos com ajuda no `?`)*
-  - [ ] *Revisão:* cartão **Preparar a mesa** na sessão vazia (Mapa → Monstros → Convidar jogadores, cada passo leva ao lugar; some quando a mesa estiver montada).
+  - [x] *Revisão:* cartão **Preparar a mesa** na sessão vazia (Mapa → Monstros → Convidar jogadores, cada passo leva ao lugar; some quando a mesa estiver montada).
   - [ ] *Revisão:* painel **Selecionado** com as ações raras (Tirar do mapa, Invocar, Tocha, Alcance, Ocultar) num menu *Mais* e *Remover* isolado.
   - [ ] *Revisão:* **Limpar campo** sai da barra do topo (aba Mesa → Sessão ou menu).
   - [ ] *Revisão:* ataques salvos do personagem como botões rápidos na aba **Dados** do jogador.

@@ -8,6 +8,8 @@ interface PanelProps {
   className?: string;
   /** Destaque do painel (ex.: "Sua vez!" na iniciativa). */
   highlighted?: boolean;
+  /** Nome para outras telas acharem o painel (ex.: o cartão Preparar a mesa leva até ele). */
+  anchor?: string;
   children?: ReactNode;
 }
 
@@ -30,7 +32,7 @@ function writeCollapsed(titles: string[]) {
   }
 }
 
-export function Panel({ title, aside, className, highlighted, children }: PanelProps) {
+export function Panel({ title, aside, className, highlighted, anchor, children }: PanelProps) {
   const [collapsed, setCollapsed] = useState(() => readCollapsed().includes(title));
 
   function toggle() {
@@ -42,7 +44,7 @@ export function Panel({ title, aside, className, highlighted, children }: PanelP
 
   return (
     // Placa do guia visual (E20): cantoneiras de bronze e título em Cinzel; estilos em styles.css (.plaque).
-    <Paper component="section" className={`plaque ${highlighted ? "highlighted" : ""} ${className ?? ""}`} p="md">
+    <Paper component="section" className={`plaque ${highlighted ? "highlighted" : ""} ${className ?? ""}`} p="md" data-panel={anchor}>
       <span className="plaque-rivets" aria-hidden />
       <Group justify="space-between" wrap="wrap" gap="xs" mb={collapsed ? 0 : "sm"}>
         <UnstyledButton onClick={toggle} aria-expanded={!collapsed} className="panel-toggle" style={{ flex: "1 1 120px", minWidth: 0 }}>

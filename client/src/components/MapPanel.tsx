@@ -72,7 +72,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   }
 
   return (
-    <Panel title={t("mapPanel.title")}>
+    <Panel title={t("mapPanel.title")} anchor="map">
       <Group gap="xs">
         <FileButton onChange={upload} accept="image/png,image/jpeg,image/webp">
           {(props) => (

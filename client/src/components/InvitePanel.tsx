@@ -70,7 +70,7 @@ export function InvitePanel({ host }: { host: HostInfo }) {
   const gmLink = `${host.addresses[0]?.url ?? location.origin}/?gm=${host.gmKey}`;
 
   return (
-    <Panel title={t("invite.title")}>
+    <Panel title={t("invite.title")} anchor="invite">
       {host.addresses.length === 0 ? (
         <Text size="xs" c="dimmed">
           {t("invite.none")} <Code>PUBLIC_URLS</Code> {t("invite.noneHint")} <Code>http://192.168.0.10:3000</Code>
