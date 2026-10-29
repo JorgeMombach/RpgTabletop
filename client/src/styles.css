@@ -2454,3 +2454,66 @@ button:hover > .ability-cell {
 .token-menu-other {
   border-top: 1px solid rgb(169 132 79 / 0.2);
 }
+
+/* ---------- Atalhos (L8): teclas em relevo e a janela de ajuda ---------- */
+.game-kbd {
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid #4a3f52;
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  background: linear-gradient(#3a3142, #241f2a);
+  box-shadow: 0 1px 0 #000;
+  font-family: "Alegreya Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mantine-color-dark-0);
+  text-align: center;
+}
+
+.game-kbd.small {
+  min-width: 18px;
+  padding: 0 4px;
+  border-bottom-width: 2px;
+  font-size: 10px;
+  color: var(--mantine-color-dark-2);
+}
+
+.keys-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-family: Cinzel, serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mantine-color-bronze-4);
+}
+
+.keys-group::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--mantine-color-bronze-6), transparent);
+}
+
+.keys-row {
+  padding: 3px 0;
+  border-bottom: 1px dashed rgb(61 52 70 / 0.7);
+}
+
+.keys-row:last-child {
+  border-bottom: 0;
+}
+
+/* Atalho só do mestre, visto pelo jogador: apagado. */
+.keys-row[data-dimmed] {
+  opacity: 0.45;
+}
+
+.keys-foot {
+  padding-top: 10px;
+  border-top: 1px solid rgb(169 132 79 / 0.25);
+}

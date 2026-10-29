@@ -8,10 +8,12 @@ import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area,
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
-import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
+import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
 import { InitiativeTrack } from "./InitiativeTrack";
-import { TokenMenu } from "./TokenMenu";
+import { TokenMenu, type MenuFocus } from "./TokenMenu";
+import { typingOrDialog } from "../components/Shortcuts";
+import { removeCombatant } from "../commands";
 import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
@@ -55,6 +57,9 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
   return { ...(at[rotation] ?? at[0]), w, h, bounds: { width: turned ? h : w, height: turned ? w : h } };
 }
 
+/** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
+const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "A", ping: "P", draw: "B", walls: "W", fog: "F" };
+
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 export function BattleMap({ state, compact = false }: { state: ClientState; compact?: boolean }) {
   const t = useT();
@@ -63,7 +68,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ x: 40, y: 40, scale: 1 });
   // Visão atual para efeitos que não devem rodar a cada mudança dela (câmera seguindo a vez).
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number; focus?: MenuFocus } | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
   const [shiftHeld, setShiftHeld] = useState(false);
@@ -537,6 +542,64 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Menu de contexto do token (L8): botão direito ou tocar e segurar.
   const closeMenu = useCallback(() => setMenu(null), []);
 
+  // Atalhos do mapa e do token selecionado (L8; lista na ajuda, `?`). As letras não valem com o foco num campo
+  // de texto nem com uma janela ou o menu do token abertos. O servidor confere as permissões de novo.
+  const keyCtx = useRef({ tool, selectedId, state, canMove, view, size, fit, zoomAt });
+  keyCtx.current = { tool, selectedId, state, canMove, view, size, fit, zoomAt };
+  useEffect(() => {
+    if (compact) return;
+    const down = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || typingOrDialog(e)) return;
+      const { tool, selectedId, state, canMove, view, size, fit, zoomAt } = keyCtx.current;
+      const gm = state.self.role === "gm";
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const done = () => e.preventDefault();
+      // Visão do mapa.
+      if (key === "+" || key === "=") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1.2);
+      if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
+      if (key === "0") return done(), fit();
+      // Ferramentas (repetir a tecla volta para Mover, como no botão).
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", a: "area", p: "ping", ...(gm ? { b: "draw", w: "walls", f: "fog" } : {}) };
+      if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
+      if (key === "Escape") {
+        if (tool !== "move") setTool("move");
+        else select(null);
+        return;
+      }
+      // Token selecionado.
+      const c = selectedId ? allCombatants(state).find((o) => o.id === selectedId) : undefined;
+      if (!c) return;
+      const canEdit = gm || (c.type === "ally" && c.ownerId === state.self.id);
+      const openMenu = (focus?: MenuFocus) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const span = sizeSpan(c.size);
+        const g = state.battle.map;
+        const world = c.pos
+          ? { x: g.offsetX + (c.pos.col + span) * g.cellPx, y: g.offsetY + c.pos.row * g.cellPx }
+          : { x: (size.width / 2 - view.x) / view.scale, y: (size.height / 2 - view.y) / view.scale };
+        setMenu({ id: c.id, x: rect.left + view.x + world.x * view.scale, y: rect.top + view.y + world.y * view.scale, focus });
+      };
+      if (key === "Enter") return done(), openMenu();
+      // O resto é de quem edita o token; segurar a tecla só repete o passo das setas.
+      if (!canEdit || (e.repeat && !key.startsWith("Arrow"))) return;
+      if (key === "d") return done(), openMenu("damage");
+      if (key === "c") return done(), openMenu("heal");
+      if (key === "k") return done(), openMenu("conditions");
+      if (key === "t") return done(), void act("torch:set", { id: c.id, lit: !c.torch });
+      if (key === "h" && gm && c.type !== "ally") return done(), void act("combatant:setHidden", { id: c.id, hidden: !c.hidden });
+      if (key === "Delete" && (gm || c.type === "ally")) return done(), void removeCombatant(c);
+      const step: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      if (step[key] && c.pos && canMove(c)) {
+        done();
+        const [dc, dr] = step[key];
+        void act("token:move", { id: c.id, pos: { col: c.pos.col + dc, row: c.pos.row + dr } });
+      }
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [compact]);
+
   // Trilha de iniciativa no topo (L7): só no combate e com alguém visível na ordem; os avisos do topo descem.
   const trackShown = state.battle.combat.active && state.battle.combat.order.some((id) => allCombatants(state).some((c) => c.id === id && !c.hidden));
 
@@ -712,7 +775,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
       {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
-      {menu && <TokenMenu state={state} id={menu.id} x={menu.x} y={menu.y} onClose={closeMenu} />}
+      {menu && <TokenMenu key={`${menu.id}-${menu.focus ?? ""}-${menu.x}`} state={state} id={menu.id} x={menu.x} y={menu.y} focus={menu.focus} onClose={closeMenu} />}
       {trackShown && <InitiativeTrack state={state} width={size.width} onFocus={glideTo} />}
       <MapToolbar
         tool={tool}
@@ -1045,7 +1108,7 @@ function MapToolbar({
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
         {tools.map(({ id, text, label, icon: Icon }) => (
-          <Tooltip key={id} label={label}>
+          <Tooltip key={id} label={`${label} · ${TOOL_KEYS[id]}`}>
             {narrow ? (
               <ActionIcon
                 size="lg"

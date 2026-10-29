@@ -1,4 +1,4 @@
-import { Button, Group, NumberInput, Portal, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import { Button, Group, Kbd, NumberInput, Portal, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import {
   IconArrowBarToDown,
   IconChevronRight,
@@ -22,6 +22,9 @@ import { useT } from "../i18n";
 import { select } from "../store";
 import { CONDITION_ICONS, CONDITION_OTHER } from "./gameIcons";
 
+/** Atalho que abriu o menu (L8): D = dano, C = cura (o Enter aplica esse), K = já com as condições. */
+export type MenuFocus = "damage" | "heal" | "conditions";
+
 /** Margem até a borda da janela ao encaixar o menu. */
 const EDGE = 8;
 
@@ -30,12 +33,12 @@ const EDGE = 8;
  * dano, Shift+Enter = cura), condições em medalhões, ver no painel, tocha, esconder (mestre), tirar do mapa e
  * remover. As mesmas ações do painel Selecionado, com as mesmas permissões (o servidor confere de novo).
  */
-export function TokenMenu({ state, id, x, y, onClose }: { state: ClientState; id: string; x: number; y: number; onClose: () => void }) {
+export function TokenMenu({ state, id, x, y, focus, onClose }: { state: ClientState; id: string; x: number; y: number; focus?: MenuFocus; onClose: () => void }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const condRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });
-  const [condOpen, setCondOpen] = useState(false);
+  const [condOpen, setCondOpen] = useState(focus === "conditions");
   const [amount, setAmount] = useState<string | number>("");
   const c = allCombatants(state).find((o) => o.id === id);
 
@@ -128,7 +131,9 @@ export function TokenMenu({ state, id, x, y, onClose }: { state: ClientState; id
                 value={amount}
                 onChange={setAmount}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") applyHp(e.shiftKey ? 1 : -1);
+                  // Enter aplica o do atalho (C = cura); Shift+Enter, o outro.
+                  const heal = focus === "heal" ? !e.shiftKey : e.shiftKey;
+                  if (e.key === "Enter") applyHp(heal ? 1 : -1);
                 }}
               />
             </Tooltip>
@@ -145,6 +150,7 @@ export function TokenMenu({ state, id, x, y, onClose }: { state: ClientState; id
           <MenuItem
             ref={condRef}
             icon={<IconSparkles size={16} />}
+            kbd="K"
             open={condOpen}
             onClick={() => setCondOpen(true)}
             onMouseEnter={() => setCondOpen(true)}
@@ -163,12 +169,13 @@ export function TokenMenu({ state, id, x, y, onClose }: { state: ClientState; id
         </MenuItem>
         {canEdit && (
           <>
-            <MenuItem icon={<IconFlame size={16} />} onClick={run(() => act("torch:set", { id: c.id, lit: !c.torch }))} onMouseEnter={() => setCondOpen(false)}>
+            <MenuItem icon={<IconFlame size={16} />} kbd="T" onClick={run(() => act("torch:set", { id: c.id, lit: !c.torch }))} onMouseEnter={() => setCondOpen(false)}>
               {c.torch ? t("torch.off") : t("menu.torchOn")}
             </MenuItem>
             {gm && c.type !== "ally" && (
               <MenuItem
                 icon={c.hidden ? <IconEye size={16} /> : <IconEyeOff size={16} />}
+                kbd="H"
                 onClick={run(() => act("combatant:setHidden", { id: c.id, hidden: !c.hidden }))}
                 onMouseEnter={() => setCondOpen(false)}
               >
@@ -190,7 +197,7 @@ export function TokenMenu({ state, id, x, y, onClose }: { state: ClientState; id
             {(gm || c.type === "ally") && (
               <>
                 <div className="token-menu-sep" />
-                <MenuItem danger icon={<IconTrash size={16} />} onClick={run(() => void removeCombatant(c))} onMouseEnter={() => setCondOpen(false)}>
+                <MenuItem danger icon={<IconTrash size={16} />} kbd="Del" onClick={run(() => void removeCombatant(c))} onMouseEnter={() => setCondOpen(false)}>
                   {t("common.remove")}
                   {c.type === "ally" ? "…" : ""}
                 </MenuItem>
@@ -208,6 +215,7 @@ function MenuItem({
   icon,
   children,
   right,
+  kbd,
   danger = false,
   disabled = false,
   open = false,
@@ -218,6 +226,8 @@ function MenuItem({
   icon: ReactNode;
   children: ReactNode;
   right?: ReactNode;
+  /** Tecla de atalho mostrada à direita (L8). */
+  kbd?: string;
   danger?: boolean;
   disabled?: boolean;
   open?: boolean;
@@ -237,6 +247,7 @@ function MenuItem({
     >
       <span className="token-menu-icon">{icon}</span>
       <span style={{ flex: 1, minWidth: 0 }}>{children}</span>
+      {kbd && <Kbd className="game-kbd small">{kbd}</Kbd>}
       {right}
     </UnstyledButton>
   );

@@ -21,6 +21,7 @@ import { GmTabs } from "./GmTabs";
 import { HandoutButton, HandoutModal } from "./Handout";
 import { InitiativePanel } from "./InitiativePanel";
 import { LanguageMenu } from "./LanguageMenu";
+import { Shortcuts, ShortcutsButton } from "./Shortcuts";
 import { AboutLink, AboutModal } from "./About";
 import { MobileShell } from "./MobileShell";
 import { PlayersPanel } from "./PlayersPanel";
@@ -107,6 +108,7 @@ function DesktopShell({ state }: { state: ClientState }) {
             </Tooltip>
           )}
           <HandoutButton />
+          <ShortcutsButton />
           <LanguageMenu size="md" />
           <VolumeControl />
           <Group gap={6} wrap="nowrap">
@@ -171,6 +173,7 @@ function DesktopShell({ state }: { state: ClientState }) {
 
       {gm && <ClearBattleDialog open={clearing} onClose={() => setClearing(false)} />}
       {gm && <CloseGuard />}
+      <Shortcuts state={state} />
       {logDetached && <FloatingLog />}
       <SoundSync sound={state.sound} />
       <AboutModal opened={about} onClose={() => setAbout(false)} />
