@@ -69,6 +69,19 @@ describe("paredes e portas", () => {
     assert.deepEqual(game().battle.walls.find((w) => w.id === livre)?.from, { col: 0.33, row: 2.25 });
   });
 
+  it("estilo das paredes por cena: só o mestre escolhe, valor inválido é recusado, vai no arquivo", async () => {
+    const { g, ana } = await setup();
+    assert.equal((await act(ana, "battle:grid", { wallStyle: "wood" })).ok, false);
+    assert.match(errorOf(await act(g, "battle:grid", { wallStyle: "lava" as never })), /Estilo de parede inválido/);
+    assert.ok((await act(g, "battle:grid", { wallStyle: "rock" })).ok);
+    assert.equal(game().battle.map.wallStyle, "rock");
+    const exported = await g.timeout(2000).emitWithAck("session:export");
+    assert.ok((await act(g, "battle:grid", { wallStyle: "stone" })).ok);
+    assert.equal(game().battle.map.wallStyle, undefined, "pedra lavrada é o padrão (sem campo)");
+    assert.ok((await g.timeout(2000).emitWithAck("session:import", exported.file)).ok);
+    assert.equal(game().battle.map.wallStyle, "rock");
+  });
+
   it("jogador abre e fecha a porta, menos a trancada; só o mestre tranca", async () => {
     const { g, ana } = await setup();
     const [porta] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 1, row: 0 }, door: true }));

@@ -16,7 +16,7 @@ import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions } from "./DrawingShape";
-import { wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
 import { addWall, removeWall, undoWall } from "./wallHistory";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -483,6 +483,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   const plateNumbers = repeatedNumbers(tokens);
+  const wallStyle = state.battle.map.wallStyle ?? "stone";
+  const doors = doorLayouts(state.battle.walls);
   // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
   const activeIds = new Set(currentGroup(state).map((c) => c.id));
   // Com a regra "movimento só na vez" ligada, o jogador só arrasta os seus na vez dele.
@@ -564,9 +566,18 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga. */}
           <Layer listening={tool === "move" || (gm && tool === "walls")}>
             {state.battle.walls.map((w) => (
-              <WallShape key={w.id} w={w} grid={grid} gm={gm} selected={w.id === selectedDoorId} onClick={() => onWallClick(w)} />
+              <WallShape
+                key={w.id}
+                w={w}
+                grid={grid}
+                gm={gm}
+                style={wallStyle}
+                layout={doors.get(w.id)}
+                selected={w.id === selectedDoorId}
+                onClick={() => onWallClick(w)}
+              />
             ))}
-            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
+            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} style={wallStyle} />}
           </Layer>
 
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
@@ -687,7 +698,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
       {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
-      {gm && tool === "walls" && <WallOptions walls={state.battle.walls} />}
+      {gm && tool === "walls" && <WallOptions walls={state.battle.walls} style={wallStyle} />}
       {gm && tool === "fog" && <FogOptions fog={state.battle.fog} onRevealMap={revealMap} />}
       {fixing && myArea && (
         <FixEffectModal

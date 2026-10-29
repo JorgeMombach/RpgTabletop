@@ -239,7 +239,13 @@ export interface MapConfig {
   rotation: number;
   /** Escala da imagem (1 = tamanho original), para casar os quadrados do desenho com o grid. */
   imageScale: number;
+  /** Como as paredes desta cena são desenhadas (L5). Ausente = pedra lavrada. */
+  wallStyle?: WallStyle;
 }
+
+/** Estilos de parede: pedra lavrada (masmorra, castelo), rocha bruta (caverna, ruína) e madeira (casa, paliçada). */
+export const WALL_STYLES = ["stone", "rock", "wood"] as const;
+export type WallStyle = (typeof WALL_STYLES)[number];
 
 export interface CombatState {
   active: boolean;

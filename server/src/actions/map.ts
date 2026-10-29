@@ -1,4 +1,4 @@
-import { emptyFog, inRows, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, type Combatant, type GridPos } from "@rpg/shared";
+import { emptyFog, inRows, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, WALL_STYLES, type Combatant, type GridPos, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
@@ -31,6 +31,12 @@ function gridPosOf(raw: unknown): GridPos | null {
 function rotationOf(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isInteger(raw) || raw % 90 !== 0) fail("Rotação: use passos de 90°.");
   return ((raw % 360) + 360) % 360;
+}
+
+/** Estilo das paredes da cena (L5); pedra lavrada é o padrão e fica sem campo. */
+export function wallStyleOf(raw: unknown): WallStyle | undefined {
+  if (!WALL_STYLES.includes(raw as WallStyle)) fail("Estilo de parede inválido.");
+  return raw === "stone" ? undefined : (raw as WallStyle);
 }
 
 export const mapHandlers: HandlerMap = {
@@ -67,6 +73,7 @@ export const mapHandlers: HandlerMap = {
       imageScale: Math.round(imageScale * 1000) / 1000,
     });
     if (typeof input.showGrid === "boolean") map.showGrid = input.showGrid;
+    if (input.wallStyle !== undefined) map.wallStyle = wallStyleOf(input.wallStyle);
   },
 
   "battle:clear": (store, player, payload) => {

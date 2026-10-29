@@ -101,7 +101,7 @@ export interface MapImagePayload {
   image: string | null;
 }
 
-export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale">>;
+export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle">>;
 
 export interface TemplateInput extends CombatantInput {
   /** Presente = edição; ausente = criação. */

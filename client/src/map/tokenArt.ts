@@ -18,7 +18,7 @@ interface Metal {
   edge: string;
 }
 
-const METALS: Record<"bronze" | "iron" | "silver" | "gold", Metal> = {
+export const METALS: Record<"bronze" | "iron" | "silver" | "gold", Metal> = {
   bronze: { hi: "#f6dfae", mid: "#b98a4c", lo: "#4a3018", edge: "#2a1a0c" },
   iron: { hi: "#c9ccd1", mid: "#6c6f76", lo: "#26272b", edge: "#111114" },
   silver: { hi: "#f2f0ea", mid: "#a8a6a0", lo: "#45443f", edge: "#1c1c1a" },
@@ -87,7 +87,7 @@ function ringPath(kind: FrameKind, rOut: number, rIn: number): Path2D {
 let grainTile: HTMLCanvasElement | null = null;
 
 /** Desgaste do metal em tons de cinza: riscos finos (metal escovado) e manchas largas. Multiplicado por cima. */
-function grain(): HTMLCanvasElement {
+export function grain(): HTMLCanvasElement {
   if (grainTile) return grainTile;
   const N = 128;
   const c = document.createElement("canvas");
@@ -172,7 +172,7 @@ function metalRing(ctx: CanvasRenderingContext2D, kind: FrameKind, rOut: number,
 }
 
 /** Rebite (ou conta) de metal com brilho de cima à esquerda. */
-function rivet(ctx: CanvasRenderingContext2D, x: number, y: number, rr: number, m: Metal) {
+export function rivet(ctx: CanvasRenderingContext2D, x: number, y: number, rr: number, m: Metal) {
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,.6)";
   ctx.shadowBlur = rr * 0.8;
@@ -310,7 +310,7 @@ function goldPiece(ctx: CanvasRenderingContext2D, d: string, cx: number, cy: num
   ctx.restore();
 }
 
-function shade(hex: string, k: number): string {
+export function shade(hex: string, k: number): string {
   const n = parseInt(hex.slice(1), 16);
   const f = (c: number) => Math.round(k >= 0 ? c + (255 - c) * k : c * (1 + k));
   return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
