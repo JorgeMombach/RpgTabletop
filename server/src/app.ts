@@ -231,6 +231,11 @@ export function createApp(opts: AppOptions) {
       if (result.ok) broadcast();
     });
 
+    // Só para quem já entrou: a imagem é da sessão.
+    socket.on("map:imageRequest", () => {
+      if (socket.data.playerId) socket.emit("map:image", mapImage());
+    });
+
     for (const name of Object.keys(handlers) as ActionName[]) {
       // O tipo do evento varia por ação; o handler valida o payload.
       (socket.on as (ev: string, fn: (payload: unknown, ack?: unknown) => void) => void)(name, (payload, ack) => {

@@ -1,7 +1,7 @@
 import { ActionIcon, Group, Paper, Text, Tooltip } from "@mantine/core";
 import { IconExternalLink, IconWindowMinimize } from "@tabler/icons-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { popOutLog } from "../logWindow";
+import { CAN_POP_OUT, popOutLog } from "../logWindow";
 import { setDicePrefs, useApp } from "../store";
 import { useT } from "../i18n";
 import { RollLog } from "./RollLog";
@@ -84,7 +84,8 @@ export function FloatingLog() {
     const d = drag.current;
     if (!d) return;
     const out = e.clientX < 0 || e.clientY < 0 || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
-    setLeaving(out);
+    // No tablet não há janela própria: arrastar para a borda só leva até ela.
+    setLeaving(out && CAN_POP_OUT);
     setRect((r) => clamp({ ...r, x: e.clientX - d.dx, y: e.clientY - d.dy }));
   }
 
@@ -126,11 +127,13 @@ export function FloatingLog() {
           {leaving ? t("logWindow.dropHint") : t("log.title")}
         </Text>
         <Group gap={4} wrap="nowrap">
-          <Tooltip label={t("logWindow.openTip")}>
-            <ActionIcon size="sm" aria-label={t("logWindow.open")} onClick={() => popOutLog({ x: window.screenX + rect.x, y: window.screenY + rect.y, w: rect.w, h: rect.h })}>
-              <IconExternalLink size={16} />
-            </ActionIcon>
-          </Tooltip>
+          {CAN_POP_OUT && (
+            <Tooltip label={t("logWindow.openTip")}>
+              <ActionIcon size="sm" aria-label={t("logWindow.open")} onClick={() => popOutLog({ x: window.screenX + rect.x, y: window.screenY + rect.y, w: rect.w, h: rect.h })}>
+                <IconExternalLink size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <Tooltip label={t("log.minimizeTip")}>
             <ActionIcon size="sm" aria-label={t("log.minimize")} onClick={() => setDicePrefs({ logDetached: false })}>
               <IconWindowMinimize size={16} />

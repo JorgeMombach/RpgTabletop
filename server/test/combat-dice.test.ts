@@ -201,7 +201,7 @@ describe("reação", () => {
 
     await act(g, "combat:next", {}); // vez do Goblin, mesmo round
     assert.equal((await act(bia, "dice:roll", { expr: "1d20" })).ok, false, "turno mudou: fechou");
-    assert.match(errorOf(await act(bia, "reaction:use", {})), /já usou a reação neste round/);
+    assert.match(errorOf(await act(bia, "reaction:use", {})), /já usou a reação nesta rodada/);
 
     await act(g, "combat:next", {}); // Lia
     await act(g, "combat:next", {}); // Thorin, round 2

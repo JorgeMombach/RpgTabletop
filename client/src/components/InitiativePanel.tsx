@@ -5,8 +5,8 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { confirmAction } from "../confirm";
-import { allCombatants, fmtCondition } from "../format";
-import { select, useApp } from "../store";
+import { allCombatants, fmtCondition, isDown } from "../format";
+import { select, useApp, useInitHeld } from "../store";
 import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
 import { EmptyState } from "./EmptyState";
@@ -183,7 +183,10 @@ function GroupRow({ members, current, selected, children }: { members: Combatant
   const [open, setOpen] = useState(false);
   const head = members[0];
   const name = groupName(members.map((c) => c.name));
-  const down = members.every((c) => c.hp !== undefined && c.hp <= 0);
+  const down = members.every(isDown);
+  // Dados ainda rolando: o número espera.
+  const held = useInitHeld();
+  const rolling = members.some((c) => held.has(c.id));
 
   return (
     <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={() => select(head.id)}>
@@ -197,7 +200,7 @@ function GroupRow({ members, current, selected, children }: { members: Combatant
         </Text>
         <Tooltip label={t("init.groupTip", { n: members.length })}>
           <Text size="sm" fw={700} miw={36} ta="center">
-            {head.initiative}
+            {rolling ? <IconDice5 size={14} className="init-held" aria-label={t("init.rolling")} /> : head.initiative}
           </Text>
         </Tooltip>
         <Tooltip label={open ? t("init.groupClose") : t("init.groupOpen")}>
@@ -232,7 +235,8 @@ function InitRow(props: {
   const { c, index, last, current, selected, mine, editable, gm } = props;
   const t = useT();
   const [editing, setEditing] = useState<string | number | null>(null);
-  const down = c.hp !== undefined && c.hp <= 0;
+  const down = isDown(c);
+  const rolling = useInitHeld().has(c.id);
 
   function commit(e?: FormEvent) {
     e?.preventDefault();
@@ -294,7 +298,7 @@ function InitRow(props: {
               disabled={!editable}
               onClick={stop(() => setEditing(c.initiative ?? ""))}
             >
-              {c.initiative}
+              {rolling ? <IconDice5 size={14} className="init-held" aria-label={t("init.rolling")} /> : c.initiative}
             </Button>
           </Tooltip>
         )}

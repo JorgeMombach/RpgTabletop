@@ -9,6 +9,11 @@ export function hpRatio(hp: number, hpMax: number): number {
   return hpMax > 0 ? Math.max(0, Math.min(1, hp / hpMax)) : 0;
 }
 
+/** Caído: vida zerada (ou, para o jogador, que não recebe a vida de mob/NPC, a marca `down`). */
+export function isDown(c: Pick<CombatantView, "hp" | "down">): boolean {
+  return c.hp !== undefined ? c.hp <= 0 : c.down === true;
+}
+
 /** Faixa de cor da barra de vida. */
 export function hpLevel(hp: number, hpMax: number): "full" | "mid" | "low" | "zero" {
   if (hp <= 0) return "zero";

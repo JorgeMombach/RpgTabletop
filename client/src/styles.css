@@ -2665,3 +2665,27 @@ button:hover > .ability-cell {
 .reduce-fx .quick-attack {
   transition: none;
 }
+
+/* Iniciativa com os dados ainda rolando: o dado gira no lugar do número (M). */
+.init-held {
+  color: var(--mantine-color-bronze-4);
+  animation: init-held-spin 0.9s linear infinite;
+  vertical-align: middle;
+}
+@keyframes init-held-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.reduce-fx .init-held {
+  animation: none;
+}
+
+/*
+ * Janela (Modal): o conteúdo é um Paper e herdava o padding dele (tema). Com o padding, o cabeçalho fixo
+ * (título e X) parava 12 px abaixo do topo e o texto rolava por cima dele. O cabeçalho e o corpo já têm o
+ * próprio espaçamento.
+ */
+.mantine-Modal-content {
+  padding: 0 !important;
+}

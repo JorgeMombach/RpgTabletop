@@ -278,6 +278,8 @@ export interface ActionPayloads {
   "fog:room": { cell: GridPos; reveal: boolean };
   /** Mestre: liga ou desliga a visão dos personagens (os aliados revelam em volta deles). */
   "fog:vision": { enabled: boolean };
+  /** Mestre: alcance da visão dos personagens na cena, em pés (`null` = pela luz do clima). */
+  "fog:range": { feet: number | null };
   /** Mestre: cobre o mapa inteiro de novo (e esquece o que foi explorado). */
   "fog:reset": Record<string, never>;
   /** Mestre: liga ou desliga regras da mesa (só as que vierem). */
@@ -340,6 +342,8 @@ export type ClientToServerEvents = ActionEvents & {
   /** Pergunta qual papel esta conexão receberia (loopback = mestre). */
   "session:probe": (payload: { gmKey?: string }, ack: (res: { role: Role }) => void) => void;
   "session:join": (payload: JoinPayload, ack: (res: JoinResult) => void) => void;
+  /** Pede a imagem do mapa de novo (a do cliente ficou para trás ou não abriu): volta em `map:image`. */
+  "map:imageRequest": () => void;
   /** Efêmero: repassado aos outros, não fica no estado. */
   "ruler:update": (ruler: Ruler | null) => void;
   /** Efêmero, como a régua. */
@@ -441,6 +445,8 @@ export const LIMITS = {
   fogRectSide: 400,
   /** Maior cômodo que "revelar o cômodo" aceita (casas); passou disso, a área não fecha. */
   fogRoom: 4000,
+  /** Alcance da visão por cena (pés). */
+  visionFeet: { min: 5, max: 1000 },
   wallLength: 200,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,
@@ -462,7 +468,7 @@ export const LIMITS = {
   /** Lado máximo da imagem do mapa e do avatar após redução no cliente. */
   mapImageSide: 4096,
   avatarSide: 128,
-  cellPx: { min: 8, max: 400 },
+  cellPx: { min: 8, max: 1000 },
   imageScale: { min: 0.1, max: 10 },
   areaFeet: { min: 5, max: 500 },
   /** Limite de coordenada de célula (evita tokens perdidos no infinito). */

@@ -198,6 +198,8 @@ export interface Combatant {
 export type CombatantView = Omit<Combatant, "hp" | "hpMax"> & {
   hp?: number;
   hpMax?: number;
+  /** Caído (vida zerada): o que o jogador sabe de um mob ou NPC sem receber a vida. */
+  down?: boolean;
 };
 
 /** Próxima fase de um chefe: começa quando a vida da fase atual zera. Nome e CA novos são opcionais. */
@@ -358,6 +360,8 @@ export interface LogEntry {
   labelParts?: LogPart[];
   /** Quem rolou é o mestre (o nome aparece como "Mestre" no idioma de cada um). */
   gm?: boolean;
+  /** Combatente da rolagem de iniciativa: o valor dele só aparece quando os dados param. */
+  subjectId?: string;
 }
 
 /** Pedaço de texto do log: modelo em português e valores. */

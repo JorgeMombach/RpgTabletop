@@ -97,6 +97,25 @@ Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a b
   - [x] *Revisão:* **Limpar campo** sai da barra do topo (aba Mesa → Sessão ou menu).
   - [x] *Revisão:* ataques salvos do personagem como botões rápidos na aba **Dados** do jogador.
 
+## M. Correções antes de lançar a 2.10.0 (anotadas no jogo)
+Bugs:
+- [x] **Cobrir tudo** some com mobs, NPCs e o "?" logo no primeiro clique (hoje precisa de dois). Cobrir (pincel, cômodo ou tudo) não deixa mais marca de "visto por último".
+- [x] NPCs ficam visíveis para sempre depois de vistos uma vez (devem sumir fora da visão, como os mobs). O servidor já filtrava NPC igual a mob (agora com teste); o que os mantinha à vista era o raio de 120 ft de dia e a luz de tocha vista de longe: resolvido com o alcance por cena.
+- [x] Mob caído (0 de vida): só o mestre vê a caveira; os jogadores também devem ver (sem receber a vida).
+- [x] Trocar de cena e mexer no mapa às vezes deixa os jogadores sem a imagem do mapa (resolvia com recarregar). O cliente confere a versão da imagem em cada estado e pede de novo se ficou para trás; imagem que não abre tenta mais duas vezes.
+- [x] O mestre vê os valores da iniciativa dos mobs antes de os dados terminarem de rolar na tela.
+- [x] Efeito preso ao token só acompanha depois de soltar o token; deve ir junto enquanto arrasta.
+- [x] Janela *Sobre*: o título e o X rolam junto com o texto.
+- [x] Tamanho máximo da casa do grid (400 px) pequeno para mapas muito grandes. Agora até 1000 px, com o controle em escala logarítmica.
+- [x] iPad: *Destacar o log* abre outra aba; em tela de toque, ele deve flutuar na própria mesa.
+- [x] Tradução: duração das condições aparece como "Rounds" em português. Agora "rodada" em toda a interface em português.
+Decisões e novidades:
+- [x] Visão dos personagens em mapa aberto revela demais (de dia são 120 ft). Decisão: alcance por cena (30, 60, 120 ft ou pela luz do clima).
+- [ ] Desenho para os jogadores (setas?), com o mestre podendo apagar os de todos. Decisão: só setas; cada um apaga as suas, o mestre apaga todas.
+- [ ] Borracha de verdade no desenho e nas paredes/portas: apaga só por onde passa, arrastando.
+- [ ] Efeito de mapa novo: **Luz sagrada**.
+- [ ] Levantar personagem caído: botão próprio (1 de vida ou o valor da cura) além de levantar ao receber cura. Decisão: botão *Levantar* (1 de vida) no Selecionado e no menu do token; a cura continua levantando.
+
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).
 - Assinatura do executável no Windows e no Mac (certificados pagos).

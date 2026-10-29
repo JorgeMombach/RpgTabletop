@@ -397,6 +397,7 @@ function logEntry(raw: unknown): LogEntry {
     });
   }
   if (e.gm === true) out.gm = true;
+  if (typeof e.subjectId === "string" && e.subjectId.length <= 64) out.subjectId = e.subjectId;
   return out;
 }
 
@@ -557,6 +558,8 @@ function fogFromFile(raw: unknown): FogState {
         span: int(m.span, "névoa", 1, 4),
       };
     }),
+    // Arquivos de antes do alcance por cena: pela luz do clima.
+    range: f.range === undefined || f.range === null ? null : int(f.range, "névoa", LIMITS.visionFeet.min, LIMITS.visionFeet.max),
   };
 }
 

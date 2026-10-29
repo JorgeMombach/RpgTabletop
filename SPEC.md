@@ -146,7 +146,7 @@ Cliente → servidor:
 Toda ação responde por ack com `{ ok: true, ids? }` ou `{ ok: false, error }` (mensagem pronta para o usuário).
 
 Servidor → cliente:
-`state:full` (filtrado por papel), `map:image` (só quando a imagem muda), `ruler:update`, `area`, `toast`, `error`.
+`state:full` (filtrado por papel), `map:image` (só quando a imagem muda, ou quando o cliente pede de novo com `map:imageRequest` por ter ficado com a versão velha), `ruler:update`, `area`, `toast`, `error`.
 
 ## 7. Layout
 ```

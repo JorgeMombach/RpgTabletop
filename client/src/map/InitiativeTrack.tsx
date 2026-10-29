@@ -4,9 +4,9 @@ import { groupName, type ClientState, type CombatantView } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { CombatantAvatar } from "../components/CombatantAvatar";
 import { groupsOf } from "../components/InitiativePanel";
-import { allCombatants } from "../format";
+import { allCombatants, isDown } from "../format";
 import { useT } from "../i18n";
-import { select, useApp } from "../store";
+import { select, useApp, useInitHeld } from "../store";
 import { initials } from "./geometry";
 import { tokenArt, type FrameKind } from "./tokenArt";
 import { useImage } from "./useImage";
@@ -102,6 +102,9 @@ function TrackBlock({
   const { members, done } = block;
   const head = members[0];
   const group = members.length > 1;
+  // Dados ainda rolando: o número espera.
+  const held = useInitHeld();
+  const init = members.some((c) => held.has(c.id)) ? "…" : (head.initiative ?? "—");
   const name = group ? groupName(members.map((c) => c.name)) : head.name;
   const size = current ? BIG : SMALL;
   // Vida da trilha: soma do grupo; só aparece para quem recebe a vida (o jogador não vê a dos mobs).
@@ -109,7 +112,7 @@ function TrackBlock({
   const hp = known.reduce((n, c) => n + Math.max(0, c.hp!), 0);
   const max = known.reduce((n, c) => n + c.hpMax!, 0);
   const ratio = max > 0 ? hp / max : null;
-  const down = members.every((c) => c.hp !== undefined && c.hp <= 0);
+  const down = members.every(isDown);
   // Num grupo, a câmera vai para o primeiro que está no mapa.
   const target = members.find((c) => c.pos) ?? head;
 
@@ -120,7 +123,7 @@ function TrackBlock({
           <span className="init-track-next">R{marker}</span>
         </Tooltip>
       )}
-      <Tooltip label={t("track.tip", { name, init: head.initiative ?? "—" })}>
+      <Tooltip label={t("track.tip", { name, init })}>
         <button
           type="button"
           className={`init-chip${current ? " current" : ""}${done ? " done" : ""}${group ? " group" : ""}`}
@@ -194,6 +197,7 @@ function OrderList({ ring, round, selfId, hidden, onFocus }: { ring: Block[]; ro
   };
   useEffect(() => () => window.clearTimeout(closing.current), []);
   const mine = ring.findIndex((b) => b.members.some((c) => c.ownerId === selfId));
+  const held = useInitHeld();
 
   return (
     <Popover opened={opened} onChange={setOpened} position="bottom-end" shadow="md" width={260} withinPortal={false}>
@@ -256,7 +260,7 @@ function OrderList({ ring, round, selfId, hidden, onFocus }: { ring: Block[]; ro
                       )}
                     </Text>
                     <Text size="xs" c="dimmed" style={{ flex: "none" }}>
-                      {head.initiative ?? "—"}
+                      {b.members.some((c) => held.has(c.id)) ? "…" : (head.initiative ?? "—")}
                     </Text>
                   </UnstyledButton>
                 </li>

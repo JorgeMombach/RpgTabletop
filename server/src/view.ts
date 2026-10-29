@@ -7,9 +7,14 @@ function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resourc
   return rest;
 }
 
-/** Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando). */
-function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, gmNotes: _n, phases: _p, ...rest }: Combatant): CombatantView {
-  return withoutSheet(rest);
+/**
+ * Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando).
+ * Caído vai: todos veem o mob no chão.
+ */
+function hideHp({ hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, gmNotes: _n, phases: _p, ...rest }: Combatant): CombatantView {
+  const view: CombatantView = withoutSheet(rest);
+  if (hp <= 0) view.down = true;
+  return view;
 }
 
 /** Aliado para um jogador: as notas do mestre nunca vão (nem para o dono); a ficha, só para o dono. */

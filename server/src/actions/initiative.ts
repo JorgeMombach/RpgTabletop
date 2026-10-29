@@ -88,7 +88,7 @@ export const initiativeHandlers: HandlerMap = {
     const result = rollInitiative(c.dexMod);
     applyRoll(store, c, result);
     // Iniciativa de mob e NPC fica só para o mestre no log; a de aliado, para todos.
-    logRoll(store, player, result, { label: [{ key: "Iniciativa" }], as: c.name, hidden: c.type !== "ally", color: c.color });
+    logRoll(store, player, result, { label: [{ key: "Iniciativa" }], as: c.name, hidden: c.type !== "ally", color: c.color, subjectId: c.id });
   },
 
   "init:rollMobs": (store, player, payload) => {
@@ -141,7 +141,7 @@ export const initiativeHandlers: HandlerMap = {
     if (combat.active || combat.order.length > 0) {
       const result = rollInitiative(c.dexMod);
       applyRoll(store, c, result);
-      logRoll(store, player, result, { label: [{ key: "Iniciativa (revelado)" }], as: c.name, hidden: true, color: c.color });
+      logRoll(store, player, result, { label: [{ key: "Iniciativa (revelado)" }], as: c.name, hidden: true, color: c.color, subjectId: c.id });
     }
   },
 
@@ -181,7 +181,7 @@ export const initiativeHandlers: HandlerMap = {
     // Grupo de mobs iguais atrasa junto.
     const [from, end] = groupAt(store, combat.turnIndex);
     const to = combat.order.indexOf(payload?.afterId);
-    if (to < end) fail("Escolha alguém que ainda vai agir neste round.");
+    if (to < end) fail("Escolha alguém que ainda vai agir nesta rodada.");
     const after = byId(store, payload.afterId);
     const group = currentGroup(store);
     // Muda de lugar na ordem; a vez passa para quem vinha logo depois.

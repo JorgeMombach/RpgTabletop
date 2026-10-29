@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useMemo } from "react";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { FogShape } from "./map/Fog";
@@ -181,4 +182,20 @@ export function setTool(tool: MapTool) {
 /** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */
 export function setPlacing(placing: AppStore["placing"]) {
   useApp.setState(placing ? { placing, tool: "move", calibRect: null } : { placing: null });
+}
+
+/**
+ * Combatentes com a rolagem de iniciativa ainda nos dados 3D: o número só aparece quando os dados param
+ * (senão o mestre via o resultado antes da animação). Volta uma chave em texto para não renderizar à toa.
+ */
+export function useInitHeld(): Set<string> {
+  const key = useApp((s) =>
+    s.rolling.length === 0 || !s.state
+      ? ""
+      : s.state.log
+          .filter((e) => e.subjectId && s.rolling.includes(e.id))
+          .map((e) => e.subjectId)
+          .join(","),
+  );
+  return useMemo(() => new Set(key ? key.split(",") : []), [key]);
 }

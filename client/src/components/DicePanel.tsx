@@ -22,7 +22,7 @@ import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { useT, type MessageKey } from "../i18n";
-import { bringLogBack, popOutLog } from "../logWindow";
+import { bringLogBack, CAN_POP_OUT, popOutLog } from "../logWindow";
 import { allCombatants, fmtMod } from "../format";
 import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
@@ -342,8 +342,8 @@ function LogHeader({ canDetach }: { canDetach: boolean }) {
         <Switch size="xs" label={t("dice.anim")} checked={diceAnim} onChange={(e) => setDicePrefs({ diceAnim: e.currentTarget.checked })} />
       </Tooltip>
       {!logDetached && (
-        <Tooltip label={t("logWindow.detachTip")}>
-          <ActionIcon size="sm" aria-label={t("logWindow.open")} onClick={() => popOutLog()}>
+        <Tooltip label={t(CAN_POP_OUT ? "logWindow.detachTip" : "logWindow.floatTip")}>
+          <ActionIcon size="sm" aria-label={t(CAN_POP_OUT ? "logWindow.open" : "logWindow.float")} onClick={() => popOutLog()}>
             <IconWindowMaximize size={16} />
           </ActionIcon>
         </Tooltip>

@@ -109,6 +109,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     textKey: "{who} usou a reação.",
     textParams: { who: "Thorin" },
     labelParts: [{ key: "Recarga de {name} ({n}–6)", params: { name: "Sopro", n: 5 } }, { key: "Secreto" }],
+    subjectId: "thorin",
     gm: true,
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
@@ -126,7 +127,7 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door> } satisfies Required<Wall>,
     ],
     weather,
-    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }] } satisfies Required<FogState>,
+    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60 } satisfies Required<FogState>,
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -138,7 +139,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     weather,
-    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [] },
+    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];

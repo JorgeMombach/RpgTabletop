@@ -1,5 +1,7 @@
-import { cellsToRects, LIMITS, paintFog, roomCells, type FogRect } from "@rpg/shared";
+import { cellsToRects, LIMITS, paintFog, roomCells, type FogRect, type FogState } from "@rpg/shared";
+import { forgetSight } from "../sight";
 import { fail, requireInt } from "../validate";
+import type { Store } from "../store";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -14,6 +16,16 @@ function fogRect(raw: unknown): FogRect {
     w: requireInt(r.w, "Largura", 1, side),
     h: requireInt(r.h, "Altura", 1, side),
   };
+}
+
+/** Cobriu: as marcas de "visto por último" que ficaram embaixo somem, e quem sumiu agora não deixa marca. */
+function covered(store: Store, fog: FogState, rects: FogRect[]) {
+  const inside = (col: number, row: number) => rects.some((r) => col >= r.col && col < r.col + r.w && row >= r.row && row < r.row + r.h);
+  fog.lastSeen = fog.lastSeen.filter((m) => {
+    for (let dc = 0; dc < m.span; dc++) for (let dr = 0; dr < m.span; dr++) if (inside(m.pos.col + dc, m.pos.row + dr)) return false;
+    return true;
+  });
+  forgetSight(store);
 }
 
 /** Névoa de guerra (G): o mestre liga, revela e cobre partes do mapa da cena. */
@@ -32,6 +44,7 @@ export const fogHandlers: HandlerMap = {
     // Valida tudo antes de pintar.
     const rects = payload.rects.map(fogRect);
     for (const r of rects) paintFog(store.game.battle.fog, r, payload.reveal);
+    if (!payload.reveal) covered(store, store.game.battle.fog, rects);
   },
 
   "fog:room": (store, player, payload) => {
@@ -43,7 +56,9 @@ export const fogHandlers: HandlerMap = {
     const { battle } = store.game;
     const cells = roomCells(cell, battle.walls, LIMITS.fogRoom);
     if (!cells) fail("Essa área não está fechada por paredes e portas: feche o cômodo ou use o pincel ou o retângulo.");
-    for (const r of cellsToRects(cells)) paintFog(battle.fog, r, payload.reveal);
+    const rects = cellsToRects(cells);
+    for (const r of rects) paintFog(battle.fog, r, payload.reveal);
+    if (!payload.reveal) covered(store, battle.fog, rects);
   },
 
   "fog:vision": (store, player, payload) => {
@@ -52,10 +67,19 @@ export const fogHandlers: HandlerMap = {
     store.game.battle.fog.vision = payload.enabled;
   },
 
+  "fog:range": (store, player, payload) => {
+    requireGm(player);
+    const feet = payload?.feet === null ? null : requireInt(payload?.feet, "Alcance", LIMITS.visionFeet.min, LIMITS.visionFeet.max);
+    store.game.battle.fog.range = feet;
+    forgetSight(store);
+  },
+
   "fog:reset": (store, player) => {
     requireGm(player);
     store.game.battle.fog.revealed = {};
     store.game.battle.fog.explored = {};
     store.game.battle.fog.lastSeen = [];
+    // Quem sumiu porque o mapa foi coberto não deixa "?" (antes era preciso cobrir duas vezes).
+    forgetSight(store);
   },
 };

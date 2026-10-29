@@ -6,6 +6,7 @@ import { t } from "../i18n";
 import { areaPolygon } from "./AreaShape";
 import { drawFx, newFxState, type FxArea } from "./effectFx";
 import { effectTexture, TILE } from "./effectTextures";
+import { useDragOffset } from "./dragFollow";
 
 type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell">;
 
@@ -44,6 +45,8 @@ export function EffectShape({ effect, grid, scale, casterName }: { effect: MapEf
   const layers = useRef<Layers | null>(null);
   const { area } = effect;
   const animated = effect.active;
+  // Efeito fixo num token: anda junto enquanto ele é arrastado.
+  const drag = useDragOffset(effect.followId);
 
   const origin = { x: grid.offsetX + area.origin.col * grid.cellPx, y: grid.offsetY + area.origin.row * grid.cellPx };
   const round = area.kind === "sphere" || area.kind === "cylinder";
@@ -129,7 +132,7 @@ export function EffectShape({ effect, grid, scale, casterName }: { effect: MapEf
   const label = `${effect.name}${effect.rounds !== null ? ` (${effect.rounds})` : ""}${effect.concentration ? " ◆" : ""}${casterName ? ` · ${casterName}` : ""}`;
 
   return (
-    <Group listening={false}>
+    <Group listening={false} x={drag.dx} y={drag.dy}>
       {animated ? (
         <>
           <Shape

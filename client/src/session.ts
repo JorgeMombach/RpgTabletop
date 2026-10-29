@@ -103,9 +103,25 @@ socket.on("disconnect", () => {
   useApp.setState({ connected: false });
 });
 
+/** Último pedido de reenvio da imagem do mapa: um por versão, e no máximo a cada 3 s. */
+let imageAsked = { version: -1, at: 0 };
+
+/**
+ * A imagem do mapa vai à parte (`map:image`) e só quando muda. Se a deste cliente ficou para trás (evento
+ * perdido numa troca de cena, conexão que caiu no meio), o estado denuncia pela versão: pede de novo.
+ */
+export function askMapImage(version: number) {
+  const now = Date.now();
+  if (imageAsked.version === version && now - imageAsked.at < 3000) return;
+  imageAsked = { version, at: now };
+  socket.emit("map:imageRequest");
+}
+
 socket.on("state:full", (state) => {
   const previous = useApp.getState().state;
   useApp.setState({ state, joinError: null });
+  const { map } = state.battle;
+  if (map.hasImage && useApp.getState().mapImage.version !== map.imageVersion) askMapImage(map.imageVersion);
   // Avisos da mesa (ex.: condição que acabou) viram toast, mas só os novos: ao entrar, o log antigo não se repete.
   // Na janela do log, não: a janela principal já avisa.
   if (!previous || IS_LOG_WINDOW) return;

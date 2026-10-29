@@ -1,6 +1,7 @@
 import { Circle, Group, Text } from "react-konva";
 import { sizeSpan, type CombatantView, type MapConfig } from "@rpg/shared";
 import { cellCenter } from "./geometry";
+import { useDragOffset } from "./dragFollow";
 
 /**
  * Alcance ou aura em volta do token: círculo leve na cor escolhida (ou a do token), medido a partir da borda do espaço que ocupa
@@ -8,6 +9,8 @@ import { cellCenter } from "./geometry";
  * Fica parado enquanto o token é arrastado: mostra de onde ele saiu (ataque de oportunidade).
  */
 export function AuraShape({ c, grid }: { c: CombatantView; grid: MapConfig }) {
+  // Anda junto com o token durante o arraste.
+  const drag = useDragOffset(c.id);
   if (!c.pos || !c.aura) return null;
   const color = c.auraColor ?? c.color;
   const span = sizeSpan(c.size);
@@ -17,7 +20,7 @@ export function AuraShape({ c, grid }: { c: CombatantView; grid: MapConfig }) {
   const font = Math.max(10, grid.cellPx * 0.22);
 
   return (
-    <Group x={first.x + off} y={first.y + off} listening={false}>
+    <Group x={first.x + off + drag.dx} y={first.y + off + drag.dy} listening={false}>
       <Circle radius={radius} fill={color} opacity={0.1} />
       <Circle radius={radius} stroke={color} strokeWidth={Math.max(1.5, grid.cellPx * 0.03)} dash={[grid.cellPx * 0.15, grid.cellPx * 0.1]} opacity={0.7} />
       <Text

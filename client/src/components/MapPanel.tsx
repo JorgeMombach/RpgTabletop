@@ -30,6 +30,19 @@ function useThrottledGrid() {
   };
 }
 
+/**
+ * Tamanho da casa no controle deslizante em escala logarítmica: precisão nas casas pequenas e alcance até
+ * as enormes (mapa grande com a imagem ampliada).
+ */
+const CELL_STEPS = 1000;
+const CELL_LOG = [Math.log(LIMITS.cellPx.min), Math.log(LIMITS.cellPx.max)] as const;
+function cellToSlider(px: number): number {
+  return Math.round(((Math.log(px) - CELL_LOG[0]) / (CELL_LOG[1] - CELL_LOG[0])) * CELL_STEPS);
+}
+function sliderToCell(v: number): number {
+  return Math.round(Math.exp(CELL_LOG[0] + (v / CELL_STEPS) * (CELL_LOG[1] - CELL_LOG[0])) * 2) / 2;
+}
+
 export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   const t = useT();
   const [uploading, setUploading] = useState(false);
@@ -154,7 +167,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
       />
 
       <Input.Wrapper label={t("mapPanel.cell", { px: local.cellPx.toFixed(1) })}>
-        <Slider mt={6} min={LIMITS.cellPx.min} max={200} step={0.5} value={Math.min(local.cellPx, 200)} onChange={(v) => change({ cellPx: v })} />
+        <Slider mt={6} min={0} max={CELL_STEPS} step={1} label={null} value={cellToSlider(local.cellPx)} onChange={(v) => change({ cellPx: sliderToCell(v) })} />
       </Input.Wrapper>
       <Group grow gap="md">
         <Input.Wrapper label={<Abbr title={t("mapPanel.offsetXTitle")}>{t("mapPanel.offsetX")}</Abbr>}>

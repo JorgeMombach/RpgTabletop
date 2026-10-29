@@ -15,6 +15,11 @@ export interface FogState {
   explored: Record<string, number[]>;
   /** Inimigos que saíram da vista: onde foram vistos pela última vez (some quando alguém volta a ver o lugar). */
   lastSeen: LastSeen[];
+  /**
+   * Alcance da visão dos personagens nesta cena, em pés, igual para todos (mapa grande e aberto, grid
+   * pequeno). `null` = pela luz do clima, com visão no escuro e tocha.
+   */
+  range: number | null;
 }
 
 /** Marca de "visto por último aqui": nome e lugar (casas ocupadas) de quando o grupo o perdeu de vista. */
@@ -34,7 +39,7 @@ export interface FogRect {
 }
 
 export function emptyFog(): FogState {
-  return { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [] };
+  return { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null };
 }
 
 /** Junta `[s, e)` aos intervalos (mantendo ordenados e sem sobreposição). */
@@ -232,7 +237,7 @@ export interface Viewer {
  * entre o centro dele e o centro da casa. Os pontos levam um deslocamento mínimo (como no cômodo) para
  * a linha nunca passar exatamente pela ponta de uma parede.
  */
-export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, lights: Viewer[] = []): GridPos[] {
+export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, lights: Viewer[] = [], lightReachFeet = VISION_FEET.day): GridPos[] {
   const solid = walls.filter(blocks);
   const seen = new Set<string>();
   const out: GridPos[] = [];
@@ -264,9 +269,9 @@ export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number
     }
   }
   // Luz de tochas (de qualquer um): a área iluminada aparece para quem tem linha de visão até ela,
-  // até onde se enxerga de dia. Um inimigo com tocha no fim do corredor escuro é visto de longe.
+  // até onde se enxerga de dia (ou o alcance da cena). Um inimigo com tocha no fim do corredor escuro é visto de longe.
   if (lights.length > 0 && viewers.length > 0) {
-    const reach = VISION_FEET.day / feetPerCell;
+    const reach = lightReachFeet / feetPerCell;
     for (const c of sightCells(lights, walls, feetPerCell)) {
       if (seen.has(`${c.col},${c.row}`)) continue;
       const t = { x: c.col + NUDGE.x, y: c.row + NUDGE.y };

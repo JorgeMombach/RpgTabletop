@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Path, Rect, RegularPolygon, Shape as KShape, Text } from "react-konva";
 import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
 import { cellAt, cellCenter, initials, sameCell } from "./geometry";
+import { isDown } from "../format";
 import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
@@ -10,6 +11,7 @@ import { conditionFxOf, drawConditionFx } from "./conditionFx";
 import { dropHit, useHits, type FloatHit } from "./hits";
 import { drawConditionMedal, drawHpBar, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, tokenOutline, type FrameKind, type HpBarState, type PlateStyle } from "./tokenArt";
 import { useImage } from "./useImage";
+import { endTokenDrag, useTokenDrag } from "./dragFollow";
 
 /** Quanto da casa o token ocupa: sobra folga para a moldura, a barra de vida e os selos caberem na própria casa. */
 const TOKEN_FILL = 0.76;
@@ -292,6 +294,8 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
     };
   }, []);
 
+  // Chegou o estado com o token na casa nova: quem segue (efeito, aura) já está lá, sem deslocamento.
+  useLayoutEffect(() => endTokenDrag(c.id), [c.id, c.pos?.col, c.pos?.row]);
   if (!c.pos) return null;
   const fxConditions = conditionFxOf(c.conditions.map((x) => x.name));
   // Tamanho (E26+): `pos` é a casa de cima à esquerda; o token cobre `span` × `span` casas.
@@ -317,7 +321,7 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
   const isNpc = c.type === "npc";
   // Hexágono com a mesma área visual do círculo: o raio até a ponta é um pouco maior.
   const hexR = r * 1.08;
-  const down = c.hp !== undefined && c.hp <= 0;
+  const down = isDown(c);
   // Oculto (só o mestre recebe): translúcido e com contorno tracejado (E21).
   const hidden = c.hidden === true;
   const badgeR = grid.cellPx * TOKEN_FILL * 0.17;
@@ -391,9 +395,15 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
     const to = cornerAt(node.position());
     const snapped = centerOf(to);
     node.position(snapped);
-    if (sameCell(from, to)) return;
+    if (sameCell(from, to)) return endTokenDrag(c.id);
+    // Quem segue fica na casa nova (encaixada) até o estado chegar com ele no lugar.
+    if (from) {
+      const o = centerOf(from);
+      useTokenDrag.setState({ id: c.id, dx: snapped.x - o.x, dy: snapped.y - o.y });
+    }
     void onMove(to).then((ok) => {
       if (!ok && from) node.position(centerOf(from));
+      endTokenDrag(c.id);
     });
   }
 
@@ -444,6 +454,7 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
       onTouchEnd={cancelPress}
       onDragStart={(e) => {
         dragStart.current = c.pos;
+        useTokenDrag.setState({ id: c.id, dx: 0, dy: 0 });
         e.target.moveToTop();
         setDragFeet(0);
       }}
@@ -455,7 +466,12 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
           e.target.stopDrag();
           return;
         }
-        if (dragStart.current) setDragFeet(feetBetween(dragStart.current, cornerAt(e.target.position()), grid.feetPerCell));
+        if (dragStart.current) {
+          setDragFeet(feetBetween(dragStart.current, cornerAt(e.target.position()), grid.feetPerCell));
+          const p = e.target.position();
+          const o = centerOf(dragStart.current);
+          useTokenDrag.setState({ id: c.id, dx: p.x - o.x, dy: p.y - o.y });
+        }
       }}
       onDragEnd={handleDragEnd}
     >
