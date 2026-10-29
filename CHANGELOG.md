@@ -6,6 +6,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.10.0] - 2026-10-29
+
 ### Adicionado
 - **Efeito Luz sagrada:** efeito de mapa novo (em *Fixar como efeito*), no espírito dos *Espíritos Guardiões*: brilho dourado no meio da área, riscos de luz girando no chão, fagulhas subindo e seis luzinhas cor de chama rondando perto da borda, com rastro, o que ajuda a ver até onde a área vai. Com *Anda junto com quem conjurou*, acompanha o token.
 - **Setas dos jogadores:** a ferramenta *Setas* (tecla B) deixa o jogador desenhar setas no mapa para a mesa ver ("vou por aqui"), na cor que escolher. Cada um apaga as próprias (borracha, *Desfazer* ou *Apagar minhas setas*) e o mestre apaga as de todos; com mais de 10, a mais antiga do jogador some. Vão no arquivo de sessão.
@@ -302,7 +304,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.9.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.10.0...HEAD
+[2.10.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.7.0...v2.8.0

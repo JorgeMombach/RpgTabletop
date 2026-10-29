@@ -225,3 +225,4 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | Som mais realista e barulho dos dados | ✅ v2.7.0 |
 | Melhorias da mesa: ficha, combate, mapa (cenas, desenho, paredes e portas), base de tradução | ✅ v2.8.0 |
 | Névoa de guerra (pintada, cômodo e visão dos personagens), tochas, regras da mesa, chefe com fases, abas do mestre, inglês e espanhol completos | ✅ v2.9.0 |
+| Cara de jogo (tokens, paredes, mesa, efeitos, trilha de iniciativa, atalhos), setas dos jogadores, borracha, Luz sagrada e correções da mesa | ✅ v2.10.0 |

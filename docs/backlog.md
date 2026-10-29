@@ -1,6 +1,6 @@
 # Backlog — melhorias da mesa
 
-Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D, a 2.9.0 de `feat/melhorias-da-mesa-2` com E–K; agora `feat/melhorias-visuais`, para a 2.10.0): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
+Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D, a 2.9.0 de `feat/melhorias-da-mesa-2` com E–K; a 2.10.0 de `feat/melhorias-visuais` com L–M): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
 
 Regras que valem para tudo: o app registra, não aplica regras (ADR-06); permissões no servidor; dado novo sensível passa pelo filtro de `view.ts` com teste; tudo novo entra no arquivo de sessão (e no teste de proteção do save); textos novos já nascem traduzíveis (depois da base de i18n).
 
