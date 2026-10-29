@@ -4,6 +4,9 @@ import { rollerName } from "../format";
 import { logLabel, logText, t as tr, useLang, useT } from "../i18n";
 import { useApp } from "../store";
 
+/** Ouro do 20 natural (L6), o mesmo do resultado no mapa. */
+export const GOLD = "#f3cf6a";
+
 interface TurnGroup {
   key: string;
   /** "Round 2 · Goblin 2"; ausente = fora de combate. */
@@ -59,10 +62,19 @@ export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
 
 function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: boolean }) {
   const lang = useLang((st) => st.lang);
+  const reduceFx = useApp((s) => s.reduceFx);
+  // 20 ou 1 natural (L6): filete na cor; o reflexo dourado do crítico passa uma vez, só na rolagem que acabou de sair.
+  const tone = !rolling && e.roll ? natTone(naturalD20(e.roll.terms)) : null;
+  const shine = tone === "crit" && !reduceFx && Date.now() - e.ts < SHINE_MS;
   // "Personagem (jogador)"; do lado do mestre, "Goblin 2 (Mestre)" (E26).
   const author = rollerName(e);
   return (
-    <Paper p="xs" bg="dark.7" style={e.hidden ? { borderStyle: "dashed" } : undefined}>
+    <Paper
+      p="xs"
+      bg="dark.7"
+      className={tone ? `roll-entry roll-${tone}${shine ? " shine" : ""}` : undefined}
+      style={e.hidden ? { borderStyle: "dashed" } : undefined}
+    >
       <Group gap={6} wrap="nowrap" mb={4}>
         <Text size="xs" fw={600} c={e.system ? "dimmed" : e.authorId === selfId ? "bronze.4" : undefined} truncate title={author}>
           {author}
@@ -93,6 +105,9 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
   );
 }
 
+/** Até quanto tempo depois da rolagem o crítico ainda brilha no log (reabrir o painel não repete). */
+const SHINE_MS = 8000;
+
 /** Valor natural do d20 que valeu, para destacar 20 e 1. */
 export function naturalD20(terms: RollTerm[]): number | null {
   const d = terms.find((t) => t.kind === "dice" && t.faces === 20 && (t.count === 1 || t.keptIndex !== undefined));
@@ -100,11 +115,16 @@ export function naturalD20(terms: RollTerm[]): number | null {
   return d.rolls[d.keptIndex ?? 0];
 }
 
+/** Tom do d20 natural (L6): 20 = crítico (ouro), 1 = falha (sangue). */
+export function natTone(nat: number | null): "crit" | "fumble" | null {
+  return nat === 20 ? "crit" : nat === 1 ? "fumble" : null;
+}
+
 function RollBody({ entry }: { entry: LogEntry }) {
   const r = entry.roll!;
   const nat = naturalD20(r.terms);
   const critHit = entry.kind === "attack" && nat === 20;
-  const totalColor = nat === 20 ? "copper.4" : nat === 1 ? "red.4" : entry.crit ? "bronze.4" : undefined;
+  const totalColor = nat === 20 ? GOLD : nat === 1 ? "red.4" : entry.crit ? "bronze.4" : undefined;
 
   return (
     <Group gap="sm" wrap="nowrap" align="center">
@@ -129,14 +149,16 @@ function RollBody({ entry }: { entry: LogEntry }) {
                 {t.sign < 0 && <Text size="xs">−</Text>}
                 {t.rolls.map((v, j) => {
                   const dropped = t.keptIndex !== undefined && t.keptIndex !== j;
-                  const color = t.faces === 20 && v === 20 ? "copper" : t.faces === 20 && v === 1 ? "red" : "gray";
+                  // O d20 que valeu, pintado (L6); o descartado fica apagado.
+                  const color = dropped || t.faces !== 20 ? "gray" : v === 20 ? GOLD : v === 1 ? "red.6" : "gray";
                   return (
                     <Tooltip key={j} label={`d${t.faces}${dropped ? ` ${tr("log.dropped")}` : ""}`}>
                       <Badge
                         size="sm"
                         radius="sm"
-                        variant={color === "gray" ? "default" : "light"}
+                        variant={color === "gray" ? "default" : "filled"}
                         color={color}
+                        autoContrast
                         miw={24}
                         style={dropped ? { opacity: 0.4, textDecoration: "line-through" } : undefined}
                       >
@@ -160,11 +182,11 @@ function RollBody({ entry }: { entry: LogEntry }) {
           {r.total}
         </Text>
         {critHit ? (
-          <Text size="xs" fw={700} c="copper.4">
+          <Text size="xs" fw={700} c={GOLD}>
             {tr("log.crit")}
           </Text>
         ) : nat === 20 ? (
-          <Text size="xs" c="copper.4">
+          <Text size="xs" c={GOLD}>
             {tr("log.nat20")}
           </Text>
         ) : null}

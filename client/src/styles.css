@@ -958,3 +958,294 @@ button:hover > .ability-cell {
   pointer-events: none;
   background: radial-gradient(ellipse at 50% 48%, transparent 55%, rgb(0 0 0 / 0.55) 100%);
 }
+
+/*
+ * Crítico e falha no d20 (L6). Crítico: placa dourada com brilho que pulsa, número que salta com um reflexo
+ * e faíscas. Falha: placa que treme e pisca em vermelho, rachadura que se abre, número que "cai" e lascas.
+ * Sem a classe `fx` (Reduzir efeitos) ficam só as cores.
+ */
+.plaque.roll-crit {
+  border-color: #c9952e;
+  box-shadow:
+    0 0 0 1px rgb(243 207 106 / 0.7),
+    0 6px 24px rgb(0 0 0 / 0.55);
+}
+
+.plaque.roll-crit::before,
+.plaque.roll-crit::after {
+  border-color: #f3cf6a;
+}
+
+.plaque.roll-crit .roll-total {
+  position: relative;
+  color: #f3cf6a;
+  text-shadow:
+    0 0 10px rgb(243 207 106 / 0.55),
+    0 1px 0 #6e4f12;
+}
+
+.plaque.roll-crit .roll-note {
+  color: #f3cf6a;
+  letter-spacing: 0.06em;
+}
+
+.plaque.roll-fumble {
+  overflow: hidden;
+  border-color: #6b2a30;
+  background: linear-gradient(#211a1e, #1a1418);
+}
+
+.plaque.roll-fumble::before,
+.plaque.roll-fumble::after {
+  border-color: var(--mantine-color-red-6);
+}
+
+.plaque.roll-fumble .roll-total {
+  color: var(--mantine-color-red-4);
+}
+
+.plaque.roll-fumble .roll-note {
+  color: var(--mantine-color-red-4);
+  letter-spacing: 0.06em;
+}
+
+.plaque.roll-crit.fx {
+  animation:
+    roll-crit-glow 1.6s ease-out,
+    roll-crit-breath 2.4s ease-in-out 1.6s infinite;
+}
+
+.plaque.roll-crit.fx .roll-total {
+  animation: roll-crit-pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.plaque.roll-crit.fx .roll-total::after {
+  content: "";
+  position: absolute;
+  inset: -4px -10px;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 246 214 / 0.85) 50%, transparent 65%);
+  background-size: 250% 100%;
+  mix-blend-mode: overlay;
+  animation: roll-shine 1.1s ease-out 0.35s both;
+  pointer-events: none;
+}
+
+@keyframes roll-crit-pop {
+  from {
+    transform: scale(0.4);
+  }
+}
+
+@keyframes roll-crit-glow {
+  0% {
+    box-shadow:
+      0 0 0 0 rgb(243 207 106 / 0.9),
+      0 0 0 0 rgb(243 207 106 / 0.6),
+      0 6px 24px rgb(0 0 0 / 0.55);
+  }
+  35% {
+    box-shadow:
+      0 0 0 2px rgb(243 207 106 / 0.9),
+      0 0 38px 10px rgb(243 207 106 / 0.45),
+      0 6px 24px rgb(0 0 0 / 0.55);
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px rgb(243 207 106 / 0.7),
+      0 0 18px 2px rgb(243 207 106 / 0.25),
+      0 6px 24px rgb(0 0 0 / 0.55);
+  }
+}
+
+@keyframes roll-crit-breath {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgb(243 207 106 / 0.7),
+      0 0 18px 2px rgb(243 207 106 / 0.25),
+      0 6px 24px rgb(0 0 0 / 0.55);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgb(243 207 106 / 0.9),
+      0 0 26px 5px rgb(243 207 106 / 0.38),
+      0 6px 24px rgb(0 0 0 / 0.55);
+  }
+}
+
+@keyframes roll-shine {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -30% 0;
+  }
+}
+
+.roll-sparks {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  pointer-events: none;
+}
+
+.roll-spark {
+  position: absolute;
+  width: var(--s);
+  height: var(--s);
+  margin: calc(var(--s) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff8dc 0 30%, #f3cf6a 55%, rgb(243 207 106 / 0) 72%);
+  animation: roll-spark var(--d) cubic-bezier(0.15, 0.7, 0.35, 1) var(--w) both;
+}
+
+.roll-spark.streak {
+  width: 2px;
+  height: calc(var(--s) * 3);
+  margin: 0 -1px;
+  border-radius: 2px;
+  background: linear-gradient(#fff8dc, rgb(243 207 106 / 0));
+  transform-origin: 50% 0;
+}
+
+@keyframes roll-spark {
+  0% {
+    transform: translate(0, 0) rotate(var(--r)) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), calc(var(--dy) + 26px)) rotate(var(--r)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.plaque.roll-fumble.fx {
+  animation:
+    roll-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) 0.05s both,
+    roll-red-flash 0.9s ease-out;
+}
+
+.plaque.roll-fumble.fx .roll-total {
+  animation: roll-slump 0.6s ease-out 0.1s both;
+}
+
+.plaque.roll-fumble .roll-total {
+  transform: translateY(1px) rotate(-3deg);
+}
+
+@keyframes roll-shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(4px) rotate(0.4deg);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-7px) rotate(-0.6deg);
+  }
+  40%,
+  60% {
+    transform: translateX(7px) rotate(0.6deg);
+  }
+}
+
+@keyframes roll-red-flash {
+  0% {
+    box-shadow:
+      0 0 0 2px rgb(201 74 82 / 0.9),
+      0 0 30px 6px rgb(168 50 58 / 0.5),
+      0 6px 24px rgb(0 0 0 / 0.55);
+  }
+}
+
+@keyframes roll-slump {
+  0% {
+    transform: translateY(-6px) rotate(0);
+  }
+  60% {
+    transform: translateY(2px) rotate(-4deg);
+  }
+}
+
+.roll-crack {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.roll-crack .gap path {
+  fill: #0a0608;
+  stroke: rgb(201 74 82 / 0.85);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.roll-crack .lip path {
+  fill: rgb(236 228 212 / 0.14);
+  transform: translate(1px, 1px);
+}
+
+.plaque.fx .roll-crack {
+  clip-path: inset(0 0 100% 0);
+  animation: roll-crack-open 0.3s steps(6, end) 0.06s forwards;
+}
+
+@keyframes roll-crack-open {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.roll-chip {
+  position: absolute;
+  width: 4px;
+  height: 3px;
+  background: #3a2b30;
+  border-top: 1px solid #6b5a5e;
+  animation: roll-chip-fall 0.8s ease-in var(--w) both;
+  pointer-events: none;
+}
+
+@keyframes roll-chip-fall {
+  to {
+    transform: translate(var(--dx), 60px) rotate(var(--r));
+    opacity: 0;
+  }
+}
+
+/* No log: filete na cor do d20 natural; o crítico recém-rolado ganha um reflexo que passa uma vez. */
+.roll-entry {
+  position: relative;
+  overflow: hidden;
+}
+
+.roll-entry.roll-crit {
+  border-color: rgb(201 149 46 / 0.7);
+  box-shadow:
+    inset 3px 0 0 #f3cf6a,
+    0 0 10px rgb(243 207 106 / 0.12);
+}
+
+.roll-entry.roll-fumble {
+  border-color: rgb(168 50 58 / 0.7);
+  box-shadow: inset 3px 0 0 var(--mantine-color-red-6);
+}
+
+.roll-entry.shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgb(243 207 106 / 0.22) 50%, transparent 60%);
+  background-size: 260% 100%;
+  animation: roll-shine 1.2s ease-out 0.1s both;
+  pointer-events: none;
+}

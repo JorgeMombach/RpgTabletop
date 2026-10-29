@@ -17,7 +17,8 @@ Implementação: tokens em `client/src/theme.ts` (cores Mantine) e peças sem eq
 | Bronze | `#A9844F` | Ação principal, borda de destaque, cantos das placas | `bronze.6` (cor primária) |
 | Bronze claro | `#D8B47A` | Títulos, marca, "na vez", seleção | `bronze.4` |
 | Verde-cobre | `#2F7D65` | Cor secundária: selos (Round), cura, sucesso, condições | `copper.6` |
-| Cobre claro | `#4FAE8C` | Vida alta, 20 natural, confirmações | `copper.4` |
+| Cobre claro | `#4FAE8C` | Vida alta, confirmações | `copper.4` |
+| Ouro do crítico | `#F3CF6A` | 20 natural (resultado e log) | `GOLD` em `RollLog.tsx` |
 | Sangue | `#A8323A` | Dano, remover, perigo, vida baixa | `red.6` (substitui o vermelho do Mantine) |
 | Pergaminho | `#ECE4D4` | Texto principal | `dark.0` |
 | Pergaminho gasto | `#B9AE9C` | Texto secundário | `dark.2` |
@@ -48,7 +49,7 @@ Cinzel **só** em títulos (nunca em botões ou texto corrido). Escala 12/14/16/
 - **Condições:** pílulas arredondadas verde-cobre; negativas (envenenado…) em sangue; Concentração em bronze.
 - **Linha da vez (iniciativa):** fundo couro claro, borda bronze, seta e número em bronze claro.
 - **Barra de vida:** trilho afundado (`#15121A` com borda costura); cobre claro → bronze → sangue conforme cai.
-- **Log de dados:** cartão afundado; cabeçalho do turno em Cinzel pequena ("ROUND 2 · GOBLIN 2"); 20 natural em cobre claro com "CRÍTICO".
+- **Log de dados:** cartão afundado; cabeçalho do turno em Cinzel pequena ("ROUND 2 · GOBLIN 2"); 20 natural em ouro com "CRÍTICO" e filete dourado; 1 natural em sangue com filete vermelho. No resultado no mapa, o crítico brilha e solta faíscas e a falha racha a placa (L6).
 - **Avisos (toasts):** placa com borda bronze e ícone à esquerda (sem faixa colorida lateral).
 - **Barra do topo:** um tom acima da tinta, filete bronze sutil embaixo; marca com ícone de d20 + "Jamal's Tabletop" em Cinzel bronze claro.
 - **Barra do mapa:** uma placa flutuante; ferramenta ativa em bronze.

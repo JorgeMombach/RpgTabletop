@@ -40,7 +40,7 @@ const bronze: MantineColorsTuple = [
   "#523d24",
 ];
 
-/** Verde-cobre, a cor secundária: [6] selos e cura, [4] vida alta e 20 natural. */
+/** Verde-cobre, a cor secundária: [6] selos e cura, [4] vida alta (o 20 natural é ouro, `GOLD` no log). */
 const copper: MantineColorsTuple = [
   "#e3f4ee",
   "#c8eadd",
