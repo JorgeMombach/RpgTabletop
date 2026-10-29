@@ -763,6 +763,8 @@ export const en: Partial<Messages> = {
   "walls.styleStone": "Stone",
   "walls.styleRock": "Rock",
   "walls.styleWood": "Wood",
+  "walls.thickness": "Thickness",
+  "walls.thicknessValue": "{n} square",
   "top.round": "Round {round}",
   "top.turnOf": " · turn of ",
   "top.yourTurn": "Your turn!",

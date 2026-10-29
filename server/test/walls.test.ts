@@ -69,6 +69,16 @@ describe("paredes e portas", () => {
     assert.deepEqual(game().battle.walls.find((w) => w.id === livre)?.from, { col: 0.33, row: 2.25 });
   });
 
+  it("espessura da parede: de 0,1 a 1 casa, em centésimos; a padrão fica sem campo", async () => {
+    const { g } = await setup();
+    const [grossa] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 4, row: 0 }, thickness: 0.6666 }));
+    assert.equal(game().battle.walls.find((w) => w.id === grossa)?.thickness, 0.67);
+    const [padrao] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 1 }, to: { col: 4, row: 1 }, thickness: 0.18 }));
+    assert.equal(game().battle.walls.find((w) => w.id === padrao)?.thickness, undefined);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 0, row: 2 }, to: { col: 4, row: 2 }, thickness: 1.5 })), /Espessura da parede/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 0, row: 2 }, to: { col: 4, row: 2 }, thickness: 0.05 })), /Espessura da parede/);
+  });
+
   it("estilo das paredes por cena: só o mestre escolhe, valor inválido é recusado, vai no arquivo", async () => {
     const { g, ana } = await setup();
     assert.equal((await act(ana, "battle:grid", { wallStyle: "wood" })).ok, false);

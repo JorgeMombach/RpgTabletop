@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, type Door, type GridPos, type Wall } from "@rpg/shared";
-import { fail } from "../validate";
+import { LIMITS, WALL_THICKNESS, type Door, type GridPos, type Wall } from "@rpg/shared";
+import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -26,6 +26,13 @@ export function parseWall(raw: unknown): Omit<Wall, "id"> {
   if (len < 0.1) fail("Parede curta demais: arraste de uma ponta à outra.");
   if (len > LIMITS.wallLength) fail("Parede longa demais (máximo de {n} casas): trace em partes.", { n: LIMITS.wallLength });
   const out: Omit<Wall, "id"> = { from, to };
+  if (w.thickness !== undefined) {
+    const { min, max } = WALL_THICKNESS;
+    const t = requireNumber(w.thickness, "Espessura da parede", min, max);
+    // Em centésimos de casa; a espessura padrão fica sem campo.
+    const cent = Math.round(t * 100) / 100;
+    if (cent !== WALL_THICKNESS.default) out.thickness = cent;
+  }
   if (w.door !== undefined) {
     const d = w.door as Partial<Door>;
     if (typeof d !== "object" || d === null || typeof d.open !== "boolean") fail("Porta inválida.");
@@ -44,7 +51,7 @@ export const wallHandlers: HandlerMap = {
   "wall:add": (store, player, payload) => {
     requireGm(player);
     const { battle } = store.game;
-    const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to }) };
+    const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to, thickness: payload?.thickness }) };
     if (payload.door === true) wall.door = { open: false };
     if (battle.walls.length >= LIMITS.walls) fail("Limite de {n} paredes e portas no mapa.", { n: LIMITS.walls });
     battle.walls.push(wall);

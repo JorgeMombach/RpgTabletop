@@ -243,6 +243,9 @@ export interface MapConfig {
   wallStyle?: WallStyle;
 }
 
+/** Espessura padrão da parede (casas) e os limites da escolha do mestre. */
+export const WALL_THICKNESS = { default: 0.18, min: 0.1, max: 1 };
+
 /** Estilos de parede: pedra lavrada (masmorra, castelo), rocha bruta (caverna, ruína) e madeira (casa, paliçada). */
 export const WALL_STYLES = ["stone", "rock", "wood"] as const;
 export type WallStyle = (typeof WALL_STYLES)[number];
@@ -469,6 +472,8 @@ export interface Wall {
   id: string;
   from: GridPos;
   to: GridPos;
+  /** Espessura do desenho, em casas (0,1 a 1; L5). Ausente = a de sempre (`WALL_THICKNESS`). Bloqueia pela linha do meio. */
+  thickness?: number;
   door?: Door;
 }
 

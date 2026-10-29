@@ -1,8 +1,8 @@
-import { Button, Checkbox, Group, Paper, SegmentedControl, Stack, Text, Tooltip } from "@mantine/core";
+import { Button, Checkbox, Group, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Shape as KShape } from "react-konva";
-import { WALL_STYLES, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
+import { WALL_STYLES, WALL_THICKNESS, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
@@ -90,7 +90,7 @@ export function WallShape({
   selected,
   onClick,
 }: {
-  w: Pick<Wall, "from" | "to" | "door">;
+  w: Pick<Wall, "from" | "to" | "door" | "thickness">;
   grid: MapConfig;
   gm: boolean;
   style: WallStyle;
@@ -100,7 +100,7 @@ export function WallShape({
 }) {
   const a = cornerPx(w.from, grid);
   const b = cornerPx(w.to, grid);
-  const thick = grid.cellPx * 0.18;
+  const thick = grid.cellPx * (w.thickness ?? WALL_THICKNESS.default);
   const handlers = onClick ? { onClick, onTap: onClick } : {};
   const seed = wallSeed(w.from.col, w.from.row, w.to.col, w.to.row);
   // Área de clique: a linha da parede (ou o vão da porta), bem mais grossa que o desenho.
@@ -148,13 +148,14 @@ export function WallShape({
 
 /** Parede sendo traçada (antes de soltar). */
 export function WallPreview({ from, to, door, grid, style }: { from: GridPos; to: GridPos; door: boolean; grid: MapConfig; style: WallStyle }) {
-  return <WallShape w={{ from, to, door: door ? { open: false } : undefined }} grid={grid} gm style={style} selected />;
+  const thickness = useApp((s) => s.wallThick);
+  return <WallShape w={{ from, to, thickness, door: door ? { open: false } : undefined }} grid={grid} gm style={style} selected />;
 }
 
 /** Opções da ferramenta Paredes (mestre): modo, traço, estilo da cena, a porta escolhida (aberta, trancada, secreta), desfazer e apagar tudo. */
 export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle }) {
   const t = useT();
-  const { wallMode, wallSnap, selectedDoorId } = useApp();
+  const { wallMode, wallSnap, wallThick, selectedDoorId } = useApp();
   const undoCount = useWallUndo((s) => s.count);
   const door = walls.find((w) => w.id === selectedDoorId && w.door);
 
@@ -196,6 +197,24 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
           </Button>
         </Group>
       </Group>
+      {wallMode !== "erase" && (
+        <Group gap="xs" mt={6} wrap="nowrap">
+          <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+            {t("walls.thickness")}
+          </Text>
+          <Slider
+            size="xs"
+            style={{ flex: 1, minWidth: 100 }}
+            min={WALL_THICKNESS.min}
+            max={WALL_THICKNESS.max}
+            step={0.02}
+            value={wallThick}
+            onChange={(v) => useApp.setState({ wallThick: v })}
+            label={(v) => t("walls.thicknessValue", { n: v.toFixed(2).replace(".", ",") })}
+            aria-label={t("walls.thickness")}
+          />
+        </Group>
+      )}
       <Group gap="xs" mt={6} wrap="nowrap">
         <Text size="xs" c="dimmed">
           {t("walls.style")}

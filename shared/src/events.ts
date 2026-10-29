@@ -268,7 +268,7 @@ export interface ActionPayloads {
   /** Mestre: apaga todos os desenhos. */
   "draw:clear": Record<string, never>;
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
-  "wall:add": { from: GridPos; to: GridPos; door?: boolean };
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
   "wall:remove": { id: string };
   /** Mestre: liga ou desliga a névoa de guerra da cena. */
   "fog:set": { enabled: boolean };

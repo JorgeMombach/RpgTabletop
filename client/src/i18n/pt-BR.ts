@@ -770,6 +770,8 @@ export const ptBR = {
   "walls.styleStone": "Pedra",
   "walls.styleRock": "Rocha",
   "walls.styleWood": "Madeira",
+  "walls.thickness": "Espessura",
+  "walls.thicknessValue": "{n} casa",
   "top.round": "Round {round}",
   "top.turnOf": " · vez de ",
   "top.yourTurn": "Sua vez!",

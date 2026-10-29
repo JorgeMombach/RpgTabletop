@@ -763,6 +763,8 @@ export const es: Partial<Messages> = {
   "walls.styleStone": "Piedra",
   "walls.styleRock": "Roca",
   "walls.styleWood": "Madera",
+  "walls.thickness": "Grosor",
+  "walls.thicknessValue": "{n} casilla",
   "top.round": "Ronda {round}",
   "top.turnOf": " · turno de ",
   "top.yourTurn": "¡Tu turno!",

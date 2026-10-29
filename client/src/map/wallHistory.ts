@@ -21,8 +21,8 @@ function push(step: Step) {
   useWallUndo.setState({ count: steps.length });
 }
 
-export async function addWall(from: GridPos, to: GridPos, door: boolean): Promise<ActionResult> {
-  const res = await act("wall:add", { from, to, door });
+export async function addWall(from: GridPos, to: GridPos, door: boolean, thickness: number): Promise<ActionResult> {
+  const res = await act("wall:add", { from, to, door, thickness });
   if (res.ok && res.ids?.[0]) push({ kind: "added", id: res.ids[0] });
   return res;
 }
@@ -42,8 +42,8 @@ export async function undoWall() {
     await act("wall:remove", { id: step.id });
     return;
   }
-  const { from, to, door } = step.wall;
-  const res = await act("wall:add", { from, to, door: !!door });
+  const { from, to, door, thickness } = step.wall;
+  const res = await act("wall:add", { from, to, door: !!door, thickness });
   const id = res.ok ? res.ids?.[0] : undefined;
   // A parede volta com outro id: os passos anteriores que apontavam para ela passam a apontar para o novo.
   if (id) for (const s of steps) if (s.kind === "added" && s.id === step.wall.id) s.id = id;

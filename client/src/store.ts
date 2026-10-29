@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { FogShape } from "./map/Fog";
-import type { Area, AreaKind, ClientState, Handout, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type Role, type Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
@@ -60,6 +60,8 @@ interface AppStore extends DicePrefs {
   wallMode: WallMode;
   /** Pontas da parede: nos cantos do grid ou livres (L5). */
   wallSnap: boolean;
+  /** Espessura das próximas paredes e portas, em casas (L5). */
+  wallThick: number;
   selectedDoorId: string | null;
   /** Ferramenta Névoa do mestre: revelar ou cobrir, pincel ou retângulo, lado do pincel em casas. */
   fogReveal: boolean;
@@ -114,6 +116,7 @@ export const useApp = create<AppStore>(() => ({
   drawHidden: false,
   wallMode: "wall",
   wallSnap: true,
+  wallThick: WALL_THICKNESS.default,
   selectedDoorId: null,
   fogReveal: true,
   fogShape: "brush",
