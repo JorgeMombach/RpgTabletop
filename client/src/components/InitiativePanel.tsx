@@ -168,7 +168,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
 }
 
 /** Ordem em blocos: cada combatente sozinho ou um grupo de mobs iguais lado a lado (agem juntos). */
-function groupsOf(order: CombatantView[]): { start: number; members: CombatantView[] }[] {
+export function groupsOf(order: CombatantView[]): { start: number; members: CombatantView[] }[] {
   const ids = order.map((c) => c.id);
   const byId = new Map(order.map((c) => [c.id, c]));
   const out: { start: number; members: CombatantView[] }[] = [];

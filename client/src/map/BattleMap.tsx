@@ -10,6 +10,7 @@ import { useT } from "../i18n";
 import { socket } from "../socket";
 import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
+import { InitiativeTrack } from "./InitiativeTrack";
 import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
@@ -164,25 +165,30 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const followTurn = useApp((s) => s.followTurn);
   const turn = state.battle.combat.turn;
   const activeTokenId = state.battle.combat.active ? currentGroup(state).find((c) => c.pos)?.id : undefined;
-  useEffect(() => {
-    if (!followTurn || !activeTokenId || !size.width) return;
-    const c = allCombatants(state).find((o) => o.id === activeTokenId);
-    if (!c?.pos) return;
+  // Desliza a câmera até o token (vez nova, clique na trilha de iniciativa); um deslize novo cancela o anterior.
+  const glide = useRef<number>(0);
+  function glideTo(c: CombatantView) {
+    if (!c.pos) return;
+    cancelAnimationFrame(glide.current);
     const span = sizeSpan(c.size);
     const target = { x: grid.offsetX + (c.pos.col + span / 2) * grid.cellPx, y: grid.offsetY + (c.pos.row + span / 2) * grid.cellPx };
     const from = { ...viewRef.current };
     const to = { x: size.width / 2 - target.x * from.scale, y: size.height / 2 - target.y * from.scale };
     if (useApp.getState().reduceFx) return void setView({ ...from, ...to });
     const start = performance.now();
-    let raf = 0;
     const step = () => {
       const t = Math.min(1, (performance.now() - start) / 450);
       const e = 1 - (1 - t) * (1 - t);
       setView({ scale: from.scale, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
-      if (t < 1) raf = requestAnimationFrame(step);
+      if (t < 1) glide.current = requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+    glide.current = requestAnimationFrame(step);
+  }
+  useEffect(() => {
+    if (!followTurn || !activeTokenId || !size.width) return;
+    const c = allCombatants(state).find((o) => o.id === activeTokenId);
+    if (c) glideTo(c);
+    return () => cancelAnimationFrame(glide.current);
     // Só na troca de turno (e ao ligar a opção): não persegue o token enquanto ele anda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn, followTurn, activeTokenId]);
@@ -526,10 +532,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const rank = (c: CombatantView) => (c.id === hoverId ? 2 : c.id === selectedId ? 1 : 0);
   tokens.sort((a, b) => rank(a) - rank(b));
 
+  // Trilha de iniciativa no topo (L7): só no combate e com alguém visível na ordem; os avisos do topo descem.
+  const trackShown = state.battle.combat.active && state.battle.combat.order.some((id) => allCombatants(state).some((c) => c.id === id && !c.hidden));
+
   return (
     <div
       ref={containerRef}
-      className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}`}
+      className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}${trackShown ? " has-track" : ""}`}
       // Botão do meio é ping: sem a rolagem automática do navegador.
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onDragOver={(e) => {
@@ -694,6 +703,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
       {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
+      {trackShown && <InitiativeTrack state={state} width={size.width} onFocus={glideTo} />}
       <MapToolbar
         tool={tool}
         gm={gm}
