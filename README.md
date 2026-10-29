@@ -151,7 +151,7 @@ npm install
 
 Regras do projeto (fluxo, testes, changelog, release e **padrões de interface**) estão no [CLAUDE.md](CLAUDE.md).
 
-**Arte da tela de entrada:** coloque uma imagem em `client/src/assets/login-bg.jpg` (ou `.png`/`.webp`) e ela vira o fundo da tela de entrada no próximo build. Sem o arquivo, o fundo é o padrão (grid dourado).
+**Arte da tela de entrada:** coloque uma imagem em `client/src/assets/login-bg.jpg` (ou `.png`/`.webp`) e ela vira o fundo da tela de entrada no próximo build. Sem o arquivo, o fundo é o padrão (o tapete de couro da mesa à luz de vela).
 
 ### Fluxo de trabalho e CI
 
