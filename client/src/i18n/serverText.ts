@@ -7,7 +7,7 @@
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
   "A iniciativa de {name} já foi rolada. Só o mestre muda.": ["{name}'s initiative was already rolled. Only the GM can change it.", "La iniciativa de {name} ya se tiró. Solo el máster la cambia."],
-  "A parede precisa ir de um canto a outro.": ["The wall has to go from one corner to another.", "La pared tiene que ir de una esquina a otra."],
+  "Parede curta demais: arraste de uma ponta à outra.": ["Wall too short: drag from one end to the other.", "Pared demasiado corta: arrastra de un extremo al otro."],
   "A pasta de sons não está configurada (opção --sounds-dir).": ["The sounds folder isn't set (--sounds-dir option).", "La carpeta de sonidos no está configurada (opción --sounds-dir)."],
   "A porta está trancada.": ["The door is locked.", "La puerta está cerrada con llave."],
   "A rolagem precisa de pelo menos um dado.": ["The roll needs at least one die.", "La tirada necesita al menos un dado."],

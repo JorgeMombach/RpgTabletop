@@ -1,5 +1,5 @@
-import { Button, Checkbox, Group, Paper, SegmentedControl, Stack, Text } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import { Button, Checkbox, Group, Paper, SegmentedControl, Stack, Text, Tooltip } from "@mantine/core";
+import { IconArrowBackUp, IconTrash } from "@tabler/icons-react";
 import { Group as KGroup, Line, Rect } from "react-konva";
 import type { GridPos, MapConfig, Wall } from "@rpg/shared";
 import { act } from "../actions";
@@ -7,6 +7,7 @@ import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import type { Point } from "./geometry";
+import { removeWall, undoWall, useWallUndo } from "./wallHistory";
 
 /** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder) ou apagar. */
 export type WallMode = "wall" | "door" | "erase";
@@ -24,6 +25,18 @@ const SECRET = "#a58fd6";
 /** Canto do grid mais perto do ponto (em pixels do mapa). */
 export function cornerAt(p: Point, g: MapConfig): GridPos {
   return { col: Math.round((p.x - g.offsetX) / g.cellPx), row: Math.round((p.y - g.offsetY) / g.cellPx) };
+}
+
+/** Ponta da parede no ponto: o canto mais perto ou, no traço livre, o próprio ponto (em centésimos de casa). */
+export function wallPointAt(p: Point, g: MapConfig, snap: boolean): GridPos {
+  if (snap) return cornerAt(p, g);
+  const cent = (n: number) => Math.round(n * 100) / 100;
+  return { col: cent((p.x - g.offsetX) / g.cellPx), row: cent((p.y - g.offsetY) / g.cellPx) };
+}
+
+/** Tamanho do traço (em casas, no eixo mais longo): abaixo de 0,1 é clique, não parede (o servidor recusa). */
+export function wallSpan(from: GridPos, to: GridPos): number {
+  return Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
 }
 
 function cornerPx(c: GridPos, g: MapConfig): Point {
@@ -97,7 +110,8 @@ export function WallPreview({ from, to, door, grid }: { from: GridPos; to: GridP
 /** Opções da ferramenta Paredes (mestre): modo, a porta escolhida (aberta, trancada, secreta) e apagar tudo. */
 export function WallOptions({ walls }: { walls: Wall[] }) {
   const t = useT();
-  const { wallMode, selectedDoorId } = useApp();
+  const { wallMode, wallSnap, selectedDoorId } = useApp();
+  const undoCount = useWallUndo((s) => s.count);
   const door = walls.find((w) => w.id === selectedDoorId && w.door);
 
   async function clearAll() {
@@ -115,9 +129,28 @@ export function WallOptions({ walls }: { walls: Wall[] }) {
           onChange={(v) => useApp.setState({ wallMode: v as WallMode, selectedDoorId: null })}
           aria-label={t("walls.mode")}
         />
-        <Button size="compact-xs" variant="subtle" color="red" disabled={walls.length === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
-          {t("walls.clear")}
-        </Button>
+        {wallMode !== "erase" && (
+          <SegmentedControl
+            size="xs"
+            data={[
+              { value: "snap", label: t("walls.snap") },
+              { value: "free", label: t("walls.free") },
+            ]}
+            value={wallSnap ? "snap" : "free"}
+            onChange={(v) => useApp.setState({ wallSnap: v === "snap" })}
+            aria-label={t("walls.snapLabel")}
+          />
+        )}
+        <Group gap={4} wrap="nowrap">
+          <Tooltip label={t("walls.undoTip")}>
+            <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undoWall()}>
+              {t("walls.undo")}
+            </Button>
+          </Tooltip>
+          <Button size="compact-xs" variant="subtle" color="red" disabled={walls.length === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
+            {t("walls.clear")}
+          </Button>
+        </Group>
       </Group>
       {door?.door ? (
         <Stack gap={4} mt={6}>
@@ -135,7 +168,7 @@ export function WallOptions({ walls }: { walls: Wall[] }) {
               variant="subtle"
               color="red"
               onClick={() => {
-                void act("wall:remove", { id: door.id });
+                void removeWall(door);
                 useApp.setState({ selectedDoorId: null });
               }}
             >
@@ -145,7 +178,7 @@ export function WallOptions({ walls }: { walls: Wall[] }) {
         </Stack>
       ) : (
         <Text size="xs" c="dimmed" mt={4}>
-          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "door" ? "walls.hintDoor" : "walls.hintWall")}
+          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "door" ? "walls.hintDoor" : wallSnap ? "walls.hintWall" : "walls.hintWallFree")}
         </Text>
       )}
     </Paper>

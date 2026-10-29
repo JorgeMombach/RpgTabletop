@@ -16,7 +16,8 @@ import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions } from "./DrawingShape";
-import { cornerAt, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { addWall, removeWall, undoWall } from "./wallHistory";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
@@ -66,7 +67,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId, fogReveal, fogShape, fogBrush } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, fogReveal, fogShape, fogBrush } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -102,6 +103,20 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Ctrl+Z com a ferramenta Paredes: desfaz a última parede ou porta (fora de campos de texto).
+  useEffect(() => {
+    if (!gm || tool !== "walls") return;
+    const down = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      e.preventDefault();
+      void undoWall();
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [gm, tool]);
 
   // Shift segurado = régua temporária.
   useEffect(() => {
@@ -185,14 +200,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (long) void act("draw:add", { kind: drawMode, points: pts, color: drawColor, width: drawWidth, ...(drawHidden && { hidden: true }) });
   }
 
-  // Parede sendo traçada pelo mestre: de canto a canto do grid; ao soltar vai para todos.
+  // Parede sendo traçada pelo mestre: de canto a canto do grid (ou livre); ao soltar vai para todos.
   const wallRef = useRef<{ from: GridPos; to: GridPos } | null>(null);
   const [wallDraft, setWallDraft] = useState<{ from: GridPos; to: GridPos } | null>(null);
   function finishWall() {
     const w = wallRef.current;
     wallRef.current = null;
     setWallDraft(null);
-    if (w && !sameCell(w.from, w.to)) void act("wall:add", { from: w.from, to: w.to, door: wallMode === "door" });
+    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door");
   }
 
   // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
@@ -229,7 +244,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
   function onWallClick(w: Wall) {
-    if (tool === "walls" && wallMode === "erase") return void act("wall:remove", { id: w.id });
+    if (tool === "walls" && wallMode === "erase") return void removeWall(w);
     if (!w.door) return;
     if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
     if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
@@ -322,7 +337,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     }
     if (tool === "walls") {
       if (wallMode === "erase") return;
-      const c = cornerAt(p, grid);
+      const c = wallPointAt(p, grid, wallSnap);
       wallRef.current = { from: c, to: c };
       setWallDraft(wallRef.current);
       return;
@@ -363,7 +378,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       return;
     }
     if (wallRef.current) {
-      const to = cornerAt(p, grid);
+      const to = wallPointAt(p, grid, wallSnap);
       if (!sameCell(to, wallRef.current.to)) {
         wallRef.current = { ...wallRef.current, to };
         setWallDraft(wallRef.current);
@@ -551,7 +566,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             {state.battle.walls.map((w) => (
               <WallShape key={w.id} w={w} grid={grid} gm={gm} selected={w.id === selectedDoorId} onClick={() => onWallClick(w)} />
             ))}
-            {wallDraft && !sameCell(wallDraft.from, wallDraft.to) && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
+            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
           </Layer>
 
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece

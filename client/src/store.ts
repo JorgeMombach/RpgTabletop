@@ -58,6 +58,8 @@ interface AppStore extends DicePrefs {
   drawHidden: boolean;
   /** Ferramenta Paredes do mestre: modo e a porta escolhida (para trancar, esconder ou apagar). */
   wallMode: WallMode;
+  /** Pontas da parede: nos cantos do grid ou livres (L5). */
+  wallSnap: boolean;
   selectedDoorId: string | null;
   /** Ferramenta Névoa do mestre: revelar ou cobrir, pincel ou retângulo, lado do pincel em casas. */
   fogReveal: boolean;
@@ -111,6 +113,7 @@ export const useApp = create<AppStore>(() => ({
   drawWidth: 6,
   drawHidden: false,
   wallMode: "wall",
+  wallSnap: true,
   selectedDoorId: null,
   fogReveal: true,
   fogShape: "brush",

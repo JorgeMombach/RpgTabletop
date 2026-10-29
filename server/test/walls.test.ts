@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ActionResult } from "@rpg/shared";
+import { isRevealed, type ActionResult } from "@rpg/shared";
 import { act, join, stateWhere, useServer } from "./helpers";
 
 // Paredes e portas no mapa (só visual).
@@ -26,19 +26,47 @@ async function setup() {
 }
 
 describe("paredes e portas", () => {
-  it("só o mestre traça e apaga; ponta inválida ou parede de tamanho zero são recusadas", async () => {
+  it("só o mestre traça e apaga; ponta inválida ou parede curta demais são recusadas", async () => {
     const { g, ana } = await setup();
     const [parede] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 5, row: 0 } }));
     const [porta] = idsOf(await act(g, "wall:add", { from: { col: 5, row: 0 }, to: { col: 5, row: 1 }, door: true }));
     assert.deepEqual(game().battle.walls.find((w) => w.id === porta)?.door, { open: false });
     assert.equal((await act(ana, "wall:add", { from: { col: 0, row: 0 }, to: { col: 1, row: 0 } })).ok, false);
-    assert.match(errorOf(await act(g, "wall:add", { from: { col: 2, row: 2 }, to: { col: 2, row: 2 } })), /de um canto a outro/);
-    assert.equal((await act(g, "wall:add", { from: { col: 0.5, row: 0 }, to: { col: 1, row: 0 } })).ok, false);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 2, row: 2 }, to: { col: 2, row: 2 } })), /curta demais/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 2, row: 2 }, to: { col: 2.05, row: 2 } })), /curta demais/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: "1" as unknown as number, row: 0 }, to: { col: 1, row: 3 } })), /Ponta da parede inválida/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: Number.NaN, row: 0 }, to: { col: 1, row: 3 } })), /Ponta da parede inválida/);
     assert.equal((await act(ana, "wall:remove", { id: parede })).ok, false);
     assert.ok((await act(g, "wall:remove", { id: parede })).ok);
     assert.equal(game().battle.walls.length, 1);
     assert.ok((await act(g, "wall:clear", {})).ok);
     assert.equal(game().battle.walls.length, 0);
+  });
+
+  it("traço livre: pontas fracionadas valem, em centésimos de casa, e bloqueiam a passagem e a visão", async () => {
+    const { g } = await setup();
+    const [livre] = idsOf(await act(g, "wall:add", { from: { col: 0.333333, row: 2.25 }, to: { col: 3.7, row: 0.1 } }));
+    assert.deepEqual(game().battle.walls.find((w) => w.id === livre), { id: livre, from: { col: 0.33, row: 2.25 }, to: { col: 3.7, row: 0.1 } });
+    // Sala fechada por paredes livres, com a parede da direita no meio da casa 5 (x = 5,5): o cômodo
+    // revela as casas 0 a 4 (o centro da casa 5 fica do lado de fora).
+    for (const [from, to] of [
+      [{ col: 0, row: 10 }, { col: 5.5, row: 10 }],
+      [{ col: 5.5, row: 10 }, { col: 5.5, row: 13 }],
+      [{ col: 5.5, row: 13 }, { col: 0, row: 13 }],
+      [{ col: 0, row: 13 }, { col: 0, row: 10 }],
+    ])
+      assert.ok((await act(g, "wall:add", { from, to })).ok);
+    await act(g, "fog:set", { enabled: true });
+    assert.ok((await act(g, "fog:room", { cell: { col: 1, row: 11 }, reveal: true })).ok);
+    const fog = game().battle.fog;
+    assert.ok(isRevealed(fog, 4, 11) && isRevealed(fog, 0, 12));
+    assert.ok(!isRevealed(fog, 5, 11), "a casa cortada pela parede fica de fora");
+    // Exporta e importa: a ponta fracionada volta igual.
+    const exported = await g.timeout(2000).emitWithAck("session:export");
+    assert.ok(exported.ok);
+    await act(g, "battle:clear", { keepTemplates: true });
+    assert.ok((await g.timeout(2000).emitWithAck("session:import", exported.file)).ok);
+    assert.deepEqual(game().battle.walls.find((w) => w.id === livre)?.from, { col: 0.33, row: 2.25 });
   });
 
   it("jogador abre e fecha a porta, menos a trancada; só o mestre tranca", async () => {

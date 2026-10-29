@@ -55,7 +55,8 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
     },
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
-      const steps = Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row));
+      // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
+      const steps = Math.max(1, Math.ceil(Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row))));
       const pts: GridPos[] = [];
       for (let i = 0; i <= steps; i++) {
         const col = Math.round(w.from.col + ((w.to.col - w.from.col) * i) / steps);

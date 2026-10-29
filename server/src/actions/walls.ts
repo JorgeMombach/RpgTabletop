@@ -4,11 +4,16 @@ import { fail } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
+/**
+ * Ponta da parede, em casas do grid: inteira no canto (traço "nos cantos") ou fracionada (traço livre, L5),
+ * guardada em centésimos de casa.
+ */
 function corner(raw: unknown): GridPos {
   const p = raw as GridPos | undefined;
-  const ok = (n: unknown) => Number.isInteger(n) && Math.abs(n as number) <= LIMITS.gridCoord;
+  const ok = (n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord;
   if (!p || !ok(p.col) || !ok(p.row)) fail("Ponta da parede inválida.");
-  return { col: p.col, row: p.row };
+  const cent = (n: number) => Math.round(n * 100) / 100;
+  return { col: cent(p.col), row: cent(p.row) };
 }
 
 /** Valida as pontas e a porta de uma parede (do mestre ou do arquivo de sessão), sem o id. */
@@ -17,7 +22,8 @@ export function parseWall(raw: unknown): Omit<Wall, "id"> {
   const from = corner(w.from);
   const to = corner(w.to);
   const len = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
-  if (len === 0) fail("A parede precisa ir de um canto a outro.");
+  // Menos de um décimo de casa: foi um clique, não um traço.
+  if (len < 0.1) fail("Parede curta demais: arraste de uma ponta à outra.");
   if (len > LIMITS.wallLength) fail("Parede longa demais (máximo de {n} casas): trace em partes.", { n: LIMITS.wallLength });
   const out: Omit<Wall, "id"> = { from, to };
   if (w.door !== undefined) {
