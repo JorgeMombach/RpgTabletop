@@ -1,5 +1,5 @@
 import { fbm } from "./fogRender";
-import { DAEMON_SKULL } from "./gameIcons";
+import { CONDITION_ICONS, CONDITION_OTHER, DAEMON_SKULL } from "./gameIcons";
 
 /**
  * Kit visual dos tokens (L2): metal com relevo e desgaste, rebites, ouro em relevo e rubis, tudo desenhado
@@ -868,4 +868,55 @@ function drawBossRibbon(ctx: CanvasRenderingContext2D, text: string, y: number, 
   ruby(ctx, l + w - 7 * k, y + h / 2 + 0.5 * k, 2.6 * k);
   ctx.restore();
   return h + 1 * k;
+}
+
+// ---------- condições (L3) ----------
+
+/**
+ * Medalhão de condição centrado em (x, y), raio `mr`: disco escuro com aro de bronze e o ícone da condição
+ * em pergaminho (ou um texto, como "+2"). Concentração ganha o aro azul (é escolha de quem conjura, não mal).
+ */
+export function drawConditionMedal(ctx: CanvasRenderingContext2D, x: number, y: number, mr: number, name: string | null, text?: string) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.shadowColor = "rgba(0,0,0,.7)";
+  ctx.shadowBlur = mr * 0.5;
+  ctx.shadowOffsetY = mr * 0.12;
+  const disc = ctx.createRadialGradient(-mr * 0.3, -mr * 0.35, mr * 0.1, 0, 0, mr);
+  disc.addColorStop(0, "#3a3240");
+  disc.addColorStop(1, "#110e14");
+  ctx.fillStyle = disc;
+  ctx.beginPath();
+  ctx.arc(0, 0, mr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowColor = "transparent";
+  const blue = name === "Concentração";
+  const rim = ctx.createLinearGradient(0, -mr, 0, mr);
+  rim.addColorStop(0, blue ? "#cfe6ff" : METALS.bronze.hi);
+  rim.addColorStop(0.5, blue ? "#4f8fc0" : METALS.bronze.mid);
+  rim.addColorStop(1, blue ? "#173a5a" : METALS.bronze.lo);
+  ctx.strokeStyle = rim;
+  ctx.lineWidth = mr * 0.2;
+  ctx.beginPath();
+  ctx.arc(0, 0, mr * 0.9, 0, Math.PI * 2);
+  ctx.stroke();
+  if (text !== undefined) {
+    ctx.fillStyle = "#f1e7d3";
+    ctx.font = `700 ${mr * 1.05}px "Alegreya Sans", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, 0, mr * 0.06);
+  } else {
+    const d = (name && CONDITION_ICONS[name]) || CONDITION_OTHER;
+    let p = iconPaths.get(d);
+    if (!p) iconPaths.set(d, (p = new Path2D(d)));
+    const side = mr * 1.2;
+    ctx.scale(side / 512, side / 512);
+    ctx.translate(-256, -256);
+    ctx.shadowColor = "rgba(0,0,0,.8)";
+    ctx.shadowBlur = 2;
+    ctx.fillStyle = "#f1e7d3";
+    ctx.fill(p);
+  }
+  ctx.restore();
 }

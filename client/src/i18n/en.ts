@@ -225,7 +225,7 @@ export const en: Partial<Messages> = {
   "about.use.dice": "3D dice and dice sounds",
   "about.use.dice3d": "3D dice rendering",
   "about.use.icons": "Icons",
-  "about.use.gameIcons": "Boss frame ornaments",
+  "about.use.gameIcons": "Boss ornaments and condition icons",
   "about.use.qr": "Invite QR code",
   "about.use.font": "Body font",
   "about.use.titles": "Title font",

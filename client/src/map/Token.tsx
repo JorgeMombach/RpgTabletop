@@ -7,7 +7,7 @@ import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
-import { drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind, type PlateStyle } from "./tokenArt";
+import { drawConditionMedal, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind, type PlateStyle } from "./tokenArt";
 import { useImage } from "./useImage";
 
 // Mesmas faixas da barra de vida das listas (cobre → bronze → sangue).
@@ -283,22 +283,27 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
       )}
 
       {c.conditions.length > 0 && (
-        // Selo com o número de condições; os nomes aparecem no rótulo (hover/seleção).
-        <Group x={r * 0.78} y={-r * 0.78} listening={false}>
-          <Circle radius={badgeR} fill="#d8b47a" stroke="#141218" strokeWidth={Math.max(1.5, ref * 0.03)} />
-          <Text
-            text={String(c.conditions.length)}
-            fontSize={Math.max(9, ref * 0.2)}
-            fontStyle="bold"
-            fill="#141218"
-            align="center"
-            verticalAlign="middle"
-            width={size}
-            height={size}
-            x={-size / 2}
-            y={-size / 2}
-          />
-        </Group>
+        // Condições em medalhões com ícone, em arco pelo lado direito, de cima para baixo (o canto de baixo é da
+        // tocha). Passou do que cabe: o último vira "+N". Nomes e rodadas aparecem no rótulo (hover/seleção).
+        <KShape
+          listening={false}
+          sceneFunc={(kctx) => {
+            const ctx = kctx._context;
+            const mr = badgeR * 0.95;
+            const arc = (boss ? r * 1.1 : r) + mr * 0.15;
+            const step = (2 * mr * 1.08) / arc;
+            const slots = c.torch ? 3 : 4;
+            const list = c.conditions;
+            const shown = list.length > slots ? slots - 1 : list.length;
+            for (let i = 0; i < Math.min(list.length, slots); i++) {
+              const a = (-80 * Math.PI) / 180 + i * step;
+              const x = Math.cos(a) * arc;
+              const y = Math.sin(a) * arc;
+              if (i < shown) drawConditionMedal(ctx, x, y, mr, list[i].name);
+              else drawConditionMedal(ctx, x, y, mr, null, `+${list.length - shown}`);
+            }
+          }}
+        />
       )}
 
       {c.animal && (
