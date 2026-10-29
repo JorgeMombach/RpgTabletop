@@ -13,6 +13,7 @@ function keyOf(store: Store): string {
   return JSON.stringify([
     game.sceneId,
     battle.weather.light,
+    battle.fog.range,
     battle.map.feetPerCell,
     game.allies.map((a) => (a.pos ? [a.pos.col, a.pos.row, a.size ?? "", a.darkvision ? 1 : 0] : 0)),
     lightsOf(store).map((c) => [c.pos!.col, c.pos!.row, c.size ?? ""]),
@@ -39,12 +40,14 @@ export function updateSight(store: Store): Rows {
   const key = keyOf(store);
   const hit = cache.get(store);
   if (hit && hit.key === key) return hit.rows;
-  const viewers = allies.flatMap((a) =>
-    a.pos ? [{ pos: a.pos, span: sizeSpan(a.size), feet: visionFeet(battle.weather.light, !!a.darkvision, !!a.torch) }] : [],
-  );
-  // De dia a luz da tocha não muda nada.
+  // Alcance da cena: o mesmo para todos, sem luz, visão no escuro nem tocha.
+  const feetOf = (a: Combatant) => fog.range ?? visionFeet(battle.weather.light, !!a.darkvision, !!a.torch);
+  const viewers = allies.flatMap((a) => (a.pos ? [{ pos: a.pos, span: sizeSpan(a.size), feet: feetOf(a) }] : []));
+  // De dia (ou com alcance da cena) a luz da tocha não muda nada.
   const lights =
-    battle.weather.light === "day" ? [] : lightsOf(store).map((c) => ({ pos: c.pos!, span: sizeSpan(c.size), feet: TORCH_FEET }));
+    battle.weather.light === "day" || fog.range !== null
+      ? []
+      : lightsOf(store).map((c) => ({ pos: c.pos!, span: sizeSpan(c.size), feet: TORCH_FEET }));
   const rows: Rows = {};
   for (const r of cellsToRects(sightCells(viewers, battle.walls, battle.map.feetPerCell, lights))) {
     paintRows(rows, r, true);
@@ -106,4 +109,13 @@ export function trackLastSeen(store: Store) {
     return c && !c.hidden && !now.has(m.id) && !seenNow(cellsOf(m.pos, m.span));
   });
   inView.set(store, now);
+}
+
+/**
+ * O mestre mexeu na névoa (cobriu, cobriu tudo, mudou o alcance): quem sumiu por isso não deixa marca de
+ * "visto por último", e a visão é recalculada (o explorado volta a incluir o que se vê agora).
+ */
+export function forgetSight(store: Store) {
+  cache.delete(store);
+  inView.delete(store);
 }

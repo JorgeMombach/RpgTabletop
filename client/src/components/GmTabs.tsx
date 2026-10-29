@@ -2,6 +2,8 @@ import { Indicator, Stack, Tabs, Text } from "@mantine/core";
 import { IconCloud, IconMap2, IconSwords, IconUsers } from "@tabler/icons-react";
 import type { ClientState, Combatant } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
+import { create } from "zustand";
+import { SetupCard } from "./SetupCard";
 import { useT, type MessageKey } from "../i18n";
 import { AlliesPanel } from "./AlliesPanel";
 import { BestiaryPanel } from "./BestiaryPanel";
@@ -18,7 +20,8 @@ import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
 import { WeatherPanel } from "./WeatherPanel";
 
-type Tab = "combat" | "map" | "ambience" | "table";
+export type GmTab = "combat" | "map" | "ambience" | "table";
+type Tab = GmTab;
 
 const TABS: { id: Tab; label: MessageKey; icon: typeof IconSwords }[] = [
   { id: "combat", label: "gmTabs.combat", icon: IconSwords },
@@ -44,9 +47,33 @@ function readTab(): Tab {
  * A aba não troca sozinha: quando a vez muda com outra aba aberta, a de Combate ganha um ponto.
  * A aba escolhida fica guardada neste navegador.
  */
+/** Aba aberta, guardada fora do componente: o cartão Preparar a mesa troca a aba (L8). */
+const useGmTab = create<{ tab: Tab }>(() => ({ tab: readTab() }));
+
+/** Abre a aba e, se der, leva até o painel (`anchor` do Panel) e faz ele piscar. */
+export function openGmTab(tab: GmTab, anchor?: string) {
+  useGmTab.setState({ tab });
+  try {
+    localStorage.setItem(KEY, tab);
+  } catch {
+    // sem armazenamento: vale só nesta aba
+  }
+  if (!anchor) return;
+  // Espera a aba nova aparecer.
+  window.setTimeout(() => {
+    const el = document.querySelector<HTMLElement>(`[data-panel="${anchor}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.classList.remove("panel-flash");
+    void el.offsetWidth;
+    el.classList.add("panel-flash");
+  }, 60);
+}
+
 export function GmTabs({ state }: { state: ClientState }) {
   const t = useT();
-  const [tab, setTab] = useState<Tab>(readTab);
+  const tab = useGmTab((s) => s.tab);
+  const setTab = (next: Tab) => useGmTab.setState({ tab: next });
   const [turnDot, setTurnDot] = useState(false);
   const { combat } = state.battle;
 
@@ -87,8 +114,9 @@ export function GmTabs({ state }: { state: ClientState }) {
       </Tabs.List>
 
       <Tabs.Panel value="combat" className="gm-tabs-panel">
+        <SetupCard state={state} />
         <InitiativePanel state={state} />
-        <MobsPanel mobs={state.battle.mobs as Combatant[]} />
+        <MobsPanel mobs={state.battle.mobs as Combatant[]} templates={state.templates} />
         <NpcsPanel npcs={state.battle.npcs as Combatant[]} />
         <AlliesPanel state={state} />
         <EffectsPanel state={state} />

@@ -1,10 +1,11 @@
 import { ActionIcon, Badge, Button, Group, NumberInput, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import { IconX } from "@tabler/icons-react";
+import { IconArrowBigUpLine, IconX } from "@tabler/icons-react";
 import type { Combatant } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { HpBar } from "./HpBar";
+import { usePulse } from "./usePulse";
 
 /** Chefe com fases: "Fase 2 de 3" e uma barra cheia para cada fase que ainda vem. */
 function PhaseBars({ c }: { c: Combatant }) {
@@ -40,6 +41,7 @@ function PhaseBars({ c }: { c: Combatant }) {
  * Vida temporária à parte: o dano tira dela primeiro (o servidor faz a conta).
  */
 export function HpControl({ c }: { c: Combatant }) {
+  const pulse = usePulse(c.hp);
   const t = useT();
   const [amount, setAmount] = useState<string | number>("");
   const [editing, setEditing] = useState<string | number | null>(null);
@@ -70,7 +72,7 @@ export function HpControl({ c }: { c: Combatant }) {
         {editing === null ? (
           <Tooltip label={t("hp.editTip")}>
             <UnstyledButton className="hp-value" onClick={() => setEditing(c.hp)}>
-              <Text fz={24} fw={700} lh={1.1}>
+              <Text key={pulse.pulseKey} fz={24} fw={700} lh={1.1} className={pulse.className}>
                 {c.hp}
               </Text>
             </UnstyledButton>
@@ -111,13 +113,21 @@ export function HpControl({ c }: { c: Combatant }) {
           </Tooltip>
         )}
         {down && (
-          <Badge color="red" variant="light" ml="auto">
-            {c.type === "mob" ? t("hp.downMob") : t("hp.down")}
-          </Badge>
+          <Group gap={6} ml="auto" wrap="nowrap">
+            <Badge color="red" variant="light">
+              {c.type === "mob" ? t("hp.downMob") : t("hp.down")}
+            </Badge>
+            {/* Levantar = cura de 1 (zera os testes contra a morte); curar mais também levanta. */}
+            <Tooltip label={t("hp.raiseTip")} multiline w={240}>
+              <Button size="compact-xs" variant="light" color="copper" leftSection={<IconArrowBigUpLine size={12} />} onClick={() => void act("hp:change", { id: c.id, delta: 1 })}>
+                {t("hp.raise")}
+              </Button>
+            </Tooltip>
+          </Group>
         )}
       </Group>
 
-      <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick />
+      <HpBar hp={c.hp} hpMax={c.hpMax} tempHp={c.tempHp} thick boss={c.boss} />
       {(c.phases || c.phase) && <PhaseBars c={c} />}
 
       <Group gap="xs" wrap="nowrap">

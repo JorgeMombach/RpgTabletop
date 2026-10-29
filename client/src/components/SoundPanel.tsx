@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Divider, FileButton, Group, Select, SimpleGrid, Slider, Stack, Text, Tooltip } from "@mantine/core";
-import { IconFolderOpen, IconPlayerPlay, IconPlayerStop, IconRefresh, IconUpload } from "@tabler/icons-react";
+import { IconFolderOpen, IconMusic, IconPlayerPlay, IconPlayerStop, IconRefresh, IconUpload } from "@tabler/icons-react";
 import { GEN_SOUNDS, LIMITS, type ClientState, type GenAmbientId, type GenSfxId, type SoundChannel, type SoundSource } from "@rpg/shared";
 import { useEffect, useState } from "react";
 import { act } from "../actions";
@@ -8,6 +8,7 @@ import { soundLabel } from "../labels";
 import { toast } from "../notify";
 import { desktop } from "../sessionFile";
 import { socket } from "../socket";
+import { EmptyState } from "./EmptyState";
 import { Panel } from "./Panel";
 
 /** "gen:rain" / "file:Taverna.mp3" ↔ origem do som (valor dos seletores). */
@@ -108,7 +109,7 @@ async function upload(files: File[]) {
       .timeout(120_000)
       .emitWithAck("sound:upload", { name: file.name, data: await file.arrayBuffer() })
       .catch(() => ({ ok: false as const, error: tr("common.noServer") }));
-    toast(res.ok ? { kind: "info", text: tr("sound.added", { name: file.name }) } : { kind: "error", text: `${file.name}: ${localizeError(res)}` });
+    toast(res.ok ? { kind: "success", text: tr("sound.added", { name: file.name }) } : { kind: "error", text: `${file.name}: ${localizeError(res)}` });
   }
 }
 
@@ -167,11 +168,13 @@ export function SoundPanel({ state }: { state: ClientState }) {
         </Text>
       ) : (
         <>
-          <Text size="xs" c="dimmed">
-            {library.length === 0
-              ? t("sound.empty")
-              : t("sound.count", { n: library.length })}
-          </Text>
+          {library.length === 0 ? (
+            <EmptyState icon={IconMusic} text={t("sound.empty")} compact />
+          ) : (
+            <Text size="xs" c="dimmed">
+              {t("sound.count", { n: library.length })}
+            </Text>
+          )}
           <Group gap="xs">
             <FileButton
               multiple

@@ -37,6 +37,8 @@ export interface CombatantInput {
   avatar?: string | null;
   /** Marca de animal (E21). */
   animal?: boolean;
+  /** Chefe (mob/NPC): moldura de ouro no mapa e fita com o nome, para todos. */
+  boss?: boolean;
   /** Visão no escuro (só personagens dos jogadores). */
   darkvision?: boolean;
   /** Chefe: as próximas fases (só mob, NPC e template; só o mestre). `[]` apaga. */
@@ -99,7 +101,7 @@ export interface MapImagePayload {
   image: string | null;
 }
 
-export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale">>;
+export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle">>;
 
 export interface TemplateInput extends CombatantInput {
   /** Presente = edição; ausente = criação. */
@@ -260,14 +262,22 @@ export interface ActionPayloads {
    * Mantém jogadores, aliados (vida/slots/magias), grid e log; templates se `keepTemplates`.
    */
   "battle:clear": { keepTemplates: boolean };
-  /** Mestre: desenho no mapa (traço, seta, círculo). */
-  "draw:add": Omit<Drawing, "id">;
+  /** Desenho no mapa (traço, seta, círculo). Jogador: só seta, e o servidor marca de quem é (`authorId`). */
+  "draw:add": Omit<Drawing, "id" | "authorId">;
+  /** Mestre apaga qualquer desenho; jogador, só as próprias setas. */
   "draw:remove": { id: string };
-  /** Mestre: apaga todos os desenhos. */
+  /** Mestre: apaga todos os desenhos. Jogador: apaga as próprias setas. */
   "draw:clear": Record<string, never>;
+  /**
+   * Borracha: apaga por onde passa o caminho `points` (x, y em pixels do mapa) com raio `radius`. Traço
+   * livre é cortado; seta e círculo tocados somem inteiros. Jogador: só nas próprias setas.
+   */
+  "draw:erase": { points: number[]; radius: number };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
-  "wall:add": { from: GridPos; to: GridPos; door?: boolean };
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
   "wall:remove": { id: string };
+  /** Mestre: borracha nas paredes (`points` = col, row em casas). Parede é cortada; porta tocada some inteira. */
+  "wall:erase": { points: number[]; radius: number };
   /** Mestre: liga ou desliga a névoa de guerra da cena. */
   "fog:set": { enabled: boolean };
   /** Mestre: revela (ou cobre) retângulos de casas. */
@@ -276,6 +286,8 @@ export interface ActionPayloads {
   "fog:room": { cell: GridPos; reveal: boolean };
   /** Mestre: liga ou desliga a visão dos personagens (os aliados revelam em volta deles). */
   "fog:vision": { enabled: boolean };
+  /** Mestre: alcance da visão dos personagens na cena, em pés (`null` = pela luz do clima). */
+  "fog:range": { feet: number | null };
   /** Mestre: cobre o mapa inteiro de novo (e esquece o que foi explorado). */
   "fog:reset": Record<string, never>;
   /** Mestre: liga ou desliga regras da mesa (só as que vierem). */
@@ -338,6 +350,8 @@ export type ClientToServerEvents = ActionEvents & {
   /** Pergunta qual papel esta conexão receberia (loopback = mestre). */
   "session:probe": (payload: { gmKey?: string }, ack: (res: { role: Role }) => void) => void;
   "session:join": (payload: JoinPayload, ack: (res: JoinResult) => void) => void;
+  /** Pede a imagem do mapa de novo (a do cliente ficou para trás ou não abriu): volta em `map:image`. */
+  "map:imageRequest": () => void;
   /** Efêmero: repassado aos outros, não fica no estado. */
   "ruler:update": (ruler: Ruler | null) => void;
   /** Efêmero, como a régua. */
@@ -368,6 +382,17 @@ export interface ServerToClientEvents {
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
+  /**
+   * Golpes e curas desde o último estado (L6): o número que sobe do token. Só o quanto mudou, nunca a vida;
+   * cada um recebe só os tokens que enxerga.
+   */
+  "fx:hp": (hits: HpHit[]) => void;
+}
+
+/** Quanto a vida (com a temporária) de um token mudou: negativo = dano, positivo = cura. */
+export interface HpHit {
+  id: string;
+  delta: number;
 }
 
 export const NAME_MAX_LENGTH = 32;
@@ -414,6 +439,12 @@ export const LIMITS = {
   drawingWidth: { min: 1, max: 24 },
   /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
   drawingCoord: 100_000,
+  /** Setas de cada jogador no mapa: a mais antiga some quando ele passa disso. */
+  playerArrows: 10,
+  /** Borracha: números do caminho (x e y) por envio e raio (pixels do mapa no desenho, casas nas paredes). */
+  eraserNumbers: 400,
+  eraserRadius: { min: 1, max: 400 },
+  wallEraserRadius: { min: 0.05, max: 3 },
   /** Cenas na sessão e tamanho do nome. */
   scenes: 20,
   sceneName: 40,
@@ -428,6 +459,8 @@ export const LIMITS = {
   fogRectSide: 400,
   /** Maior cômodo que "revelar o cômodo" aceita (casas); passou disso, a área não fecha. */
   fogRoom: 4000,
+  /** Alcance da visão por cena (pés). */
+  visionFeet: { min: 5, max: 1000 },
   wallLength: 200,
   /** Arquivo de som (E25): cabe no limite do socket (50 MB) com folga. */
   soundBytes: 40 * 1024 * 1024,
@@ -449,7 +482,7 @@ export const LIMITS = {
   /** Lado máximo da imagem do mapa e do avatar após redução no cliente. */
   mapImageSide: 4096,
   avatarSide: 128,
-  cellPx: { min: 8, max: 400 },
+  cellPx: { min: 8, max: 1000 },
   imageScale: { min: 0.1, max: 10 },
   areaFeet: { min: 5, max: 500 },
   /** Limite de coordenada de célula (evita tokens perdidos no infinito). */

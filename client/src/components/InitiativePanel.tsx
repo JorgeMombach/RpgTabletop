@@ -1,14 +1,15 @@
 import { ActionIcon, Alert, Badge, Box, Button, Checkbox, Divider, Group, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
-import { IconCaretRightFilled, IconChevronDown, IconChevronUp, IconDice5, IconPlayerTrackNext, IconPlayerTrackPrev } from "@tabler/icons-react";
+import { IconCaretRightFilled, IconChevronDown, IconChevronUp, IconDice5, IconPlayerTrackNext, IconPlayerTrackPrev, IconSwords } from "@tabler/icons-react";
 import { LIMITS, groupName, groupRange, type ClientState, type CombatantView } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { confirmAction } from "../confirm";
-import { allCombatants, fmtCondition } from "../format";
-import { select, useApp } from "../store";
+import { allCombatants, fmtCondition, isDown } from "../format";
+import { select, useApp, useInitHeld } from "../store";
 import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
+import { EmptyState } from "./EmptyState";
 import { TurnControls } from "./TurnControls";
 
 export function InitiativePanel({ state }: { state: ClientState }) {
@@ -53,7 +54,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
       highlighted={myTurn}
       aside={
         combat.active && (
-          <Badge color="copper" variant="light" size="sm">
+          <Badge key={combat.round} className="round-flip" color="copper" variant="light" size="sm">
             {t("top.round", { round: combat.round })}
           </Badge>
         )
@@ -116,11 +117,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
       )}
 
       {order.length === 0 ? (
-        <Text size="xs" c="dimmed">
-          {gm
-            ? t("init.emptyGm")
-            : t("init.emptyPlayer")}
-        </Text>
+        <EmptyState icon={IconSwords} title={t("empty.init")} text={gm ? t("init.emptyGm") : t("init.emptyPlayer")} />
       ) : (
         <ol className="init-list">
           {groupsOf(order).map(({ start, members }) => {
@@ -168,7 +165,7 @@ export function InitiativePanel({ state }: { state: ClientState }) {
 }
 
 /** Ordem em blocos: cada combatente sozinho ou um grupo de mobs iguais lado a lado (agem juntos). */
-function groupsOf(order: CombatantView[]): { start: number; members: CombatantView[] }[] {
+export function groupsOf(order: CombatantView[]): { start: number; members: CombatantView[] }[] {
   const ids = order.map((c) => c.id);
   const byId = new Map(order.map((c) => [c.id, c]));
   const out: { start: number; members: CombatantView[] }[] = [];
@@ -186,7 +183,10 @@ function GroupRow({ members, current, selected, children }: { members: Combatant
   const [open, setOpen] = useState(false);
   const head = members[0];
   const name = groupName(members.map((c) => c.name));
-  const down = members.every((c) => c.hp !== undefined && c.hp <= 0);
+  const down = members.every(isDown);
+  // Dados ainda rolando: o número espera.
+  const held = useInitHeld();
+  const rolling = members.some((c) => held.has(c.id));
 
   return (
     <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={() => select(head.id)}>
@@ -200,7 +200,7 @@ function GroupRow({ members, current, selected, children }: { members: Combatant
         </Text>
         <Tooltip label={t("init.groupTip", { n: members.length })}>
           <Text size="sm" fw={700} miw={36} ta="center">
-            {head.initiative}
+            {rolling ? <IconDice5 size={14} className="init-held" aria-label={t("init.rolling")} /> : head.initiative}
           </Text>
         </Tooltip>
         <Tooltip label={open ? t("init.groupClose") : t("init.groupOpen")}>
@@ -235,7 +235,8 @@ function InitRow(props: {
   const { c, index, last, current, selected, mine, editable, gm } = props;
   const t = useT();
   const [editing, setEditing] = useState<string | number | null>(null);
-  const down = c.hp !== undefined && c.hp <= 0;
+  const down = isDown(c);
+  const rolling = useInitHeld().has(c.id);
 
   function commit(e?: FormEvent) {
     e?.preventDefault();
@@ -297,7 +298,7 @@ function InitRow(props: {
               disabled={!editable}
               onClick={stop(() => setEditing(c.initiative ?? ""))}
             >
-              {c.initiative}
+              {rolling ? <IconDice5 size={14} className="init-held" aria-label={t("init.rolling")} /> : c.initiative}
             </Button>
           </Tooltip>
         )}

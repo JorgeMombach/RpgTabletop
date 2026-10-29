@@ -178,6 +178,8 @@ export interface Combatant {
   darkvision?: boolean;
   /** Tocha acesa: ilumina em volta (20 ft de luz forte e 20 de meia-luz). */
   torch?: boolean;
+  /** Chefe (mob/NPC): moldura de ouro e fita com o nome no mapa. Todos veem (as fases, não). */
+  boss?: boolean;
   /** Chefe (mob/NPC): fases que ainda vão começar, em ordem. Só o mestre recebe (têm vida). */
   phases?: BossPhase[];
   /** Fase atual de um chefe (ausente = 1). */
@@ -196,6 +198,8 @@ export interface Combatant {
 export type CombatantView = Omit<Combatant, "hp" | "hpMax"> & {
   hp?: number;
   hpMax?: number;
+  /** Caído (vida zerada): o que o jogador sabe de um mob ou NPC sem receber a vida. */
+  down?: boolean;
 };
 
 /** Próxima fase de um chefe: começa quando a vida da fase atual zera. Nome e CA novos são opcionais. */
@@ -221,6 +225,8 @@ export interface MobTemplate {
   notes?: string;
   /** Mobs e NPCs criados com o template já vêm com a marca de animal. */
   animal?: boolean;
+  /** Mobs e NPCs criados com o template já vêm marcados como chefe. */
+  boss?: boolean;
   /** Chefe: fases depois da primeira (que é a vida/nome/CA do próprio template). */
   phases?: BossPhase[];
 }
@@ -235,7 +241,22 @@ export interface MapConfig {
   rotation: number;
   /** Escala da imagem (1 = tamanho original), para casar os quadrados do desenho com o grid. */
   imageScale: number;
+  /** Como as paredes desta cena são desenhadas (L5). Ausente = pedra lavrada. */
+  wallStyle?: WallStyle;
+  /** A mesa em volta do mapa (L5): o que aparece fora da imagem. Ausente = madeira. */
+  tableStyle?: TableStyle;
 }
+
+/** Mesa em volta do mapa: madeira escura (padrão), tapete de couro ou ardósia. */
+export const TABLE_STYLES = ["wood", "leather", "slate"] as const;
+export type TableStyle = (typeof TABLE_STYLES)[number];
+
+/** Espessura padrão da parede (casas) e os limites da escolha do mestre. */
+export const WALL_THICKNESS = { default: 0.18, min: 0.1, max: 1 };
+
+/** Estilos de parede: pedra lavrada (masmorra, castelo), rocha bruta (caverna, ruína) e madeira (casa, paliçada). */
+export const WALL_STYLES = ["stone", "rock", "wood"] as const;
+export type WallStyle = (typeof WALL_STYLES)[number];
 
 export interface CombatState {
   active: boolean;
@@ -339,6 +360,8 @@ export interface LogEntry {
   labelParts?: LogPart[];
   /** Quem rolou é o mestre (o nome aparece como "Mestre" no idioma de cada um). */
   gm?: boolean;
+  /** Combatente da rolagem de iniciativa: o valor dele só aparece quando os dados param. */
+  subjectId?: string;
 }
 
 /** Pedaço de texto do log: modelo em português e valores. */
@@ -365,6 +388,7 @@ export const EFFECT_PRESETS = {
   fog: { label: "Névoa", color: "#c9d1d9" },
   ice: { label: "Gelo", color: "#9fdcf0" },
   darkness: { label: "Escuridão", color: "#1a1424" },
+  holy: { label: "Luz sagrada", color: "#ffd98a" },
   custom: { label: "Personalizado", color: "#d4a24c" },
 } as const;
 
@@ -442,6 +466,8 @@ export interface Drawing {
   width: number;
   /** Só o mestre vê (anotação de preparo: armadilha, porta secreta). */
   hidden?: boolean;
+  /** Seta de jogador: quem desenhou (ele apaga as próprias; o mestre, todas). Ausente = do mestre. */
+  authorId?: string;
 }
 
 /** Porta numa parede: abre e fecha com um clique; trancada só o mestre abre; secreta só o mestre vê. */
@@ -459,6 +485,8 @@ export interface Wall {
   id: string;
   from: GridPos;
   to: GridPos;
+  /** Espessura do desenho, em casas (0,1 a 1; L5). Ausente = a de sempre (`WALL_THICKNESS`). Bloqueia pela linha do meio. */
+  thickness?: number;
   door?: Door;
 }
 

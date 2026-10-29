@@ -15,14 +15,15 @@ import {
   Text,
   TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
-import { IconWindowMaximize } from "@tabler/icons-react";
-import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode } from "@rpg/shared";
+import { IconSword, IconWindowMaximize } from "@tabler/icons-react";
+import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode, type SavedAttack } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { useT, type MessageKey } from "../i18n";
-import { bringLogBack, popOutLog } from "../logWindow";
-import { allCombatants } from "../format";
+import { bringLogBack, CAN_POP_OUT, popOutLog } from "../logWindow";
+import { allCombatants, fmtMod } from "../format";
 import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
@@ -120,6 +121,27 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   const waiting = !gm && state.log.some((e) => e.authorId === me && rolling.includes(e.id));
   const blocked = locked || waiting;
 
+  // Ataques salvos como botões rápidos (L8): de quem rola. Mestre: o "Rolar como"; jogador: o personagem dele
+  // na vez, senão o selecionado, senão o primeiro (sem contar os invocados).
+  const mine = allCombatants(state).filter((c) => c.type === "ally" && c.ownerId === me);
+  const who = gm
+    ? side.find((c) => c.id === asId)
+    : (mine.find((c) => c.id === current?.id) ?? mine.find((c) => c.id === selectedId) ?? mine.find((c) => !c.summonerId));
+  const quick = who?.attacks ?? [];
+
+  /** Ataque salvo: preenche bônus e dano; com bônus, já rola o ataque (o dano fica pronto embaixo). */
+  async function quickAttack(a: SavedAttack) {
+    setAttackMod(a.bonus ?? 0);
+    setDamage(a.damage ?? "");
+    setCrit(false);
+    if (a.bonus === undefined) return;
+    saveAttack({ mod: a.bonus, damage: a.damage ?? "" });
+    const res = await roll({ expr: buildExpr(1, 20, a.bonus), mode, kind: "attack" });
+    if (!res.ok) return;
+    const entry = useApp.getState().state?.log.find((l) => l.id === res.ids?.[0]);
+    setCrit(!!entry?.roll && naturalD20(entry.roll.terms) === 20);
+  }
+
   async function roll(payload: ActionPayloads["dice:roll"]) {
     return act("dice:roll", { ...payload, hidden: gm && hidden, asId: gm && asId !== AS_MASTER ? asId : undefined });
   }
@@ -181,6 +203,30 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
         <Text size="xs" c="dimmed">
           {t("dice.waiting")}
         </Text>
+      )}
+
+      {who && quick.length > 0 && (
+        <>
+          <SectionTitle>{t("dice.quickAttacks", { name: who.name })}</SectionTitle>
+          <div className="quick-attacks">
+            {quick.map((a) => (
+              <Tooltip
+                key={a.id}
+                label={a.bonus !== undefined ? t("dice.quickTip", { expr: buildExpr(1, 20, a.bonus) }) : t("dice.quickDamageTip", { damage: a.damage ?? "" })}
+              >
+                <UnstyledButton className="quick-attack" data-disabled={(blocked && a.bonus !== undefined) || undefined} onClick={() => !(blocked && a.bonus !== undefined) && void quickAttack(a)}>
+                  <IconSword size={14} className="quick-attack-icon" />
+                  <Text size="sm" fw={700} truncate title={a.name} style={{ flex: 1, minWidth: 0 }}>
+                    {a.name}
+                  </Text>
+                  <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+                    {[a.bonus !== undefined ? fmtMod(a.bonus) : null, a.damage].filter(Boolean).join(" · ")}
+                  </Text>
+                </UnstyledButton>
+              </Tooltip>
+            ))}
+          </div>
+        </>
       )}
 
       <SectionTitle>{t("dice.attack")}</SectionTitle>
@@ -296,8 +342,8 @@ function LogHeader({ canDetach }: { canDetach: boolean }) {
         <Switch size="xs" label={t("dice.anim")} checked={diceAnim} onChange={(e) => setDicePrefs({ diceAnim: e.currentTarget.checked })} />
       </Tooltip>
       {!logDetached && (
-        <Tooltip label={t("logWindow.detachTip")}>
-          <ActionIcon size="sm" aria-label={t("logWindow.open")} onClick={() => popOutLog()}>
+        <Tooltip label={t(CAN_POP_OUT ? "logWindow.detachTip" : "logWindow.floatTip")}>
+          <ActionIcon size="sm" aria-label={t(CAN_POP_OUT ? "logWindow.open" : "logWindow.float")} onClick={() => popOutLog()}>
             <IconWindowMaximize size={16} />
           </ActionIcon>
         </Tooltip>

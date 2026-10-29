@@ -1,8 +1,9 @@
 import { create } from "zustand";
+import { useMemo } from "react";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { FogShape } from "./map/Fog";
-import type { Area, AreaKind, ClientState, Handout, JoinError, MapImagePayload, MapPoint, Role, Ruler } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type Role, type Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
@@ -19,16 +20,16 @@ export interface Rect {
   height: number;
 }
 
-/** Preferências deste navegador: animação dos dados e log destacado (E22); clima reduzido (E26). */
+/** Preferências deste navegador: animação dos dados e log destacado (E22); efeitos reduzidos (E26, L6); câmera seguindo a vez (L6). */
 const PREFS_KEY = "rpg.dicePrefs";
-type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean };
+type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean; followTurn: boolean };
 
 function readPrefs(): DicePrefs {
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
-    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true };
+    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true, followTurn: p.followTurn === true };
   } catch {
-    return { diceAnim: true, logDetached: false, reduceFx: false };
+    return { diceAnim: true, logDetached: false, reduceFx: false, followTurn: false };
   }
 }
 
@@ -58,6 +59,10 @@ interface AppStore extends DicePrefs {
   drawHidden: boolean;
   /** Ferramenta Paredes do mestre: modo e a porta escolhida (para trancar, esconder ou apagar). */
   wallMode: WallMode;
+  /** Pontas da parede: nos cantos do grid ou livres (L5). */
+  wallSnap: boolean;
+  /** Espessura das próximas paredes e portas, em casas (L5). */
+  wallThick: number;
   selectedDoorId: string | null;
   /** Ferramenta Névoa do mestre: revelar ou cobrir, pincel ou retângulo, lado do pincel em casas. */
   fogReveal: boolean;
@@ -111,6 +116,8 @@ export const useApp = create<AppStore>(() => ({
   drawWidth: 6,
   drawHidden: false,
   wallMode: "wall",
+  wallSnap: true,
+  wallThick: WALL_THICKNESS.default,
   selectedDoorId: null,
   fogReveal: true,
   fogShape: "brush",
@@ -156,9 +163,9 @@ export function setVolume(patch: Partial<{ volume: number; muted: boolean }>) {
 
 export function setDicePrefs(patch: Partial<DicePrefs>) {
   useApp.setState(patch);
-  const { diceAnim, logDetached, reduceFx } = useApp.getState();
+  const { diceAnim, logDetached, reduceFx, followTurn } = useApp.getState();
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx, followTurn }));
   } catch {
     // sem armazenamento (aba anônima…): vale só nesta aba
   }
@@ -175,4 +182,20 @@ export function setTool(tool: MapTool) {
 /** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */
 export function setPlacing(placing: AppStore["placing"]) {
   useApp.setState(placing ? { placing, tool: "move", calibRect: null } : { placing: null });
+}
+
+/**
+ * Combatentes com a rolagem de iniciativa ainda nos dados 3D: o número só aparece quando os dados param
+ * (senão o mestre via o resultado antes da animação). Volta uma chave em texto para não renderizar à toa.
+ */
+export function useInitHeld(): Set<string> {
+  const key = useApp((s) =>
+    s.rolling.length === 0 || !s.state
+      ? ""
+      : s.state.log
+          .filter((e) => e.subjectId && s.rolling.includes(e.id))
+          .map((e) => e.subjectId)
+          .join(","),
+  );
+  return useMemo(() => new Set(key ? key.split(",") : []), [key]);
 }

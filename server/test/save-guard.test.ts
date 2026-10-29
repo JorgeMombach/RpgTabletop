@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -56,6 +56,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     animal: true,
     darkvision: true,
     torch: true,
+    boss: true,
     // Fases de chefe valem para qualquer tipo no arquivo (a interface só oferece em mob e NPC).
     phases: [{ hpMax: 40 }],
     phase: 2,
@@ -67,7 +68,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   const lich: Combatant = { id: "lich", name: "Lich", type: "mob", templateId: "t1", hp: 90, hpMax: 135, dexMod: 3, color: "#7a5ba3", pos: { col: 8, row: 8 }, initiative: 20, initRoll: 17, conditions: [] };
   const sombra: Required<Combatant> = { ...thorin, id: "sombra", name: "Sombra", type: "mob", ownerId: gmId, hidden: true, summonerId: "lich", size: "huge", pos: { col: 10, row: 8 }, initiative: null, initRoll: null };
   const guarda: Combatant = { id: "guarda", name: "Guarda", type: "npc", hp: 11, hpMax: 11, dexMod: 0, color: "#4fae8c", pos: { col: 1, row: 1 }, initiative: 5, initRoll: 5, conditions: [], hidden: true };
-  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>] };
+  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>] };
   const effect: Required<MapEffect> = {
     id: "e1",
     name: "Graxa em chamas",
@@ -108,24 +109,25 @@ function fullGame(playerId: string, gmId: string): GameState {
     textKey: "{who} usou a reação.",
     textParams: { who: "Thorin" },
     labelParts: [{ key: "Recarga de {name} ({n}–6)", params: { name: "Sopro", n: 5 } }, { key: "Secreto" }],
+    subjectId: "thorin",
     gm: true,
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
-    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5 },
+    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate" },
     mobs: [lich, sombra],
     npcs: [guarda],
     combat: { active: true, round: 2, turnIndex: 1, order: ["lich", "thorin", "lia"], turn: 4 },
     // Pedido e reações valem só no turno: não vão no arquivo. O modo fora de combate vai.
     rolls: { request: null, reactions: [], outside: "locked" },
     effects: [effect],
-    drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true } satisfies Required<Drawing>],
+    drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true, authorId: playerId } satisfies Required<Drawing>],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
-      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, door: { open: true, locked: true, secret: true } satisfies Required<Door> },
+      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door> } satisfies Required<Wall>,
     ],
     weather,
-    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }] } satisfies Required<FogState>,
+    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60 } satisfies Required<FogState>,
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -137,7 +139,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     weather,
-    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [] },
+    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];

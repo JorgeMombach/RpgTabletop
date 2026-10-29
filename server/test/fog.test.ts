@@ -271,4 +271,62 @@ describe("névoa de guerra", () => {
     await act(g, "combatant:setHidden", { id: orc, hidden: true });
     assert.equal(ctx.server.store.game.battle.fog.lastSeen.length, 0);
   });
+
+  it("cobrir tudo esconde os inimigos de uma vez, sem deixar \"?\"; alcance por cena limita a visão", async () => {
+    const g = await client();
+    await join(g, "Mestre");
+    await act(g, "battle:clear", { keepTemplates: false });
+    const eva = await client("10.50.0.6");
+    await join(eva, "Eva");
+    const [lia] = idsOf(await act(eva, "ally:create", { name: "Lia", hpMax: 20, dexMod: 0, ac: 14 }));
+    await act(eva, "token:move", { id: lia, pos: { col: 0, row: 0 } });
+    const [orc] = idsOf(await act(g, "mob:add", { name: "Orc", hpMax: 15, dexMod: 0 }));
+    const [npc] = idsOf(await act(g, "npc:add", { name: "Mercador", hpMax: 5, dexMod: 0 }));
+    // De dia, 120 ft (24 casas): os dois a 20 casas aparecem.
+    await act(g, "token:move", { id: orc, pos: { col: 20, row: 0 } });
+    await act(g, "token:move", { id: npc, pos: { col: 20, row: 2 } });
+    await act(g, "weather:set", { light: "day" });
+    await act(g, "fog:set", { enabled: true });
+    let ready = stateWhere(eva, (st) => st.battle.mobs.length === 1 && st.battle.npcs.length === 1);
+    await act(g, "fog:vision", { enabled: true });
+    await ready;
+
+    // Alcance da cena em 30 ft (6 casas): somem, sem marca de "visto por último" (foi o mestre).
+    ready = stateWhere(eva, (st) => st.battle.mobs.length === 0 && st.battle.npcs.length === 0);
+    assert.ok((await act(g, "fog:range", { feet: 30 })).ok);
+    let s: ClientState = await ready;
+    assert.equal(s.battle.fog.range, 30);
+    assert.ok(inRows(s.battle.sight, 6, 0) && !inRows(s.battle.sight, 8, 0), "30 ft = 6 casas");
+    assert.deepEqual(s.battle.fog.lastSeen, []);
+    assert.equal((await act(eva, "fog:range", { feet: 60 })).ok, false, "só o mestre muda o alcance");
+    assert.equal((await act(g, "fog:range", { feet: 2 })).ok, false);
+
+    // Pela luz de novo; o mestre revela onde estão e depois cobre tudo: um clique basta, sem "?".
+    await act(g, "fog:range", { feet: null });
+    await act(g, "token:move", { id: orc, pos: { col: 40, row: 0 } });
+    await act(g, "token:move", { id: npc, pos: { col: 40, row: 2 } });
+    ready = stateWhere(eva, (st) => st.battle.mobs.length === 1 && st.battle.npcs.length === 1);
+    await act(g, "fog:paint", { reveal: true, rects: [{ col: 38, row: 0, w: 5, h: 5 }] });
+    await ready;
+    ready = stateWhere(eva, (st) => st.battle.mobs.length === 0 && st.battle.npcs.length === 0);
+    await act(g, "fog:reset", {});
+    s = await ready;
+    assert.deepEqual(s.battle.fog.lastSeen, [], "cobrir tudo não deixa \"?\"");
+    assert.ok(inRows(s.battle.fog.explored, 0, 0), "o que a Lia vê agora volta a ficar explorado");
+  });
+
+  it("mob caído: o jogador sabe que caiu, sem receber a vida", async () => {
+    const g = await client();
+    await join(g, "Mestre");
+    await act(g, "battle:clear", { keepTemplates: false });
+    const fil = await client("10.50.0.7");
+    await join(fil, "Fil");
+    const [orc] = idsOf(await act(g, "mob:add", { name: "Orc", hpMax: 15, dexMod: 0 }));
+    let s: ClientState = await stateWhere(fil, (st) => st.battle.mobs.length === 1);
+    assert.equal(s.battle.mobs[0].down, undefined);
+    const ready = stateWhere(fil, (st) => st.battle.mobs[0]?.down === true);
+    await act(g, "hp:change", { id: orc, delta: -20 });
+    s = await ready;
+    assert.equal(s.battle.mobs[0].hp, undefined);
+  });
 });

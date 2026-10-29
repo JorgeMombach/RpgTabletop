@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ActionResult } from "@rpg/shared";
+import { isRevealed, type ActionResult } from "@rpg/shared";
 import { act, join, stateWhere, useServer } from "./helpers";
 
 // Paredes e portas no mapa (só visual).
@@ -26,19 +26,73 @@ async function setup() {
 }
 
 describe("paredes e portas", () => {
-  it("só o mestre traça e apaga; ponta inválida ou parede de tamanho zero são recusadas", async () => {
+  it("só o mestre traça e apaga; ponta inválida ou parede curta demais são recusadas", async () => {
     const { g, ana } = await setup();
     const [parede] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 5, row: 0 } }));
     const [porta] = idsOf(await act(g, "wall:add", { from: { col: 5, row: 0 }, to: { col: 5, row: 1 }, door: true }));
     assert.deepEqual(game().battle.walls.find((w) => w.id === porta)?.door, { open: false });
     assert.equal((await act(ana, "wall:add", { from: { col: 0, row: 0 }, to: { col: 1, row: 0 } })).ok, false);
-    assert.match(errorOf(await act(g, "wall:add", { from: { col: 2, row: 2 }, to: { col: 2, row: 2 } })), /de um canto a outro/);
-    assert.equal((await act(g, "wall:add", { from: { col: 0.5, row: 0 }, to: { col: 1, row: 0 } })).ok, false);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 2, row: 2 }, to: { col: 2, row: 2 } })), /curta demais/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 2, row: 2 }, to: { col: 2.05, row: 2 } })), /curta demais/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: "1" as unknown as number, row: 0 }, to: { col: 1, row: 3 } })), /Ponta da parede inválida/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: Number.NaN, row: 0 }, to: { col: 1, row: 3 } })), /Ponta da parede inválida/);
     assert.equal((await act(ana, "wall:remove", { id: parede })).ok, false);
     assert.ok((await act(g, "wall:remove", { id: parede })).ok);
     assert.equal(game().battle.walls.length, 1);
     assert.ok((await act(g, "wall:clear", {})).ok);
     assert.equal(game().battle.walls.length, 0);
+  });
+
+  it("traço livre: pontas fracionadas valem, em centésimos de casa, e bloqueiam a passagem e a visão", async () => {
+    const { g } = await setup();
+    const [livre] = idsOf(await act(g, "wall:add", { from: { col: 0.333333, row: 2.25 }, to: { col: 3.7, row: 0.1 } }));
+    assert.deepEqual(game().battle.walls.find((w) => w.id === livre), { id: livre, from: { col: 0.33, row: 2.25 }, to: { col: 3.7, row: 0.1 } });
+    // Sala fechada por paredes livres, com a parede da direita no meio da casa 5 (x = 5,5): o cômodo
+    // revela as casas 0 a 4 (o centro da casa 5 fica do lado de fora).
+    for (const [from, to] of [
+      [{ col: 0, row: 10 }, { col: 5.5, row: 10 }],
+      [{ col: 5.5, row: 10 }, { col: 5.5, row: 13 }],
+      [{ col: 5.5, row: 13 }, { col: 0, row: 13 }],
+      [{ col: 0, row: 13 }, { col: 0, row: 10 }],
+    ])
+      assert.ok((await act(g, "wall:add", { from, to })).ok);
+    await act(g, "fog:set", { enabled: true });
+    assert.ok((await act(g, "fog:room", { cell: { col: 1, row: 11 }, reveal: true })).ok);
+    const fog = game().battle.fog;
+    assert.ok(isRevealed(fog, 4, 11) && isRevealed(fog, 0, 12));
+    assert.ok(!isRevealed(fog, 5, 11), "a casa cortada pela parede fica de fora");
+    // Exporta e importa: a ponta fracionada volta igual.
+    const exported = await g.timeout(2000).emitWithAck("session:export");
+    assert.ok(exported.ok);
+    await act(g, "battle:clear", { keepTemplates: true });
+    assert.ok((await g.timeout(2000).emitWithAck("session:import", exported.file)).ok);
+    assert.deepEqual(game().battle.walls.find((w) => w.id === livre)?.from, { col: 0.33, row: 2.25 });
+  });
+
+  it("espessura da parede: de 0,1 a 1 casa, em centésimos; a padrão fica sem campo", async () => {
+    const { g } = await setup();
+    const [grossa] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 4, row: 0 }, thickness: 0.6666 }));
+    assert.equal(game().battle.walls.find((w) => w.id === grossa)?.thickness, 0.67);
+    const [padrao] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 1 }, to: { col: 4, row: 1 }, thickness: 0.18 }));
+    assert.equal(game().battle.walls.find((w) => w.id === padrao)?.thickness, undefined);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 0, row: 2 }, to: { col: 4, row: 2 }, thickness: 1.5 })), /Espessura da parede/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 0, row: 2 }, to: { col: 4, row: 2 }, thickness: 0.05 })), /Espessura da parede/);
+  });
+
+  it("estilo das paredes por cena: só o mestre escolhe, valor inválido é recusado, vai no arquivo", async () => {
+    const { g, ana } = await setup();
+    assert.equal((await act(ana, "battle:grid", { wallStyle: "wood" })).ok, false);
+    assert.match(errorOf(await act(g, "battle:grid", { wallStyle: "lava" as never })), /Estilo de parede inválido/);
+    assert.ok((await act(g, "battle:grid", { wallStyle: "rock", tableStyle: "leather" })).ok);
+    assert.match(errorOf(await act(g, "battle:grid", { tableStyle: "marble" as never })), /Estilo de mesa inválido/);
+    assert.equal(game().battle.map.tableStyle, "leather");
+    assert.equal(game().battle.map.wallStyle, "rock");
+    const exported = await g.timeout(2000).emitWithAck("session:export");
+    assert.ok((await act(g, "battle:grid", { wallStyle: "stone" })).ok);
+    assert.equal(game().battle.map.wallStyle, undefined, "pedra lavrada é o padrão (sem campo)");
+    assert.ok((await g.timeout(2000).emitWithAck("session:import", exported.file)).ok);
+    assert.equal(game().battle.map.wallStyle, "rock");
+    assert.equal(game().battle.map.tableStyle, "leather");
   });
 
   it("jogador abre e fecha a porta, menos a trancada; só o mestre tranca", async () => {
@@ -76,5 +130,32 @@ describe("paredes e portas", () => {
     await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 1, row: 0 } });
     await act(g, "battle:clear", { keepTemplates: true });
     assert.equal(game().battle.walls.length, 0);
+  });
+
+  it("borracha nas paredes: corta por onde passa (mantém a espessura), porta tocada some inteira; só o mestre", async () => {
+    const { g, ana } = await setup();
+    await act(g, "wall:clear", {});
+    idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 10, row: 0 }, thickness: 0.5 }));
+    idsOf(await act(g, "wall:add", { from: { col: 0, row: 4 }, to: { col: 1, row: 4 }, door: true }));
+    assert.equal((await act(ana, "wall:erase", { points: [5, -1, 5, 1], radius: 0.5 })).ok, false);
+
+    // Passa no meio da parede: sobram 0–4,5 e 5,5–10.
+    const ids = idsOf(await act(g, "wall:erase", { points: [5, -1, 5, 1], radius: 0.5 }));
+    const walls = game().battle.walls.filter((w) => !w.door);
+    assert.equal(ids.length, 2);
+    assert.equal(walls.length, 2);
+    const spans = walls.map((w) => [w.from.col, w.to.col]).sort((a, b) => a[0] - b[0]);
+    assert.ok(Math.abs(spans[0][1] - 4.5) < 0.1 && spans[0][0] === 0, JSON.stringify(spans));
+    assert.ok(Math.abs(spans[1][0] - 5.5) < 0.1 && spans[1][1] === 10, JSON.stringify(spans));
+    assert.ok(walls.every((w) => w.thickness === 0.5));
+
+    // Longe de tudo: nada muda (nem os ids).
+    const before = game().battle.walls.map((w) => w.id);
+    idsOf(await act(g, "wall:erase", { points: [50, 50], radius: 0.5 }));
+    assert.deepEqual(game().battle.walls.map((w) => w.id), before);
+
+    // Encostou na porta: some inteira.
+    idsOf(await act(g, "wall:erase", { points: [0.5, 4.2], radius: 0.3 }));
+    assert.ok(!game().battle.walls.some((w) => w.door));
   });
 });

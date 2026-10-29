@@ -66,6 +66,24 @@ describe("imagem do mapa", () => {
     assert.equal(map().image, null);
   });
 
+  it("quem ficou sem a imagem pede de novo; quem não entrou, não recebe", async () => {
+    const g = await gm();
+    await act(g, "battle:setMap", { image: PNG });
+    const p = await player("Caio");
+    const again = nextImage(p);
+    p.emit("map:imageRequest");
+    const got = await again;
+    assert.equal(got.image, PNG);
+    assert.equal(got.version, map().imageVersion);
+
+    const stranger = await client("10.3.9.8");
+    let leaked = false;
+    stranger.once("map:image", () => (leaked = true));
+    stranger.emit("map:imageRequest");
+    await new Promise((r) => setTimeout(r, 150));
+    assert.equal(leaked, false);
+  });
+
   it("remover o mapa avisa todos", async () => {
     const g = await gm();
     await act(g, "battle:setMap", { image: PNG });

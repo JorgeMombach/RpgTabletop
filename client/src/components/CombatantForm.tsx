@@ -59,6 +59,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null);
   const [avatarChanged, setAvatarChanged] = useState(false);
   const [animal, setAnimal] = useState(initial?.animal ?? false);
+  const [boss, setBoss] = useState(initial?.boss ?? false);
   const [darkvision, setDarkvision] = useState(initial?.darkvision ?? false);
   const [phases, setPhases] = useState<PhaseInput[]>(() => toPhaseInputs(initial?.phases));
   const [hidden, setHidden] = useState(false);
@@ -86,6 +87,8 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       gmNotes: withNotes ? notes : undefined,
       description,
       animal,
+      // Chefe vai junto com as fases: só em mob, NPC e template.
+      boss: withPhases ? boss : undefined,
       darkvision: withDarkvision ? darkvision : undefined,
       phases: withPhases ? fromPhaseInputs(phases) : undefined,
       hidden: withHidden ? hidden : undefined,
@@ -105,6 +108,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       setAvatar(null);
       setAvatarChanged(false);
       setAnimal(false);
+      setBoss(false);
       setDarkvision(false);
       setPhases([]);
     }
@@ -222,6 +226,13 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
               <Checkbox label={t("form.animal")} checked={animal} onChange={(e) => setAnimal(e.currentTarget.checked)} />
             </Box>
           </Tooltip>
+          {withPhases && (
+            <Tooltip label={t("form.bossTip")}>
+              <Box>
+                <Checkbox label={t("form.boss")} checked={boss} onChange={(e) => setBoss(e.currentTarget.checked)} />
+              </Box>
+            </Tooltip>
+          )}
           {withDarkvision && (
             <Tooltip label={t("form.darkvisionTip")}>
               <Box>

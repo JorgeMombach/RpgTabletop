@@ -323,6 +323,21 @@ const painters: Record<Exclude<EffectPreset, "custom">, (ctx: Ctx, r: () => numb
       });
     }
   },
+  holy(ctx, r) {
+    base(ctx, "rgba(255, 214, 140, 0.22)");
+    for (let i = 0; i < 14; i++) {
+      const x = r() * TILE;
+      const y = r() * TILE;
+      const rad = 2 + r() * 5;
+      wrapped(ctx, () => {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+        g.addColorStop(0, "rgba(255, 240, 200, 0.8)");
+        g.addColorStop(1, "rgba(255, 200, 110, 0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      });
+    }
+  },
   darkness(ctx, r) {
     base(ctx, "rgba(8, 4, 16, 0.8)");
     for (let i = 0; i < 30; i++) {

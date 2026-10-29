@@ -1,22 +1,28 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudFog, IconCloudOff, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type Wall } from "@rpg/shared";
+import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type TableStyle, type Wall } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
-import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp } from "../store";
+import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
+import { InitiativeTrack } from "./InitiativeTrack";
+import { TokenMenu, type MenuFocus } from "./TokenMenu";
+import { typingOrDialog } from "../components/Shortcuts";
+import { removeCombatant } from "../commands";
 import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
-import { DrawingShape, DrawOptions } from "./DrawingShape";
-import { cornerAt, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
+import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
+import { addWall, recordErase, undoWall } from "./wallHistory";
+import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
 import { EffectShape } from "./EffectShape";
@@ -51,13 +57,23 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
   return { ...(at[rotation] ?? at[0]), w, h, bounds: { width: turned ? h : w, height: turned ? w : h } };
 }
 
+/** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
+const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "A", ping: "P", draw: "B", walls: "W", fog: "F" };
+
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
+/** Raio da borracha das paredes, em casas. */
+const WALL_ERASER = 0.25;
+
 export function BattleMap({ state, compact = false }: { state: ClientState; compact?: boolean }) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ x: 40, y: 40, scale: 1 });
+  // Visão atual para efeitos que não devem rodar a cada mudança dela (câmera seguindo a vez).
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number; focus?: MenuFocus } | null>(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const [shiftHeld, setShiftHeld] = useState(false);
   const [myRuler, setMyRuler] = useState<Ruler | null>(null);
   const [myArea, setMyArea] = useState<Area | null>(null);
@@ -66,7 +82,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, selectedDoorId, fogReveal, fogShape, fogBrush } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, fogReveal, fogShape, fogBrush, reduceFx } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -74,6 +90,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const grid = state.battle.map;
   const layout = image ? imageLayout(image, grid.rotation, grid.imageScale) : null;
   const gm = state.self.role === "gm";
+  // Jogador desenha só setas (e apaga as dele com a borracha).
+  const myDrawMode: DrawMode = gm || drawMode === "erase" ? drawMode : "arrow";
   const rulerMode = !placing && (tool === "ruler" || (tool === "move" && shiftHeld));
   // Próximo da fila que já chegou no estado e está fora do mapa (a resposta da ação pode vir antes do estado).
   const placingNext = placing
@@ -102,6 +120,20 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Ctrl+Z com a ferramenta Paredes: desfaz a última parede ou porta (fora de campos de texto).
+  useEffect(() => {
+    if (!gm || tool !== "walls") return;
+    const down = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      e.preventDefault();
+      void undoWall();
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [gm, tool]);
 
   // Shift segurado = régua temporária.
   useEffect(() => {
@@ -141,6 +173,38 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     });
   }, [image, size.width, size.height, grid.rotation, grid.imageScale]);
 
+  // Câmera segue a vez (L6, opção de cada um): a cada troca de turno, o mapa desliza até quem joga agora.
+  const followTurn = useApp((s) => s.followTurn);
+  const turn = state.battle.combat.turn;
+  const activeTokenId = state.battle.combat.active ? currentGroup(state).find((c) => c.pos)?.id : undefined;
+  // Desliza a câmera até o token (vez nova, clique na trilha de iniciativa); um deslize novo cancela o anterior.
+  const glide = useRef<number>(0);
+  function glideTo(c: CombatantView) {
+    if (!c.pos) return;
+    cancelAnimationFrame(glide.current);
+    const span = sizeSpan(c.size);
+    const target = { x: grid.offsetX + (c.pos.col + span / 2) * grid.cellPx, y: grid.offsetY + (c.pos.row + span / 2) * grid.cellPx };
+    const from = { ...viewRef.current };
+    const to = { x: size.width / 2 - target.x * from.scale, y: size.height / 2 - target.y * from.scale };
+    if (useApp.getState().reduceFx) return void setView({ ...from, ...to });
+    const start = performance.now();
+    const step = () => {
+      const t = Math.min(1, (performance.now() - start) / 450);
+      const e = 1 - (1 - t) * (1 - t);
+      setView({ scale: from.scale, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
+      if (t < 1) glide.current = requestAnimationFrame(step);
+    };
+    glide.current = requestAnimationFrame(step);
+  }
+  useEffect(() => {
+    if (!followTurn || !activeTokenId || !size.width) return;
+    const c = allCombatants(state).find((o) => o.id === activeTokenId);
+    if (c) glideTo(c);
+    return () => cancelAnimationFrame(glide.current);
+    // Só na troca de turno (e ao ligar a opção): não persegue o token enquanto ele anda.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn, followTurn, activeTokenId]);
+
   // Mapa novo: enquadra a imagem inteira.
   const fittedFor = useRef<HTMLImageElement | null>(null);
   useEffect(() => {
@@ -177,22 +241,71 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     // O último trecho (entre o último movimento e o soltar) também entra.
     const end = worldPointer();
     const cur = strokeRef.current;
-    const pts = cur && end ? (drawMode === "free" ? [...cur, end.x, end.y] : [cur[0], cur[1], end.x, end.y]) : cur;
+    const pts = cur && end ? (myDrawMode === "free" ? [...cur, end.x, end.y] : [cur[0], cur[1], end.x, end.y]) : cur;
     strokeRef.current = null;
     setStroke(null);
-    if (!pts || drawMode === "erase") return;
-    const long = drawMode === "free" ? pts.length >= 4 : Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) > 4 / view.scale;
-    if (long) void act("draw:add", { kind: drawMode, points: pts, color: drawColor, width: drawWidth, ...(drawHidden && { hidden: true }) });
+    if (!pts || myDrawMode === "erase") return;
+    const long = myDrawMode === "free" ? pts.length >= 4 : Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) > 4 / view.scale;
+    if (long) void act("draw:add", { kind: myDrawMode, points: pts, color: drawColor, width: drawWidth, ...(gm && drawHidden && { hidden: true }) });
   }
 
-  // Parede sendo traçada pelo mestre: de canto a canto do grid; ao soltar vai para todos.
+  // Borracha (M): apaga só por onde passa, como uma borracha de verdade. O caminho vai ao servidor em
+  // pedaços enquanto arrasta (o apagado some na hora); nas paredes, a passada inteira vira um passo do Desfazer.
+  const eraseMode = (tool === "draw" && drawMode === "erase") || (gm && tool === "walls" && wallMode === "erase");
+  /** Raio da borracha (pixels do mapa): no desenho, pelo tamanho escolhido; nas paredes, um quarto de casa. */
+  const eraserRadius = tool === "walls" ? grid.cellPx * WALL_ERASER : Math.max(4 / view.scale, grid.cellPx * (ERASER_CELLS[drawWidth] ?? 0.25));
+  const eraserRef = useRef<{ kind: "draw" | "walls"; pending: number[]; sent: boolean; timer: number | null; before: Wall[]; acts: Promise<unknown>[] } | null>(null);
+  const [eraserAt, setEraserAt] = useState<Point | null>(null);
+  useEffect(() => {
+    if (!eraseMode) setEraserAt(null);
+  }, [eraseMode]);
+  function flushErase() {
+    const e = eraserRef.current;
+    if (!e) return;
+    if (e.timer !== null) window.clearTimeout(e.timer);
+    e.timer = null;
+    const pts = e.pending;
+    // Depois do primeiro envio, um ponto só é o fim do pedaço anterior: nada novo.
+    if (pts.length < 2 || (e.sent && pts.length < 4)) return;
+    e.sent = true;
+    // O próximo pedaço começa onde este acabou (sem falha no caminho).
+    e.pending = pts.slice(-2);
+    if (e.kind === "draw") {
+      const radius = Math.min(LIMITS.eraserRadius.max, Math.max(LIMITS.eraserRadius.min, eraserRadius));
+      e.acts.push(act("draw:erase", { points: pts.map((n) => Math.round(n * 2) / 2), radius }));
+    } else {
+      const cells = pts.map((n, i) => Math.round(((n - (i % 2 ? grid.offsetY : grid.offsetX)) / grid.cellPx) * 100) / 100);
+      e.acts.push(act("wall:erase", { points: cells, radius: WALL_ERASER }));
+    }
+  }
+  function eraseTo(p: Point) {
+    const e = eraserRef.current;
+    if (!e) return;
+    const n = e.pending.length;
+    if (n >= 2 && Math.hypot(p.x - e.pending[n - 2], p.y - e.pending[n - 1]) < eraserRadius / 3) return;
+    e.pending.push(p.x, p.y);
+    if (e.pending.length >= LIMITS.eraserNumbers - 2) flushErase();
+    else if (e.timer === null) e.timer = window.setTimeout(flushErase, 60);
+  }
+  function finishErase() {
+    const e = eraserRef.current;
+    if (!e) return;
+    // O último trecho (entre o último movimento e o soltar) também apaga.
+    const end = worldPointer();
+    if (end) eraseTo(end);
+    flushErase();
+    eraserRef.current = null;
+    if (e.kind === "walls") void Promise.all(e.acts).then(() => recordErase(e.before, useApp.getState().state?.battle.walls ?? []));
+  }
+
+  // Parede sendo traçada pelo mestre: de canto a canto do grid (ou livre); ao soltar vai para todos.
   const wallRef = useRef<{ from: GridPos; to: GridPos } | null>(null);
   const [wallDraft, setWallDraft] = useState<{ from: GridPos; to: GridPos } | null>(null);
   function finishWall() {
     const w = wallRef.current;
     wallRef.current = null;
     setWallDraft(null);
-    if (w && !sameCell(w.from, w.to)) void act("wall:add", { from: w.from, to: w.to, door: wallMode === "door" });
+    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door", useApp.getState().wallThick);
   }
 
   // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
@@ -229,7 +342,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
   function onWallClick(w: Wall) {
-    if (tool === "walls" && wallMode === "erase") return void act("wall:remove", { id: w.id });
     if (!w.door) return;
     if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
     if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
@@ -320,9 +432,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       setTool("move");
       return;
     }
+    if (eraseMode) {
+      eraserRef.current = { kind: tool === "walls" ? "walls" : "draw", pending: [], sent: false, timer: null, before: state.battle.walls, acts: [] };
+      setEraserAt(p);
+      eraseTo(p);
+      return;
+    }
     if (tool === "walls") {
-      if (wallMode === "erase") return;
-      const c = cornerAt(p, grid);
+      const c = wallPointAt(p, grid, wallSnap);
       wallRef.current = { from: c, to: c };
       setWallDraft(wallRef.current);
       return;
@@ -337,8 +454,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       return;
     }
     if (tool === "draw") {
-      if (drawMode === "erase") return;
-      strokeRef.current = drawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
+      strokeRef.current = myDrawMode === "free" ? [p.x, p.y] : [p.x, p.y, p.x, p.y];
       setStroke(strokeRef.current);
       return;
     }
@@ -358,12 +474,17 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    if (eraseMode) {
+      setEraserAt(p);
+      eraseTo(p);
+      return;
+    }
     if (fogRef.current) {
       fogAt(cellAt(p, grid));
       return;
     }
     if (wallRef.current) {
-      const to = cornerAt(p, grid);
+      const to = wallPointAt(p, grid, wallSnap);
       if (!sameCell(to, wallRef.current.to)) {
         wallRef.current = { ...wallRef.current, to };
         setWallDraft(wallRef.current);
@@ -372,7 +493,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     }
     if (strokeRef.current) {
       const s = strokeRef.current;
-      if (drawMode !== "free") strokeRef.current = [s[0], s[1], p.x, p.y];
+      if (myDrawMode !== "free") strokeRef.current = [s[0], s[1], p.x, p.y];
       // Ponto novo só depois de andar um pouco (na tela), para o traço não ficar pesado.
       else if (Math.hypot(p.x - s[s.length - 2], p.y - s[s.length - 1]) > 3 / view.scale && s.length < LIMITS.drawingNumbers - 2) strokeRef.current = [...s, p.x, p.y];
       else return;
@@ -400,6 +521,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   }
 
   function onMouseUp() {
+    finishErase();
     finishStroke();
     finishWall();
     finishFog();
@@ -467,6 +589,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
+  const plateNumbers = repeatedNumbers(tokens);
+  const wallStyle = state.battle.map.wallStyle ?? "stone";
+  const doors = doorLayouts(state.battle.walls);
   // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
   const activeIds = new Set(currentGroup(state).map((c) => c.id));
   // Com a regra "movimento só na vez" ligada, o jogador só arrasta os seus na vez dele.
@@ -477,10 +602,74 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const rank = (c: CombatantView) => (c.id === hoverId ? 2 : c.id === selectedId ? 1 : 0);
   tokens.sort((a, b) => rank(a) - rank(b));
 
+  // Menu de contexto do token (L8): botão direito ou tocar e segurar.
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  // Atalhos do mapa e do token selecionado (L8; lista na ajuda, `?`). As letras não valem com o foco num campo
+  // de texto nem com uma janela ou o menu do token abertos. O servidor confere as permissões de novo.
+  const keyCtx = useRef({ tool, selectedId, state, canMove, view, size, fit, zoomAt });
+  keyCtx.current = { tool, selectedId, state, canMove, view, size, fit, zoomAt };
+  useEffect(() => {
+    if (compact) return;
+    const down = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || typingOrDialog(e)) return;
+      const { tool, selectedId, state, canMove, view, size, fit, zoomAt } = keyCtx.current;
+      const gm = state.self.role === "gm";
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const done = () => e.preventDefault();
+      // Visão do mapa.
+      if (key === "+" || key === "=") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1.2);
+      if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
+      if (key === "0") return done(), fit();
+      // Ferramentas (repetir a tecla volta para Mover, como no botão).
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", a: "area", p: "ping", b: "draw", ...(gm ? { w: "walls", f: "fog" } : {}) };
+      if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
+      if (key === "Escape") {
+        if (tool !== "move") setTool("move");
+        else select(null);
+        return;
+      }
+      // Token selecionado.
+      const c = selectedId ? allCombatants(state).find((o) => o.id === selectedId) : undefined;
+      if (!c) return;
+      const canEdit = gm || (c.type === "ally" && c.ownerId === state.self.id);
+      const openMenu = (focus?: MenuFocus) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const span = sizeSpan(c.size);
+        const g = state.battle.map;
+        const world = c.pos
+          ? { x: g.offsetX + (c.pos.col + span) * g.cellPx, y: g.offsetY + c.pos.row * g.cellPx }
+          : { x: (size.width / 2 - view.x) / view.scale, y: (size.height / 2 - view.y) / view.scale };
+        setMenu({ id: c.id, x: rect.left + view.x + world.x * view.scale, y: rect.top + view.y + world.y * view.scale, focus });
+      };
+      if (key === "Enter") return done(), openMenu();
+      // O resto é de quem edita o token; segurar a tecla só repete o passo das setas.
+      if (!canEdit || (e.repeat && !key.startsWith("Arrow"))) return;
+      if (key === "d") return done(), openMenu("damage");
+      if (key === "c") return done(), openMenu("heal");
+      if (key === "k") return done(), openMenu("conditions");
+      if (key === "t") return done(), void act("torch:set", { id: c.id, lit: !c.torch });
+      if (key === "h" && gm && c.type !== "ally") return done(), void act("combatant:setHidden", { id: c.id, hidden: !c.hidden });
+      if (key === "Delete" && (gm || c.type === "ally")) return done(), void removeCombatant(c);
+      const step: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      if (step[key] && c.pos && canMove(c)) {
+        done();
+        const [dc, dr] = step[key];
+        void act("token:move", { id: c.id, pos: { col: c.pos.col + dc, row: c.pos.row + dr } });
+      }
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [compact]);
+
+  // Trilha de iniciativa no topo (L7): só no combate e com alguém visível na ordem; os avisos do topo descem.
+  const trackShown = state.battle.combat.active && state.battle.combat.order.some((id) => allCombatants(state).some((c) => c.id === id && !c.hidden));
+
   return (
     <div
       ref={containerRef}
-      className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}`}
+      className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}${trackShown ? " has-track" : ""}`}
       // Botão do meio é ping: sem a rolagem automática do navegador.
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onDragOver={(e) => {
@@ -518,10 +707,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           }}
         >
           <Layer listening={false}>
+            <TableShape style={state.battle.map.tableStyle ?? "wood"} grid={grid} view={view} size={size} bounds={layout?.bounds ?? null} />
             {image && layout && (
               <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
             )}
-            {grid.showGrid && <GridLines grid={grid} view={view} size={size} onImage={!!image} />}
+            {layout && !reduceFx && <MapEdgeShape bounds={layout.bounds} grid={grid} />}
+            {grid.showGrid && <GridLines grid={grid} view={view} size={size} onImage />}
           </Layer>
 
           {/* Efeitos no mapa: acima da imagem e do grid, abaixo dos tokens (E19). */}
@@ -537,20 +728,29 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             ))}
           </Layer>
 
-          {/* Desenhos do mestre: acima dos efeitos, abaixo dos tokens. Borracha: clicar num desenho apaga. */}
-          <Layer listening={gm && tool === "draw" && drawMode === "erase"}>
+          {/* Desenhos (do mestre e setas dos jogadores): acima dos efeitos, abaixo dos tokens. */}
+          <Layer listening={false}>
             {state.battle.drawings.map((d) => (
-              <DrawingShape key={d.id} d={d} onErase={() => void act("draw:remove", { id: d.id })} />
+              <DrawingShape key={d.id} d={d} />
             ))}
-            {stroke && <DrawingShape d={{ kind: drawMode === "erase" ? "free" : drawMode, points: stroke, color: drawColor, width: drawWidth, hidden: drawHidden }} />}
+            {stroke && myDrawMode !== "erase" && <DrawingShape d={{ kind: myDrawMode, points: stroke, color: drawColor, width: drawWidth, hidden: gm && drawHidden }} />}
           </Layer>
 
           {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga. */}
           <Layer listening={tool === "move" || (gm && tool === "walls")}>
             {state.battle.walls.map((w) => (
-              <WallShape key={w.id} w={w} grid={grid} gm={gm} selected={w.id === selectedDoorId} onClick={() => onWallClick(w)} />
+              <WallShape
+                key={w.id}
+                w={w}
+                grid={grid}
+                gm={gm}
+                style={wallStyle}
+                layout={doors.get(w.id)}
+                selected={w.id === selectedDoorId}
+                onClick={() => onWallClick(w)}
+              />
             ))}
-            {wallDraft && !sameCell(wallDraft.from, wallDraft.to) && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} />}
+            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} style={wallStyle} />}
           </Layer>
 
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
@@ -575,8 +775,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 grid={grid}
                 selected={c.id === selectedId}
                 active={activeIds.has(c.id)}
+                plateNumber={plateNumbers.get(c.id)}
+                turnKey={state.battle.combat.turn}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
+                onMenu={(x, y) => {
+                  select(c.id);
+                  setMenu({ id: c.id, x, y });
+                }}
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}
               />
             ))}
@@ -600,6 +806,17 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
+            {eraseMode && eraserAt && (
+              <Circle
+                x={eraserAt.x}
+                y={eraserAt.y}
+                radius={eraserRadius}
+                stroke="#f1e6d0"
+                strokeWidth={1.5 / view.scale}
+                dash={[4 / view.scale, 3 / view.scale]}
+                fill="rgba(241, 230, 208, 0.1)"
+              />
+            )}
             {placing && hoverCell && (
               // Distância até quem conjurou; sem ele no mapa, só a casa.
               // Mede da borda de quem conjurou (criatura grande ocupa várias casas).
@@ -625,17 +842,20 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Stage>
       )}
 
+      {/* Vinheta: bordas da área do mapa escurecidas (luz de cena no centro); some com "Reduzir efeitos". */}
+      {!reduceFx && <div className="map-vignette" />}
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
       <WeatherOverlay weather={state.battle.weather} lights={screenLights(tokens, grid, view)} />
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
       {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
+      {menu && <TokenMenu key={`${menu.id}-${menu.focus ?? ""}-${menu.x}`} state={state} id={menu.id} x={menu.x} y={menu.y} focus={menu.focus} onClose={closeMenu} />}
+      {trackShown && <InitiativeTrack state={state} width={size.width} onFocus={glideTo} />}
       <MapToolbar
         tool={tool}
         gm={gm}
         compact={compact}
         narrow={size.width < 780}
-        weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
       />
@@ -669,8 +889,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Paper>
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
-      {gm && tool === "draw" && <DrawOptions drawings={state.battle.drawings} />}
-      {gm && tool === "walls" && <WallOptions walls={state.battle.walls} />}
+      {tool === "draw" && <DrawOptions drawings={state.battle.drawings} gm={gm} selfId={state.self.id} />}
+      {gm && tool === "walls" && <WallOptions walls={state.battle.walls} style={wallStyle} />}
       {gm && tool === "fog" && <FogOptions fog={state.battle.fog} onRevealMap={revealMap} />}
       {fixing && myArea && (
         <FixEffectModal
@@ -691,6 +911,78 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Paper>
       )}
     </div>
+  );
+}
+
+/**
+ * A mesa em volta do mapa (L5): o ladrilho do estilo da cena cobre a parte visível (acompanha o zoom: o
+ * tamanho é em casas) e, com imagem, o mapa ganha uma sombra projetada, como papel pousado na mesa.
+ */
+function TableShape({ style, grid, view, size, bounds }: { style: TableStyle; grid: MapConfig; view: View; size: { width: number; height: number }; bounds: { width: number; height: number } | null }) {
+  return (
+    <Shape
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const x0 = -view.x / view.scale;
+        const y0 = -view.y / view.scale;
+        const w = size.width / view.scale;
+        const h = size.height / view.scale;
+        const tile = tableTile(style);
+        const pattern = ctx.createPattern(tile, "repeat");
+        if (pattern) {
+          const k = (TILE_CELLS[style] * grid.cellPx) / tile.width;
+          pattern.setTransform(new DOMMatrix().translate(grid.offsetX, grid.offsetY).scale(k));
+          ctx.fillStyle = pattern;
+          ctx.fillRect(x0, y0, w, h);
+        }
+        if (bounds && style === "leather") {
+          // Tapete de mestre: costura em volta do mapa.
+          const m = grid.cellPx * 0.3;
+          ctx.save();
+          ctx.setLineDash([grid.cellPx * 0.18, grid.cellPx * 0.12]);
+          ctx.lineCap = "round";
+          ctx.lineWidth = grid.cellPx * 0.045;
+          ctx.strokeStyle = "rgba(0,0,0,.6)";
+          ctx.strokeRect(-m, -m + ctx.lineWidth, bounds.width + m * 2, bounds.height + m * 2);
+          ctx.strokeStyle = "rgba(226,200,150,.75)";
+          ctx.strokeRect(-m, -m, bounds.width + m * 2, bounds.height + m * 2);
+          ctx.restore();
+        }
+        if (bounds) {
+          ctx.save();
+          ctx.shadowColor = "rgba(0,0,0,.75)";
+          ctx.shadowBlur = grid.cellPx * 0.6;
+          ctx.shadowOffsetY = grid.cellPx * 0.2;
+          ctx.fillStyle = "#000";
+          ctx.fillRect(0, 0, bounds.width, bounds.height);
+          ctx.restore();
+        }
+      }}
+    />
+  );
+}
+
+/** Borda do mapa escurecida por dentro (o papel pousado na mesa); some com "Reduzir efeitos". */
+function MapEdgeShape({ bounds, grid }: { bounds: { width: number; height: number }; grid: MapConfig }) {
+  return (
+    <Shape
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const { width: W, height: H } = bounds;
+        const e = Math.min(grid.cellPx * 0.6, W / 4, H / 4);
+        const side = (x: number, y: number, w: number, h: number, gx0: number, gy0: number, gx1: number, gy1: number) => {
+          const g = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+          g.addColorStop(0, "rgba(10,6,2,.45)");
+          g.addColorStop(1, "rgba(10,6,2,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(x, y, w, h);
+        };
+        side(0, 0, W, e, 0, 0, 0, e);
+        side(0, H - e, W, e, 0, H, 0, H - e);
+        side(0, 0, e, H, 0, 0, e, 0);
+        side(W - e, 0, e, H, W, 0, W - e, 0);
+      }}
+    />
   );
 }
 
@@ -725,6 +1017,7 @@ function GridLines({
           ctx.moveTo(x0, y);
           ctx.lineTo(x1, y);
         }
+        // Linhas escuras: sobre a imagem e sobre a mesa (L5).
         ctx.strokeStyle = onImage ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.09)";
         ctx.lineWidth = 1 / view.scale;
         ctx.stroke();
@@ -789,7 +1082,6 @@ function MapToolbar({
   gm,
   compact,
   narrow,
-  weather,
   onZoom,
   onFit,
 }: {
@@ -798,13 +1090,28 @@ function MapToolbar({
   compact: boolean;
   /** Mapa estreito: ferramentas só com ícone. */
   narrow: boolean;
-  weather: boolean;
   onZoom: (factor: number) => void;
   onFit: () => void;
 }) {
   const t = useT();
   const reduceFx = useApp((s) => s.reduceFx);
-  const reduceButton = weather && (
+  const followTurn = useApp((s) => s.followTurn);
+  const followButton = (
+    <Tooltip label={t("map.followTurnTip")}>
+      <ActionIcon
+        size={compact ? "lg" : undefined}
+        variant={followTurn ? "filled" : "subtle"}
+        color={followTurn ? undefined : "gray"}
+        onClick={() => setDicePrefs({ followTurn: !followTurn })}
+        aria-label={t("map.followTurn")}
+        aria-pressed={followTurn}
+      >
+        <IconCurrentLocation size={compact ? 18 : 16} />
+      </ActionIcon>
+    </Tooltip>
+  );
+  // Reduzir efeitos vale para o clima e para as animações do mapa (L6): fica sempre na barra.
+  const reduceButton = (
     <Tooltip label={reduceFx ? t("map.fullFx") : t("map.reduceFxTip")}>
       <ActionIcon
         size={compact ? "lg" : undefined}
@@ -826,6 +1133,7 @@ function MapToolbar({
       { id: "ruler", label: t("map.rulerTipMobile"), icon: IconRuler2 },
       { id: "area", label: t("map.areaTipMobile"), icon: IconSparkles },
       { id: "ping", label: t("map.pingTip"), icon: IconHandFinger },
+      { id: "draw", label: t("draw.arrowsTip"), icon: IconArrowUpRight },
     ] as const;
     return (
       <Paper className="map-toolbar" p={4} shadow="md" radius="md">
@@ -850,6 +1158,7 @@ function MapToolbar({
               <IconFocusCentered size={18} />
             </ActionIcon>
           </Tooltip>
+          {followButton}
           {reduceButton}
         </MGroup>
       </Paper>
@@ -862,9 +1171,11 @@ function MapToolbar({
     { id: "ruler", text: t("map.ruler"), label: t("map.rulerTip"), icon: IconRuler2 },
     { id: "area", text: t("map.area"), label: t("map.areaTip"), icon: IconSparkles },
     { id: "ping", text: t("map.ping"), label: t("map.pingTip"), icon: IconHandFinger },
+    gm
+      ? ({ id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil } as const)
+      : ({ id: "draw", text: t("draw.arrows"), label: t("draw.arrowsTip"), icon: IconArrowUpRight } as const),
     ...(gm
       ? ([
-          { id: "draw", text: t("draw.tool"), label: t("draw.toolTip"), icon: IconPencil },
           { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
           { id: "fog", text: t("fog.tool"), label: t("fog.toolTip"), icon: IconCloudFog },
         ] as const)
@@ -874,7 +1185,7 @@ function MapToolbar({
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
         {tools.map(({ id, text, label, icon: Icon }) => (
-          <Tooltip key={id} label={label}>
+          <Tooltip key={id} label={`${label} · ${TOOL_KEYS[id]}`}>
             {narrow ? (
               <ActionIcon
                 size="lg"
@@ -921,6 +1232,7 @@ function MapToolbar({
             </Button>
           )}
         </Tooltip>
+        {followButton}
         {reduceButton}
       </MGroup>
     </Paper>
@@ -974,4 +1286,23 @@ function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) 
       </MGroup>
     </Paper>
   );
+}
+
+/**
+ * Mobs repetidos no mapa ("Goblin 1", "Goblin 2"…, numerados pelo servidor): o número de cada um, para a
+ * placa mostrar só "2". Mob sozinho com aquele nome-base fica com o nome inteiro.
+ */
+function repeatedNumbers(tokens: CombatantView[]): Map<string, number> {
+  const groups = new Map<string, { id: string; n: number }[]>();
+  for (const c of tokens) {
+    if (c.type !== "mob" || c.boss) continue;
+    const m = /^(.*\S) (\d+)$/.exec(c.name);
+    if (!m) continue;
+    const list = groups.get(m[1]) ?? [];
+    list.push({ id: c.id, n: Number(m[2]) });
+    groups.set(m[1], list);
+  }
+  const out = new Map<string, number>();
+  for (const list of groups.values()) if (list.length > 1) for (const { id, n } of list) out.set(id, n);
+  return out;
 }

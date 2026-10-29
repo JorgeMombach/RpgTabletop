@@ -32,7 +32,7 @@ function valueNoise(x: number, y: number, seed: number, period = 0): number {
 }
 
 /** Várias oitavas somadas: nuvem com detalhe grande e pequeno. */
-function fbm(x: number, y: number, seed: number, octaves: number, period = 0): number {
+export function fbm(x: number, y: number, seed: number, octaves: number, period = 0): number {
   let sum = 0;
   let amp = 0.5;
   let norm = 0;

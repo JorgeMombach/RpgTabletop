@@ -34,6 +34,7 @@ import { whoIs } from "./actions/dice";
 import { audioType, saveSound, soundPath } from "./sounds";
 import { viewFor } from "./view";
 import { trackLastSeen, updateSight } from "./sight";
+import { collectHits, type HpMemory } from "./hits";
 
 interface SocketData {
   playerId?: string;
@@ -125,6 +126,7 @@ export function createApp(opts: AppOptions) {
   const SESSION_ROOM = "session";
   let sentImageVersion = 0;
   let sentHandoutVersion = 0;
+  const hpMemory: HpMemory = new Map();
 
   function mapImage() {
     const { image, imageVersion } = store.game.battle.map;
@@ -145,10 +147,17 @@ export function createApp(opts: AppOptions) {
       sentHandoutVersion = store.handoutVersion;
       io.to(SESSION_ROOM).emit("handout", store.handout);
     }
+    // Golpes e curas (L6): cada um recebe só os dos tokens que enxerga (oculto e coberto pela névoa ficam de fora).
+    const hits = collectHits(store, hpMemory);
     for (const player of store.players.values()) {
       if (player.sockets.size === 0) continue;
       const view = viewFor(store, player, host);
-      for (const sid of player.sockets) io.to(sid).emit("state:full", view);
+      const seen = new Set([...view.allies, ...view.battle.mobs, ...view.battle.npcs].map((c) => c.id));
+      const mine = hits.filter((h) => seen.has(h.id));
+      for (const sid of player.sockets) {
+        io.to(sid).emit("state:full", view);
+        if (mine.length) io.to(sid).emit("fx:hp", mine);
+      }
     }
   }
 
@@ -220,6 +229,11 @@ export function createApp(opts: AppOptions) {
       const result = join(socket, payload);
       ack(result);
       if (result.ok) broadcast();
+    });
+
+    // Só para quem já entrou: a imagem é da sessão.
+    socket.on("map:imageRequest", () => {
+      if (socket.data.playerId) socket.emit("map:image", mapImage());
     });
 
     for (const name of Object.keys(handlers) as ActionName[]) {

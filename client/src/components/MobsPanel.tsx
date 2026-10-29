@@ -1,13 +1,15 @@
-import { ActionIcon, Badge, Button, Group, Text, Tooltip } from "@mantine/core";
-import { IconEye, IconEyeOff, IconTrash } from "@tabler/icons-react";
-import { NPC_COLORS, type Combatant } from "@rpg/shared";
+import { ActionIcon, Button, Group, Tooltip } from "@mantine/core";
+import { IconEye, IconEyeOff, IconPlus, IconSkull, IconTrash, IconUser, type Icon } from "@tabler/icons-react";
+import { NPC_COLORS, type Combatant, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { removeMob } from "../commands";
 import { select, useApp } from "../store";
+import { BestiaryModal } from "./BestiaryPanel";
 import { CombatantForm } from "./CombatantForm";
 import { CombatantRow } from "./CombatantRow";
+import { EmptyState } from "./EmptyState";
 import { Panel } from "./Panel";
 
 /** Olho na linha do mob/NPC: oculta dos jogadores ou revela (E21). */
@@ -31,15 +33,11 @@ export function HideToggle({ c }: { c: Combatant }) {
 }
 
 /** Lista de mobs ou NPCs (só o mestre), com ocultar e remover + "Desfazer". */
-function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
+function GmList({ list, empty, icon }: { list: Combatant[]; empty: string; icon: Icon }) {
   const t = useT();
   const selectedId = useApp((s) => s.selectedId);
   if (list.length === 0)
-    return (
-      <Text size="xs" c="dimmed">
-        {empty}
-      </Text>
-    );
+    return <EmptyState icon={icon} text={empty} compact />;
   return (
     <ul className="list">
       {list.map((m) => (
@@ -71,19 +69,28 @@ function GmList({ list, empty }: { list: Combatant[]; empty: string }) {
   );
 }
 
-const count = (n: number) => (
-  <Badge variant="default" size="sm">
-    {n}
-  </Badge>
-);
-
-/** Mestre: mobs da batalha atual. */
-export function MobsPanel({ mobs }: { mobs: Combatant[] }) {
+/** Mestre: mobs da batalha atual; *+ Mobs* abre o bestiário sem sair do combate. */
+export function MobsPanel({ mobs, templates }: { mobs: Combatant[]; templates: MobTemplate[] }) {
   const t = useT();
+  const [bestiary, setBestiary] = useState(false);
+  // A janela fica fora do painel: com o painel recolhido, o conteúdo dele não é desenhado.
   return (
-    <Panel title={t("mobs.title")} aside={count(mobs.length)}>
-      <GmList list={mobs} empty={t("mobs.empty")} />
-    </Panel>
+    <>
+      <Panel
+        title={t("mobs.title")}
+        aside={
+          // Só o ícone: o título do painel é longo e a coluna pode estar estreita.
+          <Tooltip label={t("mobs.addTip")}>
+            <ActionIcon variant="default" size="md" aria-label={t("mobs.addTip")} onClick={() => setBestiary(true)}>
+              <IconPlus size={16} />
+            </ActionIcon>
+          </Tooltip>
+        }
+      >
+        <GmList list={mobs} empty={t("mobs.empty")} icon={IconSkull} />
+      </Panel>
+      <BestiaryModal templates={templates} opened={bestiary} onClose={() => setBestiary(false)} />
+    </>
   );
 }
 
@@ -123,7 +130,7 @@ export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
           }}
         />
       )}
-      {!creating && <GmList list={npcs} empty={t("npcs.empty")} />}
+      {!creating && <GmList list={npcs} empty={t("npcs.empty")} icon={IconUser} />}
     </Panel>
   );
 }

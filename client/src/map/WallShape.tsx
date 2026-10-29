@@ -1,103 +1,162 @@
-import { Button, Checkbox, Group, Paper, SegmentedControl, Stack, Text } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
-import { Group as KGroup, Line, Rect } from "react-konva";
-import type { GridPos, MapConfig, Wall } from "@rpg/shared";
+import { Button, Checkbox, Group, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { IconArrowBackUp, IconTrash } from "@tabler/icons-react";
+import type Konva from "konva";
+import { Shape as KShape } from "react-konva";
+import { WALL_STYLES, WALL_THICKNESS, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import type { Point } from "./geometry";
+import { drawDoor, wallArt, wallSeed } from "./wallArt";
+import { removeWall, undoWall, useWallUndo } from "./wallHistory";
 
 /** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder) ou apagar. */
 export type WallMode = "wall" | "door" | "erase";
 
 const MODE_LABEL: Record<WallMode, MessageKey> = { wall: "walls.wall", door: "walls.door", erase: "walls.erase" };
-
-// Pedra clara com borda escura; porta de madeira com moldura de bronze (cores do guia visual).
-const STONE = "#c9b79a";
-const STONE_EDGE = "#17141c";
-const WOOD = "#8b5a2b";
-const BRONZE = "#d8b47a";
-const LOCKED = "#c94a52";
-const SECRET = "#a58fd6";
+const STYLE_LABEL: Record<WallStyle, MessageKey> = { stone: "walls.styleStone", rock: "walls.styleRock", wood: "walls.styleWood" };
 
 /** Canto do grid mais perto do ponto (em pixels do mapa). */
 export function cornerAt(p: Point, g: MapConfig): GridPos {
   return { col: Math.round((p.x - g.offsetX) / g.cellPx), row: Math.round((p.y - g.offsetY) / g.cellPx) };
 }
 
+/** Ponta da parede no ponto: o canto mais perto ou, no traço livre, o próprio ponto (em centésimos de casa). */
+export function wallPointAt(p: Point, g: MapConfig, snap: boolean): GridPos {
+  if (snap) return cornerAt(p, g);
+  const cent = (n: number) => Math.round(n * 100) / 100;
+  return { col: cent((p.x - g.offsetX) / g.cellPx), row: cent((p.y - g.offsetY) / g.cellPx) };
+}
+
+/** Tamanho do traço (em casas, no eixo mais longo): abaixo de 0,1 é clique, não parede (o servidor recusa). */
+export function wallSpan(from: GridPos, to: GridPos): number {
+  return Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
+}
+
 function cornerPx(c: GridPos, g: MapConfig): Point {
   return { x: g.offsetX + c.col * g.cellPx, y: g.offsetY + c.row * g.cellPx };
 }
 
+/** Como a porta abre: dobradiça na ponta `to` em vez de `from` e para que lado a folha gira. */
+export interface DoorLayout {
+  hingeAtTo: boolean;
+  swing: number;
+}
+
+const near = (p: GridPos, q: GridPos) => Math.abs(p.col - q.col) < 0.02 && Math.abs(p.row - q.row) < 0.02;
+
 /**
- * Parede (linha de pedra) ou porta: fechada é uma folha de madeira na linha; aberta, a folha gira 90°
- * na dobradiça (ponta \`from\`) e deixa a passagem livre. Mestre: trancada com borda vermelha, secreta tracejada.
+ * Portas duplas (L5): duas portas em linha que se encostam numa ponta. As dobradiças ficam nas pontas de
+ * fora e as duas folhas giram para o mesmo lado, cada uma para a sua ponta. Porta sozinha: dobradiça em `from`.
+ */
+export function doorLayouts(walls: Wall[]): Map<string, DoorLayout> {
+  const doors = walls.filter((w) => w.door);
+  const out = new Map<string, DoorLayout>();
+  for (let i = 0; i < doors.length; i++) {
+    const a = doors[i];
+    if (out.has(a.id)) continue;
+    for (let j = i + 1; j < doors.length; j++) {
+      const b = doors[j];
+      if (out.has(b.id)) continue;
+      const shared = [a.from, a.to].find((p) => near(p, b.from) || near(p, b.to));
+      if (!shared) continue;
+      // Em linha: as duas direções são paralelas.
+      const da = { x: a.to.col - a.from.col, y: a.to.row - a.from.row };
+      const db = { x: b.to.col - b.from.col, y: b.to.row - b.from.row };
+      const cross = da.x * db.y - da.y * db.x;
+      if (Math.abs(cross) > 0.02 * Math.hypot(da.x, da.y) * Math.hypot(db.x, db.y)) continue;
+      // A dobradiça é a ponta que não é a do meio; as direções (dobradiça → meio) são opostas, então os
+      // giros têm sinais opostos para as folhas irem para o mesmo lado.
+      out.set(a.id, { hingeAtTo: near(a.from, shared), swing: 1 });
+      out.set(b.id, { hingeAtTo: near(b.from, shared), swing: -1 });
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * Parede (no estilo da cena: pedra lavrada, rocha bruta ou madeira) ou porta de madeira com cintas de ferro.
+ * Aberta, a folha gira na dobradiça e deixa a passagem livre. Mestre: trancada com cadeado vermelho, secreta
+ * translúcida e tracejada. A espessura acompanha o tamanho do quadrado.
  */
 export function WallShape({
   w,
   grid,
   gm,
+  style,
+  layout,
   selected,
   onClick,
 }: {
-  w: Pick<Wall, "from" | "to" | "door">;
+  w: Pick<Wall, "from" | "to" | "door" | "thickness">;
   grid: MapConfig;
   gm: boolean;
+  style: WallStyle;
+  layout?: DoorLayout;
   selected?: boolean;
   onClick?: () => void;
 }) {
   const a = cornerPx(w.from, grid);
   const b = cornerPx(w.to, grid);
-  const thick = Math.max(5, grid.cellPx * 0.14);
+  const thick = grid.cellPx * (w.thickness ?? WALL_THICKNESS.default);
   const handlers = onClick ? { onClick, onTap: onClick } : {};
-  if (!w.door) {
-    return (
-      <KGroup {...handlers}>
-        <Line points={[a.x, a.y, b.x, b.y]} stroke={STONE_EDGE} strokeWidth={thick + 4} lineCap="round" hitStrokeWidth={thick + 14} />
-        <Line points={[a.x, a.y, b.x, b.y]} stroke={STONE} strokeWidth={thick} lineCap="round" listening={false} />
-      </KGroup>
-    );
-  }
-  const { open, locked, secret } = w.door;
-  const len = Math.hypot(b.x - a.x, b.y - a.y);
-  const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-  // Folha mais grossa que a parede, em madeira: dá para ver de longe que ali é porta.
-  const leaf = thick * 1.6;
-  const frame = gm && locked ? LOCKED : selected ? "#ffffff" : BRONZE;
+  const seed = wallSeed(w.from.col, w.from.row, w.to.col, w.to.row);
+  // Área de clique: a linha da parede (ou o vão da porta), bem mais grossa que o desenho.
+  const hit = (k: Konva.Context, shape: Konva.Shape) => {
+    k.beginPath();
+    k.moveTo(a.x, a.y);
+    k.lineTo(b.x, b.y);
+    k.fillStrokeShape(shape);
+  };
+  const door = w.door;
+  const [h, e] = layout?.hingeAtTo ? [b, a] : [a, b];
   return (
-    <KGroup x={a.x} y={a.y} rotation={angle} opacity={gm && secret ? 0.7 : 1} {...handlers}>
-      {/* Área de clique: o vão inteiro, aberta ou fechada. */}
-      <Rect x={0} y={-leaf} width={len} height={leaf * 2} fill="transparent" />
-      {/* Batentes nas pontas. */}
-      <Line points={[0, -leaf, 0, leaf]} stroke={STONE} strokeWidth={thick * 0.6} lineCap="round" listening={false} />
-      <Line points={[len, -leaf, len, leaf]} stroke={STONE} strokeWidth={thick * 0.6} lineCap="round" listening={false} />
-      <Rect
-        x={0}
-        y={-leaf / 2}
-        width={len}
-        height={leaf}
-        rotation={open ? 75 : 0}
-        fill={WOOD}
-        stroke={gm && secret ? SECRET : frame}
-        strokeWidth={selected ? 3 : 1.5}
-        dash={gm && secret ? [6, 4] : undefined}
-        cornerRadius={2}
-        listening={false}
-      />
-    </KGroup>
+    <KShape
+      {...handlers}
+      stroke="#000"
+      strokeWidth={thick}
+      hitStrokeWidth={thick * (door ? 2.4 : 1) + grid.cellPx * 0.2}
+      hitFunc={hit}
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const L = Math.hypot(e.x - h.x, e.y - h.y);
+        if (L < 0.5) return;
+        ctx.save();
+        ctx.translate(h.x, h.y);
+        ctx.rotate(Math.atan2(e.y - h.y, e.x - h.x));
+        if (door) {
+          drawDoor(ctx, L, thick, seed, {
+            open: door.open,
+            locked: gm && !!door.locked,
+            secret: gm && !!door.secret,
+            selected: !!selected,
+            swing: layout?.swing ?? 1,
+            style,
+          });
+        } else {
+          const m = ctx.getTransform();
+          const art = wallArt(style, L, thick, seed, Math.hypot(m.a, m.b));
+          ctx.drawImage(art.canvas, -art.pad, -art.pad, L + art.pad * 2, art.pad * 2);
+        }
+        ctx.restore();
+      }}
+    />
   );
 }
 
 /** Parede sendo traçada (antes de soltar). */
-export function WallPreview({ from, to, door, grid }: { from: GridPos; to: GridPos; door: boolean; grid: MapConfig }) {
-  return <WallShape w={{ from, to, door: door ? { open: false } : undefined }} grid={grid} gm selected />;
+export function WallPreview({ from, to, door, grid, style }: { from: GridPos; to: GridPos; door: boolean; grid: MapConfig; style: WallStyle }) {
+  const thickness = useApp((s) => s.wallThick);
+  return <WallShape w={{ from, to, thickness, door: door ? { open: false } : undefined }} grid={grid} gm style={style} selected />;
 }
 
-/** Opções da ferramenta Paredes (mestre): modo, a porta escolhida (aberta, trancada, secreta) e apagar tudo. */
-export function WallOptions({ walls }: { walls: Wall[] }) {
+/** Opções da ferramenta Paredes (mestre): modo, traço, estilo da cena, a porta escolhida (aberta, trancada, secreta), desfazer e apagar tudo. */
+export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle }) {
   const t = useT();
-  const { wallMode, selectedDoorId } = useApp();
+  const { wallMode, wallSnap, wallThick, selectedDoorId } = useApp();
+  const undoCount = useWallUndo((s) => s.count);
   const door = walls.find((w) => w.id === selectedDoorId && w.door);
 
   async function clearAll() {
@@ -115,9 +174,58 @@ export function WallOptions({ walls }: { walls: Wall[] }) {
           onChange={(v) => useApp.setState({ wallMode: v as WallMode, selectedDoorId: null })}
           aria-label={t("walls.mode")}
         />
-        <Button size="compact-xs" variant="subtle" color="red" disabled={walls.length === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
-          {t("walls.clear")}
-        </Button>
+        {wallMode !== "erase" && (
+          <SegmentedControl
+            size="xs"
+            data={[
+              { value: "snap", label: t("walls.snap") },
+              { value: "free", label: t("walls.free") },
+            ]}
+            value={wallSnap ? "snap" : "free"}
+            onChange={(v) => useApp.setState({ wallSnap: v === "snap" })}
+            aria-label={t("walls.snapLabel")}
+          />
+        )}
+        <Group gap={4} wrap="nowrap">
+          <Tooltip label={t("walls.undoTip")}>
+            <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undoWall()}>
+              {t("walls.undo")}
+            </Button>
+          </Tooltip>
+          <Button size="compact-xs" variant="subtle" color="red" disabled={walls.length === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
+            {t("walls.clear")}
+          </Button>
+        </Group>
+      </Group>
+      {wallMode !== "erase" && (
+        <Group gap="xs" mt={6} wrap="nowrap">
+          <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+            {t("walls.thickness")}
+          </Text>
+          <Slider
+            size="xs"
+            style={{ flex: 1, minWidth: 100 }}
+            min={WALL_THICKNESS.min}
+            max={WALL_THICKNESS.max}
+            step={0.02}
+            value={wallThick}
+            onChange={(v) => useApp.setState({ wallThick: v })}
+            label={(v) => t("walls.thicknessValue", { n: v.toFixed(2).replace(".", ",") })}
+            aria-label={t("walls.thickness")}
+          />
+        </Group>
+      )}
+      <Group gap="xs" mt={6} wrap="nowrap">
+        <Text size="xs" c="dimmed">
+          {t("walls.style")}
+        </Text>
+        <SegmentedControl
+          size="xs"
+          data={WALL_STYLES.map((s) => ({ value: s, label: t(STYLE_LABEL[s]) }))}
+          value={style}
+          onChange={(v) => void act("battle:grid", { wallStyle: v as WallStyle })}
+          aria-label={t("walls.style")}
+        />
       </Group>
       {door?.door ? (
         <Stack gap={4} mt={6}>
@@ -135,7 +243,7 @@ export function WallOptions({ walls }: { walls: Wall[] }) {
               variant="subtle"
               color="red"
               onClick={() => {
-                void act("wall:remove", { id: door.id });
+                void removeWall(door);
                 useApp.setState({ selectedDoorId: null });
               }}
             >
@@ -145,7 +253,7 @@ export function WallOptions({ walls }: { walls: Wall[] }) {
         </Stack>
       ) : (
         <Text size="xs" c="dimmed" mt={4}>
-          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "door" ? "walls.hintDoor" : "walls.hintWall")}
+          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "door" ? "walls.hintDoor" : wallSnap ? "walls.hintWall" : "walls.hintWallFree")}
         </Text>
       )}
     </Paper>

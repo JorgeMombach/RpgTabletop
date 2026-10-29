@@ -1,6 +1,6 @@
 # Backlog — melhorias da mesa
 
-Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D; agora `feat/melhorias-da-mesa-2`, a partir da 2.8.1): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
+Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D, a 2.9.0 de `feat/melhorias-da-mesa-2` com E–K; a 2.10.0 de `feat/melhorias-visuais` com L–M): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
 
 Regras que valem para tudo: o app registra, não aplica regras (ADR-06); permissões no servidor; dado novo sensível passa pelo filtro de `view.ts` com teste; tudo novo entra no arquivo de sessão (e no teste de proteção do save); textos novos já nascem traduzíveis (depois da base de i18n).
 
@@ -74,6 +74,47 @@ Em três partes (cada uma um commit), decididas com o mestre: visão da mesa **c
 ## K. Combate avançado
 - [x] **Chefe com fases:** várias barras de vida em sequência (fase 1, 2, 3…); zerou uma, começa a próxima com aviso no log (e, se quiser, nome e CA novos).
 - [x] **Efeitos que andam com o token:** um efeito de área preso a um combatente (ex.: espírito protetor do clérigo) acompanha o token quando ele anda.
+
+## L. Cara de jogo (2.10.0)
+Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a base do guia visual (tema, fontes, cores e componentes ficam). Arte gerada no código só entra se ficar caprichada: cada peça passa por protótipo visual aprovado antes de ir para o app. Tudo animado desliga com *Reduzir o clima*.
+- [x] **1. Revisão de usabilidade:** mestre (sessão vazia e combate) e jogadora nova no celular, mais a tela mínima. Bom: dano em 2 ações, condição em 3, abas do celular claras. Os achados viraram os itens abaixo (marcados *revisão*).
+- [x] **Ganhos rápidos** (*revisão*, antes do kit visual):
+  - [x] **+ Mobs no painel Mobs na batalha** (agora só *Mobs*, botão **+**): abre o bestiário ali mesmo (hoje fica na aba Mesa, no fim, e o painel só diz "adicione pelo bestiário").
+  - [x] **Faixa na ficha de quem chega no meio do combate:** "Role sua iniciativa" e "Colocar no mapa" enquanto faltar (hoje só aparece "Sem iniciativa" na aba Combate).
+- [x] **2. Kit visual:** geradores de textura e moldura (metal, pedra, madeira, pergaminho) num lugar só, reaproveitados por tokens, paredes e painéis. Ícones de jogo do game-icons.net (CC BY 3.0, crédito no *Sobre*; exceção registrada na SPEC ao "só Tabler").
+- *Decidido nos protótipos (HTML fora do repositório):* moldura **A, bronze forjado** (bronze no aliado, ferro no mob, prata no NPC, rebites, cor do token numa faixa por dentro) para aliados, mobs, NPCs e pets; estados na vez (halo e arcos de luz girando), selecionado (tracejado andando) e caído (cinza com caveira). **Chefe** (marca própria, pública): moldura de carta (inspirada nas cartas de jogo, sem copiar): ferro escuro com arco gótico e rubi no alto, filete de ouro com volutas nas quinas, rubis lapidados nos lados, caveira de ouro acima da barra de vida; sempre quadrada. Fita e barra de vida do chefe com a mesma estética (a definir no item 4 e nas placas). **Placas:** plaquinha de metal (bronze; prata no NPC; menor no pet) só no hover/seleção, **fita de pergaminho** sempre no chefe, **só o número** (sempre, num escudinho no canto de cima à esquerda do token) em mobs repetidos. **Barra de vida H2**, pílula forjada leve: formato da barra de hoje, fio de bronze, calha funda, marcas a cada 25%, losangos nas pontas, cores do tema, dano fantasma.
+- [x] **3. Tokens:** moldura por tipo (aliado, mob, NPC, invocado), estados (na vez, selecionado, escondido, caído), placa do nome, condições como ícones em volta do token. *Revisão:* mobs de mesmo nome ganham selo com o número ("Goblin 2" hoje só aparece no hover; no celular nem isso); o rótulo não pode cobrir os vizinhos.
+- [x] **4. Barra de vida com cara de jogo:** moldura, marcas, vida temporária como escudo, dano fantasma, fases do chefe; o mesmo estilo no painel.
+- [x] **5a. Paredes livres e desfazer:** pontas da parede em qualquer ponto (centésimos de casa) ou nos cantos; *Desfazer* e Ctrl+Z para a última parede/porta colocada ou apagada.
+- [x] **5b. Texturas de paredes e portas:** pedra lavrada, rocha bruta e madeira (por cena), porta de madeira com ferragem, porta aberta girada com arco, marcas de trancada e secreta para o mestre, portas duplas abrindo cada folha para a sua ponta; espessura escolhida por parede (0,1 a 1 casa).
+- [x] **5c. Mesa e vinheta:** madeira escura (padrão), couro com costura ou ardósia por cena; mapa pousado com sombra e borda escurecida; vinheta na área do mapa (some com *Reduzir o clima*).
+- [x] **6. Efeitos:** *(feito: números de dano/cura para todos via `fx:hp`, tremida, onda da vez, câmera segue a vez, brilho no crítico e rachadura na falha (placa no mapa e log), partículas em Envenenado, Atordoado, Enfeitiçado e Inconsciente)* números de dano/cura subindo do token, tremida ao tomar dano, destaque no início da vez (*revisão:* hoje a vez quase não aparece no mapa, só o anel muda), brilho no crítico/falha do d20, partículas leves em algumas condições.
+- [x] **7. Interface geral:** *(feito: trilha de iniciativa no topo do mapa, textura nos painéis, divisórias, microanimações, avisos e estados vazios, tela de entrada)* trilha de iniciativa no topo do mapa, textura sutil nos painéis, divisórias, microanimações, avisos e estados vazios no estilo do jogo, tela de entrada.
+- [x] **8. Fluxo:**
+  - [x] Menu de contexto no token (dano, cura, condição, esconder, remover) e atalhos de teclado com ajuda (`?`); hoje não há nenhum dos dois. *(feito: menu de contexto e atalhos com ajuda no `?`)*
+  - [x] *Revisão:* cartão **Preparar a mesa** na sessão vazia (Mapa → Monstros → Convidar jogadores, cada passo leva ao lugar; some quando a mesa estiver montada).
+  - [x] *Revisão:* painel **Selecionado** com as ações raras (Tirar do mapa, Invocar, Tocha, Alcance, Ocultar) num menu *Mais* e *Remover* isolado.
+  - [x] *Revisão:* **Limpar campo** sai da barra do topo (aba Mesa → Sessão ou menu).
+  - [x] *Revisão:* ataques salvos do personagem como botões rápidos na aba **Dados** do jogador.
+
+## M. Correções antes de lançar a 2.10.0 (anotadas no jogo)
+Bugs:
+- [x] **Cobrir tudo** some com mobs, NPCs e o "?" logo no primeiro clique (hoje precisa de dois). Cobrir (pincel, cômodo ou tudo) não deixa mais marca de "visto por último".
+- [x] NPCs ficam visíveis para sempre depois de vistos uma vez (devem sumir fora da visão, como os mobs). O servidor já filtrava NPC igual a mob (agora com teste); o que os mantinha à vista era o raio de 120 ft de dia e a luz de tocha vista de longe: resolvido com o alcance por cena.
+- [x] Mob caído (0 de vida): só o mestre vê a caveira; os jogadores também devem ver (sem receber a vida).
+- [x] Trocar de cena e mexer no mapa às vezes deixa os jogadores sem a imagem do mapa (resolvia com recarregar). O cliente confere a versão da imagem em cada estado e pede de novo se ficou para trás; imagem que não abre tenta mais duas vezes.
+- [x] O mestre vê os valores da iniciativa dos mobs antes de os dados terminarem de rolar na tela.
+- [x] Efeito preso ao token só acompanha depois de soltar o token; deve ir junto enquanto arrasta.
+- [x] Janela *Sobre*: o título e o X rolam junto com o texto.
+- [x] Tamanho máximo da casa do grid (400 px) pequeno para mapas muito grandes. Agora até 1000 px, com o controle em escala logarítmica.
+- [x] iPad: *Destacar o log* abre outra aba; em tela de toque, ele deve flutuar na própria mesa.
+- [x] Tradução: duração das condições aparece como "Rounds" em português. Agora "rodada" em toda a interface em português.
+Decisões e novidades:
+- [x] Visão dos personagens em mapa aberto revela demais (de dia são 120 ft). Decisão: alcance por cena (30, 60, 120 ft ou pela luz do clima).
+- [x] Desenho para os jogadores (setas?), com o mestre podendo apagar os de todos. Decisão: só setas; cada um apaga as suas, o mestre apaga todas.
+- [x] Borracha de verdade no desenho e nas paredes/portas: apaga só por onde passa, arrastando.
+- [x] Efeito de mapa novo: **Luz sagrada**. Escolhida a versão "Guardiões com redemoinho": brilho no meio, riscos girando e luzinhas rondando a borda.
+- [x] Levantar personagem caído: botão próprio (1 de vida ou o valor da cura) além de levantar ao receber cura. Decisão: botão *Levantar* (1 de vida) no Selecionado e no menu do token; a cura continua levantando.
 
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).

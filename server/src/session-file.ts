@@ -44,6 +44,7 @@ import {
   type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
+import { tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseWall } from "./actions/walls";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
@@ -199,6 +200,7 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
   if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
   if (c.torch !== undefined && bool(c.torch, "tocha")) out.torch = true;
+  if (c.boss !== undefined && bool(c.boss, "chefe")) out.boss = true;
   if (c.phases !== undefined) out.phases = bossPhases(c.phases);
   if (c.phase !== undefined) out.phase = int(c.phase, "fase do chefe", 1, LIMITS.phases + 1);
   const description = optText(c.description, "descrição", LIMITS.description);
@@ -289,6 +291,7 @@ function template(raw: unknown): MobTemplate {
   const notes = optText(t.notes, "notas", LIMITS.notes);
   if (notes) out.notes = notes;
   if (t.animal !== undefined && bool(t.animal, "animal")) out.animal = true;
+  if (t.boss !== undefined && bool(t.boss, "chefe")) out.boss = true;
   const description = optText(t.description, "descrição", LIMITS.description);
   if (description) out.description = description;
   if (t.phases !== undefined) out.phases = bossPhases(t.phases);
@@ -394,6 +397,7 @@ function logEntry(raw: unknown): LogEntry {
     });
   }
   if (e.gm === true) out.gm = true;
+  if (typeof e.subjectId === "string" && e.subjectId.length <= 64) out.subjectId = e.subjectId;
   return out;
 }
 
@@ -518,12 +522,19 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       feetPerCell: requireNumber(m.feetPerCell, "Pés por quadrado", 1, 100),
       rotation,
       imageScale: requireNumber(m.imageScale ?? 1, "Escala do mapa", LIMITS.imageScale.min, LIMITS.imageScale.max),
+      // Arquivos anteriores à 2.10 não têm (pedra lavrada).
+      ...(m.wallStyle !== undefined && { wallStyle: wallStyleOf(m.wallStyle) }),
+      ...(m.tableStyle !== undefined && { tableStyle: tableStyleOf(m.tableStyle) }),
     },
     mobs,
     npcs,
     effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
     // Arquivos anteriores à 2.8 não têm desenhos nem paredes.
-    drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => ({ id: requireString(obj(d, "desenho").id, "Desenho"), ...parseDrawing(d) })),
+    drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => {
+      const raw = obj(d, "desenho");
+      // Seta de jogador: guarda de quem é (religado ao carregar, como os donos).
+      return { id: requireString(raw.id, "Desenho"), ...parseDrawing(d), ...(raw.authorId !== undefined && { authorId: requireString(raw.authorId, "Desenho") }) };
+    }),
     walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
@@ -551,6 +562,8 @@ function fogFromFile(raw: unknown): FogState {
         span: int(m.span, "névoa", 1, 4),
       };
     }),
+    // Arquivos de antes do alcance por cena: pela luz do clima.
+    range: f.range === undefined || f.range === null ? null : int(f.range, "névoa", LIMITS.visionFeet.min, LIMITS.visionFeet.max),
   };
 }
 
@@ -614,6 +627,7 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
     if (e.revertTo) e.revertTo.ownerId = owner(e.revertTo.ownerId);
   }
   for (const e of game.log) e.authorId = owner(e.authorId);
+  for (const d of [...game.battle.drawings, ...game.scenes.flatMap((sc) => sc.stored?.drawings ?? [])]) if (d.authorId) d.authorId = owner(d.authorId);
 
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
   game.battle.map.imageVersion = store.game.battle.map.imageVersion + 1;

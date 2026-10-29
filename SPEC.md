@@ -146,7 +146,7 @@ Cliente → servidor:
 Toda ação responde por ack com `{ ok: true, ids? }` ou `{ ok: false, error }` (mensagem pronta para o usuário).
 
 Servidor → cliente:
-`state:full` (filtrado por papel), `map:image` (só quando a imagem muda), `ruler:update`, `area`, `toast`, `error`.
+`state:full` (filtrado por papel), `map:image` (só quando a imagem muda, ou quando o cliente pede de novo com `map:imageRequest` por ter ficado com a versão velha), `ruler:update`, `area`, `toast`, `error`.
 
 ## 7. Layout
 ```
@@ -159,7 +159,7 @@ Servidor → cliente:
 │ Mobs (mestre)│                             │              │
 │ Aliados      │                             │              │
 └──────────────┴─────────────────────────────┴──────────────┘
-[Encerrar combate] [Limpar campo de batalha]  ← barra do mestre
+[Encerrar combate] (Iniciativa) · [Limpar campo] (aba Mesa → Sessão, desde a 2.10)
 ```
 
 ---
@@ -570,7 +570,7 @@ Objetivo: depois de jogar com a 2.0, ir somando melhorias pequenas, **uma versã
 
 - **Correção** sobe o PATCH (2.0.1, 2.0.2…). **Entregável novo** sobe o MINOR (2.1.0, 2.2.0…; depois da 2.9.0 vem a 2.10.0). MAJOR (3.0.0) só se quebrar compatibilidade (ex.: arquivo de sessão antigo que deixa de abrir).
 - O PR que fecha o entregável já leva a versão no `package.json` e a seção datada no CHANGELOG: depois do merge, é só criar a tag (checklist no CLAUDE.md).
-- **Depois da 2.7.0:** as melhorias passam a entrar aos poucos numa branch contínua (`feat/melhorias-da-mesa`), com a lista viva em [docs/backlog.md](docs/backlog.md), e saem em versões que juntam vários itens quando o pacote fica bom (2.8.0 = blocos A–D do backlog; 2.9.0 = E–K).
+- **Depois da 2.7.0:** as melhorias passam a entrar aos poucos numa branch contínua (`feat/melhorias-da-mesa`), com a lista viva em [docs/backlog.md](docs/backlog.md), e saem em versões que juntam vários itens quando o pacote fica bom (2.8.0 = blocos A–D do backlog; 2.9.0 = E–K; 2.10.0 = L–M).
 
 ## 18. Entregáveis da Fase 4
 
@@ -681,3 +681,21 @@ Os itens e o detalhe de cada um estão em [docs/backlog.md](docs/backlog.md) e n
 - **Mostrar para a mesa** viaja num evento próprio (como a imagem do mapa) e **não** vai no arquivo de sessão: é do momento.
 - **Tradução completa (en, es):** interface no catálogo do cliente; **textos do servidor** (recusas e avisos do log) continuam escritos em português, mas como **modelo com valores** (`fail("… {name}.", { name })`, `logSystem(store, "…", { … })`), e o cliente traduz com `client/src/i18n/serverText.ts`. `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução. O que a mesa digita fica como foi escrito.
 - **Arquivo de sessão:** continua no formato 2; os campos novos (névoa, regras, tochas, fases, modelos do log) são opcionais, então arquivos da 2.8 abrem normalmente. Uma versão 2.8 abrindo arquivo da 2.9 ignora esses campos.
+
+### 2.10.0 — Cara de jogo e correções da mesa (backlog L e M)
+Release de interface e fluxo sobre a base do guia visual (tema, fontes e componentes ficam). Itens em [docs/backlog.md](docs/backlog.md). Decisões até aqui:
+- **Arte desenhada no código, aprovada em protótipo antes de entrar no app**. Nada de imagens soltas: o kit visual (`client/src/map/tokenArt.ts`) desenha metal, ouro, rebites e rubis no canvas, como a névoa.
+- **Tokens:** moldura "bronze forjado" para todos (bronze no aliado, ferro no mob, prata no NPC; a cor do token vira uma faixa por dentro). Cada token pronto vira uma imagem guardada, refeita só quando muda o que aparece nela (avatar, cor, tamanho na tela em degraus de 2^¼, caído); o que anima (halo e contorno da vez, tracejado da seleção) é desenhado ao vivo e para com *Reduzir efeitos*.
+- **Chefe** é uma marca própria do mob/NPC (e do template), **pública**: todos veem a moldura de chefe (estilo carta de jogo, sempre quadrada). As fases continuam só com o mestre; por isso o brasão não depende delas. Vai no arquivo de sessão (formato 2, campo opcional).
+- **Ícones de jogo:** exceção ao "só Tabler" para ornamentos e ícones desenhados no mapa: game-icons.net (CC BY 3.0), só os caminhos usados, em `client/src/map/gameIcons.ts`, com crédito na tela *Sobre*.
+- **Paredes livres:** as pontas da parede são posições em casas do grid, inteiras (cantos) ou fracionadas (traço livre), guardadas em centésimos. A névoa já calculava por cruzamento de linhas, então nada muda nela; o arquivo de sessão continua no formato 2. O *Desfazer* das paredes é do cliente (histórico do navegador do mestre): coloca e tira paredes pelas ações de sempre.
+- **Estilo das paredes por cena** (`map.wallStyle`: pedra lavrada, rocha bruta ou madeira; ausente = pedra): campo opcional da cena, no arquivo de sessão. **Porta dupla** não é um dado: o cliente reconhece duas portas em linha que se encostam e desenha as folhas abrindo para o mesmo lado. Parede comum vira imagem guardada (como os tokens); porta é desenhada ao vivo.
+- **Espessura da parede** (`wall.thickness`, 0,1 a 1 casa; ausente = 0,18): só o desenho. Bloqueio (névoa, cômodo, visão) continua pela linha do meio, para a conta não mudar.
+- **Mesa em volta do mapa** (`map.tableStyle`: madeira, couro ou ardósia; ausente = madeira): ladrilho gerado no cliente, tamanho em casas (acompanha o zoom). Vinheta é uma camada da página (não do canvas), sem custo no mapa.
+- **Números de dano e cura** (`fx:hp`): o servidor compara a vida (com a temporária) de cada combatente entre um envio e outro e manda só o quanto mudou, a cada um só dos tokens que ele enxerga (o mesmo filtro do estado). Nunca a vida nem a máxima de mob. Troca de fase de chefe e mudanças em massa (mais de 20 de uma vez: arquivo, cena, descanso geral) não geram números. É do momento: não vai no arquivo de sessão.
+- **Alcance da visão por cena** (`fog.range`, pés; `null` = pela luz do clima): igual para todos e sem luz, visão no escuro nem tocha. Campo opcional da névoa no arquivo de sessão. Mexer na névoa (cobrir, cobrir tudo, mudar o alcance) não deixa marca de "visto por último": quem some por ação do mestre não foi "perdido de vista".
+- **Caído para os jogadores:** mob/NPC com vida zerada chega ao jogador com `down: true` (`view.ts`), sem a vida.
+- **Imagem do mapa atrasada:** o estado leva `imageVersion`; o cliente que estiver com outra versão pede de novo (`map:imageRequest`, só para quem entrou na sessão).
+- **Iniciativa nos dados:** a rolagem de iniciativa no log guarda de quem é (`subjectId`); o cliente esconde o número enquanto os dados 3D dela rolam.
+- **Setas dos jogadores:** o jogador só desenha setas, sempre à vista; o servidor marca o autor (`authorId`, religado ao carregar a sessão, como os donos) e aceita apagar só as dele; no máximo 10 por jogador (a mais antiga sai).
+- **Borracha** (`draw:erase`, `wall:erase`): o cliente manda o caminho em pedaços enquanto arrasta e o servidor corta (traço livre e parede) ou apaga inteiro (seta, círculo, porta). Pedaços ganham ids novos; o *Desfazer* das paredes guarda a passada inteira (paredes de antes e de depois).

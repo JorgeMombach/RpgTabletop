@@ -36,7 +36,7 @@ export function logRoll(
   store: Store,
   player: ServerPlayer,
   result: RollResult,
-  opts: Pick<LogEntry, "hidden" | "as" | "kind" | "crit" | "color"> & { label?: LogPart[] } = {},
+  opts: Pick<LogEntry, "hidden" | "as" | "kind" | "crit" | "color" | "subjectId"> & { label?: LogPart[] } = {},
 ): string {
   const parts = opts.label?.length ? opts.label : undefined;
   const label = parts?.map((p) => fillMessage(p.key, p.params)).join(" · ");
@@ -54,6 +54,7 @@ export function logRoll(
     kind: opts.kind,
     crit: opts.crit || undefined,
     roll: result,
+    ...(opts.subjectId && { subjectId: opts.subjectId }),
   });
 }
 
@@ -202,7 +203,7 @@ export const diceHandlers: HandlerMap = {
     const current = byId(store, combat.order[combat.turnIndex]);
     if (current?.ownerId === player.id) fail("Na sua vez você já pode rolar.");
     if (rolls.reactions.some((r) => r.playerId === player.id && r.round === combat.round)) {
-      fail("Você já usou a reação neste round.");
+      fail("Você já usou a reação nesta rodada.");
     }
     rolls.reactions = rolls.reactions.filter((r) => r.playerId !== player.id);
     rolls.reactions.push({ playerId: player.id, round: combat.round, turn: combat.turn });

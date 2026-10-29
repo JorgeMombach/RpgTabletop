@@ -1,5 +1,5 @@
-import { Badge, Button, FileButton, Group, Text } from "@mantine/core";
-import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
+import { Badge, Button, Divider, FileButton, Group, Text } from "@mantine/core";
+import { IconBrush, IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
 import type { ActionResult, SessionFile } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "../confirm";
@@ -8,6 +8,7 @@ import { toast } from "../notify";
 import { desktop, isUnsaved, markSaved, saveSessionFile } from "../sessionFile";
 import { socket } from "../socket";
 import { useApp } from "../store";
+import { ClearBattleDialog } from "./ClearBattleDialog";
 import { Panel } from "./Panel";
 
 /** Resumo do arquivo para a confirmação (o servidor valida tudo de novo ao carregar). */
@@ -30,6 +31,7 @@ function summary(f: Partial<SessionFile>): string {
 export function SessionPanel() {
   const t = useT();
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const { state, savedSnapshot, savedAt } = useApp();
   const unsaved = isUnsaved(state, savedSnapshot);
 
@@ -51,7 +53,7 @@ export function SessionPanel() {
   async function save() {
     setBusy(true);
     try {
-      if (await saveSessionFile()) toast({ kind: "info", text: t("session.saved") });
+      if (await saveSessionFile()) toast({ kind: "success", text: t("session.saved") });
     } catch (err) {
       toast({ kind: "error", text: (err as Error).message });
     } finally {
@@ -79,7 +81,7 @@ export function SessionPanel() {
       const res: ActionResult = await socket.timeout(60_000).emitWithAck("session:import", parsed);
       // O estado novo chega antes da resposta: o que está na mesa agora é o do arquivo.
       if (res.ok) markSaved(parsed.savedAt ? new Date(parsed.savedAt) : new Date());
-      toast(res.ok ? { kind: "info", text: t("session.loaded") } : { kind: "error", text: localizeError(res) });
+      toast(res.ok ? { kind: "success", text: t("session.loaded") } : { kind: "error", text: localizeError(res) });
     } catch {
       toast({ kind: "error", text: t("common.noServer") });
     } finally {
@@ -88,6 +90,7 @@ export function SessionPanel() {
   }
 
   return (
+    <>
     <Panel
       title={t("session.title")}
       aside={
@@ -117,6 +120,18 @@ export function SessionPanel() {
           )}
         </FileButton>
       </Group>
+      {/* Limpar campo (L8): saiu da barra do topo, onde ficava ao lado dos controles do dia a dia. */}
+      <Divider />
+      <Group justify="space-between" gap="xs" wrap="nowrap">
+        <Text size="xs" c="dimmed">
+          {t("top.clearFieldTip")}
+        </Text>
+        <Button variant="default" leftSection={<IconBrush size={14} />} onClick={() => setClearing(true)} style={{ flex: "none" }}>
+          {t("top.clearField")}
+        </Button>
+      </Group>
     </Panel>
+    <ClearBattleDialog open={clearing} onClose={() => setClearing(false)} />
+    </>
   );
 }

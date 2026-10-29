@@ -15,6 +15,12 @@ type Message = "ping" | "here" | "closed" | "return";
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel(NAME) : null;
 const post = (m: Message) => channel?.postMessage(m);
 let child: Window | null = null;
+
+/**
+ * Tablet e celular (toque, sem mouse): janela nova vira outra aba, que esconde a mesa. Lá o log só flutua
+ * dentro da mesa.
+ */
+export const CAN_POP_OUT = !(typeof matchMedia === "function" && matchMedia("(hover: none) and (pointer: coarse)").matches);
 /** A janela de fora respondeu desde a última conferência (a mesa confere a cada 3 s). */
 let answered = true;
 
@@ -24,6 +30,10 @@ let answered = true;
  * abertas sozinhas): se bloquear, o log abre flutuando dentro da mesa (arrastar para fora tenta de novo).
  */
 export function popOutLog(at?: { x: number; y: number; w: number; h: number }) {
+  if (!CAN_POP_OUT) {
+    setDicePrefs({ logDetached: true });
+    return;
+  }
   const url = `${location.origin}${location.pathname}?janela=log`;
   const w = at?.w ?? 420;
   const h = at?.h ?? Math.min(720, window.outerHeight);

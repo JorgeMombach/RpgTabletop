@@ -1,4 +1,4 @@
-import { Button, Checkbox, Group, Paper, SegmentedControl, Text, Tooltip } from "@mantine/core";
+import { Button, Checkbox, Group, Paper, SegmentedControl, Select, Text, Tooltip } from "@mantine/core";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import Konva from "konva";
 import { useEffect, useMemo, useRef } from "react";
@@ -16,6 +16,9 @@ const GM_FOG_OPACITY = 0.62;
 const EXPLORED_OPACITY = 0.6;
 /** Até onde a névoa vai em volta do mapa (casas): o grid não tem fim. */
 const REACH = LIMITS.gridCoord;
+
+/** Alcances da visão por cena (pés) que o mestre escolhe; fora deles, "pela luz do clima". */
+const RANGES = [30, 60, 120];
 
 /** Pincel, retângulo ou o cômodo inteiro (um clique: até as paredes e portas fechadas). */
 export type FogShape = "brush" | "rect" | "room";
@@ -96,7 +99,7 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
     return buildMask(areas, draft && !draft.reveal ? draft.rects : []);
   }, [fog, sight, draft]);
 
-  // Fumaça andando devagar (sem animação com "Reduzir o clima").
+  // Fumaça andando devagar (sem animação com "Reduzir efeitos").
   useEffect(() => {
     const layer = layerRef.current;
     if (!fog.enabled || reduceFx || !layer) return;
@@ -177,6 +180,25 @@ export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (
             onChange={(e) => void act("fog:vision", { enabled: e.currentTarget.checked })}
           />
         </Tooltip>
+        {fog.vision && (
+          <Tooltip label={t("fog.rangeTip")} multiline w={260}>
+            <Select
+              size="xs"
+              w={150}
+              disabled={!fog.enabled}
+              aria-label={t("fog.range")}
+              allowDeselect={false}
+              data={[
+                { value: "light", label: t("fog.rangeLight") },
+                ...[...new Set([...RANGES, ...(fog.range === null ? [] : [fog.range])])]
+                  .sort((a, b) => a - b)
+                  .map((n) => ({ value: String(n), label: t("fog.rangeFeet", { n }) })),
+              ]}
+              value={fog.range === null ? "light" : String(fog.range)}
+              onChange={(v) => v && void act("fog:range", { feet: v === "light" ? null : Number(v) })}
+            />
+          </Tooltip>
+        )}
         <SegmentedControl
           size="xs"
           disabled={!fog.enabled}

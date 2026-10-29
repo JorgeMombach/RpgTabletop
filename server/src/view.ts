@@ -7,9 +7,14 @@ function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resourc
   return rest;
 }
 
-/** Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando). */
-function hideHp({ hp: _hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, gmNotes: _n, phases: _p, ...rest }: Combatant): CombatantView {
-  return withoutSheet(rest);
+/**
+ * Mob/NPC para jogadores: sem vida (nem a temporária), CA, atributos e a ficha (a mesa descobre jogando).
+ * Caído vai: todos veem o mob no chão.
+ */
+function hideHp({ hp, hpMax: _hpMax, tempHp: _tempHp, ac: _ac, abilities: _abilities, gmNotes: _n, phases: _p, ...rest }: Combatant): CombatantView {
+  const view: CombatantView = withoutSheet(rest);
+  if (hp <= 0) view.down = true;
+  return view;
 }
 
 /** Aliado para um jogador: as notas do mestre nunca vão (nem para o dono); a ficha, só para o dono. */
@@ -55,7 +60,8 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
     },
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
-      const steps = Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row));
+      // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
+      const steps = Math.max(1, Math.ceil(Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row))));
       const pts: GridPos[] = [];
       for (let i = 0; i <= steps; i++) {
         const col = Math.round(w.from.col + ((w.to.col - w.from.col) * i) / steps);

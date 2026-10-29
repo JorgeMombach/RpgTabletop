@@ -1,5 +1,5 @@
-import { ActionIcon, Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, Slider, Stack, Text, Tooltip } from "@mantine/core";
-import { LIMITS, type GridInput, type MapConfig } from "@rpg/shared";
+import { ActionIcon, Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { LIMITS, TABLE_STYLES, type GridInput, type MapConfig, type TableStyle } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
@@ -8,7 +8,10 @@ import { toast } from "../notify";
 import { setTool, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
-import { useT } from "../i18n";
+import { useT, type MessageKey } from "../i18n";
+
+/** Mesa em volta do mapa (L5), por cena. */
+const TABLE_LABEL: Record<TableStyle, MessageKey> = { wood: "mapPanel.tableWood", leather: "mapPanel.tableLeather", slate: "mapPanel.tableSlate" };
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
 function useThrottledGrid() {
@@ -25,6 +28,19 @@ function useThrottledGrid() {
       void act("battle:grid", p);
     }, 100);
   };
+}
+
+/**
+ * Tamanho da casa no controle deslizante em escala logarítmica: precisão nas casas pequenas e alcance até
+ * as enormes (mapa grande com a imagem ampliada).
+ */
+const CELL_STEPS = 1000;
+const CELL_LOG = [Math.log(LIMITS.cellPx.min), Math.log(LIMITS.cellPx.max)] as const;
+function cellToSlider(px: number): number {
+  return Math.round(((Math.log(px) - CELL_LOG[0]) / (CELL_LOG[1] - CELL_LOG[0])) * CELL_STEPS);
+}
+function sliderToCell(v: number): number {
+  return Math.round(Math.exp(CELL_LOG[0] + (v / CELL_STEPS) * (CELL_LOG[1] - CELL_LOG[0])) * 2) / 2;
 }
 
 export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
@@ -55,7 +71,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
     try {
       const image = await mapImageFromFile(file);
       const res = await act("battle:setMap", { image });
-      if (res.ok) toast({ kind: "info", text: t("mapPanel.sent") });
+      if (res.ok) toast({ kind: "success", text: t("mapPanel.sent") });
     } catch (err) {
       toast({ kind: "error", text: (err as Error).message });
     } finally {
@@ -69,7 +85,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   }
 
   return (
-    <Panel title={t("mapPanel.title")}>
+    <Panel title={t("mapPanel.title")} anchor="map">
       <Group gap="xs">
         <FileButton onChange={upload} accept="image/png,image/jpeg,image/webp">
           {(props) => (
@@ -130,6 +146,16 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
         </Input.Wrapper>
       )}
 
+      <Input.Wrapper label={t("mapPanel.table")}>
+        <SegmentedControl
+          mt={4}
+          fullWidth
+          data={TABLE_STYLES.map((v) => ({ value: v, label: t(TABLE_LABEL[v]) }))}
+          value={map.tableStyle ?? "wood"}
+          onChange={(v) => void act("battle:grid", { tableStyle: v as TableStyle })}
+        />
+      </Input.Wrapper>
+
       <Checkbox
         checked={map.showGrid}
         onChange={(e) => void act("battle:grid", { showGrid: e.currentTarget.checked })}
@@ -141,7 +167,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
       />
 
       <Input.Wrapper label={t("mapPanel.cell", { px: local.cellPx.toFixed(1) })}>
-        <Slider mt={6} min={LIMITS.cellPx.min} max={200} step={0.5} value={Math.min(local.cellPx, 200)} onChange={(v) => change({ cellPx: v })} />
+        <Slider mt={6} min={0} max={CELL_STEPS} step={1} label={null} value={cellToSlider(local.cellPx)} onChange={(v) => change({ cellPx: sliderToCell(v) })} />
       </Input.Wrapper>
       <Group grow gap="md">
         <Input.Wrapper label={<Abbr title={t("mapPanel.offsetXTitle")}>{t("mapPanel.offsetX")}</Abbr>}>
