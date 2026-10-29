@@ -1,5 +1,5 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
-import { IconBrush, IconDeviceMobile, IconLogout } from "@tabler/icons-react";
+import { IconDeviceMobile, IconLogout } from "@tabler/icons-react";
 import { groupName, type ClientState } from "@rpg/shared";
 import { useState } from "react";
 import { BattleMap } from "../map/BattleMap";
@@ -9,7 +9,6 @@ import { leave } from "../session";
 import { useT } from "../i18n";
 import { useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
-import { ClearBattleDialog } from "./ClearBattleDialog";
 import { CloseGuard } from "./CloseGuard";
 import { D20Emblem } from "./D20Emblem";
 import { ColumnResizer, LAYOUT, useColumnWidths } from "./ColumnResizer";
@@ -64,7 +63,6 @@ function DesktopShell({ state }: { state: ClientState }) {
   const connected = useApp((s) => s.connected);
   // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
   const logDetached = useApp((s) => s.logDetached && !s.logOut);
-  const [clearing, setClearing] = useState(false);
   const [about, setAbout] = useState(false);
   const { widths, max, collapsed, resize, collapse, toggle, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
@@ -92,13 +90,6 @@ function DesktopShell({ state }: { state: ClientState }) {
             <Badge color="yellow" variant="light">
               {t("top.reconnecting")}
             </Badge>
-          )}
-          {gm && (
-            <Tooltip label={t("top.clearFieldTip")}>
-              <Button variant="default" leftSection={<IconBrush size={14} />} onClick={() => setClearing(true)}>
-                {t("top.clearField")}
-              </Button>
-            </Tooltip>
           )}
           {!gm && small && (
             <Tooltip label={t("top.mobileLayoutTip")}>
@@ -171,7 +162,6 @@ function DesktopShell({ state }: { state: ClientState }) {
         <DicePanel state={state} />
       </aside>
 
-      {gm && <ClearBattleDialog open={clearing} onClose={() => setClearing(false)} />}
       {gm && <CloseGuard />}
       <Shortcuts state={state} />
       {logDetached && <FloatingLog />}

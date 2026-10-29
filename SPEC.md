@@ -159,7 +159,7 @@ Servidor → cliente:
 │ Mobs (mestre)│                             │              │
 │ Aliados      │                             │              │
 └──────────────┴─────────────────────────────┴──────────────┘
-[Encerrar combate] [Limpar campo de batalha]  ← barra do mestre
+[Encerrar combate] (Iniciativa) · [Limpar campo] (aba Mesa → Sessão, desde a 2.10)
 ```
 
 ---
