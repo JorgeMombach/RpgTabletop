@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Path, Rect, RegularPolygon, Shape as KShape, Text } from "react-konva";
 import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
@@ -6,6 +6,7 @@ import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
+import { conditionFxOf, drawConditionFx } from "./conditionFx";
 import { dropHit, useHits, type FloatHit } from "./hits";
 import { drawConditionMedal, drawHpBar, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, tokenOutline, type FrameKind, type HpBarState, type PlateStyle } from "./tokenArt";
 import { useImage } from "./useImage";
@@ -237,6 +238,31 @@ function TurnWave({ kind, boss, r }: { kind: FrameKind; boss: boolean; r: number
   );
 }
 
+/**
+ * Partículas das condições (L6): bolhas, estrelas, corações, "Z". Cada token tem a sua fase, para os
+ * envenenados lado a lado não borbulharem juntos. Anima enquanto estiver montado.
+ */
+function ConditionFx({ names, r, seed }: { names: string[]; r: number; seed: string }) {
+  const ref = useRef<Konva.Shape>(null);
+  const phase = useMemo(() => [...seed].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 997, 0) / 100, [seed]);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const anim = new Konva.Animation(() => true, node.getLayer());
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, []);
+  return (
+    <KShape
+      ref={ref}
+      listening={false}
+      sceneFunc={(kctx) => drawConditionFx(kctx._context, names, r, performance.now() / 1000 + phase)}
+    />
+  );
+}
+
 /** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
 export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onMove }: Props) {
   const reduceFx = useApp((s) => s.reduceFx);
@@ -258,6 +284,7 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
   }, []);
 
   if (!c.pos) return null;
+  const fxConditions = conditionFxOf(c.conditions.map((x) => x.name));
   // Tamanho (E26+): `pos` é a casa de cima à esquerda; o token cobre `span` × `span` casas.
   const span = sizeSpan(c.size);
   // Miúdo fica no canto de baixo à direita da casa: dividindo a casa, não esconde quem já está nela.
@@ -509,6 +536,7 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
         <KShape listening={false} sceneFunc={(kctx) => void drawNamePlate(kctx._context, c.name, plateStyle, plateY, ref * 0.26)} />
       )}
 
+      {fxConditions.length > 0 && !reduceFx && <ConditionFx names={fxConditions} r={r} seed={c.id} />}
       {active && !reduceFx && <TurnWave key={turnKey} kind={fxKind} boss={boss} r={r} />}
       {hits?.map((h) => (
         <FloatNumber key={h.key} id={c.id} hit={h} kind={fxKind} boss={boss} r={r} body={body} />
