@@ -370,6 +370,17 @@ export interface ServerToClientEvents {
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
+  /**
+   * Golpes e curas desde o último estado (L6): o número que sobe do token. Só o quanto mudou, nunca a vida;
+   * cada um recebe só os tokens que enxerga.
+   */
+  "fx:hp": (hits: HpHit[]) => void;
+}
+
+/** Quanto a vida (com a temporária) de um token mudou: negativo = dano, positivo = cura. */
+export interface HpHit {
+  id: string;
+  delta: number;
 }
 
 export const NAME_MAX_LENGTH = 32;

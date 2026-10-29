@@ -96,7 +96,7 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
     return buildMask(areas, draft && !draft.reveal ? draft.rects : []);
   }, [fog, sight, draft]);
 
-  // Fumaça andando devagar (sem animação com "Reduzir o clima").
+  // Fumaça andando devagar (sem animação com "Reduzir efeitos").
   useEffect(() => {
     const layer = layerRef.current;
     if (!fog.enabled || reduceFx || !layer) return;

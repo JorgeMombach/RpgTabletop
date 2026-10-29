@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconCloudFog, IconCloudOff, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type Ruler, type TableStyle, type Wall } from "@rpg/shared";
@@ -60,6 +60,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View>({ x: 40, y: 40, scale: 1 });
+  // Visão atual para efeitos que não devem rodar a cada mudança dela (câmera seguindo a vez).
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const [shiftHeld, setShiftHeld] = useState(false);
   const [myRuler, setMyRuler] = useState<Ruler | null>(null);
   const [myArea, setMyArea] = useState<Area | null>(null);
@@ -156,6 +159,33 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       y: (size.height - height * scale) / 2,
     });
   }, [image, size.width, size.height, grid.rotation, grid.imageScale]);
+
+  // Câmera segue a vez (L6, opção de cada um): a cada troca de turno, o mapa desliza até quem joga agora.
+  const followTurn = useApp((s) => s.followTurn);
+  const turn = state.battle.combat.turn;
+  const activeTokenId = state.battle.combat.active ? currentGroup(state).find((c) => c.pos)?.id : undefined;
+  useEffect(() => {
+    if (!followTurn || !activeTokenId || !size.width) return;
+    const c = allCombatants(state).find((o) => o.id === activeTokenId);
+    if (!c?.pos) return;
+    const span = sizeSpan(c.size);
+    const target = { x: grid.offsetX + (c.pos.col + span / 2) * grid.cellPx, y: grid.offsetY + (c.pos.row + span / 2) * grid.cellPx };
+    const from = { ...viewRef.current };
+    const to = { x: size.width / 2 - target.x * from.scale, y: size.height / 2 - target.y * from.scale };
+    if (useApp.getState().reduceFx) return void setView({ ...from, ...to });
+    const start = performance.now();
+    let raf = 0;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - start) / 450);
+      const e = 1 - (1 - t) * (1 - t);
+      setView({ scale: from.scale, x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e });
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // Só na troca de turno (e ao ligar a opção): não persegue o token enquanto ele anda.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn, followTurn, activeTokenId]);
 
   // Mapa novo: enquadra a imagem inteira.
   const fittedFor = useRef<HTMLImageElement | null>(null);
@@ -606,6 +636,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 selected={c.id === selectedId}
                 active={activeIds.has(c.id)}
                 plateNumber={plateNumbers.get(c.id)}
+                turnKey={state.battle.combat.turn}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
                 onMove={async (pos) => (await act("token:move", { id: c.id, pos })).ok}
@@ -656,7 +687,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Stage>
       )}
 
-      {/* Vinheta: bordas da área do mapa escurecidas (luz de cena no centro); some com "Reduzir o clima". */}
+      {/* Vinheta: bordas da área do mapa escurecidas (luz de cena no centro); some com "Reduzir efeitos". */}
       {!reduceFx && <div className="map-vignette" />}
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
       <WeatherOverlay weather={state.battle.weather} lights={screenLights(tokens, grid, view)} />
@@ -668,7 +699,6 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         gm={gm}
         compact={compact}
         narrow={size.width < 780}
-        weather={!!state.battle.weather.kind}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
       />
@@ -775,7 +805,7 @@ function TableShape({ style, grid, view, size, bounds }: { style: TableStyle; gr
   );
 }
 
-/** Borda do mapa escurecida por dentro (o papel pousado na mesa); some com "Reduzir o clima". */
+/** Borda do mapa escurecida por dentro (o papel pousado na mesa); some com "Reduzir efeitos". */
 function MapEdgeShape({ bounds, grid }: { bounds: { width: number; height: number }; grid: MapConfig }) {
   return (
     <Shape
@@ -895,7 +925,6 @@ function MapToolbar({
   gm,
   compact,
   narrow,
-  weather,
   onZoom,
   onFit,
 }: {
@@ -904,13 +933,28 @@ function MapToolbar({
   compact: boolean;
   /** Mapa estreito: ferramentas só com ícone. */
   narrow: boolean;
-  weather: boolean;
   onZoom: (factor: number) => void;
   onFit: () => void;
 }) {
   const t = useT();
   const reduceFx = useApp((s) => s.reduceFx);
-  const reduceButton = weather && (
+  const followTurn = useApp((s) => s.followTurn);
+  const followButton = (
+    <Tooltip label={t("map.followTurnTip")}>
+      <ActionIcon
+        size={compact ? "lg" : undefined}
+        variant={followTurn ? "filled" : "subtle"}
+        color={followTurn ? undefined : "gray"}
+        onClick={() => setDicePrefs({ followTurn: !followTurn })}
+        aria-label={t("map.followTurn")}
+        aria-pressed={followTurn}
+      >
+        <IconCurrentLocation size={compact ? 18 : 16} />
+      </ActionIcon>
+    </Tooltip>
+  );
+  // Reduzir efeitos vale para o clima e para as animações do mapa (L6): fica sempre na barra.
+  const reduceButton = (
     <Tooltip label={reduceFx ? t("map.fullFx") : t("map.reduceFxTip")}>
       <ActionIcon
         size={compact ? "lg" : undefined}
@@ -956,6 +1000,7 @@ function MapToolbar({
               <IconFocusCentered size={18} />
             </ActionIcon>
           </Tooltip>
+          {followButton}
           {reduceButton}
         </MGroup>
       </Paper>
@@ -1027,6 +1072,7 @@ function MapToolbar({
             </Button>
           )}
         </Tooltip>
+        {followButton}
         {reduceButton}
       </MGroup>
     </Paper>

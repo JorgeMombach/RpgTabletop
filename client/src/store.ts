@@ -19,16 +19,16 @@ export interface Rect {
   height: number;
 }
 
-/** Preferências deste navegador: animação dos dados e log destacado (E22); clima reduzido (E26). */
+/** Preferências deste navegador: animação dos dados e log destacado (E22); efeitos reduzidos (E26, L6); câmera seguindo a vez (L6). */
 const PREFS_KEY = "rpg.dicePrefs";
-type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean };
+type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean; followTurn: boolean };
 
 function readPrefs(): DicePrefs {
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
-    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true };
+    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true, followTurn: p.followTurn === true };
   } catch {
-    return { diceAnim: true, logDetached: false, reduceFx: false };
+    return { diceAnim: true, logDetached: false, reduceFx: false, followTurn: false };
   }
 }
 
@@ -162,9 +162,9 @@ export function setVolume(patch: Partial<{ volume: number; muted: boolean }>) {
 
 export function setDicePrefs(patch: Partial<DicePrefs>) {
   useApp.setState(patch);
-  const { diceAnim, logDetached, reduceFx } = useApp.getState();
+  const { diceAnim, logDetached, reduceFx, followTurn } = useApp.getState();
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx, followTurn }));
   } catch {
     // sem armazenamento (aba anônima…): vale só nesta aba
   }

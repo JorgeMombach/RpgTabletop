@@ -6,7 +6,8 @@ import { cellAt, cellCenter, initials, sameCell } from "./geometry";
 import { t } from "../i18n";
 import { useApp } from "../store";
 import { TorchBadge } from "./Torch";
-import { drawConditionMedal, drawHpBar, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, type FrameKind, type HpBarState, type PlateStyle } from "./tokenArt";
+import { dropHit, useHits, type FloatHit } from "./hits";
+import { drawConditionMedal, drawHpBar, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, tokenOutline, type FrameKind, type HpBarState, type PlateStyle } from "./tokenArt";
 import { useImage } from "./useImage";
 
 /** Quanto da casa o token ocupa: sobra folga para a moldura, a barra de vida e os selos caberem na própria casa. */
@@ -32,6 +33,8 @@ interface Props {
   active?: boolean;
   /** Mob repetido ("Goblin 2" entre vários goblins): a placa mostra só o número. */
   plateNumber?: number;
+  /** Conta as trocas de turno: muda = a vez começou agora (onda dourada no token da vez). */
+  turnKey?: number;
   draggable: boolean;
   onSelect: () => void;
   /** Devolve false se o servidor recusou (o token volta para o lugar). */
@@ -40,7 +43,7 @@ interface Props {
 
 /**
  * O que anima em volta do token (L3), desenhado ao vivo e leve: por baixo da imagem pronta, o halo da vez;
- * por cima, o contorno aceso da vez e o tracejado da seleção. Parado com *Reduzir o clima*.
+ * por cima, o contorno aceso da vez e o tracejado da seleção. Parado com *Reduzir efeitos*.
  */
 function TokenFx({ kind, boss, r, active, selected, over }: { kind: FrameKind; boss: boolean; r: number; active: boolean; selected: boolean; over: boolean }) {
   const ref = useRef<Konva.Shape>(null);
@@ -80,7 +83,7 @@ function TokenFx({ kind, boss, r, active, selected, over }: { kind: FrameKind; b
 
 /**
  * Barra de vida do token (L4) com o dano fantasma: ao tomar dano, a vida desliza rápido e o pedaço perdido fica
- * claro por um instante e desce devagar; na cura, um brilho. Anima só enquanto muda; com *Reduzir o clima*, salta.
+ * claro por um instante e desce devagar; na cura, um brilho. Anima só enquanto muda; com *Reduzir efeitos*, salta.
  */
 function TokenHpBar({ hp, max, temp, boss, y, w, h }: { hp: number; max: number; temp: number; boss: boolean; y: number; w: number; h: number }) {
   const ref = useRef<Konva.Shape>(null);
@@ -128,8 +131,117 @@ function TokenHpBar({ hp, max, temp, boss, y, w, h }: { hp: number; max: number;
   return <KShape ref={ref} listening={false} sceneFunc={(kctx) => drawHpBar(kctx._context, y, w, h, bar.current, boss)} />;
 }
 
+/**
+ * Golpe ou cura (L6): o número sobe do token e some ("−12" em sangue, "+8" em verde). No dano, o corpo do
+ * token treme e pisca vermelho por um instante. Cada golpe é um destes; tira-se da fila ao acabar.
+ */
+function FloatNumber({ id, hit, kind, boss, r, body }: { id: string; hit: FloatHit; kind: FrameKind; boss: boolean; r: number; body: React.RefObject<Konva.Group | null> }) {
+  const ref = useRef<Konva.Shape>(null);
+  const p = useRef(0);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const start = performance.now();
+    const anim = new Konva.Animation(() => {
+      p.current = Math.min(1, (performance.now() - start) / 1100);
+      const b = body.current;
+      if (b && hit.delta < 0) b.offsetX(p.current < 0.3 ? Math.sin(p.current * 90) * r * 0.1 * (1 - p.current / 0.3) : 0);
+      if (p.current >= 1) {
+        anim.stop();
+        b?.offsetX(0);
+        dropHit(id, hit.key);
+      }
+      return true;
+    }, node.getLayer());
+    anim.start();
+    return () => {
+      anim.stop();
+      body.current?.offsetX(0);
+    };
+  }, [id, hit, r, body]);
+  const damage = hit.delta < 0;
+  return (
+    <KShape
+      ref={ref}
+      listening={false}
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const t = p.current;
+        if (damage && t < 0.35) {
+          ctx.save();
+          ctx.globalAlpha = 0.5 * (1 - t / 0.35);
+          ctx.fillStyle = "#e0392c";
+          ctx.fill(tokenOutline(kind, boss, r));
+          ctx.restore();
+        }
+        // Sobe rápido e desacelera; aparece com um "pulo" e some no fim.
+        const rise = 1 - (1 - t) * (1 - t);
+        const pop = t < 0.15 ? 0.6 + (t / 0.15) * 0.5 : t < 0.25 ? 1.1 - ((t - 0.15) / 0.1) * 0.1 : 1;
+        ctx.save();
+        ctx.globalAlpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+        ctx.translate(0, -r * (0.9 + rise * 1.3));
+        ctx.scale(pop, pop);
+        ctx.font = `700 ${r * 1.05}px Cinzel, serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = r * 0.2;
+        ctx.strokeStyle = "rgba(12,6,4,.9)";
+        const text = damage ? `−${-hit.delta}` : `+${hit.delta}`;
+        ctx.strokeText(text, 0, 0);
+        ctx.fillStyle = damage ? "#ff7a6e" : "#8fe3a0";
+        ctx.fillText(text, 0, 0);
+        ctx.restore();
+      }}
+    />
+  );
+}
+
+/** Começo da vez (L6): uma onda dourada sai do token e se espalha. */
+function TurnWave({ kind, boss, r }: { kind: FrameKind; boss: boolean; r: number }) {
+  const ref = useRef<Konva.Shape>(null);
+  const p = useRef(0);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const start = performance.now();
+    const anim = new Konva.Animation(() => {
+      p.current = Math.min(1, (performance.now() - start) / 900);
+      if (p.current >= 1) anim.stop();
+      return true;
+    }, node.getLayer());
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, []);
+  return (
+    <KShape
+      ref={ref}
+      listening={false}
+      sceneFunc={(kctx) => {
+        const t = p.current;
+        if (t >= 1) return;
+        const ctx = kctx._context;
+        const ease = 1 - (1 - t) * (1 - t);
+        ctx.save();
+        ctx.globalAlpha = 1 - t;
+        ctx.shadowColor = "#ffcf6a";
+        ctx.shadowBlur = r * 0.4;
+        ctx.strokeStyle = "#ffe4a0";
+        ctx.lineWidth = r * 0.14 * (1 - t) + r * 0.02;
+        ctx.stroke(tokenOutline(kind, boss, r * (1.05 + ease * 0.95)));
+        ctx.restore();
+      }}
+    />
+  );
+}
+
 /** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
-export function Token({ c, grid, selected, active, plateNumber, draggable, onSelect, onMove }: Props) {
+export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onMove }: Props) {
+  const reduceFx = useApp((s) => s.reduceFx);
+  const hits = useHits((s) => s.byId[c.id]);
+  const body = useRef<Konva.Group>(null);
   const avatar = useImage(c.avatar);
   const [hover, setHover] = useState(false);
   const [dragFeet, setDragFeet] = useState<number | null>(null);
@@ -290,6 +402,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
     >
       {active && <TokenFx kind={fxKind} boss={boss} r={r} active selected={false} over={false} />}
 
+      <Group ref={body}>
       <KShape
         sceneFunc={(kctx) => {
           // Pixels de tela por unidade do mapa (zoom do mapa × densidade da tela): a imagem sai nítida.
@@ -303,6 +416,7 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
           kctx.fillStrokeShape(shape);
         }}
       />
+      </Group>
 
       {(active || selected) && <TokenFx kind={fxKind} boss={boss} r={r} active={!!active} selected={selected} over />}
 
@@ -394,6 +508,11 @@ export function Token({ c, grid, selected, active, plateNumber, draggable, onSel
       {(focused || boss) && (
         <KShape listening={false} sceneFunc={(kctx) => void drawNamePlate(kctx._context, c.name, plateStyle, plateY, ref * 0.26)} />
       )}
+
+      {active && !reduceFx && <TurnWave key={turnKey} kind={fxKind} boss={boss} r={r} />}
+      {hits?.map((h) => (
+        <FloatNumber key={h.key} id={c.id} hit={h} kind={fxKind} boss={boss} r={r} body={body} />
+      ))}
 
       {(hover || selected || dragFeet !== null) && labelLines.length > 0 && (
         <Group y={-(boss ? r * 1.3 : r) - ring * 2 - labelSize * 1.2 * labelLines.length} listening={false}>

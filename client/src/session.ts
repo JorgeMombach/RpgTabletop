@@ -1,5 +1,6 @@
 import { socket } from "./socket";
 import { logText } from "./i18n";
+import { pushHits } from "./map/hits";
 import { toast } from "./notify";
 import { IS_LOG_WINDOW } from "./logWindow";
 import { PING_MS, useApp } from "./store";
@@ -113,6 +114,11 @@ socket.on("state:full", (state) => {
 });
 
 socket.on("toast", (t) => toast(t));
+
+// Golpes e curas (L6): viram o número que sobe do token (com "Reduzir efeitos", nada).
+socket.on("fx:hp", (hits) => {
+  if (!useApp.getState().reduceFx) pushHits(hits);
+});
 
 socket.on("map:image", (payload) => {
   useApp.setState({ mapImage: payload });
