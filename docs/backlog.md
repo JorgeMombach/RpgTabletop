@@ -90,12 +90,12 @@ Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a b
 - [x] **5c. Mesa e vinheta:** madeira escura (padrão), couro com costura ou ardósia por cena; mapa pousado com sombra e borda escurecida; vinheta na área do mapa (some com *Reduzir o clima*).
 - [x] **6. Efeitos:** *(feito: números de dano/cura para todos via `fx:hp`, tremida, onda da vez, câmera segue a vez, brilho no crítico e rachadura na falha (placa no mapa e log), partículas em Envenenado, Atordoado, Enfeitiçado e Inconsciente)* números de dano/cura subindo do token, tremida ao tomar dano, destaque no início da vez (*revisão:* hoje a vez quase não aparece no mapa, só o anel muda), brilho no crítico/falha do d20, partículas leves em algumas condições.
 - [x] **7. Interface geral:** *(feito: trilha de iniciativa no topo do mapa, textura nos painéis, divisórias, microanimações, avisos e estados vazios, tela de entrada)* trilha de iniciativa no topo do mapa, textura sutil nos painéis, divisórias, microanimações, avisos e estados vazios no estilo do jogo, tela de entrada.
-- [ ] **8. Fluxo:**
+- [x] **8. Fluxo:**
   - [x] Menu de contexto no token (dano, cura, condição, esconder, remover) e atalhos de teclado com ajuda (`?`); hoje não há nenhum dos dois. *(feito: menu de contexto e atalhos com ajuda no `?`)*
   - [x] *Revisão:* cartão **Preparar a mesa** na sessão vazia (Mapa → Monstros → Convidar jogadores, cada passo leva ao lugar; some quando a mesa estiver montada).
   - [x] *Revisão:* painel **Selecionado** com as ações raras (Tirar do mapa, Invocar, Tocha, Alcance, Ocultar) num menu *Mais* e *Remover* isolado.
   - [x] *Revisão:* **Limpar campo** sai da barra do topo (aba Mesa → Sessão ou menu).
-  - [ ] *Revisão:* ataques salvos do personagem como botões rápidos na aba **Dados** do jogador.
+  - [x] *Revisão:* ataques salvos do personagem como botões rápidos na aba **Dados** do jogador.
 
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).
