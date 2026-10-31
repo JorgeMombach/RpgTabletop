@@ -59,9 +59,12 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "A", ping: "P", draw: "B", walls: "W", torches: "L", fog: "F" };
+const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
+/** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
+const PAN_SPEED = 700;
+
 /** Raio da borracha das paredes, em casas. */
 const WALL_ERASER = 0.25;
 
@@ -633,6 +636,47 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Atalhos do mapa e do token selecionado (L8; lista na ajuda, `?`). As letras não valem com o foco num campo
   // de texto nem com uma janela ou o menu do token abertos. O servidor confere as permissões de novo.
+  // W, A, S, D andam com o mapa enquanto seguradas, em qualquer ferramenta: dá para ir traçando parede sem
+  // voltar ao Mover. Velocidade em pixels da tela, então é a mesma em qualquer zoom.
+  useEffect(() => {
+    if (compact) return;
+    const held = new Set<string>();
+    let frame = 0;
+    let last = 0;
+    const step = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const dx = (held.has("a") ? 1 : 0) - (held.has("d") ? 1 : 0);
+      const dy = (held.has("w") ? 1 : 0) - (held.has("s") ? 1 : 0);
+      // Na diagonal, a mesma velocidade.
+      const k = (PAN_SPEED * dt) / (Math.hypot(dx, dy) || 1);
+      if (dx || dy) setView((v) => ({ ...v, x: v.x + dx * k, y: v.y + dy * k }));
+      frame = held.size > 0 ? requestAnimationFrame(step) : 0;
+    };
+    const down = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (!"wasd".includes(key) || key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey || typingOrDialog(e)) return;
+      e.preventDefault();
+      held.add(key);
+      if (!frame) {
+        cancelAnimationFrame(glide.current);
+        last = performance.now();
+        frame = requestAnimationFrame(step);
+      }
+    };
+    const up = (e: KeyboardEvent) => held.delete(e.key.toLowerCase());
+    const blur = () => held.clear();
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, [compact]);
+
   const keyCtx = useRef({ tool, selectedId, state, canMove, view, size, fit, zoomAt });
   keyCtx.current = { tool, selectedId, state, canMove, view, size, fit, zoomAt };
   useEffect(() => {
@@ -648,7 +692,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", a: "area", p: "ping", b: "draw", ...(gm ? { w: "walls", l: "torches", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -672,7 +716,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (key === "Enter") return done(), openMenu();
       // O resto é de quem edita o token; segurar a tecla só repete o passo das setas.
       if (!canEdit || (e.repeat && !key.startsWith("Arrow"))) return;
-      if (key === "d") return done(), openMenu("damage");
+      if (key === "x") return done(), openMenu("damage");
       if (key === "c") return done(), openMenu("heal");
       if (key === "k") return done(), openMenu("conditions");
       if (key === "t") return done(), void act("torch:set", { id: c.id, lit: !c.torch });

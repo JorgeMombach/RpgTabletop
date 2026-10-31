@@ -874,6 +874,7 @@ export const es: Partial<Messages> = {
   "torches.clearMessage": "Las antorchas de esta escena desaparecen del mapa de todos.",
   "torches.hint": "Elige el diseño y haz clic en el mapa, o arrastra el diseño hasta allí. Después, arrastra la antorcha para moverla.",
   "torches.hintErase": "Haz clic o arrastra sobre las antorchas para borrarlas.",
+  "keys.pan": "Mover el mapa",
   "top.round": "Ronda {round}",
   "top.turnOf": " · turno de ",
   "top.yourTurn": "¡Tu turno!",

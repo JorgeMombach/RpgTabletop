@@ -874,6 +874,7 @@ export const en: Partial<Messages> = {
   "torches.clearMessage": "This scene's torches disappear from everyone's map.",
   "torches.hint": "Pick a design and click the map, or drag the design there. Then drag the torch to move it.",
   "torches.hintErase": "Click or drag over torches to erase them.",
+  "keys.pan": "Move the map",
   "top.round": "Round {round}",
   "top.turnOf": " · turn of ",
   "top.yourTurn": "Your turn!",

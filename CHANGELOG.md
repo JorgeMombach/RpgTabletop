@@ -7,7 +7,11 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Adicionado
+- **Andar com o mapa pelo teclado:** segurando **W, A, S, D**, o mapa anda em qualquer ferramenta, sem precisar voltar ao *Mover* (dá para ir traçando parede e andando).
 - **Tochas fixas no mapa:** a ferramenta *Tochas* (tecla L, só do mestre) deixa pôr tochas em qualquer ponto do mapa, sem encaixar no grid, em três desenhos à escolha: tocha fincada, tocha de ferro e braseiro. É só escolher o desenho e clicar no mapa, ou arrastar o desenho até lá; depois, arrastar a tocha muda o lugar, e a borracha ou *Apagar todas* tiram. A luz é a mesma da tocha dos tokens (20 ft fortes e mais 20 de meia-luz, tremulando): clareia a noite e, com a visão dos personagens, é vista de longe. Coberta pela névoa, os jogadores não a recebem. É de cada cena e vai no arquivo de sessão.
+
+### Alterado
+- **Atalhos que mudaram de tecla**, para liberar W, A, S, D: *Área* agora é **Q**, *Paredes* é **G** e o dano no token selecionado é **X**.
 
 ### Corrigido
 - **Coluna da esquerda empurrava o mapa:** ao arrastar, recolher ou abrir a coluna da esquerda, o mapa andava junto. Agora ele fica parado na tela e a coluna passa por cima, como já acontecia na da direita.

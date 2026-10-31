@@ -881,6 +881,7 @@ export const ptBR = {
   "torches.clearMessage": "As tochas fixas desta cena somem do mapa de todos.",
   "torches.hint": "Escolha o desenho e clique no mapa, ou arraste o desenho até lá. Depois, arraste a tocha para mudar de lugar.",
   "torches.hintErase": "Clique ou arraste por cima das tochas para apagar.",
+  "keys.pan": "Andar com o mapa",
   "top.round": "Rodada {round}",
   "top.turnOf": " · vez de ",
   "top.yourTurn": "Sua vez!",
