@@ -1,4 +1,4 @@
-import type { Drawing, GridPos, Wall } from "@rpg/shared";
+import type { Drawing, GridPos, MapTorch, Wall } from "@rpg/shared";
 
 /**
  * Borracha (M): apaga só por onde passa. O caminho é uma linha de pontos com um raio em volta (uma "cápsula"
@@ -39,6 +39,11 @@ export function pathOf(numbers: number[]): P[][] {
 
 function nearPath(p: P, path: P[][], r: number): boolean {
   return path.some(([a, b]) => toSegment(p, a, b) <= r);
+}
+
+/** A borracha pegou a tocha fixa: na base (o ponto dela) ou no desenho, que fica logo acima. */
+export function eraseMapTorch(t: MapTorch, path: P[][], radius: number): boolean {
+  return nearPath({ x: t.col, y: t.row }, path, radius + 0.2) || nearPath({ x: t.col, y: t.row - 0.6 }, path, radius + 0.2);
 }
 
 /** Resultado da borracha num desenho: igual (`null`), apagado (`[]`) ou os pedaços que sobraram (pontos). */

@@ -100,7 +100,7 @@ Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a b
 ## M. Correções antes de lançar a 2.10.0 (anotadas no jogo)
 Bugs:
 - [x] **Cobrir tudo** some com mobs, NPCs e o "?" logo no primeiro clique (hoje precisa de dois). Cobrir (pincel, cômodo ou tudo) não deixa mais marca de "visto por último".
-- [x] NPCs ficam visíveis para sempre depois de vistos uma vez (devem sumir fora da visão, como os mobs). O servidor já filtrava NPC igual a mob (agora com teste); o que os mantinha à vista era o raio de 120 ft de dia e a luz de tocha vista de longe: resolvido com o alcance por cena.
+- [x] NPC já encontrado fica sempre à vista, com o token e sem "?" (corrigido na 2.10.1: a 2.10.0 tinha lido o pedido ao contrário). Some ao cobrir o lugar, com *Cobrir tudo* ou ao ser ocultado.
 - [x] Mob caído (0 de vida): só o mestre vê a caveira; os jogadores também devem ver (sem receber a vida).
 - [x] Trocar de cena e mexer no mapa às vezes deixa os jogadores sem a imagem do mapa (resolvia com recarregar). O cliente confere a versão da imagem em cada estado e pede de novo se ficou para trás; imagem que não abre tenta mais duas vezes.
 - [x] O mestre vê os valores da iniciativa dos mobs antes de os dados terminarem de rolar na tela.
@@ -115,6 +115,9 @@ Decisões e novidades:
 - [x] Borracha de verdade no desenho e nas paredes/portas: apaga só por onde passa, arrastando.
 - [x] Efeito de mapa novo: **Luz sagrada**. Escolhida a versão "Guardiões com redemoinho": brilho no meio, riscos girando e luzinhas rondando a borda.
 - [x] Levantar personagem caído: botão próprio (1 de vida ou o valor da cura) além de levantar ao receber cura. Decisão: botão *Levantar* (1 de vida) no Selecionado e no menu do token; a cura continua levantando.
+
+## N. Depois da 2.10.0
+- [x] Tochas fixas no mapa, em três desenhos à escolha, em qualquer ponto, com a luz da tocha dos tokens.
 
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).

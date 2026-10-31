@@ -7,18 +7,11 @@ import { LANGS, setLang, useLang, useT, type Lang, type MessageKey } from "../i1
 import { setLayoutChoice } from "../layout";
 import { leave } from "../session";
 import { select, useApp } from "../store";
-import { AlliesPanel } from "./AlliesPanel";
 import { D20Emblem } from "./D20Emblem";
 import { DiceOverlay } from "./DiceOverlay";
-import { DicePanel } from "./DicePanel";
-import { EffectsPanel } from "./EffectsPanel";
-import { InitiativePanel } from "./InitiativePanel";
-import { PlayersPanel } from "./PlayersPanel";
-import { JoinFightBanner } from "./JoinFightBanner";
-import { SelectedPanel } from "./SelectedPanel";
 import { HandoutButton, HandoutModal } from "./Handout";
 import { AboutModal } from "./About";
-import { TurnStatus } from "./Shell";
+import { Memo } from "./Shell";
 import { SoundSync } from "./SoundSync";
 import { VolumeControl } from "./VolumeControl";
 
@@ -93,7 +86,7 @@ export function MobileShell({ state }: { state: ClientState }) {
             {t("top.yourTurn")}
           </Text>
         ) : combat.active ? (
-          <TurnStatus state={state} />
+          <Memo.TurnStatus state={state} />
         ) : (
           <Text fw={700} ff="heading" c="bronze.4" fz={15} truncate className="turn-status">
             Jamal's Tabletop
@@ -143,21 +136,21 @@ export function MobileShell({ state }: { state: ClientState }) {
         {tab === "sheet" && (
           <Pane>
             {/* Sem ninguém escolhido (ainda sem personagem), o painel vazio só ocuparia a tela. */}
-            <JoinFightBanner state={state} />
-            {selectedId && <SelectedPanel state={state} />}
-            <AlliesPanel state={state} />
+            <Memo.JoinFightBanner state={state} />
+            {selectedId && <Memo.SelectedPanel state={state} />}
+            <Memo.AlliesPanel state={state} />
           </Pane>
         )}
         {tab === "dice" && (
           <Pane>
-            <DicePanel state={state} inline />
+            <Memo.DicePanel state={state} inline />
           </Pane>
         )}
         {tab === "combat" && (
           <Pane>
-            <InitiativePanel state={state} />
-            <EffectsPanel state={state} />
-            <PlayersPanel state={state} />
+            <Memo.InitiativePanel state={state} />
+            <Memo.EffectsPanel state={state} />
+            <Memo.PlayersPanel state={state} />
           </Pane>
         )}
         {/* Dados 3D por cima de qualquer aba: rolar na aba Dados também mostra a rolagem. */}

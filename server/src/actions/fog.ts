@@ -1,4 +1,4 @@
-import { cellsToRects, LIMITS, paintFog, roomCells, type FogRect, type FogState } from "@rpg/shared";
+import { cellsToRects, footprint, LIMITS, paintFog, roomCells, sizeSpan, type FogRect, type FogState } from "@rpg/shared";
 import { forgetSight } from "../sight";
 import { fail, requireInt } from "../validate";
 import type { Store } from "../store";
@@ -24,6 +24,13 @@ function covered(store: Store, fog: FogState, rects: FogRect[]) {
   fog.lastSeen = fog.lastSeen.filter((m) => {
     for (let dc = 0; dc < m.span; dc++) for (let dr = 0; dr < m.span; dr++) if (inside(m.pos.col + dc, m.pos.row + dr)) return false;
     return true;
+  });
+  // NPC que ficou embaixo é esquecido (se alguém ainda o vê, a visão encontra de novo).
+  const npcs = store.game.battle.npcs;
+  fog.foundNpcs = fog.foundNpcs.filter((id) => {
+    const pos = npcs.find((c) => c.id === id)?.pos;
+    if (!pos) return true;
+    return !footprint(pos, sizeSpan(npcs.find((c) => c.id === id)?.size)).some((p) => inside(p.col, p.row));
   });
   forgetSight(store);
 }
@@ -79,6 +86,7 @@ export const fogHandlers: HandlerMap = {
     store.game.battle.fog.revealed = {};
     store.game.battle.fog.explored = {};
     store.game.battle.fog.lastSeen = [];
+    store.game.battle.fog.foundNpcs = [];
     // Quem sumiu porque o mapa foi coberto não deixa "?" (antes era preciso cobrir duas vezes).
     forgetSight(store);
   },

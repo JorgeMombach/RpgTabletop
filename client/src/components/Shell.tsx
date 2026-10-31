@@ -1,7 +1,7 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { IconDeviceMobile, IconLogout } from "@tabler/icons-react";
-import { groupName, type ClientState } from "@rpg/shared";
-import { useState } from "react";
+import { groupName, samePanelProps, type ClientState } from "@rpg/shared";
+import { memo, useState } from "react";
 import { BattleMap } from "../map/BattleMap";
 import { currentGroup } from "../format";
 import { setLayoutChoice, useMobileLayout, useSmallScreen } from "../layout";
@@ -52,6 +52,22 @@ export function TurnStatus({ state }: { state: ClientState }) {
 }
 
 /** Jogador em tela pequena vai para o layout de celular (E23); o mestre fica sempre neste. */
+/**
+ * Painéis poupados quando só o mapa muda (porta, parede, desenho, névoa): redesenhar a coluna inteira a cada
+ * envio engasgava a tela nos aparelhos mais fracos. Seleção e idioma continuam atualizando (hooks próprios).
+ */
+export const Memo = {
+  GmTabs: memo(GmTabs, samePanelProps),
+  InitiativePanel: memo(InitiativePanel, samePanelProps),
+  AlliesPanel: memo(AlliesPanel, samePanelProps),
+  EffectsPanel: memo(EffectsPanel, samePanelProps),
+  PlayersPanel: memo(PlayersPanel, samePanelProps),
+  SelectedPanel: memo(SelectedPanel, samePanelProps),
+  DicePanel: memo(DicePanel, samePanelProps),
+  JoinFightBanner: memo(JoinFightBanner, samePanelProps),
+  TurnStatus: memo(TurnStatus, samePanelProps),
+};
+
 export function Shell({ state }: { state: ClientState }) {
   const mobile = useMobileLayout(state.self.role === "gm");
   return mobile ? <MobileShell state={state} /> : <DesktopShell state={state} />;
@@ -72,6 +88,8 @@ function DesktopShell({ state }: { state: ClientState }) {
       className="shell"
       style={{
         gridTemplateColumns: `${widths.left}px 6px minmax(${LAYOUT.mapMinWidth}px, 1fr) 6px ${widths.right}px`,
+        // Onde o mapa começa: a tela dele fica ancorada aqui e não anda com a coluna (BattleMap).
+        ["--map-left" as string]: `${widths.left + 6}px`,
         minWidth: LAYOUT.appMinWidth,
         minHeight: LAYOUT.appMinHeight,
       }}
@@ -84,7 +102,7 @@ function DesktopShell({ state }: { state: ClientState }) {
           </Text>
           <AboutLink onOpen={() => setAbout(true)} />
         </Group>
-        <TurnStatus state={state} />
+        <Memo.TurnStatus state={state} />
         <Group gap="sm" wrap="nowrap">
           {!connected && (
             <Badge color="yellow" variant="light">
@@ -120,13 +138,13 @@ function DesktopShell({ state }: { state: ClientState }) {
 
       <aside className={`col left ${gm ? "with-tabs" : ""} ${collapsed.left ? "collapsed" : ""}`}>
         {gm ? (
-          <GmTabs state={state} />
+          <Memo.GmTabs state={state} />
         ) : (
           <>
-            <InitiativePanel state={state} />
-            <AlliesPanel state={state} />
-            <EffectsPanel state={state} />
-            <PlayersPanel state={state} />
+            <Memo.InitiativePanel state={state} />
+            <Memo.AlliesPanel state={state} />
+            <Memo.EffectsPanel state={state} />
+            <Memo.PlayersPanel state={state} />
           </>
         )}
       </aside>
@@ -157,9 +175,9 @@ function DesktopShell({ state }: { state: ClientState }) {
         onToggle={() => toggle("right")}
       />
       <aside className={`col right ${collapsed.right ? "collapsed" : ""}`}>
-        <JoinFightBanner state={state} />
-        <SelectedPanel state={state} />
-        <DicePanel state={state} />
+        <Memo.JoinFightBanner state={state} />
+        <Memo.SelectedPanel state={state} />
+        <Memo.DicePanel state={state} />
       </aside>
 
       {gm && <CloseGuard />}

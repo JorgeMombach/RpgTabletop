@@ -1,3 +1,4 @@
+import { shareEqual } from "@rpg/shared";
 import { socket } from "./socket";
 import { logText } from "./i18n";
 import { pushHits } from "./map/hits";
@@ -117,8 +118,10 @@ export function askMapImage(version: number) {
   socket.emit("map:imageRequest");
 }
 
-socket.on("state:full", (state) => {
+socket.on("state:full", (incoming) => {
   const previous = useApp.getState().state;
+  // O que não mudou continua o mesmo objeto: a interface só redesenha o que mudou de verdade.
+  const state = previous ? shareEqual(previous, incoming) : incoming;
   useApp.setState({ state, joinError: null });
   const { map } = state.battle;
   if (map.hasImage && useApp.getState().mapImage.version !== map.imageVersion) askMapImage(map.imageVersion);

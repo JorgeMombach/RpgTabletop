@@ -14,6 +14,7 @@ import { handoutHandlers } from "./handout";
 import { ruleHandlers } from "./rules";
 import { sceneHandlers } from "./scenes";
 import { wallHandlers } from "./walls";
+import { mapTorchHandlers } from "./mapTorches";
 import { weatherHandlers } from "./weather";
 
 export const handlers: HandlerMap = {
@@ -29,6 +30,7 @@ export const handlers: HandlerMap = {
   ...sceneHandlers,
   ...handoutHandlers,
   ...fogHandlers,
+  ...mapTorchHandlers,
   ...ruleHandlers,
   ...soundHandlers,
   ...sheetHandlers,

@@ -1,9 +1,11 @@
 import Konva from "konva";
 import { useEffect, useRef } from "react";
 import { Circle, Group, Layer, Shape } from "react-konva";
-import { sizeSpan, TORCH_BRIGHT_FEET, TORCH_FEET, type CombatantView, type LightId, type MapConfig } from "@rpg/shared";
+import { sizeSpan, TORCH_BRIGHT_FEET, TORCH_FEET, type CombatantView, type LightId, type MapConfig, type MapTorch } from "@rpg/shared";
 import { useApp } from "../store";
+import { useTokenDrag } from "./dragFollow";
 import { cellCenter } from "./geometry";
+import { torchPoint } from "./MapTorches";
 
 /**
  * Tocha (G): selo com chama no token e brilho quente no mapa, os dois tremulando. A luz da noite
@@ -87,6 +89,17 @@ export function TorchBadge({ id, radius }: { id: string; radius: number }) {
   );
 }
 
+/** De onde sai luz: tokens com tocha acesa e tochas fixas. `extra` = raio do token (a luz conta da borda dele). */
+function lightSources(tokens: CombatantView[], torches: MapTorch[], grid: MapConfig) {
+  const held = tokens
+    .filter((c) => c.torch && c.pos)
+    .map((c) => {
+      const { x, y, span } = tokenCenter(c, grid);
+      return { id: c.id, x, y, extra: (span * grid.cellPx) / 2, fixed: false };
+    });
+  return [...held, ...torches.map((t) => ({ id: t.id, ...torchPoint(t, grid), extra: 0, fixed: true }))];
+}
+
 /** Quanto o brilho da tocha aparece com cada luz do clima (de dia quase nada). */
 const GLOW: Record<LightId, number> = { day: 0.18, dusk: 0.32, moon: 0.42, night: 0.5 };
 
@@ -94,11 +107,11 @@ const GLOW: Record<LightId, number> = { day: 0.18, dusk: 0.32, moon: 0.42, night
  * Brilho quente das tochas no mapa: 20 ft de luz forte e mais 20 de meia-luz, tremulando. Camada
  * própria com mistura "screen" (clareia o mapa em vez de pintar laranja por cima).
  */
-export function TorchGlowLayer({ tokens, grid, light }: { tokens: CombatantView[]; grid: MapConfig; light: LightId }) {
+export function TorchGlowLayer({ tokens, torches, grid, light }: { tokens: CombatantView[]; torches: MapTorch[]; grid: MapConfig; light: LightId }) {
   const layerRef = useRef<Konva.Layer>(null);
   const reduceFx = useApp((s) => s.reduceFx);
   const t = useRef(0);
-  const lit = tokens.filter((c) => c.torch && c.pos);
+  const lit = lightSources(tokens, torches, grid);
 
   useEffect(() => {
     const canvas = layerRef.current?.getCanvas()._canvas;
@@ -128,15 +141,17 @@ export function TorchGlowLayer({ tokens, grid, light }: { tokens: CombatantView[
   return (
     <Layer ref={layerRef} listening={false}>
       {lit.map((c) => {
-        const { x, y, span } = tokenCenter(c, grid);
+        const { x, y, extra } = c;
         const seed = seedOf(c.id);
-        const extra = (span * grid.cellPx) / 2;
         const outer = TORCH_FEET * px + extra;
         const bright = (TORCH_BRIGHT_FEET * px + extra) / outer;
         return (
           <Shape
             key={c.id}
+            // Tocha fixa sendo arrastada: a luz anda junto.
             sceneFunc={(ctx) => {
+              const drag = useTokenDrag.getState();
+              if (c.fixed && drag.id === c.id) ctx.translate(drag.dx, drag.dy);
               const f = flicker(t.current, seed);
               const r = outer * (1 + f * 0.035);
               const a = strength * (1 + f * 0.12);
@@ -164,12 +179,7 @@ export interface ScreenLight {
   r: number;
 }
 
-export function screenLights(tokens: CombatantView[], grid: MapConfig, view: { x: number; y: number; scale: number }): ScreenLight[] {
+export function screenLights(tokens: CombatantView[], torches: MapTorch[], grid: MapConfig, view: { x: number; y: number; scale: number }): ScreenLight[] {
   const px = grid.cellPx / grid.feetPerCell;
-  return tokens
-    .filter((c) => c.torch && c.pos)
-    .map((c) => {
-      const { x, y, span } = tokenCenter(c, grid);
-      return { x: view.x + x * view.scale, y: view.y + y * view.scale, r: (TORCH_FEET * px + (span * grid.cellPx) / 2) * view.scale };
-    });
+  return lightSources(tokens, torches, grid).map(({ x, y, extra }) => ({ x: view.x + x * view.scale, y: view.y + y * view.scale, r: (TORCH_FEET * px + extra) * view.scale }));
 }
