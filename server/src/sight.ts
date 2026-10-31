@@ -17,6 +17,7 @@ function keyOf(store: Store): string {
     battle.map.feetPerCell,
     game.allies.map((a) => (a.pos ? [a.pos.col, a.pos.row, a.size ?? "", a.darkvision ? 1 : 0] : 0)),
     lightsOf(store).map((c) => [c.pos!.col, c.pos!.row, c.size ?? ""]),
+    battle.torches.map((t) => [t.col, t.row]),
     battle.walls.map((w) => [w.from.col, w.from.row, w.to.col, w.to.row, w.door ? (w.door.open ? 1 : 2) : 0]),
   ]);
 }
@@ -47,7 +48,11 @@ export function updateSight(store: Store): Rows {
   const lights =
     battle.weather.light === "day" || fog.range !== null
       ? []
-      : lightsOf(store).map((c) => ({ pos: c.pos!, span: sizeSpan(c.size), feet: TORCH_FEET }));
+      : [
+          ...lightsOf(store).map((c) => ({ pos: c.pos!, span: sizeSpan(c.size), feet: TORCH_FEET })),
+          // Tocha fixa: o centro da "casa" de luz cai no ponto exato dela.
+          ...battle.torches.map((t) => ({ pos: { col: t.col - 0.5, row: t.row - 0.5 }, span: 1, feet: TORCH_FEET })),
+        ];
   const rows: Rows = {};
   for (const r of cellsToRects(sightCells(viewers, battle.walls, battle.map.feetPerCell, lights))) {
     paintRows(rows, r, true);
@@ -76,6 +81,7 @@ const inView = new WeakMap<Store, Map<string, { name: string; pos: GridPos; span
  * "Visto por último aqui" (névoa com visão dos personagens): inimigo que sai da vista deixa uma marca
  * no último lugar em que foi visto. A marca some quando alguém volta a ver o lugar, quando ele reaparece,
  * sai da batalha ou é ocultado pelo mestre. Chamado uma vez por envio do estado, depois de `updateSight`.
+ * A marca é só de mob: NPC visto entra em `foundNpcs` e continua à vista com o próprio token.
  */
 export function trackLastSeen(store: Store) {
   const { battle } = store.game;
@@ -86,7 +92,10 @@ export function trackLastSeen(store: Store) {
   }
   const sight = currentSight(store);
   const seenNow = (cells: GridPos[]) => cells.some((p) => isRevealed(fog, p.col, p.row) || inRows(sight, p.col, p.row));
-  const enemies = [...battle.mobs, ...battle.npcs];
+  const found = new Set(fog.foundNpcs);
+  for (const c of battle.npcs) if (c.pos && !c.hidden && seenNow(cellsOf(c.pos, sizeSpan(c.size)))) found.add(c.id);
+  fog.foundNpcs = battle.npcs.filter((c) => found.has(c.id)).map((c) => c.id);
+  const enemies = battle.mobs;
   const now = new Map<string, { name: string; pos: GridPos; span: number }>();
   for (const c of enemies) {
     if (!c.pos || c.hidden) continue;

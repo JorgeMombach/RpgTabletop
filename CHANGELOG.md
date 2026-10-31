@@ -6,6 +6,22 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.11.0] - 2026-10-30
+
+### Adicionado
+- **Andar com o mapa pelo teclado:** segurando **W, A, S, D**, o mapa anda em qualquer ferramenta, sem precisar voltar ao *Mover* (dá para ir traçando parede e andando).
+- **Tochas fixas no mapa:** a ferramenta *Tochas* (tecla L, só do mestre) deixa pôr tochas em qualquer ponto do mapa, sem encaixar no grid, em três desenhos à escolha: tocha fincada, tocha de ferro e braseiro. É só escolher o desenho e clicar no mapa, ou arrastar o desenho até lá; depois, arrastar a tocha muda o lugar, e a borracha ou *Apagar todas* tiram. A luz é a mesma da tocha dos tokens (20 ft fortes e mais 20 de meia-luz, tremulando): clareia a noite e, com a visão dos personagens, é vista de longe. Coberta pela névoa, os jogadores não a recebem. É de cada cena e vai no arquivo de sessão.
+
+### Alterado
+- **Atalhos que mudaram de tecla**, para liberar W, A, S, D: *Área* agora é **Q**, *Paredes* é **G** e o dano no token selecionado é **X**.
+
+### Corrigido
+- **Coluna da esquerda empurrava o mapa:** ao arrastar, recolher ou abrir a coluna da esquerda, o mapa andava junto. Agora ele fica parado na tela e a coluna passa por cima, como já acontecia na da direita.
+- **NPC já encontrado:** com a visão dos personagens, o NPC que o grupo já viu continua à vista com o próprio token, sem virar "?", mesmo sem ninguém por perto. Ele some para os jogadores quando o mestre cobre o lugar (ou *Cobrir tudo*) ou o oculta. O "?" fica só para os mobs.
+- **Travadinhas ao abrir portas:** mesmo sem névoa, cada mudança no mapa redesenhava todos os painéis e a imagem do mapa, o que engasgava a tela nos aparelhos mais fracos. Agora mudar porta, parede, desenho ou névoa só redesenha o que mudou no mapa.
+- **Travadinhas com a névoa ligada:** a tela congelava por um instante nos outros aparelhos quando a névoa liberava parte do mapa, quando uma porta abria e a cada mudança na mesa, porque a máscara da névoa era refeita inteira a cada envio. Agora ela só é refeita quando o que se vê muda, e essa conta ficou bem mais leve.
+- **Dados 3D que não apareciam:** se um dos sons dos dados não terminasse de carregar (celular em economia de bateria ou de dados, arquivo que empacava), nenhum dado aparecia nem soava até recarregar a página. Agora os dados rolam mesmo sem o som, e o que faltou tenta carregar de novo no próximo toque na tela.
+
 ## [2.10.0] - 2026-10-29
 
 ### Adicionado
@@ -304,7 +320,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.10.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...HEAD
+[2.11.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.1...v2.9.0
 [2.8.1]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.0...v2.8.1

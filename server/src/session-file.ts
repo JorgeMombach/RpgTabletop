@@ -46,6 +46,7 @@ import {
 import { parseDrawing } from "./actions/drawings";
 import { tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseWall } from "./actions/walls";
+import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
 import { fail, requireImage, requireInt, requireName, requireNumber, requireString, validArea } from "./validate";
@@ -536,6 +537,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       return { id: requireString(raw.id, "Desenho"), ...parseDrawing(d), ...(raw.authorId !== undefined && { authorId: requireString(raw.authorId, "Desenho") }) };
     }),
     walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
+    // Arquivos de antes das tochas fixas: nenhuma.
+    torches: list(b.torches ?? [], "tochas", LIMITS.mapTorches).map((t) => ({ id: requireString(obj(t, "tocha").id, "Tocha"), ...parseMapTorch(t) })),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
@@ -564,6 +567,8 @@ function fogFromFile(raw: unknown): FogState {
     }),
     // Arquivos de antes do alcance por cena: pela luz do clima.
     range: f.range === undefined || f.range === null ? null : int(f.range, "névoa", LIMITS.visionFeet.min, LIMITS.visionFeet.max),
+    // Arquivos de antes: nenhum NPC encontrado ainda.
+    foundNpcs: list(f.foundNpcs ?? [], "névoa", 500).map((id) => requireString(id, "névoa")),
   };
 }
 

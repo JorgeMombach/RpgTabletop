@@ -1,4 +1,4 @@
-import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type Wall } from "@rpg/shared";
+import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type MapTorch, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
@@ -58,6 +58,7 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
       }
       return anyEver(pts);
     },
+    torch: (t: MapTorch) => anyEver([{ col: Math.floor(t.col), row: Math.floor(t.row) }]),
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
       // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
@@ -98,7 +99,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     battle: {
       map: { ...map, hasImage: image !== null },
       mobs: gm ? game.battle.mobs : forPlayers(game.battle.mobs.filter(sight.combatant)),
-      npcs: gm ? game.battle.npcs : forPlayers(game.battle.npcs.filter(sight.combatant)),
+      // NPC já encontrado continua à vista, mesmo sem ninguém por perto.
+      npcs: gm ? game.battle.npcs : forPlayers(game.battle.npcs.filter((c) => sight.combatant(c) || (fog.enabled && fog.vision && fog.foundNpcs.includes(c.id)))),
       combat: game.battle.combat,
       rolls: game.battle.rolls,
       // Efeito desligado fica guardado só para o mestre (E19).
@@ -107,6 +109,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       drawings: gm ? game.battle.drawings : game.battle.drawings.filter((d) => !d.hidden && sight.drawing(d, map)),
       // Porta secreta: o jogador nem recebe (parece parede nenhuma) até o mestre revelar.
       walls: gm ? game.battle.walls : game.battle.walls.filter((w) => !w.door?.secret && sight.wall(w)),
+      // Tocha na parte coberta nem chega: nem o desenho nem a luz entregam o lugar.
+      torches: gm ? game.battle.torches : game.battle.torches.filter(sight.torch),
       weather: game.battle.weather,
       fog,
       sight: visible,

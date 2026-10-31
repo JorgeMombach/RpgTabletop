@@ -20,6 +20,8 @@ export interface FogState {
    * pequeno). `null` = pela luz do clima, com visão no escuro e tocha.
    */
   range: number | null;
+  /** NPCs que o grupo já encontrou (com a visão ligada): continuam à vista, sem "?", até o mestre cobrir o lugar. */
+  foundNpcs: string[];
 }
 
 /** Marca de "visto por último aqui": nome e lugar (casas ocupadas) de quando o grupo o perdeu de vista. */
@@ -39,7 +41,7 @@ export interface FogRect {
 }
 
 export function emptyFog(): FogState {
-  return { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null };
+  return { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] };
 }
 
 /** Junta `[s, e)` aos intervalos (mantendo ordenados e sem sobreposição). */
@@ -258,7 +260,8 @@ export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number
         Math.max(w.from.row, w.to.row) >= o.y - r - 1 &&
         Math.min(w.from.row, w.to.row) <= o.y + r + 1,
     );
-    for (let dc = 0; dc < v.span; dc++) for (let dr = 0; dr < v.span; dr++) add(v.pos.col + dc, v.pos.row + dr);
+    // A tocha fixa fica em qualquer ponto: conta a casa inteira onde ela cai.
+    for (let dc = 0; dc < v.span; dc++) for (let dr = 0; dr < v.span; dr++) add(Math.floor(v.pos.col) + dc, Math.floor(v.pos.row) + dr);
     for (let col = Math.floor(o.x - r); col <= Math.ceil(o.x + r); col++) {
       for (let row = Math.floor(o.y - r); row <= Math.ceil(o.y + r); row++) {
         const t = { x: col + NUDGE.x, y: row + NUDGE.y };

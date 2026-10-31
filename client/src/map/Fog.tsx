@@ -88,7 +88,9 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
   const layerRef = useRef<Konva.Layer>(null);
   const time = useRef(0);
 
-  // A máscara só muda quando a névoa, a visão ou a pincelada mudam (não a cada quadro).
+  // A máscara só muda quando o que se vê muda. O estado chega como objetos novos a cada envio (qualquer token
+  // andando, qualquer rolagem): por isso a comparação é pelo conteúdo, não pelo objeto. Refazer é caro.
+  const maskKey = fog.enabled ? JSON.stringify([fog.vision, fog.revealed, fog.vision ? fog.explored : 0, fog.vision ? sight : 0]) : "";
   const mask = useMemo(() => {
     if (!fog.enabled) return null;
     const areas: MaskArea[] = [];
@@ -97,7 +99,7 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
     if (fog.vision) for (const rect of rowsToRects(sight)) areas.push({ rect, amount: 1 });
     if (draft?.reveal) for (const rect of draft.rects) areas.push({ rect, amount: 1 });
     return buildMask(areas, draft && !draft.reveal ? draft.rects : []);
-  }, [fog, sight, draft]);
+  }, [maskKey, draft]);
 
   // Fumaça andando devagar (sem animação com "Reduzir efeitos").
   useEffect(() => {

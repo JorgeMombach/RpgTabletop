@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
 import type { FogRect } from "./fog";
 
 export interface JoinPayload {
@@ -274,6 +274,14 @@ export interface ActionPayloads {
    */
   "draw:erase": { points: number[]; radius: number };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
+  /** Mestre: tocha fixa em qualquer ponto do mapa (em casas). */
+  "maptorch:add": { col: number; row: number; style: MapTorchStyle };
+  /** Mestre: arrasta a tocha. */
+  "maptorch:move": { id: string; col: number; row: number };
+  /** Mestre: borracha nas tochas (`points` = col, row em casas): a tocha tocada some. */
+  "maptorch:erase": { points: number[]; radius: number };
+  /** Mestre: apaga todas as tochas da cena. */
+  "maptorch:clear": Record<string, never>;
   "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
   "wall:remove": { id: string };
   /** Mestre: borracha nas paredes (`points` = col, row em casas). Parede é cortada; porta tocada some inteira. */
@@ -454,6 +462,8 @@ export const LIMITS = {
   handoutText: 2000,
   /** Paredes e portas no mapa e comprimento máximo de cada uma (em casas). */
   walls: 600,
+  /** Tochas fixas no mapa, por cena. */
+  mapTorches: 60,
   /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
   fogRects: 500,
   fogRectSide: 400,

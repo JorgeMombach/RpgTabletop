@@ -92,7 +92,7 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
     {
       title: k("keys.groupToken"),
       rows: [
-        { keys: keys("D"), label: k("keys.damage") },
+        { keys: keys("X"), label: k("keys.damage") },
         { keys: keys("C"), label: k("keys.heal") },
         { keys: keys("K"), label: k("keys.conditions") },
         { keys: keys("Enter"), label: k("keys.menu") },
@@ -108,10 +108,11 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
       rows: [
         { keys: keys("V"), label: k("map.move") },
         { keys: keys("R"), label: k("map.ruler") },
-        { keys: keys("A"), label: k("map.area") },
+        { keys: keys("Q"), label: k("map.area") },
         { keys: keys("P"), label: k("map.ping") },
         { keys: keys("B"), label: k("draw.tool") },
-        { keys: keys("W"), label: k("walls.tool"), gm: true },
+        { keys: keys("G"), label: k("walls.tool"), gm: true },
+        { keys: keys("L"), label: k("torches.tool"), gm: true },
         { keys: keys("F"), label: k("fog.tool"), gm: true },
         { keys: keys("Shift", { text: k("keys.drag") }), label: k("keys.quickRuler") },
         { keys: keys("Alt", { text: k("keys.click") }), label: k("keys.quickPing") },
@@ -121,6 +122,7 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
       title: k("keys.groupView"),
       rows: [
         { keys: keys("+", "−"), label: k("keys.zoom") },
+        { keys: keys("W", "A", "S", "D"), label: k("keys.pan") },
         { keys: keys("0"), label: k("keys.fit") },
       ],
     },

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -122,12 +122,13 @@ function fullGame(playerId: string, gmId: string): GameState {
     rolls: { request: null, reactions: [], outside: "locked" },
     effects: [effect],
     drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true, authorId: playerId } satisfies Required<Drawing>],
+    torches: [{ id: "t1", col: 4.25, row: 6.5, style: "iron" } satisfies Required<MapTorch>],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door> } satisfies Required<Wall>,
     ],
     weather,
-    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60 } satisfies Required<FogState>,
+    fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60, foundNpcs: ["guarda"] } satisfies Required<FogState>,
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -138,8 +139,9 @@ function fullGame(playerId: string, gmId: string): GameState {
     effects: [{ ...effect, id: "e2", casterId: "thorin" }],
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
+    torches: [],
     weather,
-    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null },
+    fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];

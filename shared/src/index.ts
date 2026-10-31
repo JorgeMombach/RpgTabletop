@@ -5,3 +5,4 @@ export * from "./grid";
 export * from "./fog";
 export * from "./initiative";
 export * from "./version";
+export * from "./shareState";

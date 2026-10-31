@@ -291,8 +291,8 @@ describe("névoa de guerra", () => {
     await act(g, "fog:vision", { enabled: true });
     await ready;
 
-    // Alcance da cena em 30 ft (6 casas): somem, sem marca de "visto por último" (foi o mestre).
-    ready = stateWhere(eva, (st) => st.battle.mobs.length === 0 && st.battle.npcs.length === 0);
+    // Alcance da cena em 30 ft (6 casas): o mob some, sem marca de "visto por último" (foi o mestre); o NPC já encontrado fica.
+    ready = stateWhere(eva, (st) => st.battle.mobs.length === 0 && st.battle.npcs.length === 1);
     assert.ok((await act(g, "fog:range", { feet: 30 })).ok);
     let s: ClientState = await ready;
     assert.equal(s.battle.fog.range, 30);
@@ -328,5 +328,48 @@ describe("névoa de guerra", () => {
     await act(g, "hp:change", { id: orc, delta: -20 });
     s = await ready;
     assert.equal(s.battle.mobs[0].hp, undefined);
+  });
+
+  it("NPC encontrado continua à vista sem \"?\"; mob deixa o \"?\"; cobrir faz esquecer o NPC", async () => {
+    const g = await client();
+    await join(g, "Mestre");
+    await act(g, "battle:clear", { keepTemplates: false });
+    const gui = await client("10.50.0.8");
+    await join(gui, "Gui");
+    const [lia] = idsOf(await act(gui, "ally:create", { name: "Lia", hpMax: 20, dexMod: 0, ac: 14 }));
+    await act(gui, "token:move", { id: lia, pos: { col: 0, row: 0 } });
+    const [npc] = idsOf(await act(g, "npc:add", { name: "Mercador", hpMax: 5, dexMod: 0 }));
+    const [orc] = idsOf(await act(g, "mob:add", { name: "Orc", hpMax: 5, dexMod: 0 }));
+    const [longe] = idsOf(await act(g, "npc:add", { name: "Guarda", hpMax: 5, dexMod: 0 }));
+    await act(g, "token:move", { id: npc, pos: { col: 3, row: 0 } });
+    await act(g, "token:move", { id: orc, pos: { col: 3, row: 1 } });
+    await act(g, "token:move", { id: longe, pos: { col: 90, row: 90 } });
+    await act(g, "weather:set", { light: "night" });
+    await act(g, "fog:set", { enabled: true });
+    let ready = stateWhere(gui, (st) => st.battle.fog.vision && st.battle.npcs.length === 1 && st.battle.mobs.length === 1);
+    await act(g, "fog:vision", { enabled: true });
+    let s: ClientState = await ready;
+    assert.deepEqual(s.battle.npcs.map((n) => n.id), [npc], "o NPC que ninguém viu ainda não chega");
+
+    // A Lia vai embora: o Orc vira "?"; o Mercador continua com o token, sem "?".
+    ready = stateWhere(gui, (st) => st.battle.mobs.length === 0);
+    await act(gui, "token:move", { id: lia, pos: { col: 40, row: 40 } });
+    s = await ready;
+    assert.deepEqual(s.battle.npcs.map((n) => n.id), [npc]);
+    assert.deepEqual(s.battle.fog.lastSeen.map((m) => m.id), [orc], "só o mob deixa \"?\"");
+
+    // Cobrir a área onde ele está: esquecido, some para os jogadores.
+    ready = stateWhere(gui, (st) => st.battle.npcs.length === 0);
+    await act(g, "fog:paint", { reveal: false, rects: [{ col: 0, row: 0, w: 10, h: 10 }] });
+    await ready;
+
+    // Volta a ser visto e "Cobrir tudo" esquece de uma vez; removido não fica na lista.
+    await act(gui, "token:move", { id: lia, pos: { col: 3, row: 2 } });
+    assert.deepEqual(ctx.server.store.game.battle.fog.foundNpcs, [npc]);
+    await act(gui, "token:move", { id: lia, pos: { col: 40, row: 40 } });
+    ready = stateWhere(gui, (st) => st.battle.npcs.length === 0);
+    await act(g, "fog:reset", {});
+    await ready;
+    assert.deepEqual(ctx.server.store.game.battle.fog.foundNpcs, []);
   });
 });

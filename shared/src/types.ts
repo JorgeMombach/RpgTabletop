@@ -490,6 +490,18 @@ export interface Wall {
   door?: Door;
 }
 
+/** Desenhos de tocha fixa que o mestre escolhe: fincada, de ferro ou braseiro. */
+export const MAP_TORCH_STYLES = ["stick", "iron", "brazier"] as const;
+export type MapTorchStyle = (typeof MAP_TORCH_STYLES)[number];
+
+/** Tocha fixa no mapa, em qualquer ponto (em casas, fracionadas): mesma luz da tocha dos tokens. */
+export interface MapTorch {
+  id: string;
+  col: number;
+  row: number;
+  style: MapTorchStyle;
+}
+
 /** O que muda de uma cena (mapa) para outra: imagem e grid, mobs, NPCs, efeitos, desenhos, paredes e clima. */
 export interface SceneContent {
   map: MapConfig & { image: string | null; imageVersion: number };
@@ -498,6 +510,7 @@ export interface SceneContent {
   effects: MapEffect[];
   drawings: Drawing[];
   walls: Wall[];
+  torches: MapTorch[];
   weather: WeatherState;
   /** Névoa de guerra da cena (G). */
   fog: FogState;
@@ -559,6 +572,7 @@ export interface GameState {
     effects: MapEffect[];
     drawings: Drawing[];
     walls: Wall[];
+    torches: MapTorch[];
     weather: WeatherState;
     fog: FogState;
   };
@@ -689,6 +703,7 @@ export interface ClientState {
     effects: MapEffect[];
     drawings: Drawing[];
     walls: Wall[];
+    torches: MapTorch[];
     weather: WeatherState;
     fog: FogState;
     /** Casas que os aliados veem agora (visão dos personagens); vazio sem ela. Calculado, não guardado. */

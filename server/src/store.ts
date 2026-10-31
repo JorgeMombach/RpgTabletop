@@ -50,6 +50,7 @@ export function createGame(): GameState {
       effects: [],
       drawings: [],
       walls: [],
+      torches: [],
       weather: defaultWeather(),
       fog: emptyFog(),
     },

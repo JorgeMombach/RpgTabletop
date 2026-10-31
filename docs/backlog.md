@@ -1,6 +1,6 @@
 # Backlog — melhorias da mesa
 
-Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D, a 2.9.0 de `feat/melhorias-da-mesa-2` com E–K; a 2.10.0 de `feat/melhorias-visuais` com L–M): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
+Branch contínua (a 2.8.0 saiu de `feat/melhorias-da-mesa` com os blocos A–D, a 2.9.0 de `feat/melhorias-da-mesa-2` com E–K; a 2.10.0 de `feat/melhorias-visuais` com L–M; a 2.11.0 de `fix/dados-e-nevoa` com N): melhorias, adições e correções que entram aos poucos, sem PR nem versão até haver um escopo bom para subir. Cada item pronto ganha `[x]` aqui e uma linha em `## [Não lançado]` no CHANGELOG; decisões que mudam a SPEC vão para lá no mesmo commit.
 
 Regras que valem para tudo: o app registra, não aplica regras (ADR-06); permissões no servidor; dado novo sensível passa pelo filtro de `view.ts` com teste; tudo novo entra no arquivo de sessão (e no teste de proteção do save); textos novos já nascem traduzíveis (depois da base de i18n).
 
@@ -100,7 +100,7 @@ Release de interface e fluxo: o produto com cara de jogo de tabuleiro, sobre a b
 ## M. Correções antes de lançar a 2.10.0 (anotadas no jogo)
 Bugs:
 - [x] **Cobrir tudo** some com mobs, NPCs e o "?" logo no primeiro clique (hoje precisa de dois). Cobrir (pincel, cômodo ou tudo) não deixa mais marca de "visto por último".
-- [x] NPCs ficam visíveis para sempre depois de vistos uma vez (devem sumir fora da visão, como os mobs). O servidor já filtrava NPC igual a mob (agora com teste); o que os mantinha à vista era o raio de 120 ft de dia e a luz de tocha vista de longe: resolvido com o alcance por cena.
+- [x] NPC já encontrado fica sempre à vista, com o token e sem "?" (corrigido na 2.11.0: a 2.10.0 tinha lido o pedido ao contrário). Some ao cobrir o lugar, com *Cobrir tudo* ou ao ser ocultado.
 - [x] Mob caído (0 de vida): só o mestre vê a caveira; os jogadores também devem ver (sem receber a vida).
 - [x] Trocar de cena e mexer no mapa às vezes deixa os jogadores sem a imagem do mapa (resolvia com recarregar). O cliente confere a versão da imagem em cada estado e pede de novo se ficou para trás; imagem que não abre tenta mais duas vezes.
 - [x] O mestre vê os valores da iniciativa dos mobs antes de os dados terminarem de rolar na tela.
@@ -115,6 +115,14 @@ Decisões e novidades:
 - [x] Borracha de verdade no desenho e nas paredes/portas: apaga só por onde passa, arrastando.
 - [x] Efeito de mapa novo: **Luz sagrada**. Escolhida a versão "Guardiões com redemoinho": brilho no meio, riscos girando e luzinhas rondando a borda.
 - [x] Levantar personagem caído: botão próprio (1 de vida ou o valor da cura) além de levantar ao receber cura. Decisão: botão *Levantar* (1 de vida) no Selecionado e no menu do token; a cura continua levantando.
+
+## N. 2.11.0 (anotado no jogo depois da 2.10.0)
+- [x] Tochas fixas no mapa, em três desenhos à escolha, em qualquer ponto, com a luz da tocha dos tokens.
+- [x] Andar com o mapa por W, A, S, D, em qualquer ferramenta (Área, Paredes e Dano mudam para Q, G e X).
+- [x] Engasgos nos outros aparelhos ao liberar névoa e abrir portas.
+- [x] Dados 3D presos à espera dos sons.
+- [x] Coluna da esquerda empurrando o mapa.
+- [ ] Engasgo ao mover token: os painéis ainda redesenham (ficou para depois).
 
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).

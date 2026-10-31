@@ -72,6 +72,8 @@ interface Box {
   renderer: { domElement: HTMLCanvasElement };
   /** Volume dos sons da biblioteca, de 0 a 100 (0 = mudo). */
   volume: number;
+  /** Carrega um som; a biblioteca espera um por um (ver `loadAudioNoHang`). */
+  loadAudio(src: string): Promise<HTMLAudioElement | undefined>;
 }
 
 /** Cor já aplicada; `null` = nenhuma ainda (a caixa nasce com o tema de carregamento). */
@@ -102,6 +104,47 @@ export function setDiceVolume(box: Box, volume: number) {
   box.volume = Math.round(Math.max(0, Math.min(1, volume)) * 100);
 }
 
+/** Quanto a caixa espera pelos sons no total. Passou disso, os dados rolam e os sons chegam quando chegarem. */
+const SOUNDS_WAIT_MS = 3000;
+
+/**
+ * A biblioteca espera o `canplaythrough` de cada som, um por um e sem limite de tempo. Esse evento pode nunca
+ * vir (celular em economia de dados ou de bateria só baixa áudio depois de um toque; um arquivo que empaca):
+ * aí a caixa nunca fica pronta e, nesta página, nenhum dado aparece nem soa até recarregar. Aqui o som nunca
+ * segura a caixa; o que não carregou tenta de novo no próximo toque na tela.
+ */
+function loadAudioNoHang() {
+  const deadline = Date.now() + SOUNDS_WAIT_MS;
+  const pending = new Set<HTMLAudioElement>();
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      for (const audio of pending) audio.load();
+    },
+    { once: true },
+  );
+  return (src: string) =>
+    new Promise<HTMLAudioElement>((resolve) => {
+      const audio = new Audio();
+      pending.add(audio);
+      const timer = setTimeout(() => resolve(audio), Math.max(0, deadline - Date.now()));
+      audio.oncanplaythrough = () => {
+        pending.delete(audio);
+        clearTimeout(timer);
+        resolve(audio);
+      };
+      // Sem o som: os dados rolam em silêncio (play() recusado é ignorado pela biblioteca).
+      audio.onerror = () => {
+        pending.delete(audio);
+        clearTimeout(timer);
+        resolve(audio);
+      };
+      audio.crossOrigin = "anonymous";
+      audio.preload = "auto";
+      audio.src = src;
+    });
+}
+
 /**
  * Uma caixa só por página, guardada na janela: no `npm run dev` o Vite recarrega este arquivo a cada
  * mudança, e uma variável do módulo criaria outra caixa 3D por cima da antiga. Com várias cenas 3D o
@@ -129,6 +172,7 @@ export function diceBox(container: HTMLElement): Promise<Box> {
         strength: 1,
         gravity_multiplier: 400,
       }) as Box;
+      box.loadAudio = loadAudioNoHang();
       await box.initialize();
       currentColor = null;
       return box;

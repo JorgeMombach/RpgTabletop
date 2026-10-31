@@ -570,7 +570,7 @@ Objetivo: depois de jogar com a 2.0, ir somando melhorias pequenas, **uma versã
 
 - **Correção** sobe o PATCH (2.0.1, 2.0.2…). **Entregável novo** sobe o MINOR (2.1.0, 2.2.0…; depois da 2.9.0 vem a 2.10.0). MAJOR (3.0.0) só se quebrar compatibilidade (ex.: arquivo de sessão antigo que deixa de abrir).
 - O PR que fecha o entregável já leva a versão no `package.json` e a seção datada no CHANGELOG: depois do merge, é só criar a tag (checklist no CLAUDE.md).
-- **Depois da 2.7.0:** as melhorias passam a entrar aos poucos numa branch contínua (`feat/melhorias-da-mesa`), com a lista viva em [docs/backlog.md](docs/backlog.md), e saem em versões que juntam vários itens quando o pacote fica bom (2.8.0 = blocos A–D do backlog; 2.9.0 = E–K; 2.10.0 = L–M).
+- **Depois da 2.7.0:** as melhorias passam a entrar aos poucos numa branch contínua (`feat/melhorias-da-mesa`), com a lista viva em [docs/backlog.md](docs/backlog.md), e saem em versões que juntam vários itens quando o pacote fica bom (2.8.0 = blocos A–D do backlog; 2.9.0 = E–K; 2.10.0 = L–M; 2.11.0 = N).
 
 ## 18. Entregáveis da Fase 4
 
@@ -699,3 +699,10 @@ Release de interface e fluxo sobre a base do guia visual (tema, fontes e compone
 - **Iniciativa nos dados:** a rolagem de iniciativa no log guarda de quem é (`subjectId`); o cliente esconde o número enquanto os dados 3D dela rolam.
 - **Setas dos jogadores:** o jogador só desenha setas, sempre à vista; o servidor marca o autor (`authorId`, religado ao carregar a sessão, como os donos) e aceita apagar só as dele; no máximo 10 por jogador (a mais antiga sai).
 - **Borracha** (`draw:erase`, `wall:erase`): o cliente manda o caminho em pedaços enquanto arrasta e o servidor corta (traço livre e parede) ou apaga inteiro (seta, círculo, porta). Pedaços ganham ids novos; o *Desfazer* das paredes guarda a passada inteira (paredes de antes e de depois).
+
+### 2.11.0 — Tochas fixas e correções vindas do jogo (backlog N)
+- **Tochas fixas** (`battle.torches`): ponto livre em casas (centésimos, como as paredes livres) e desenho (`stick`, `iron`, `brazier`); só o mestre mexe. Mesma luz da tocha dos tokens (brilho, furo na noite e conta da visão); na parte coberta pela névoa não vão para os jogadores. Campo opcional da cena no arquivo de sessão.
+- **NPC encontrado** (`fog.foundNpcs`): com a visão ligada, NPC visto uma vez continua indo para os jogadores, na posição atual e sem marca de "visto por último"; cobrir o lugar ou *Cobrir tudo* o esquece.
+- **Estado reaproveitado:** o cliente mantém como o mesmo objeto o que não mudou entre dois envios (`shareEqual`); os painéis laterais não redesenham quando só muda o que é do mapa (`samePanelProps`) e a máscara da névoa só é refeita quando o que se vê muda. A interface continua recebendo o estado inteiro (ADR-05).
+- **Tela do mapa ancorada:** o canvas começa embaixo da coluna da esquerda (`--map-left`), que só o cobre; `view` continua contando a partir da área visível.
+- **Sons dos dados** nunca seguram a caixa 3D: esperam no máximo 3 s (a biblioteca esperaria para sempre).

@@ -148,7 +148,8 @@ export function buildMask(areas: MaskArea[], cover: FogRect[]): FogMask | null {
   r0 -= MARGIN;
   c1 += MARGIN;
   r1 += MARGIN;
-  const ppc = Math.max(2, Math.min(8, Math.floor(MAX_SIDE / Math.max(c1 - c0, r1 - r0))));
+  // Até 5 px por casa: a borda é desfocada, mais que isso só pesa (a conta trava a tela em aparelho fraco).
+  const ppc = Math.max(2, Math.min(5, Math.floor(MAX_SIDE / Math.max(c1 - c0, r1 - r0))));
   const w = (c1 - c0) * ppc;
   const h = (r1 - r0) * ppc;
 
@@ -187,6 +188,11 @@ export function buildMask(areas: MaskArea[], cover: FogRect[]): FogMask | null {
       const v = a[i];
       const gx = a[y * w + Math.min(w - 1, x + 1)] - a[y * w + Math.max(0, x - 1)];
       const gy = a[Math.min(h - 1, y + 1) * w + x] - a[Math.max(0, y - 1) * w + x];
+      // Longe da borda não há fiapo: pula o ruído, que é a parte cara (quase todos os pontos caem aqui).
+      if (gx === 0 && gy === 0) {
+        img.data[i * 4 + 3] = v * 255;
+        continue;
+      }
       const edge = Math.min(1, Math.hypot(gx, gy) * ppc * 1.6);
       // Coordenadas do mundo (em casas): o ruído não muda quando a máscara cresce ou anda.
       const wx = c0 + x / ppc;

@@ -95,6 +95,7 @@ export const mapHandlers: HandlerMap = {
     battle.effects = [];
     battle.drawings = [];
     battle.walls = [];
+    battle.torches = [];
     // Cena nova: sem clima, de dia (E26), e sem névoa.
     battle.weather = defaultWeather();
     battle.fog = emptyFog();
