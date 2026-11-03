@@ -92,6 +92,24 @@ describe("dano em magias e habilidades", () => {
     assert.equal(game().allies[0].resources![0].damage, undefined);
   });
 
+  it("magia guarda o acerto (d20 + bônus, como o ataque); fora do limite é recusado", async () => {
+    await gm();
+    const ana = await player("Ana");
+    const [lia] = idsOf(await act(ana, "ally:create", { name: "Lia", hpMax: 20, dexMod: 2 }));
+    idsOf(await act(ana, "spell:add", { id: lia, name: "Raio de fogo", level: 0, bonus: 7, damage: "2d10" }));
+    idsOf(await act(ana, "spell:add", { id: lia, name: "Bola de fogo", level: 3, damage: "8d6" }));
+    assert.deepEqual(
+      game().allies[0].spells?.map(({ id: _, ...s }) => s),
+      [
+        { name: "Raio de fogo", level: 0, bonus: 7, damage: "2d10" },
+        { name: "Bola de fogo", level: 3, damage: "8d6" },
+      ],
+    );
+    assert.match(errorOf(await act(ana, "spell:add", { id: lia, name: "Raio", level: 1, bonus: 99 })), /Acerto/);
+    assert.match(errorOf(await act(ana, "spell:add", { id: lia, name: "Raio", level: 1, bonus: "muito" as unknown as number })), /Acerto/);
+    assert.equal(game().allies[0].spells?.length, 2);
+  });
+
   it("o nome do que rolou vai na frente do rótulo no log", async () => {
     const g = await gm();
     assert.ok((await act(g, "dice:roll", { expr: "8d6", kind: "damage", name: "  Bola   de fogo " })).ok);

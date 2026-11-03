@@ -6,7 +6,7 @@ import { act } from "../actions";
 import { useT } from "../i18n";
 import { confirmAction } from "../confirm";
 import { allCombatants, fmtCondition, isDown } from "../format";
-import { select, useApp, useInitHeld } from "../store";
+import { openSheet, select, useApp, useInitHeld } from "../store";
 import { CombatantAvatar, HEX_CLIP } from "./CombatantAvatar";
 import { Panel } from "./Panel";
 import { EmptyState } from "./EmptyState";
@@ -189,7 +189,7 @@ function GroupRow({ members, current, selected, children }: { members: Combatant
   const rolling = members.some((c) => held.has(c.id));
 
   return (
-    <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={() => select(head.id)}>
+    <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={() => select(head.id)} onDoubleClick={() => openSheet(head.id)}>
       <Group gap={4} wrap="nowrap">
         <Text component="span" c="bronze.4" w={12} style={{ display: "flex", flex: "none" }} aria-label={current ? t("init.onTurn") : undefined}>
           {current && <IconCaretRightFilled size={12} />}
@@ -250,7 +250,7 @@ function InitRow(props: {
   };
 
   return (
-    <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={stop(() => select(c.id))}>
+    <li className={`init-row ${current ? "current" : ""} ${selected ? "selected" : ""} ${down ? "down" : ""}`} onClick={stop(() => select(c.id))} onDoubleClick={stop(() => openSheet(c.id))}>
       <Group gap={4} wrap="nowrap">
         <Text component="span" c="bronze.4" w={12} style={{ display: "flex", flex: "none" }} aria-label={current ? t("init.onTurn") : undefined}>
           {current && <IconCaretRightFilled size={12} />}

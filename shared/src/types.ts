@@ -24,6 +24,8 @@ export interface Spell {
   /** 0 = truque. */
   level: number;
   note?: string;
+  /** Acerto da magia (bônus de ataque mágico): escolhida no painel Dados, rola d20 + bônus, como um ataque. Sem ele (teste de resistência), só o dano. */
+  bonus?: number;
   /** Dano rolável (2d6+3), com botão na ficha; o resto continua no campo aberto `note`. */
   damage?: string;
 }

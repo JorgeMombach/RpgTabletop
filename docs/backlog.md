@@ -150,6 +150,9 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Mestre insere jogadores nas cenas. Decisão: levar o grupo ao abrir (*Levar o grupo ao abrir* no painel Cenas; depois de abrir, um clique no mapa e todos chegam juntos em volta do ponto; ação `allies:gather`).
 
 ### Fase 6. Mapa vivo
+- [x] Ficha completa em modal (pedido em 2026-11-03, antes do pincel): no computador, dois cliques no boneco (mapa, lista, iniciativa) ou o botão *Ficha* abrem a ficha inteira numa janela grande; o painel *Selecionado* vira um cartão de combate (vida, CA e atributos, condições, espaços de magia, recursos). Jogador: só os próprios; mestre: qualquer um. Celular igual. Protótipo aprovado.
+- [x] Painel Dados: ataques e magias em campos com busca (no lugar dos botões); magia com *Acerto* (bônus de ataque mágico) rola o d20 como ataque; sem acerto, só o dano.
+- [x] CA opcional em tudo (personagem, mob, NPC, template); campo de dano do painel Dados limpo depois de rolar o dano (pedidos de 2026-11-03, depois do teste da semana).
 - [ ] Pincel de efeitos, só do mestre: pintar com qualquer efeito livremente pelo mapa, na aba Mapa. Área pintada é um formato de dado novo.
 - [x] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Desenho aprovado em 2026-11-03: [docs/design/baus.md](design/baus.md) (abre para todos, contagem para escolher, d20 automático na disputa, mestre dá a qualquer momento, armas viram itens que se empunham).
 

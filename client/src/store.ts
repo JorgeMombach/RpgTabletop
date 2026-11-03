@@ -100,6 +100,8 @@ interface AppStore extends DicePrefs {
   editingChestId: string | null;
   /** Baú com a janela de loot aberta nesta tela (abre sozinha quando alguém abre um baú). */
   lootChestId: string | null;
+  /** Ficha completa aberta no modal (duplo clique no token ou botão Ficha; só no computador). */
+  sheetId: string | null;
   /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
   logOut: boolean;
   /** O que o mestre está mostrando para a mesa (chega à parte, com a imagem) e qual deles esta pessoa já fechou. */
@@ -147,6 +149,7 @@ export const useApp = create<AppStore>(() => ({
   chestStyle: "wood",
   editingChestId: null,
   lootChestId: null,
+  sheetId: null,
   hoverId: null,
   logOut: false,
   handout: null,
@@ -189,6 +192,20 @@ export function setDicePrefs(patch: Partial<DicePrefs>) {
 
 export function select(id: string | null) {
   useApp.setState({ selectedId: id });
+}
+
+/**
+ * Ficha completa em modal: o mestre abre a de qualquer combatente; o jogador, só a dos próprios aliados
+ * (personagem, invocações, pets). Fora disso, o duplo clique só seleciona.
+ */
+export function canOpenSheet(state: ClientState, id: string): boolean {
+  if (state.self.role === "gm") return [...state.allies, ...state.battle.mobs, ...state.battle.npcs].some((c) => c.id === id);
+  return state.allies.some((a) => a.id === id && a.ownerId === state.self.id);
+}
+
+export function openSheet(id: string) {
+  const { state } = useApp.getState();
+  useApp.setState({ selectedId: id, ...(state && canOpenSheet(state, id) && { sheetId: id }) });
 }
 
 export function setTool(tool: MapTool) {

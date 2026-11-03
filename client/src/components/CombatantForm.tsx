@@ -143,7 +143,6 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
           />
           <NumberInput
             label={<Abbr title={t("form.acTitle")}>{t("form.ac")}</Abbr>}
-            required
             min={LIMITS.ac.min}
             max={LIMITS.ac.max}
             allowDecimal={false}

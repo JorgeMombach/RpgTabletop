@@ -205,7 +205,7 @@ export interface ActionPayloads {
   "slots:restore": { id: string };
   /** Vida cheia + slots recuperados (o jogador decide quando). */
   "ally:restoreAll": { id: string };
-  "spell:add": { id: string; name: string; level: number; note?: string; damage?: string };
+  "spell:add": { id: string; name: string; level: number; note?: string; bonus?: number | null; damage?: string };
   "spell:remove": { id: string; spellId: string };
   /** Recurso com usos: sem `resourceId` cria; com, edita. */
   "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge; rechargeOn?: number; damage?: string };

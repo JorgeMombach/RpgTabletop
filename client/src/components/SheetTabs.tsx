@@ -33,7 +33,8 @@ type Tab = "magic" | "resources" | "attacks" | "items";
  * Ficha pessoal em abas, no painel Selecionado: magia (aliados), recursos com descanso, ataques salvos
  * e inventário com moedas. Mob e NPC (só o mestre vê) têm recursos e ataques.
  */
-export function SheetTabs({ c, editable, gm }: { c: Combatant; editable: boolean; gm: boolean }) {
+/** Abas da ficha. `wide`: ficha completa no modal (magias agrupadas por círculo). */
+export function SheetTabs({ c, editable, gm, wide = false }: { c: Combatant; editable: boolean; gm: boolean; wide?: boolean }) {
   const t = useT();
   const ally = c.type === "ally";
   const tabs: { value: Tab; label: MessageKey }[] = [
@@ -55,7 +56,7 @@ export function SheetTabs({ c, editable, gm }: { c: Combatant; editable: boolean
         onChange={(v) => setTab(v as Tab)}
         aria-label={t("sheet.tabs")}
       />
-      {current === "magic" && <MagicSection c={c} editable={editable} />}
+      {current === "magic" && <MagicSection c={c} editable={editable} wide={wide} />}
       {current === "resources" && <ResourcesSection c={c} editable={editable} />}
       {current === "attacks" && <AttacksSection c={c} editable={editable} gm={gm} />}
       {current === "items" && <ItemsSection c={c} editable={editable} />}
@@ -64,6 +65,35 @@ export function SheetTabs({ c, editable, gm }: { c: Combatant; editable: boolean
 }
 
 /* ---------- recursos ---------- */
+
+/** Cartão de combate: só o contador de cada recurso (gastar e recuperar); o resto fica na ficha completa. */
+export function ResourceCounters({ c, editable }: { c: Combatant; editable: boolean }) {
+  const t = useT();
+  return (
+    <Stack gap={4}>
+      {(c.resources ?? []).map((r) => (
+        <Group key={r.id} gap="xs" wrap="nowrap">
+          <Text size="sm" truncate title={r.name} style={{ flex: 1, minWidth: 0 }}>
+            {r.name}
+          </Text>
+          {editable && (
+            <ActionIcon variant="default" onClick={() => act("resource:use", { id: c.id, resourceId: r.id, delta: 1 })} disabled={r.used >= r.max} aria-label={t("sheet.resources.use")}>
+              <IconMinus size={14} />
+            </ActionIcon>
+          )}
+          <Text fw={700} w={44} ta="center">
+            {r.max - r.used}/{r.max}
+          </Text>
+          {editable && (
+            <ActionIcon variant="default" onClick={() => act("resource:use", { id: c.id, resourceId: r.id, delta: -1 })} disabled={r.used === 0} aria-label={t("sheet.resources.recover")}>
+              <IconPlus size={14} />
+            </ActionIcon>
+          )}
+        </Group>
+      ))}
+    </Stack>
+  );
+}
 
 const RECHARGE_LABEL: Record<Recharge, MessageKey> = {
   short: "sheet.recharge.short",

@@ -8,7 +8,7 @@ import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area,
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
-import { AREA_DEFAULT_FEET, select, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
+import { AREA_DEFAULT_FEET, openSheet, select, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
 import { InitiativeTrack } from "./InitiativeTrack";
 import { TokenMenu, type MenuFocus } from "./TokenMenu";
@@ -882,6 +882,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 turnKey={state.battle.combat.turn}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
                 onSelect={() => select(c.id)}
+                onOpen={() => openSheet(c.id)}
                 onMenu={(x, y) => {
                   select(c.id);
                   setMenu({ id: c.id, x, y });

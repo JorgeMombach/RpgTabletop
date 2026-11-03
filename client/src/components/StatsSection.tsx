@@ -11,18 +11,17 @@ function d20(mod: number) {
   return mod === 0 ? "1d20" : `1d20${mod > 0 ? "+" : ""}${mod}`;
 }
 
-/** CA, primeira caixinha da linha de atributos. Sem CA (arquivo antigo): "—", pedindo para editar. */
+/** CA, primeira caixinha da linha de atributos (só quando tem: a CA é opcional, há sistemas sem ela). */
 function AcCell({ c }: { c: Combatant }) {
   const t = useT();
-  const has = c.ac !== undefined;
   return (
-    <Tooltip label={has ? t("stats.acTitle") : t("stats.noAcTitle")}>
+    <Tooltip label={t("stats.acTitle")}>
       <Stack gap={0} align="center" className="ability-cell ac-cell">
         <Text size="xs" c="bronze.4" fw={700}>
           {t("form.ac")}
         </Text>
         <Text fw={700} lh={1.1}>
-          {has ? c.ac : "—"}
+          {c.ac}
         </Text>
       </Stack>
     </Tooltip>
@@ -48,9 +47,10 @@ export function StatsSection({ c, canRoll, gm }: { c: Combatant; canRoll: boolea
     void act("dice:roll", { expr: d20(mod), check: k, ...(gm ? { asId: c.id, hidden: c.type !== "ally" || secret } : {}) });
   }
 
+  if (c.ac === undefined && filled.length === 0) return null;
   return (
     <SimpleGrid cols={7} spacing={4}>
-      <AcCell c={c} />
+      {c.ac !== undefined && <AcCell c={c} />}
       {filled.map((k) => {
         const score = c.abilities![k]!;
         const mod = fmtMod(abilityMod(score));

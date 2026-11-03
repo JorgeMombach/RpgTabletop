@@ -14,7 +14,7 @@ const { ctx } = useServer();
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 function fullGame(playerId: string, gmId: string): GameState {
-  const spell: Required<Spell> = { id: "s1", name: "Raio ardente", level: 2, note: "3 raios", damage: "2d6" };
+  const spell: Required<Spell> = { id: "s1", name: "Raio ardente", level: 2, note: "3 raios", bonus: 7, damage: "2d6" };
   // Aliado não pode ser oculto (só mobs e NPCs): `hidden` é conferido no mob abaixo.
   const thorin: Required<Omit<Combatant, "hidden">> = {
     id: "thorin",

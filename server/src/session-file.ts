@@ -161,6 +161,7 @@ function spell(raw: unknown): Spell {
   };
   const note = optText(s.note, "nota da magia", LIMITS.spellNote);
   if (note) out.note = note;
+  if (s.bonus !== undefined) out.bonus = int(s.bonus, "acerto da magia", -20, 40);
   const damage = optText(s.damage, "dano da magia", LIMITS.dice.exprLength);
   if (damage) out.damage = damage;
   return out;

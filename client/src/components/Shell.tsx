@@ -27,6 +27,7 @@ import { SoundSync } from "./SoundSync";
 import { SettingsButton } from "./Settings";
 import { JoinFightBanner } from "./JoinFightBanner";
 import { SelectedPanel } from "./SelectedPanel";
+import { SheetModal } from "./SheetModal";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
 export function TurnStatus({ state }: { state: ClientState }) {
@@ -62,6 +63,7 @@ export const Memo = {
   EffectsPanel: memo(EffectsPanel, samePanelProps),
   PlayersPanel: memo(PlayersPanel, samePanelProps),
   SelectedPanel: memo(SelectedPanel, samePanelProps),
+  SheetModal: memo(SheetModal, samePanelProps),
   DicePanel: memo(DicePanel, samePanelProps),
   JoinFightBanner: memo(JoinFightBanner, samePanelProps),
   TurnStatus: memo(TurnStatus, samePanelProps),
@@ -184,6 +186,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       <SoundSync sound={state.sound} />
       <AboutModal opened={about} onClose={() => setAbout(false)} />
       <HandoutModal />
+      <Memo.SheetModal state={state} />
     </div>
   );
 }

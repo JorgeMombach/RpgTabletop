@@ -1,12 +1,13 @@
 import { ActionIcon, Button, Divider, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
-import { LIMITS, SPELL_LEVELS, type Combatant, type SpellLevel, type SpellSlot } from "@rpg/shared";
+import { LIMITS, SPELL_LEVELS, type Combatant, type Spell, type SpellLevel, type SpellSlot } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { t as tr, useT } from "../i18n";
 import { DamageRollButton } from "./DamageRollButton";
 import { RestButton } from "./RestButton";
 import { Abbr } from "./Abbr";
+import { fmtMod } from "../format";
 
 /** "Truque", "1º", "2º"… no idioma de quem lê. */
 const ordinal = (l: number) => (l === 0 ? tr("magic.cantrip") : tr("magic.level", { n: l }));
@@ -23,8 +24,48 @@ function SectionTitle({ children, aside }: { children: ReactNode; aside?: ReactN
   );
 }
 
-/** Slots e magias de um aliado. O dono gerencia tudo livremente (SPEC F3). */
-export function MagicSection({ c, editable }: { c: Combatant; editable: boolean }) {
+/** Bolinhas dos espaços de magia (só os círculos que existem): clicar gasta ou recupera um. Também no cartão de combate. */
+export function SlotPips({ c, editable }: { c: Combatant; editable: boolean }) {
+  const t = useT();
+  const slot = (l: SpellLevel) => c.spellSlots?.[l] ?? EMPTY;
+  const levels = SPELL_LEVELS.filter((l) => slot(l).max > 0);
+  return (
+    <Stack gap={6}>
+      {levels.map((l) => {
+        const { max, used } = slot(l);
+        return (
+          <Group key={l} gap="sm" wrap="nowrap">
+            <Text size="xs" fw={600} c="dimmed" w={34}>
+              <Abbr title={t("magic.slotsOf", { level: ordinal(l) })}>{ordinal(l)}</Abbr>
+            </Text>
+            <Group gap={6} style={{ flex: 1 }}>
+              {Array.from({ length: max }, (_, i) => {
+                // Disponíveis primeiro, gastos depois: clicar gasta ou recupera um slot.
+                const spent = i >= max - used;
+                return (
+                  <UnstyledButton
+                    key={i}
+                    className={`pip ${spent ? "spent" : ""}`}
+                    disabled={!editable}
+                    title={editable ? (spent ? t("magic.restoreSlot") : t("magic.spendSlot")) : undefined}
+                    aria-label={t(spent ? "magic.slotSpent" : "magic.slotFree", { level: ordinal(l), n: i + 1 })}
+                    onClick={() => act("slot:set", { id: c.id, level: l, used: spent ? used - 1 : used + 1 })}
+                  />
+                );
+              })}
+            </Group>
+            <Text size="xs" c="dimmed">
+              {max - used}/{max}
+            </Text>
+          </Group>
+        );
+      })}
+    </Stack>
+  );
+}
+
+/** Slots e magias de um aliado. O dono gerencia tudo livremente (SPEC F3). `wide`: ficha completa, magias agrupadas por círculo. */
+export function MagicSection({ c, editable, wide = false }: { c: Combatant; editable: boolean; wide?: boolean }) {
   const t = useT();
   const [editingSlots, setEditingSlots] = useState(false);
   const slot = (l: SpellLevel) => c.spellSlots?.[l] ?? EMPTY;
@@ -68,37 +109,7 @@ export function MagicSection({ c, editable }: { c: Combatant; editable: boolean 
           {editable ? t("magic.noSlotsEdit") : t("magic.noSlots")}
         </Text>
       ) : (
-        <Stack gap={6}>
-          {levels.map((l) => {
-            const { max, used } = slot(l);
-            return (
-              <Group key={l} gap="sm" wrap="nowrap">
-                <Text size="xs" fw={600} c="dimmed" w={34}>
-                  <Abbr title={t("magic.slotsOf", { level: ordinal(l) })}>{ordinal(l)}</Abbr>
-                </Text>
-                <Group gap={6} style={{ flex: 1 }}>
-                  {Array.from({ length: max }, (_, i) => {
-                    // Disponíveis primeiro, gastos depois: clicar gasta ou recupera um slot.
-                    const spent = i >= max - used;
-                    return (
-                      <UnstyledButton
-                        key={i}
-                        className={`pip ${spent ? "spent" : ""}`}
-                        disabled={!editable}
-                        title={editable ? (spent ? t("magic.restoreSlot") : t("magic.spendSlot")) : undefined}
-                        aria-label={t(spent ? "magic.slotSpent" : "magic.slotFree", { level: ordinal(l), n: i + 1 })}
-                        onClick={() => act("slot:set", { id: c.id, level: l, used: spent ? used - 1 : used + 1 })}
-                      />
-                    );
-                  })}
-                </Group>
-                <Text size="xs" c="dimmed">
-                  {max - used}/{max}
-                </Text>
-              </Group>
-            );
-          })}
-        </Stack>
+        <SlotPips c={c} editable={editable} />
       )}
 
       {editable && (
@@ -110,27 +121,29 @@ export function MagicSection({ c, editable }: { c: Combatant; editable: boolean 
         </Group>
       )}
 
-      {c.spells !== undefined || editable ? <SpellList c={c} editable={editable} /> : null}
+      {c.spells !== undefined || editable ? <SpellList c={c} editable={editable} wide={wide} /> : null}
     </Stack>
   );
 }
 
-function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
+function SpellList({ c, editable, wide }: { c: Combatant; editable: boolean; wide: boolean }) {
   const t = useT();
   const [name, setName] = useState("");
   const [level, setLevel] = useState<string | null>("1");
   const [note, setNote] = useState("");
   const [damage, setDamage] = useState("");
+  const [bonus, setBonus] = useState<string | number>("");
   const [adding, setAdding] = useState(false);
   const spells = c.spells ?? [];
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    const res = await act("spell:add", { id: c.id, name, level: Number(level ?? 0), note: note || undefined, damage: damage.trim() || undefined });
+    const res = await act("spell:add", { id: c.id, name, level: Number(level ?? 0), note: note || undefined, bonus: bonus === "" ? undefined : Number(bonus), damage: damage.trim() || undefined });
     if (res.ok) {
       setName("");
       setNote("");
       setDamage("");
+      setBonus("");
     }
   }
 
@@ -181,6 +194,16 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
                 onChange={(e) => setNote(e.currentTarget.value)}
                 aria-label={t("magic.noteLabel")}
               />
+              <NumberInput
+                w={72}
+                placeholder={t("magic.bonus")}
+                allowDecimal={false}
+                min={-20}
+                max={40}
+                value={bonus}
+                onChange={setBonus}
+                aria-label={t("magic.bonusLabel")}
+              />
               <TextInput
                 w={92}
                 placeholder={t("magic.damage")}
@@ -206,31 +229,61 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
               {t("magic.none")}
             </Text>
           )
-        : spells.map((s) => (
-            <Group key={s.id} gap="sm" wrap="nowrap" align="flex-start">
-              <Text size="xs" fw={600} c="dimmed" w={44} pt={2}>
-                {s.level === 0 ? (
-                  <Abbr title={t("magic.cantripTip")}>{ordinal(0)}</Abbr>
-                ) : (
-                  <Abbr title={t("magic.spellOf", { level: ordinal(s.level) })}>{ordinal(s.level)}</Abbr>
-                )}
-              </Text>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <Text size="sm">{s.name}</Text>
-                {s.note && (
-                  <Text size="xs" c="dimmed">
-                    {s.note}
-                  </Text>
-                )}
-              </div>
-              {s.damage && <DamageRollButton c={c} name={s.name} expr={s.damage} disabled={!editable} />}
-              {editable && (
-                <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: s.name })} onClick={() => act("spell:remove", { id: c.id, spellId: s.id })}>
-                  <IconX size={14} />
-                </ActionIcon>
-              )}
-            </Group>
-          ))}
+        : wide
+          ? // Ficha completa: um bloco por círculo, em duas colunas.
+            <SimpleGrid cols={2} spacing="lg" verticalSpacing="sm">
+              {[...new Set(spells.map((s) => s.level))]
+                .sort((a, b) => a - b)
+                .map((l) => (
+                  <Stack key={l} gap={6}>
+                    <Text size="xs" fw={700} c="bronze.4">
+                      {l === 0 ? t("magic.cantrips") : t("magic.circle", { n: l })}
+                    </Text>
+                    {spells
+                      .filter((s) => s.level === l)
+                      .map((s) => (
+                        <SpellRow key={s.id} c={c} s={s} editable={editable} />
+                      ))}
+                  </Stack>
+                ))}
+            </SimpleGrid>
+          : spells.map((s) => <SpellRow key={s.id} c={c} s={s} editable={editable} showLevel />)}
     </Stack>
+  );
+}
+
+function SpellRow({ c, s, editable, showLevel = false }: { c: Combatant; s: Spell; editable: boolean; showLevel?: boolean }) {
+  const t = useT();
+  return (
+    <Group gap="sm" wrap="nowrap" align="flex-start">
+      {showLevel && (
+        <Text size="xs" fw={600} c="dimmed" w={44} pt={2}>
+          {s.level === 0 ? (
+            <Abbr title={t("magic.cantripTip")}>{ordinal(0)}</Abbr>
+          ) : (
+            <Abbr title={t("magic.spellOf", { level: ordinal(s.level) })}>{ordinal(s.level)}</Abbr>
+          )}
+        </Text>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Text size="sm">{s.name}</Text>
+        {s.note && (
+          <Text size="xs" c="dimmed">
+            {s.note}
+          </Text>
+        )}
+      </div>
+      {s.bonus !== undefined && (
+        <Text size="xs" c="dimmed" pt={2} style={{ flex: "none" }}>
+          <Abbr title={t("magic.bonusLabel")}>{fmtMod(s.bonus)}</Abbr>
+        </Text>
+      )}
+      {s.damage && <DamageRollButton c={c} name={s.name} expr={s.damage} disabled={!editable} />}
+      {editable && (
+        <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: s.name })} onClick={() => act("spell:remove", { id: c.id, spellId: s.id })}>
+          <IconX size={14} />
+        </ActionIcon>
+      )}
+    </Group>
   );
 }

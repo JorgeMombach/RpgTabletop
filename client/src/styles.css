@@ -2627,51 +2627,6 @@ button[data-disabled] > .ability-cell {
   vertical-align: middle;
 }
 
-/* Ataques salvos na aba Dados (L8): um botão por ataque, nome à esquerda e bônus · dano à direita. */
-.quick-attacks {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.quick-attack {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--mantine-color-dark-4);
-  border-radius: var(--mantine-radius-sm);
-  background: linear-gradient(rgb(255 240 210 / 0.04), transparent), var(--mantine-color-dark-5);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-  transition:
-    border-color 150ms,
-    transform 80ms;
-}
-
-.quick-attack:hover {
-  border-color: var(--mantine-color-bronze-6);
-}
-
-.quick-attack:active {
-  transform: translateY(1px);
-}
-
-.quick-attack[data-disabled] {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.quick-attack-icon {
-  flex: none;
-  color: var(--mantine-color-bronze-4);
-}
-
-.reduce-fx .quick-attack {
-  transition: none;
-}
-
 /* Iniciativa com os dados ainda rolando: o dado gira no lugar do número (M). */
 .init-held {
   color: var(--mantine-color-bronze-4);
@@ -2819,4 +2774,18 @@ button[data-disabled] > .ability-cell {
 
 .loot-d20.win i {
   background: #8a2a2f;
+}
+
+/* ---------- Ficha completa (modal; duplo clique no token) ---------- */
+.sheet-window {
+  background: radial-gradient(ellipse at 20% 0%, #2e2836, var(--mantine-color-dark-6) 60%);
+  border: 1px solid #6e5331;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.6), inset 0 0 0 2px var(--mantine-color-dark-6), inset 0 0 0 3px rgb(216 180 122 / 0.3);
+}
+
+.sheet-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--mantine-spacing-xl);
+  align-items: start;
 }
