@@ -36,10 +36,18 @@ type EndReason = "concentration" | "duration";
  * Efeito acabou: volta ao estado de antes de "Transformar" (se pediram) ou sai do mapa. Avisa no log
  * (cada combinação é um modelo inteiro, para traduzir a frase toda).
  */
+/**
+ * Nome do efeito para o log: o próprio, ou o do tipo ("Fogo"). Sem nome próprio, o efeito guarda "" e cada tela
+ * mostra o tipo no idioma dela; no log vai o nome em português, que o cliente traduz (`SERVER_TEXT`).
+ */
+function effectLabel(e: Pick<EffectState, "name" | "preset">): string {
+  return e.name || EFFECT_PRESETS[e.preset].label;
+}
+
 function finish(store: Store, e: MapEffect, caster: string | undefined, reason: EndReason) {
   const before = e.revertTo;
   const base = (caster ? "{effect} de {caster} acabou" : "{effect} acabou") + (reason === "concentration" ? " (concentração perdida)" : "");
-  const params = { effect: e.name, ...(caster && { caster }) };
+  const params = { effect: effectLabel(e), ...(caster && { caster }) };
   if (!before) {
     store.game.battle.effects = store.game.battle.effects.filter((x) => x !== e);
     logSystem(store, `${base}.`, params);
@@ -47,7 +55,7 @@ function finish(store: Store, e: MapEffect, caster: string | undefined, reason: 
   }
   delete e.revertTo;
   Object.assign(e, before);
-  logSystem(store, `${base}; voltou a ser {before}.`, { ...params, before: before.name });
+  logSystem(store, `${base}; voltou a ser {before}.`, { ...params, before: effectLabel(before) });
 }
 
 /** Concentração: o conjurador ganha a condição (o vínculo só funciona se ela existir). */
@@ -117,6 +125,22 @@ export function tickRoundEffects(store: Store) {
   tick(store, (e) => e.casterId === null);
 }
 
+/** Casas de uma pincelada: pares inteiros dentro do mapa, sem passar do limite. */
+function paintCells(raw: unknown): [number, number][] {
+  const lim = LIMITS.gridCoord;
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length % 2 !== 0) fail("Casas inválidas.");
+  if (raw.length > LIMITS.paintNumbers) fail("Limite de {n} casas numa pintura.", { n: LIMITS.paintCells });
+  if (!raw.every((n) => Number.isInteger(n) && Math.abs(n as number) <= lim)) fail("Casas inválidas.");
+  return pairs(raw as number[]);
+}
+
+const pairs = (flatCells: number[]): [number, number][] => {
+  const out: [number, number][] = [];
+  for (let i = 0; i + 1 < flatCells.length; i += 2) out.push([flatCells[i], flatCells[i + 1]]);
+  return out;
+};
+const flat = (list: [number, number][]) => list.flat();
+
 type EffectFields = Pick<MapEffect, "name" | "preset" | "color" | "casterId" | "rounds" | "concentration">;
 
 /** Tipo, nome, cor, conjurador, duração e concentração (criar e transformar validam igual). */
@@ -138,7 +162,8 @@ function effectFields(store: Store, player: ServerPlayer, payload: Partial<Recor
   const concentration = payload.concentration === true;
   if (concentration && !casterId) fail("Efeito de concentração precisa de um conjurador.");
   return {
-    name: name || EFFECT_PRESETS[preset].label,
+    // Vazio = sem nome próprio (cada tela mostra o tipo no idioma dela).
+    name,
     preset,
     color: isColor(payload.color) ? payload.color : EFFECT_PRESETS[preset].color,
     casterId,
@@ -179,6 +204,53 @@ export const effectHandlers: HandlerMap = {
     return [effect.id];
   },
 
+  "effect:paint": (store, player, payload) => {
+    if (player.role !== "gm") fail("Só o mestre pinta efeitos.");
+    const cells = paintCells(payload?.cells);
+    const { battle } = store.game;
+    const preset = payload.preset === undefined && payload.erase === true ? undefined : effectFields(store, player, { preset: payload.preset }).preset;
+    const color = preset && (isColor(payload.color) ? payload.color : EFFECT_PRESETS[preset].color);
+    const same = (e: MapEffect) => !!e.cells && e.preset === preset && e.color === color;
+
+    if (payload.erase === true) {
+      const out = new Set(cells.map(([c, r]) => `${c},${r}`));
+      for (const e of battle.effects) {
+        if (!e.cells || (preset && !same(e))) continue;
+        e.cells = flat(pairs(e.cells).filter(([c, r]) => !out.has(`${c},${r}`)));
+      }
+      battle.effects = battle.effects.filter((e) => !e.cells || e.cells.length > 0);
+      return [];
+    }
+
+    const target = battle.effects.find((e) => same(e) && e.active);
+    const have = new Set(target ? pairs(target.cells!).map(([c, r]) => `${c},${r}`) : []);
+    const merged = target ? pairs(target.cells!) : [];
+    for (const [c, r] of cells) {
+      const k = `${c},${r}`;
+      if (have.has(k)) continue;
+      have.add(k);
+      merged.push([c, r]);
+    }
+    if (merged.length > LIMITS.paintCells) fail("Limite de {n} casas numa pintura.", { n: LIMITS.paintCells });
+    if (target) {
+      target.cells = flat(merged);
+      return [target.id];
+    }
+    if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
+    const fields = effectFields(store, player, { preset, color });
+    const [c0, r0] = merged[0];
+    const effect: MapEffect = {
+      id: randomUUID(),
+      ...fields,
+      area: { kind: "cube", origin: { col: c0 + 0.5, row: r0 + 0.5 }, angle: 0, feet: store.game.battle.map.feetPerCell },
+      ownerId: player.id,
+      active: true,
+      cells: flat(merged),
+    };
+    battle.effects.push(effect);
+    return [effect.id];
+  },
+
   "effect:transform": (store, player, payload) => {
     const id = requireString(payload?.id, "Efeito");
     const e = store.game.battle.effects.find((x) => x.id === id) ?? fail("Efeito não encontrado.");
@@ -203,7 +275,7 @@ export const effectHandlers: HandlerMap = {
       delete e.revertTo;
     }
     Object.assign(e, fields, { ownerId: player.id });
-    logSystem(store, "{who} transformou {from} em {to}.", { who: whoIs(store, player), from: before.name, to: e.name });
+    logSystem(store, "{who} transformou {from} em {to}.", { who: whoIs(store, player), from: effectLabel(before), to: effectLabel(e) });
     const caster = fields.casterId ? byId(store, fields.casterId) : undefined;
     if (fields.concentration && caster) ensureConcentration(caster);
   },
@@ -221,6 +293,7 @@ export const effectHandlers: HandlerMap = {
       delete e.followId;
       return;
     }
+    if (e.cells) fail("Efeito pintado não anda com token.");
     if (!e.casterId || !byId(store, e.casterId)) fail("Para o efeito andar junto, ele precisa de quem conjurou.");
     e.followId = e.casterId;
   },

@@ -82,6 +82,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     active: false,
     revertTo: { name: "Graxa", preset: "grease", color: "#3b3a2a", ownerId: playerId, casterId: "lia", rounds: null, concentration: false },
     followId: "thorin",
+    cells: [1, 1, 2, 1],
   };
   const roll: Required<LogEntry> = {
     id: "l1",

@@ -124,7 +124,7 @@ Decisões e novidades:
 - [x] Coluna da esquerda empurrando o mapa.
 - [ ] Engasgo ao mover token: os painéis ainda redesenham (ficou para depois).
 
-## Plano depois da 2.11.0 (aprovado em 2026-11-02, revisto em 2026-11-03)
+## Plano depois da 2.11.0 (aprovado em 2026-11-02, revisto em 2026-11-03; fases 0, 2, 3, 5 e 6 saíram na 2.12.0)
 Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na branch `fix/correcoes-rolagem-efeitos`, como foi com a 2.10 e a 2.11. Primeiro o que mexe na jogatina; ordem por importância (2026-11-03): 0, 2, 3, 5, 6 e depois a 4; **hospedagem e instalador ficam por último**, talvez numa subida à parte. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
 
 ### Fase 0. Correções
@@ -153,7 +153,7 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Ficha completa em modal (pedido em 2026-11-03, antes do pincel): no computador, dois cliques no boneco (mapa, lista, iniciativa) ou o botão *Ficha* abrem a ficha inteira numa janela grande; o painel *Selecionado* vira um cartão de combate (vida, CA e atributos, condições, espaços de magia, recursos). Jogador: só os próprios; mestre: qualquer um. Celular igual. Protótipo aprovado.
 - [x] Painel Dados: ataques e magias em campos com busca (no lugar dos botões); magia com *Acerto* (bônus de ataque mágico) rola o d20 como ataque; sem acerto, só o dano.
 - [x] CA opcional em tudo (personagem, mob, NPC, template); campo de dano do painel Dados limpo depois de rolar o dano (pedidos de 2026-11-03, depois do teste da semana).
-- [ ] Pincel de efeitos, só do mestre: pintar com qualquer efeito livremente pelo mapa, na aba Mapa. Área pintada é um formato de dado novo.
+- [x] Pincel de efeitos, só do mestre (ferramenta *Pincel*, E): pinta casa a casa (1, 3×3, 5×5), apagar e desfazer; o mesmo tipo vira um efeito só (`MapEffect.cells`), que liga, transforma e remove. Protótipo aprovado em 2026-11-03.
 - [x] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Desenho aprovado em 2026-11-03: [docs/design/baus.md](design/baus.md) (abre para todos, contagem para escolher, d20 automático na disputa, mestre dá a qualquer momento, armas viram itens que se empunham).
 
 ### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)

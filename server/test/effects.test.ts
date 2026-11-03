@@ -164,6 +164,19 @@ describe("transformar efeito (E24)", () => {
     assert.match(errorOf(await act(ana, "effect:transform", { id: graxa, preset: "steam", casterId: lia })), /seu personagem/);
   });
 
+  it("sem nome próprio, o efeito guarda o nome vazio (cada tela mostra o tipo no idioma dela); o log usa o nome do tipo", async () => {
+    const { g, bia, lia } = await setup();
+    const [id] = idsOf(await act(g, "effect:add", { name: "", preset: "grease", area: AREA }));
+    assert.equal(fx(id).name, "");
+    assert.ok((await act(bia, "effect:transform", { id, preset: "fire", casterId: lia })).ok);
+    assert.equal(fx(id).name, "", "transformar sem nome também fica sem nome");
+    const line = game().log.find((l) => l.system && l.textKey === "{who} transformou {from} em {to}.");
+    assert.deepEqual(line?.textParams, { who: "Lia (Bia)", from: "Graxa", to: "Fogo" });
+    // Nome próprio continua como foi escrito.
+    const [lago] = idsOf(await act(g, "effect:add", { name: "Lago do vale", preset: "water", area: AREA }));
+    assert.equal(fx(lago).name, "Lago do vale");
+  });
+
   it("volta a ser o anterior quando a duração acaba (Água → Eletrificado por 1 round → Água)", async () => {
     const { g, bia, lia, thorin } = await setup();
     const [lago] = idsOf(await act(g, "effect:add", { name: "Lago", preset: "water", area: AREA }));

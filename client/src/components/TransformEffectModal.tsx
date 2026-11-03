@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { EffectFormFields, EffectSwatch, PRESETS, useEffectForm } from "./FixEffectModal";
 import { useT } from "../i18n";
+import { effectLabel } from "../labels";
 
 /**
  * Mudança de estado de um efeito (E24): mesma área, outro tipo (Graxa → Fogo, Água → Eletrificado…).
@@ -18,7 +19,7 @@ export function TransformEffectModal({ state, effect, onClose }: { state: Client
   const { rounds, concentration, hasCaster } = form.fields;
   const temporary = rounds !== "" || (concentration && hasCaster);
   // Já é um estado temporário: "voltar" leva ao original, não a este.
-  const backTo = effect.revertTo?.name ?? effect.name;
+  const backTo = effectLabel(effect.revertTo ? { ...effect.revertTo, cells: effect.cells } : effect);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -32,7 +33,7 @@ export function TransformEffectModal({ state, effect, onClose }: { state: Client
         <Group gap="xs" wrap="nowrap">
           <EffectSwatch preset={effect.preset} color={effect.color} size={24} />
           <Text size="sm">
-            <strong>{effect.name}</strong> {t("effects.transformText")}
+            <strong>{effectLabel(effect)}</strong> {t("effects.transformText")}
           </Text>
         </Group>
         <EffectFormFields form={form} suggested={suggested} />

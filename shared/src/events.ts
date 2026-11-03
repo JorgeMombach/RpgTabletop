@@ -262,6 +262,11 @@ export interface ActionPayloads {
     revert?: boolean;
   };
   "effect:toggle": { id: string; active: boolean };
+  /**
+   * Mestre: pincel de efeitos. Pintar junta as casas na pintura ligada do mesmo tipo (e cor), ou cria uma.
+   * `erase`: tira as casas das pinturas (só das do tipo, se vier `preset`); a que ficar sem casas some. Casas achatadas: col0, row0, col1, row1…
+   */
+  "effect:paint": { cells: number[]; preset?: EffectPreset; color?: string; erase?: boolean };
   /** Mestre: toca em loop num canal (troca o que estava tocando). */
   "sound:play": { channel: SoundChannel; source: SoundSource };
   "sound:stop": { channel: SoundChannel };
@@ -500,6 +505,9 @@ export const LIMITS = {
   /** Tochas fixas no mapa, por cena. */
   mapTorches: 60,
   chests: 40,
+  /** Casas de uma pintura (pincel de efeitos) e números (col e row) por pincelada. */
+  paintCells: 5000,
+  paintNumbers: 10_000,
   /** Coisas diferentes num baú. */
   loot: 20,
   chestName: 40,

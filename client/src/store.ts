@@ -3,12 +3,12 @@ import { useMemo } from "react";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type MapTorchStyle, type Role, type Ruler } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type Role, type Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -100,6 +100,11 @@ interface AppStore extends DicePrefs {
   editingChestId: string | null;
   /** Baú com a janela de loot aberta nesta tela (abre sozinha quando alguém abre um baú). */
   lootChestId: string | null;
+  /** Ferramenta Pincel (mestre): tipo e cor do efeito, apagar em vez de pintar, lado do pincel em casas. */
+  paintPreset: EffectPreset;
+  paintColor: string;
+  paintErase: boolean;
+  paintSize: number;
   /** Ficha completa aberta no modal (duplo clique no token ou botão Ficha; só no computador). */
   sheetId: string | null;
   /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
@@ -149,6 +154,10 @@ export const useApp = create<AppStore>(() => ({
   chestStyle: "wood",
   editingChestId: null,
   lootChestId: null,
+  paintPreset: "fire",
+  paintColor: "#d4a24c",
+  paintErase: false,
+  paintSize: 3,
   sheetId: null,
   hoverId: null,
   logOut: false,

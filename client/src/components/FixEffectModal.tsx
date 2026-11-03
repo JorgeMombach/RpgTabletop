@@ -10,7 +10,7 @@ import { effectPreview } from "../map/effectTextures";
 export const PRESETS = Object.keys(EFFECT_PRESETS) as EffectPreset[];
 const NO_CASTER = "__ambiente";
 
-function Swatch({ preset, color, size = 20 }: { preset: EffectPreset; color: string; size?: number }) {
+export function Swatch({ preset, color, size = 20 }: { preset: EffectPreset; color: string; size?: number }) {
   return <Image src={effectPreview(preset, color)} w={size} h={size} radius="sm" style={{ border: `1px solid ${color}`, flex: "none" }} alt="" />;
 }
 
@@ -34,7 +34,8 @@ export function useEffectForm(state: ClientState, initialPreset: EffectPreset) {
     fields: { preset, setPreset, name, setName, color, setColor, casterId, setCasterId, rounds, setRounds, concentration, setConcentration, follow, setFollow, hasCaster },
     /** Valores para enviar ao servidor. */
     values: () => ({
-      name: name.trim() || presetLabel(preset),
+      // Sem nome próprio vai vazio: cada tela mostra o tipo no idioma dela.
+      name: name.trim(),
       preset,
       color: preset === "custom" ? color : undefined,
       casterId: hasCaster ? casterId : null,

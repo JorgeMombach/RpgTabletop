@@ -1,4 +1,4 @@
-import type { EffectPreset, GenAmbientId, GenSfxId, LightId, WeatherId } from "@rpg/shared";
+import { EFFECT_PRESETS, type EffectPreset, type GenAmbientId, type GenSfxId, type LightId, type WeatherId } from "@rpg/shared";
 import { t, type MessageKey } from "./i18n";
 
 /**
@@ -6,6 +6,15 @@ import { t, type MessageKey } from "./i18n";
  * Os rótulos em português de `@rpg/shared` continuam valendo para o servidor e o arquivo de sessão.
  */
 export const presetLabel = (p: EffectPreset) => t(`preset.${p}` as MessageKey);
+/**
+ * Nome de um efeito no idioma de quem vê: o nome próprio, se tiver; senão o do tipo ("Fogo", e "Fogo (pintado)"
+ * na pintura do pincel). Efeitos de antes, gravados com o nome do tipo em português, contam como sem nome.
+ */
+export function effectLabel(e: { name: string; preset: EffectPreset; cells?: number[] }): string {
+  const pt = EFFECT_PRESETS[e.preset].label;
+  if (e.name && e.name !== pt && e.name !== `${pt} (pintado)`) return e.name;
+  return e.cells ? t("paint.name", { effect: presetLabel(e.preset) }) : presetLabel(e.preset);
+}
 export const weatherLabel = (w: WeatherId) => t(`weather.${w}` as MessageKey);
 export const lightLabel = (l: LightId) => t(`light.${l}` as MessageKey);
 export const soundLabel = (id: GenAmbientId | GenSfxId) => t(`sound.${id}` as MessageKey);

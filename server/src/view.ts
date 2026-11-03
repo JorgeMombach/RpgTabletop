@@ -34,6 +34,13 @@ function forPlayers(list: Combatant[]): CombatantView[] {
  * continua indo (não está em lugar nenhum); aliados sempre vão. A imagem do mapa vai inteira (a névoa
  * é desenhada por cima), mas inimigos, efeitos, desenhos e paredes cobertos nem chegam.
  */
+/** Casas de uma pintura (achatadas: col0, row0…) como posições. */
+function paintedCells(flat: number[]): GridPos[] {
+  const out: GridPos[] = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) out.push({ col: flat[i], row: flat[i + 1] });
+  return out;
+}
+
 function inSight(fog: FogState, sight: Record<string, number[]>) {
   // Agora: revelado pelo mestre ou na visão dos aliados. Alguma vez: também o explorado (com a visão ligada).
   const now = (c: GridPos) => isRevealed(fog, c.col, c.row) || inRows(sight, c.col, c.row);
@@ -50,7 +57,8 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
   // Inimigos só aparecem onde se vê agora; o resto do mapa (efeitos, desenhos, paredes) também no explorado.
   return {
     combatant: cells,
-    effect: (e: MapEffect) => anyEver(cellsAroundPoint(e.area.origin.col, e.area.origin.row)),
+    // Pintura: aparece se alguma casa pintada já foi vista.
+    effect: (e: MapEffect) => anyEver(e.cells ? paintedCells(e.cells) : cellsAroundPoint(e.area.origin.col, e.area.origin.row)),
     drawing: (d: Drawing, grid: MapConfig) => {
       const pts: GridPos[] = [];
       for (let i = 0; i + 1 < d.points.length; i += 2) {

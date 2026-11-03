@@ -6,6 +6,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.12.0] - 2026-11-03
+
 ### Adicionado
 - **Regra da mesa *Efeitos só na sua vez*:** ligada pelo mestre, em combate o jogador só fixa ou transforma efeitos de mapa na vez dele. Desligada, continua livre, como as outras regras.
 - **Cor do grid por cena:** no painel *Mapa*, abaixo de *Mostrar grid*, o mestre escolhe a cor das linhas (preto, branco, pergaminho, bronze… ou qualquer outra). Ajuda em mapa muito escuro ou muito claro. Vai no arquivo de sessão.
@@ -19,6 +21,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Levar o grupo ao abrir uma cena:** marcando a opção no painel *Cenas*, depois de abrir a cena o mestre clica no mapa e todos os personagens (e invocados) chegam juntos em volta do ponto.
 - **Armas no inventário:** na aba *Itens*, um item com bônus de ataque e/ou dano é uma arma ("Machado de batalha +5 · 1d8+3"), com o botão *Empunhar*: empunhada, aparece em *Ataques* e nos ataques rápidos do painel *Dados*; guardada, continua só no inventário. Os itens agora também se editam (lápis).
 - **Baús no mapa:** a ferramenta *Baús* (tecla J, só do mestre) põe baús nas casas, em três desenhos (arca de madeira, baú de ferro, arca ornamentada). Cada baú tem nome, pode ficar *Trancado* (cadeado à vista) ou *Invisível* (só o mestre vê) e guarda o loot: moedas, itens e armas. Arrastar muda de casa; clicar abre o editor; Ctrl+Z desfaz. Os jogadores não veem o que tem dentro, nem o baú coberto pela névoa. Vai no arquivo de sessão e fica em cada cena.
+- **Pincel de efeitos (mestre):** a ferramenta *Pincel* (tecla E) pinta qualquer efeito pelo mapa, casa a casa (fogo, graxa, gelo, teia, uma cor…), com pincel de 1, 3×3 ou 5×5, *Apagar* e *Desfazer* (Ctrl+Z). A borda sai esfumaçada e animada, como nos outros efeitos. O mesmo tipo vira um efeito só em *Efeitos no mapa* ("Fogo (pintado)"), onde se liga, desliga, transforma (a graxa pintada pega fogo inteira) e remove. Fica até o mestre tirar; a névoa esconde dos jogadores a parte coberta. Vai no arquivo de sessão e fica em cada cena.
 - **Abrir baús e dividir o loot:** clicar num baú (com *Mover*) abre ele na tela de todos ao mesmo tempo. Começa uma contagem (o mestre escolhe os segundos em *Configurações → Mesa*; 0 = sem contagem) em que ninguém leva nada: cada um marca *Quero* no que quer. No fim, quem quis sozinho leva; quando mais de um quer a mesma coisa, o sistema rola d20 de cada um e mostra o resultado (pilhas são distribuídas uma a uma pela ordem do d20; moedas divididas igual, a sobra para o maior). O que ninguém quis fica com *Pegar*. O mestre pode *Dar para…* qualquer coisa a qualquer momento e *Encerrar contagem*. Tudo vai para a ficha (moedas, aba Itens; armas chegam como itens que se empunham) e para o log. Baú trancado só o mestre abre.
 
 ### Alterado
@@ -29,6 +32,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Ataques e magias no painel *Dados* com busca:** os botões de ataque viraram um campo *Ataques de…* em que se escolhe (ou digita parte do nome e Enter); embaixo, o campo novo *Magias de…*, com as magias que têm o que rolar. Escolher rola o d20 com o bônus e deixa o dano pronto. A magia ganhou o campo **Acerto** (bônus de ataque mágico, +7): com ele, rola como um ataque; sem ele (Bola de fogo, que é resistência do alvo), escolher só põe o dano no campo. Sem ataques ou magias com dano, o campo não aparece. Vai no arquivo de sessão.
 - **CA opcional:** personagem, mob, NPC e template podem ser criados sem CA (há sistemas que não usam). Sem CA, a ficha simplesmente não mostra a caixinha.
 - **Campo de dano limpo depois de rolar:** no painel *Dados*, rolado o dano, o campo volta vazio (com o exemplo), em vez de guardar o último dano para o próximo ataque.
+- **Efeitos no mapa sem texto escrito, no idioma de quem vê:** o nome do efeito saiu do mapa e aparece ao passar o mouse (no celular, tocando nele), num rótulo de pergaminho com duração, concentração e quem conjurou. Efeito sem nome próprio mostra o tipo no idioma de cada um ("Eletrificado (pintado)" vira "Electrified (painted)" em inglês), inclusive no painel *Efeitos no mapa* e nos avisos do log; nome digitado continua como foi escrito.
 - **Topo mais limpo:** os botões de idioma e de volume saíram do topo; os dois estão em *Configurações* (a engrenagem). Na tela de entrada, o idioma continua.
 - **Mesa de couro por padrão:** em volta do mapa, jogo novo começa com o tapete de couro da tela de entrada (antes, madeira). Sessões salvas abrem como estavam, e a madeira continua no painel *Mapa*.
 
@@ -349,7 +353,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.1...v2.9.0

@@ -370,6 +370,15 @@ export function effectTexture(preset: EffectPreset, color: string): HTMLCanvasEl
 }
 
 /** Miniatura para listas e para o seletor de efeito. */
+const previews = new Map<string, string>();
+
+/** Amostra do efeito como imagem (lista de tipos): gerada uma vez por tipo e cor. */
 export function effectPreview(preset: EffectPreset, color: string): string {
-  return effectTexture(preset, color).toDataURL();
+  const key = `${preset}|${color}`;
+  let url = previews.get(key);
+  if (!url) {
+    url = effectTexture(preset, color).toDataURL();
+    previews.set(key, url);
+  }
+  return url;
 }

@@ -339,6 +339,12 @@ function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
   if (e.followId !== undefined && combatantIds.has(requireString(e.followId, "Efeito"))) out.followId = e.followId as string;
   // Estado de antes de "Transformar" (E24); arquivos da 2.x anteriores não têm.
   if (e.revertTo !== undefined) out.revertTo = effectState(obj(e.revertTo, "efeito"), combatantIds);
+  // Pintura do pincel (2.12): pares de casas inteiras.
+  if (e.cells !== undefined) {
+    const cells = list(e.cells, "casas da pintura", LIMITS.paintNumbers);
+    if (cells.length === 0 || cells.length % 2 !== 0 || !cells.every((n) => Number.isInteger(n) && Math.abs(n as number) <= LIMITS.gridCoord)) fail("Arquivo inválido: casas da pintura.");
+    out.cells = cells as number[];
+  }
   return out;
 }
 
@@ -349,7 +355,8 @@ function effectState(e: Obj, combatantIds: Set<string>): EffectState {
   if (casterId && !combatantIds.has(casterId)) fail("Arquivo inválido: conjurador de efeito não existe.");
   const { min, max } = LIMITS.conditionRounds;
   return {
-    name: text(e.name, "efeito", LIMITS.effectName) || fail("Arquivo inválido: efeito sem nome."),
+    // Vazio = sem nome próprio (a tela mostra o tipo).
+    name: text(e.name, "efeito", LIMITS.effectName),
     preset: e.preset as EffectPreset,
     color: isColor(e.color) ? e.color : fail("Arquivo inválido: cor do efeito."),
     ownerId: requireString(e.ownerId, "Dono do efeito"),

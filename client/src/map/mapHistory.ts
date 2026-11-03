@@ -1,4 +1,4 @@
-import type { ActionResult, ChestStyle, Drawing, GridPos, LootEntry, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
+import type { ActionResult, ChestStyle, Drawing, EffectPreset, GridPos, LootEntry, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -10,7 +10,7 @@ import { useApp } from "../store";
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches" | "chests";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
@@ -23,13 +23,22 @@ type Step =
   | { scope: "torches"; kind: "erased"; removed: MapTorch[] }
   | { scope: "chests"; kind: "added"; id: string }
   | { scope: "chests"; kind: "moved"; id: string; col: number; row: number }
-  | { scope: "chests"; kind: "removed"; chest: MapChest };
+  | { scope: "chests"; kind: "removed"; chest: MapChest }
+  | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
+  | { scope: "paint"; kind: "erased"; groups: PaintGroup[] };
+
+/** Casas tiradas de uma pintura (para pôr de volta no desfazer). */
+interface PaintGroup {
+  preset: EffectPreset;
+  color: string;
+  cells: number[];
+}
 
 const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0 }));
 
 function sync() {
   useMapUndo.setState({
@@ -37,6 +46,7 @@ function sync() {
     drawings: steps.filter((s) => s.scope === "drawings").length,
     torches: steps.filter((s) => s.scope === "torches").length,
     chests: steps.filter((s) => s.scope === "chests").length,
+    paint: steps.filter((s) => s.scope === "paint").length,
   });
 }
 
@@ -186,6 +196,40 @@ async function restoreChest(c: MapChest) {
   await act("chest:update", { id, name: c.name, style: c.style, locked: !!c.locked, hidden: !!c.hidden, loot: c.loot.map(lootInput) });
 }
 
+// ---------- Pincel de efeitos ----------
+
+const key = (c: number, r: number) => `${c},${r}`;
+function cellKeys(flat: number[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) out.push(key(flat[i], flat[i + 1]));
+  return out;
+}
+const unkey = (keys: string[]) => keys.flatMap((k) => k.split(",").map(Number));
+
+/** Pinta casas (junta na pintura ligada do mesmo tipo e cor). Desfazer tira só as casas que eram novas. */
+export async function paintCells(preset: EffectPreset, color: string, cells: number[], custom: boolean): Promise<ActionResult> {
+  const before = useApp.getState().state?.battle.effects.find((e) => e.cells && e.active && e.preset === preset && e.color === color);
+  const had = new Set(before ? cellKeys(before.cells!) : []);
+  const fresh = cellKeys(cells).filter((k) => !had.has(k));
+  const res = await act("effect:paint", { preset, cells, ...(custom && { color }) });
+  if (res.ok && fresh.length > 0) push({ scope: "paint", kind: "painted", preset, color, cells: unkey(fresh) });
+  return res;
+}
+
+/** Apaga casas de todas as pinturas. Desfazer pinta de volta, cada uma no seu tipo. */
+export async function erasePaint(cells: number[]): Promise<ActionResult> {
+  const out = new Set(cellKeys(cells));
+  const groups: PaintGroup[] = [];
+  for (const e of useApp.getState().state?.battle.effects ?? []) {
+    if (!e.cells) continue;
+    const hit = cellKeys(e.cells).filter((k) => out.has(k));
+    if (hit.length > 0) groups.push({ preset: e.preset, color: e.color, cells: unkey(hit) });
+  }
+  const res = await act("effect:paint", { erase: true, cells });
+  if (res.ok && groups.length > 0) push({ scope: "paint", kind: "erased", groups });
+  return res;
+}
+
 // ---------- Desfazer ----------
 
 /** Desfaz o último passo da ferramenta (ou o último de qualquer uma, sem `scope`). */
@@ -215,6 +259,9 @@ export async function undo(scope?: UndoScope) {
       for (const id of step.added) if (has(battle?.drawings, id)) await act("draw:remove", { id });
       for (const d of step.removed) await restoreDrawing(d);
     }
+  } else if (step.scope === "paint") {
+    if (step.kind === "painted") await act("effect:paint", { erase: true, preset: step.preset, color: step.color, cells: step.cells });
+    else for (const g of step.groups) await act("effect:paint", { preset: g.preset, color: g.color, cells: g.cells });
   } else if (step.scope === "chests") {
     if (step.kind === "added") {
       if (has(battle?.chests, step.id)) await act("chest:remove", { id: step.id });

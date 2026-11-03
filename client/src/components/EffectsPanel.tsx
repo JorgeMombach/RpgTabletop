@@ -6,6 +6,7 @@ import { act } from "../actions";
 import { allCombatants, turnLocked } from "../format";
 import { useT } from "../i18n";
 import { EffectSwatch } from "./FixEffectModal";
+import { effectLabel } from "../labels";
 import { Panel } from "./Panel";
 import { TransformEffectModal } from "./TransformEffectModal";
 
@@ -46,8 +47,8 @@ export function EffectsPanel({ state }: { state: ClientState }) {
               <Group key={e.id} gap="xs" wrap="nowrap" style={{ opacity: e.active ? 1 : 0.55 }}>
                 <EffectSwatch preset={e.preset} color={e.color} size={24} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <Text size="sm" truncate title={e.name}>
-                    {e.name}
+                  <Text size="sm" truncate title={effectLabel(e)}>
+                    {effectLabel(e)}
                   </Text>
                   <Text size="xs" c="dimmed" truncate title={detail}>
                     {detail}
@@ -58,7 +59,7 @@ export function EffectsPanel({ state }: { state: ClientState }) {
                   <Tooltip label={effectLocked ? t("rules.effectLocked") : t("effects.transformTip")}>
                     <ActionIcon
                       size="sm"
-                      aria-label={t("effects.transformOf", { name: e.name })}
+                      aria-label={t("effects.transformOf", { name: effectLabel(e) })}
                       data-disabled={effectLocked || undefined}
                       onClick={() => !effectLocked && setTransforming(e)}
                     >
@@ -86,13 +87,13 @@ export function EffectsPanel({ state }: { state: ClientState }) {
                       size="xs"
                       checked={e.active}
                       onChange={(ev) => void act("effect:toggle", { id: e.id, active: ev.currentTarget.checked })}
-                      aria-label={t(e.active ? "effects.disableOf" : "effects.enableOf", { name: e.name })}
+                      aria-label={t(e.active ? "effects.disableOf" : "effects.enableOf", { name: effectLabel(e) })}
                     />
                   </Tooltip>
                 )}
                 {canEdit && (
                   <Tooltip label={t("effects.remove")}>
-                    <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: e.name })} onClick={() => act("effect:remove", { id: e.id })}>
+                    <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: effectLabel(e) })} onClick={() => act("effect:remove", { id: e.id })}>
                       <IconTrash size={16} />
                     </ActionIcon>
                   </Tooltip>

@@ -445,6 +445,7 @@ export interface EffectState {
  */
 export interface MapEffect {
   id: string;
+  /** Nome próprio ("Lago do vale"); vazio = sem nome, a tela mostra o tipo no idioma de quem vê. */
   name: string;
   preset: EffectPreset;
   color: string;
@@ -461,6 +462,11 @@ export interface MapEffect {
   followId?: string;
   /** Estado de antes de "Transformar", se for para voltar a ele quando este acabar (duração ou concentração). */
   revertTo?: EffectState;
+  /**
+   * Pintura do mestre (pincel de efeitos): as casas cobertas, achatadas (col0, row0, col1, row1…). Com elas, o
+   * formato é este, e `area` só marca a primeira casa. Pintura não tem conjurador nem duração e não anda com token.
+   */
+  cells?: number[];
 }
 
 export const DRAWING_KINDS = ["free", "arrow", "circle"] as const;
