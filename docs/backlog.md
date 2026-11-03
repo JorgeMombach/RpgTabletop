@@ -151,7 +151,7 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 
 ### Fase 6. Mapa vivo
 - [ ] Pincel de efeitos, só do mestre: pintar com qualquer efeito livremente pelo mapa, na aba Mapa. Área pintada é um formato de dado novo.
-- [ ] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Dúvida: ao abrir, o jogador vê e pega para o inventário, ou só o mestre revela?
+- [ ] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Desenho aprovado em 2026-11-03: [docs/design/baus.md](design/baus.md) (abre para todos, contagem para escolher, d20 automático na disputa, mestre dá a qualquer momento, armas viram itens que se empunham).
 
 ### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
 - [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
