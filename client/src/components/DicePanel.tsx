@@ -99,6 +99,8 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   const [hidden, setHidden] = useState(gm);
   const selectedId = useApp((s) => s.selectedId);
   const rolling = useApp((s) => s.rolling);
+  // Ataque salvo escolhido: o dano dele sai com o nome no log, enquanto o campo de dano não mudar.
+  const [quickName, setQuickName] = useState<{ name: string; damage: string } | null>(null);
   // Escolha manual do "rolar como" vale até a seleção ou o turno mudar.
   const asKey = `${combat.turn}:${selectedId ?? ""}`;
   const [asChoice, setAsChoice] = useState<{ key: string; id: string } | null>(null);
@@ -127,9 +129,10 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
     setAttackMod(a.bonus ?? 0);
     setDamage(a.damage ?? "");
     setCrit(false);
+    setQuickName({ name: a.name, damage: a.damage ?? "" });
     if (a.bonus === undefined) return;
     saveAttack({ mod: a.bonus, damage: a.damage ?? "" });
-    const res = await roll({ expr: buildExpr(1, 20, a.bonus), mode, kind: "attack" });
+    const res = await roll({ expr: buildExpr(1, 20, a.bonus), mode, kind: "attack", name: a.name });
     if (!res.ok) return;
     const entry = useApp.getState().state?.log.find((l) => l.id === res.ids?.[0]);
     setCrit(!!entry?.roll && naturalD20(entry.roll.terms) === 20);
@@ -169,7 +172,8 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
     e.preventDefault();
     if (!damage.trim()) return;
     saveAttack({ mod: Math.trunc(Number(attackMod)) || 0, damage });
-    const res = await roll({ expr: crit ? doubleDice(damage) : damage, kind: "damage", crit });
+    const name = quickName && quickName.damage === damage ? quickName.name : undefined;
+    const res = await roll({ expr: crit ? doubleDice(damage) : damage, kind: "damage", crit, name });
     if (res.ok) setCrit(false);
   }
 

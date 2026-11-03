@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -14,7 +14,7 @@ const { ctx } = useServer();
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 function fullGame(playerId: string, gmId: string): GameState {
-  const spell: Required<Spell> = { id: "s1", name: "Escudo", level: 1, note: "+5 CA" };
+  const spell: Required<Spell> = { id: "s1", name: "Raio ardente", level: 2, note: "3 raios", damage: "2d6" };
   // Aliado não pode ser oculto (só mobs e NPCs): `hidden` é conferido no mob abaixo.
   const thorin: Required<Omit<Combatant, "hidden">> = {
     id: "thorin",
@@ -44,7 +44,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     spells: [spell],
     resources: [
       { id: "r1", name: "Fúria", max: 3, used: 1, recharge: "long" },
-      { id: "r2", name: "Sopro de fogo", max: 1, used: 1, recharge: "dice", rechargeOn: 5 } satisfies Required<Resource>,
+      { id: "r2", name: "Sopro de fogo", max: 1, used: 1, recharge: "dice", rechargeOn: 5, damage: "6d6" } satisfies Required<Resource>,
     ],
     attacks: [{ id: "a1", name: "Machado grande", bonus: 5, damage: "1d12+3" }],
     inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }],
@@ -68,7 +68,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   const lich: Combatant = { id: "lich", name: "Lich", type: "mob", templateId: "t1", hp: 90, hpMax: 135, dexMod: 3, color: "#7a5ba3", pos: { col: 8, row: 8 }, initiative: 20, initRoll: 17, conditions: [] };
   const sombra: Required<Combatant> = { ...thorin, id: "sombra", name: "Sombra", type: "mob", ownerId: gmId, hidden: true, summonerId: "lich", size: "huge", pos: { col: 10, row: 8 }, initiative: null, initRoll: null };
   const guarda: Combatant = { id: "guarda", name: "Guarda", type: "npc", hp: 11, hpMax: 11, dexMod: 0, color: "#4fae8c", pos: { col: 1, row: 1 }, initiative: 5, initRoll: 5, conditions: [], hidden: true };
-  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>] };
+  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>], attacks: [{ id: "ta1", name: "Toque gélido", bonus: 12, damage: "3d6" } satisfies Required<SavedAttack>] };
   const effect: Required<MapEffect> = {
     id: "e1",
     name: "Graxa em chamas",

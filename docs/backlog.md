@@ -140,8 +140,8 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [ ] Engasgo ao mover token, se incomodar na mesa (pendente da 2.11.0, no bloco N).
 
 ### Fase 3. Dano na ficha
-- [ ] Armas no template, com dano ("Martelo de pedra" 1d6+2): o mob criado já vem com elas e o mestre escolhe qual usar ao rolar.
-- [ ] Magias e habilidades guardam o dano: campo aberto mais dano, genérico.
+- [x] Armas no template, com dano ("Martelo de pedra" 1d6+2): o mob criado já vem com elas e o mestre escolhe qual usar ao rolar (ficha ou ataques rápidos do painel Dados).
+- [x] Magias e habilidades guardam o dano: campo aberto mais dano, genérico (magias e recursos; o nome do que rolou vai para o log).
 
 ### Fase 4. Salvar e importar
 - [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).

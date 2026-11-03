@@ -21,6 +21,7 @@ import { fmtMod } from "../format";
 import { useT, type MessageKey } from "../i18n";
 import { useRollLock } from "../rollLock";
 import { doubleDice } from "./DicePanel";
+import { DamageRollButton } from "./DamageRollButton";
 import { RestButton } from "./RestButton";
 import { EmptyState } from "./EmptyState";
 import { MagicSection } from "./MagicSection";
@@ -96,6 +97,7 @@ function ResourcesSection({ c, editable }: { c: Combatant; editable: boolean }) 
             <Text size="sm" fw={600} truncate title={r.name} style={{ flex: 1, minWidth: 0 }}>
               {r.name}
             </Text>
+            {r.damage && <DamageRollButton c={c} name={r.name} expr={r.damage} disabled={!editable} />}
             {editable && (
               <Tooltip label={t("common.remove")}>
                 <ActionIcon variant="subtle" color="red" size="sm" onClick={() => act("resource:remove", { id: c.id, resourceId: r.id })} aria-label={t("common.remove")}>
@@ -146,6 +148,7 @@ function ResourceForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
   const [max, setMax] = useState<string | number>(1);
   const [recharge, setRecharge] = useState<Recharge>(c.type === "ally" ? "long" : "turn");
   const [rechargeOn, setRechargeOn] = useState<string | number>(5);
+  const [damage, setDamage] = useState("");
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -157,6 +160,7 @@ function ResourceForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
           max: Number(max),
           recharge,
           rechargeOn: recharge === "dice" ? Number(rechargeOn) : undefined,
+          damage: damage.trim() || undefined,
         })
       ).ok
     )
@@ -210,6 +214,14 @@ function ResourceForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
             onChange={setRechargeOn}
           />
         )}
+        <TextInput
+          label={t("sheet.damageOptional")}
+          description={t("sheet.resources.damageHint")}
+          placeholder="6d6"
+          maxLength={LIMITS.dice.exprLength}
+          value={damage}
+          onChange={(e) => setDamage(e.currentTarget.value)}
+        />
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={onDone}>
             {t("common.cancel")}
@@ -270,7 +282,7 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
           <Group gap={6} wrap="nowrap">
             {a.bonus !== undefined && (
               <Tooltip label={tip(t("sheet.attacks.rollAttack", { expr: d20(a.bonus) }))}>
-                <Button size="compact-sm" disabled={!editable} data-disabled={lock.blocked || undefined} onClick={roll({ expr: d20(a.bonus), kind: "attack" })}>
+                <Button size="compact-sm" disabled={!editable} data-disabled={lock.blocked || undefined} onClick={roll({ expr: d20(a.bonus), kind: "attack", name: a.name })}>
                   {fmtMod(a.bonus)}
                 </Button>
               </Tooltip>
@@ -283,7 +295,7 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
                     variant="default"
                     disabled={!editable}
                     data-disabled={lock.blocked || undefined}
-                    onClick={roll({ expr: a.damage, kind: "damage" })}
+                    onClick={roll({ expr: a.damage, kind: "damage", name: a.name })}
                   >
                     {a.damage}
                   </Button>
@@ -295,7 +307,7 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
                     color="red"
                     disabled={!editable}
                     data-disabled={lock.blocked || undefined}
-                    onClick={roll({ expr: doubleDice(a.damage), kind: "damage", crit: true })}
+                    onClick={roll({ expr: doubleDice(a.damage), kind: "damage", crit: true, name: a.name })}
                   >
                     {t("sheet.attacks.crit")}
                   </Button>

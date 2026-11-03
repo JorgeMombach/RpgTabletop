@@ -159,6 +159,17 @@ function spell(raw: unknown): Spell {
   };
   const note = optText(s.note, "nota da magia", LIMITS.spellNote);
   if (note) out.note = note;
+  const damage = optText(s.damage, "dano da magia", LIMITS.dice.exprLength);
+  if (damage) out.damage = damage;
+  return out;
+}
+
+function savedAttack(raw: unknown): SavedAttack {
+  const a = obj(raw, "ataque");
+  const out: SavedAttack = { id: requireString(a.id, "Ataque"), name: text(a.name, "ataque", LIMITS.spellName) || fail("Arquivo inválido: ataque sem nome.") };
+  if (a.bonus !== undefined) out.bonus = int(a.bonus, "ataque", -20, 40);
+  const damage = optText(a.damage, "ataque", LIMITS.dice.exprLength);
+  if (damage) out.damage = damage;
   return out;
 }
 
@@ -224,6 +235,7 @@ function sheet(out: Combatant, c: Obj) {
       const r = obj(raw, "recurso");
       const max = int(r.max, "recurso", 1, LIMITS.resourceMax);
       if (typeof r.recharge !== "string" || !recharges.includes(r.recharge)) fail("Arquivo inválido: recurso.");
+      const damage = optText(r.damage, "dano do recurso", LIMITS.dice.exprLength);
       return {
         id: requireString(r.id, "Recurso"),
         name: text(r.name, "recurso", LIMITS.spellName) || fail("Arquivo inválido: recurso sem nome."),
@@ -231,18 +243,12 @@ function sheet(out: Combatant, c: Obj) {
         used: int(r.used, "recurso", 0, max),
         recharge: r.recharge as Recharge,
         ...(r.rechargeOn !== undefined && { rechargeOn: int(r.rechargeOn, "recarga", 2, 6) }),
+        ...(damage && { damage }),
       };
     });
   }
   if (c.attacks !== undefined) {
-    out.attacks = list(c.attacks, "ataques", LIMITS.attacks).map((raw) => {
-      const a = obj(raw, "ataque");
-      const out: SavedAttack = { id: requireString(a.id, "Ataque"), name: text(a.name, "ataque", LIMITS.spellName) || fail("Arquivo inválido: ataque sem nome.") };
-      if (a.bonus !== undefined) out.bonus = int(a.bonus, "ataque", -20, 40);
-      const damage = optText(a.damage, "ataque", LIMITS.dice.exprLength);
-      if (damage) out.damage = damage;
-      return out;
-    });
+    out.attacks = list(c.attacks, "ataques", LIMITS.attacks).map(savedAttack);
   }
   if (c.inventory !== undefined) {
     out.inventory = list(c.inventory, "inventário", LIMITS.items).map((raw) => {
@@ -297,6 +303,8 @@ function template(raw: unknown): MobTemplate {
   const description = optText(t.description, "descrição", LIMITS.description);
   if (description) out.description = description;
   if (t.phases !== undefined) out.phases = bossPhases(t.phases);
+  // Arquivos anteriores à 2.12 não têm.
+  if (t.attacks !== undefined) out.attacks = list(t.attacks, "ataques do template", LIMITS.attacks).map(savedAttack);
   return out;
 }
 

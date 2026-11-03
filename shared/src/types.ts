@@ -24,6 +24,8 @@ export interface Spell {
   /** 0 = truque. */
   level: number;
   note?: string;
+  /** Dano rolável (2d6+3), com botão na ficha; o resto continua no campo aberto `note`. */
+  damage?: string;
 }
 
 export const SPELL_LEVELS: SpellLevel[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -97,6 +99,8 @@ export interface Resource {
   recharge: Recharge;
   /** Recarga no d6 (`recharge: "dice"`): volta tirando este valor ou mais (5 = "recarga 5–6"). */
   rechargeOn?: number;
+  /** Dano rolável da habilidade (sopro 6d6), com botão na ficha. */
+  damage?: string;
 }
 
 /** Ataque salvo ("Espada longa: +5 / 1d8+3"): rola com um clique. `bonus` ausente = sem rolagem de ataque (ex.: só dano). */
@@ -229,6 +233,8 @@ export interface MobTemplate {
   boss?: boolean;
   /** Chefe: fases depois da primeira (que é a vida/nome/CA do próprio template). */
   phases?: BossPhase[];
+  /** Ataques que os mobs e NPCs criados com o template já trazem (cada um com cópia própria). */
+  attacks?: SavedAttack[];
 }
 
 export interface MapConfig {

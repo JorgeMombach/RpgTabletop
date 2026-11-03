@@ -4,6 +4,7 @@ import { LIMITS, SPELL_LEVELS, type Combatant, type SpellLevel, type SpellSlot }
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
 import { t as tr, useT } from "../i18n";
+import { DamageRollButton } from "./DamageRollButton";
 import { RestButton } from "./RestButton";
 import { Abbr } from "./Abbr";
 
@@ -119,15 +120,17 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
   const [name, setName] = useState("");
   const [level, setLevel] = useState<string | null>("1");
   const [note, setNote] = useState("");
+  const [damage, setDamage] = useState("");
   const [adding, setAdding] = useState(false);
   const spells = c.spells ?? [];
 
   async function add(e: FormEvent) {
     e.preventDefault();
-    const res = await act("spell:add", { id: c.id, name, level: Number(level ?? 0), note: note || undefined });
+    const res = await act("spell:add", { id: c.id, name, level: Number(level ?? 0), note: note || undefined, damage: damage.trim() || undefined });
     if (res.ok) {
       setName("");
       setNote("");
+      setDamage("");
     }
   }
 
@@ -169,13 +172,24 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
                 aria-label={t("magic.levelLabel")}
               />
             </Group>
-            <TextInput
-              placeholder={t("magic.note")}
-              maxLength={LIMITS.spellNote}
-              value={note}
-              onChange={(e) => setNote(e.currentTarget.value)}
-              aria-label={t("magic.noteLabel")}
-            />
+            <Group gap="xs" wrap="nowrap">
+              <TextInput
+                style={{ flex: 1 }}
+                placeholder={t("magic.note")}
+                maxLength={LIMITS.spellNote}
+                value={note}
+                onChange={(e) => setNote(e.currentTarget.value)}
+                aria-label={t("magic.noteLabel")}
+              />
+              <TextInput
+                w={92}
+                placeholder={t("magic.damage")}
+                maxLength={LIMITS.dice.exprLength}
+                value={damage}
+                onChange={(e) => setDamage(e.currentTarget.value)}
+                aria-label={t("magic.damageLabel")}
+              />
+            </Group>
             <Group justify="flex-end" gap="xs">
               <Button variant="default" onClick={() => setAdding(false)}>
                 {t("common.close")}
@@ -209,6 +223,7 @@ function SpellList({ c, editable }: { c: Combatant; editable: boolean }) {
                   </Text>
                 )}
               </div>
+              {s.damage && <DamageRollButton c={c} name={s.name} expr={s.damage} disabled={!editable} />}
               {editable && (
                 <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: s.name })} onClick={() => act("spell:remove", { id: c.id, spellId: s.id })}>
                   <IconX size={14} />

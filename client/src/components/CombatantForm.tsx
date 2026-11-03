@@ -1,11 +1,12 @@
 import { Box, Button, Checkbox, Collapse, ColorInput, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, Textarea, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import { IconChevronDown } from "@tabler/icons-react";
-import { ABILITIES, abilityMod, LIMITS, NAME_MAX_LENGTH, SIZES, type Abilities, type Ability, type CombatantInput, type Size } from "@rpg/shared";
+import { ABILITIES, abilityMod, LIMITS, NAME_MAX_LENGTH, SIZES, type Abilities, type Ability, type CombatantInput, type SavedAttack, type Size } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { fmtMod } from "../format";
 import { useT } from "../i18n";
 import { Abbr } from "./Abbr";
 import { AvatarPicker } from "./AvatarPicker";
+import { AttacksField, fromAttackRows, toAttackRows, type AttackRow } from "./AttacksField";
 import { fromPhaseInputs, PhasesField, toPhaseInputs, type PhaseInput } from "./PhasesField";
 
 export interface FormValues extends CombatantInput {
@@ -13,7 +14,7 @@ export interface FormValues extends CombatantInput {
 }
 
 interface Props {
-  initial?: Partial<FormValues> & { ac?: number | null; phase?: number };
+  initial?: Partial<Omit<FormValues, "attacks">> & { ac?: number | null; phase?: number; attacks?: SavedAttack[] };
   palette: string[];
   submitLabel: string;
   withNotes?: boolean;
@@ -23,6 +24,8 @@ interface Props {
   withDarkvision?: boolean;
   /** Fases de chefe (mestre: mob, NPC e template). */
   withPhases?: boolean;
+  /** Ataques prontos (mestre: template, e mob ou NPC novos). */
+  withAttacks?: boolean;
   /** Campos a mais antes dos botões (ex.: quantidade e concentração ao invocar). */
   extra?: ReactNode;
   onSubmit: (values: FormValues) => Promise<boolean>;
@@ -39,7 +42,7 @@ const emptyScores = (a?: Abilities): ScoreInputs =>
  * atributos (opcionais), cor, avatar e marca de animal. Com DES preenchida, o bônus de iniciativa
  * acompanha o modificador dela até a pessoa mexer nele à mão (talento, item mágico…).
  */
-export function CombatantForm({ initial, palette, submitLabel, withNotes, withHidden, withDarkvision, withPhases, extra, onSubmit, onCancel }: Props) {
+export function CombatantForm({ initial, palette, submitLabel, withNotes, withHidden, withDarkvision, withPhases, withAttacks, extra, onSubmit, onCancel }: Props) {
   const t = useT();
   const [name, setName] = useState(initial?.name ?? "");
   const [hpMax, setHpMax] = useState<string | number>(initial?.hpMax ?? "");
@@ -62,6 +65,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
   const [boss, setBoss] = useState(initial?.boss ?? false);
   const [darkvision, setDarkvision] = useState(initial?.darkvision ?? false);
   const [phases, setPhases] = useState<PhaseInput[]>(() => toPhaseInputs(initial?.phases));
+  const [attacks, setAttacks] = useState<AttackRow[]>(() => toAttackRows(initial?.attacks));
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -91,6 +95,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       boss: withPhases ? boss : undefined,
       darkvision: withDarkvision ? darkvision : undefined,
       phases: withPhases ? fromPhaseInputs(phases) : undefined,
+      attacks: withAttacks ? fromAttackRows(attacks) : undefined,
       hidden: withHidden ? hidden : undefined,
       // Só envia o avatar se mudou: é o campo mais pesado do formulário.
       avatar: avatarChanged ? avatar : undefined,
@@ -111,6 +116,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
       setBoss(false);
       setDarkvision(false);
       setPhases([]);
+      setAttacks([]);
     }
   }
 
@@ -270,6 +276,7 @@ export function CombatantForm({ initial, palette, submitLabel, withNotes, withHi
             onChange={(e) => setNotes(e.currentTarget.value)}
           />
         )}
+        {withAttacks && <AttacksField rows={attacks} onChange={setAttacks} />}
         {withPhases && <PhasesField phases={phases} onChange={setPhases} current={initial?.phase ?? 1} />}
         {extra}
         <Group justify="flex-end" gap="xs">

@@ -21,6 +21,13 @@ export interface Toast {
 }
 
 /** Dados editáveis de um combatente (mob ou aliado). */
+/** Ataque como vem do formulário: nome e bônus e/ou dano. */
+export interface AttackInput {
+  name: string;
+  bonus?: number | null;
+  damage?: string;
+}
+
 export interface CombatantInput {
   name: string;
   hpMax: number;
@@ -41,6 +48,8 @@ export interface CombatantInput {
   boss?: boolean;
   /** Visão no escuro (só personagens dos jogadores). */
   darkvision?: boolean;
+  /** Ataques salvos (só o mestre, ao criar mob ou NPC e no template). No template, `[]` apaga. */
+  attacks?: AttackInput[];
   /** Chefe: as próximas fases (só mob, NPC e template; só o mestre). `[]` apaga. */
   phases?: BossPhase[];
   /** Mob ou NPC já criado oculto (E21; ignorado em aliados). */
@@ -154,7 +163,8 @@ export interface ActionPayloads {
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
    */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean };
+  /** `name`: o que rolou (arma, magia, habilidade), na frente do rótulo no log: "Bola de fogo · Dano". */
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean; name?: string };
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
   "roll:cancel": Record<string, never>;
@@ -193,10 +203,10 @@ export interface ActionPayloads {
   "slots:restore": { id: string };
   /** Vida cheia + slots recuperados (o jogador decide quando). */
   "ally:restoreAll": { id: string };
-  "spell:add": { id: string; name: string; level: number; note?: string };
+  "spell:add": { id: string; name: string; level: number; note?: string; damage?: string };
   "spell:remove": { id: string; spellId: string };
   /** Recurso com usos: sem `resourceId` cria; com, edita. */
-  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge; rechargeOn?: number };
+  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge; rechargeOn?: number; damage?: string };
   /** Gasta (`delta` > 0) ou recupera (`delta` < 0) usos. */
   "resource:use": { id: string; resourceId: string; delta: number };
   "resource:remove": { id: string; resourceId: string };
@@ -205,7 +215,7 @@ export interface ActionPayloads {
   rest: { id: string; kind: "short" | "long" };
   /** Mestre: o mesmo descanso para todos os aliados (personagens e invocados). */
   "rest:all": { kind: "short" | "long" };
-  "attack:upsert": { id: string; attackId?: string; name: string; bonus?: number | null; damage?: string };
+  "attack:upsert": AttackInput & { id: string; attackId?: string };
   "attack:remove": { id: string; attackId: string };
   "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string };
   "item:remove": { id: string; itemId: string };

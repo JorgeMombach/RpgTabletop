@@ -10,6 +10,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Regra da mesa *Efeitos só na sua vez*:** ligada pelo mestre, em combate o jogador só fixa ou transforma efeitos de mapa na vez dele. Desligada, continua livre, como as outras regras.
 - **Cor do grid por cena:** no painel *Mapa*, abaixo de *Mostrar grid*, o mestre escolhe a cor das linhas (preto, branco, pergaminho, bronze… ou qualquer outra). Ajuda em mapa muito escuro ou muito claro. Vai no arquivo de sessão.
 - **Desfazer (Ctrl+Z) em desenhos e tochas:** além das paredes, agora desfaz desenho livre, setas e círculos (inclusive uma passada da borracha) e as tochas fixas (pôr, arrastar e apagar). Cada ferramenta tem o seu botão *Desfazer* e o Ctrl+Z desfaz o último dela; com outra ferramenta, o último que você fez no mapa. Jogadores também desfazem as próprias setas.
+- **Ataques no template:** no bestiário, o mestre dá ataques prontos ao template (Martelo de pedra +4, 1d6+2); os mobs e NPCs criados com ele já vêm com os ataques na ficha e no painel *Dados*, para rolar o de cada um. Mob e NPC novos também aceitam ataques no formulário.
+- **Dano em magias e habilidades:** magias (ao lado da nota) e recursos (Sopro 6d6) guardam o dano, com um botão que rola na ficha.
+- **Nome no log:** rolagens de ataque, magia e habilidade mostram o que rolou ("Martelo de pedra · Dano").
 
 ### Alterado
 - **Ícone novo do app:** o dadinho virou o d20 de bronze da tela de entrada numa placa de couro com cantoneiras, no executável, na barra do Windows, na tela de abertura e na aba do navegador.

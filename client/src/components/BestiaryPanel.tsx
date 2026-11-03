@@ -81,6 +81,7 @@ function BestiaryBody({ templates, mode, setMode, onAdded }: { templates: MobTem
           submitLabel={t("bestiary.createTemplate")}
           withNotes
           withPhases
+          withAttacks
           onCancel={close}
           onSubmit={async (v) => {
             const ok = (await act("template:upsert", v)).ok;
@@ -97,6 +98,7 @@ function BestiaryBody({ templates, mode, setMode, onAdded }: { templates: MobTem
           withHidden
           withNotes
           withPhases
+          withAttacks
           onCancel={close}
           onSubmit={async (v) => {
             const ok = (await act("mob:add", v)).ok;
@@ -122,6 +124,7 @@ function BestiaryBody({ templates, mode, setMode, onAdded }: { templates: MobTem
             submitLabel={t("common.save")}
             withNotes
             withPhases
+            withAttacks
             onCancel={close}
             onSubmit={async (v) => {
               const ok = (await act("template:upsert", { ...v, id: tpl.id })).ok;
