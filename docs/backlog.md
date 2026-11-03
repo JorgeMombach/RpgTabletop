@@ -133,10 +133,10 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 
 ### Fase 2. Acabamento
 - [ ] Ícone novo do executável (barra do Windows e abertura do app), com protótipo.
-- [ ] Couro como padrão do fundo da mesa em volta do mapa, o mesmo da tela de login. Sessões salvas antigas não mudam sozinhas.
-- [ ] Cor do grid, por cena.
+- [x] Couro como padrão do fundo da mesa em volta do mapa, o mesmo da tela de login. Sessões salvas antigas não mudam sozinhas.
+- [x] Cor do grid, por cena (painel Mapa, abaixo de *Mostrar grid*; preto fica sem campo).
 - [ ] Tooltips mais bonitos, com protótipo.
-- [ ] Ctrl+Z em desenho livre, setas, círculos e tochas (hoje só paredes).
+- [x] Ctrl+Z em desenho livre, setas, círculos e tochas (hoje só paredes). Histórico único em `client/src/map/mapHistory.ts` (era `wallHistory.ts`); cada ferramenta desfaz o dela; ação nova `maptorch:remove`.
 - [ ] Engasgo ao mover token, se incomodar na mesa (pendente da 2.11.0, no bloco N).
 
 ### Fase 3. Dano na ficha

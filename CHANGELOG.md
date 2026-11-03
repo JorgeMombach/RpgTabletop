@@ -9,6 +9,12 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ### Adicionado
 - **Regra da mesa *Efeitos só na sua vez*:** ligada pelo mestre, em combate o jogador só fixa ou transforma efeitos de mapa na vez dele. Desligada, continua livre, como as outras regras.
 
+- **Cor do grid por cena:** no painel *Mapa*, ao lado de *Mostrar grid*, o mestre escolhe a cor das linhas (preto, branco, pergaminho, bronze… ou qualquer outra). Ajuda em mapa muito escuro ou muito claro. Vai no arquivo de sessão.
+- **Desfazer (Ctrl+Z) em desenhos e tochas:** além das paredes, agora desfaz desenho livre, setas e círculos (inclusive uma passada da borracha) e as tochas fixas (pôr, arrastar e apagar). Cada ferramenta tem o seu botão *Desfazer* e o Ctrl+Z desfaz o último dela; com outra ferramenta, o último que você fez no mapa. Jogadores também desfazem as próprias setas.
+
+### Alterado
+- **Mesa de couro por padrão:** em volta do mapa, jogo novo começa com o tapete de couro da tela de entrada (antes, madeira). Sessões salvas abrem como estavam, e a madeira continua no painel *Mapa*.
+
 ### Corrigido
 - **Botões de rolar da ficha ignoravam a trava:** os ataques salvos (acerto, dano e crítico), os testes de atributo e o teste contra a morte pareciam liberados fora da vez ou com as rolagens travadas pelo mestre. O servidor já recusava a rolagem; agora os botões ficam apagados como no painel *Dados*, e a dica diz o porquê.
 

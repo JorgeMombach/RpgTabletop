@@ -29,6 +29,7 @@ describe("tochas fixas no mapa", () => {
     assert.equal((await act(ana, "maptorch:move", { id, col: 1, row: 1 })).ok, false);
     assert.equal((await act(ana, "maptorch:erase", { points: [3.46, 7.1], radius: 1 })).ok, false);
     assert.equal((await act(ana, "maptorch:clear", {})).ok, false);
+    assert.equal((await act(ana, "maptorch:remove", { id })).ok, false);
     assert.equal((await act(g, "maptorch:add", { col: 1, row: 1, style: "lampião" as "stick" })).ok, false);
     assert.equal((await act(g, "maptorch:add", { col: Infinity, row: 1, style: "stick" })).ok, false);
 
@@ -40,6 +41,12 @@ describe("tochas fixas no mapa", () => {
     assert.equal(game().battle.torches.length, 1);
     assert.ok((await act(g, "maptorch:erase", { points: [9, 2.25, 10, 2.25], radius: 0.25 })).ok);
     assert.equal(game().battle.torches.length, 0);
+
+    // Tirar pelo id (o Desfazer da tocha que acabou de pôr).
+    const [outra] = idsOf(await act(g, "maptorch:add", { col: 5, row: 5, style: "stick" }));
+    assert.ok((await act(g, "maptorch:remove", { id: outra })).ok);
+    assert.equal(game().battle.torches.length, 0);
+    assert.equal((await act(g, "maptorch:remove", { id: outra })).ok, false, "já não existe");
 
     idsOf(await act(g, "maptorch:add", { col: 1, row: 1, style: "brazier" }));
     assert.ok((await act(g, "maptorch:clear", {})).ok);

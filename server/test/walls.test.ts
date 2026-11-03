@@ -79,20 +79,31 @@ describe("paredes e portas", () => {
     assert.match(errorOf(await act(g, "wall:add", { from: { col: 0, row: 2 }, to: { col: 4, row: 2 }, thickness: 0.05 })), /Espessura da parede/);
   });
 
-  it("estilo das paredes por cena: só o mestre escolhe, valor inválido é recusado, vai no arquivo", async () => {
+  it("estilo das paredes, mesa e cor do grid por cena: só o mestre escolhe, valor inválido é recusado, vai no arquivo", async () => {
     const { g, ana } = await setup();
     assert.equal((await act(ana, "battle:grid", { wallStyle: "wood" })).ok, false);
     assert.match(errorOf(await act(g, "battle:grid", { wallStyle: "lava" as never })), /Estilo de parede inválido/);
+    assert.equal(game().battle.map.tableStyle, "leather", "jogo novo começa no couro");
+    assert.ok((await act(g, "battle:grid", { tableStyle: "wood" })).ok);
+    assert.equal(game().battle.map.tableStyle, undefined, "madeira fica sem campo");
     assert.ok((await act(g, "battle:grid", { wallStyle: "rock", tableStyle: "leather" })).ok);
     assert.match(errorOf(await act(g, "battle:grid", { tableStyle: "marble" as never })), /Estilo de mesa inválido/);
     assert.equal(game().battle.map.tableStyle, "leather");
     assert.equal(game().battle.map.wallStyle, "rock");
+    // Cor do grid: só #rrggbb; preto é o padrão (sem campo).
+    assert.equal((await act(ana, "battle:grid", { gridColor: "#ffffff" })).ok, false);
+    assert.match(errorOf(await act(g, "battle:grid", { gridColor: "branco" })), /Cor do grid inválida/);
+    assert.ok((await act(g, "battle:grid", { gridColor: "#FFFFFF" })).ok);
+    assert.equal(game().battle.map.gridColor, "#ffffff");
     const exported = await g.timeout(2000).emitWithAck("session:export");
     assert.ok((await act(g, "battle:grid", { wallStyle: "stone" })).ok);
     assert.equal(game().battle.map.wallStyle, undefined, "pedra lavrada é o padrão (sem campo)");
     assert.ok((await g.timeout(2000).emitWithAck("session:import", exported.file)).ok);
     assert.equal(game().battle.map.wallStyle, "rock");
     assert.equal(game().battle.map.tableStyle, "leather");
+    assert.equal(game().battle.map.gridColor, "#ffffff");
+    assert.ok((await act(g, "battle:grid", { gridColor: "#000000" })).ok);
+    assert.equal(game().battle.map.gridColor, undefined, "preto é o padrão (sem campo)");
   });
 
   it("jogador abre e fecha a porta, menos a trancada; só o mestre tranca", async () => {

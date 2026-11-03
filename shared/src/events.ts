@@ -101,7 +101,7 @@ export interface MapImagePayload {
   image: string | null;
 }
 
-export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle">>;
+export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle" | "gridColor">>;
 
 export interface TemplateInput extends CombatantInput {
   /** Presente = edição; ausente = criação. */
@@ -278,6 +278,8 @@ export interface ActionPayloads {
   "maptorch:add": { col: number; row: number; style: MapTorchStyle };
   /** Mestre: arrasta a tocha. */
   "maptorch:move": { id: string; col: number; row: number };
+  /** Mestre: tira uma tocha (desfazer a que acabou de pôr). */
+  "maptorch:remove": { id: string };
   /** Mestre: borracha nas tochas (`points` = col, row em casas): a tocha tocada some. */
   "maptorch:erase": { points: number[]; radius: number };
   /** Mestre: apaga todas as tochas da cena. */

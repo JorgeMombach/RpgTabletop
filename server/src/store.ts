@@ -42,6 +42,8 @@ export function createGame(): GameState {
         feetPerCell: 5,
         rotation: 0,
         imageScale: 1,
+        // Jogo novo: tapete de couro, o mesmo da tela de entrada. Sem o campo (arquivos antigos) continua madeira.
+        tableStyle: "leather",
       },
       mobs: [],
       npcs: [],

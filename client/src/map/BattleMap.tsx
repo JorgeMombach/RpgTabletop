@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconFlame, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall } from "@rpg/shared";
+import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapTorch } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -21,7 +21,7 @@ import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
 import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
-import { addWall, recordErase, undoWall } from "./wallHistory";
+import { addDrawing, addTorch, addWall, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -140,19 +140,20 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     return () => ro.disconnect();
   }, []);
 
-  // Ctrl+Z com a ferramenta Paredes: desfaz a última parede ou porta (fora de campos de texto).
+  // Ctrl+Z (fora de campos de texto): nas ferramentas Paredes, Desenho e Tochas, desfaz o último dela; nas
+  // outras, o último que esta pessoa fez no mapa.
   useEffect(() => {
-    if (!gm || tool !== "walls") return;
+    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : undefined;
     const down = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
       e.preventDefault();
-      void undoWall();
+      void undo(scope);
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [gm, tool]);
+  }, [tool]);
 
   // Shift segurado = régua temporária.
   useEffect(() => {
@@ -265,7 +266,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     setStroke(null);
     if (!pts || myDrawMode === "erase") return;
     const long = myDrawMode === "free" ? pts.length >= 4 : Math.hypot(pts[2] - pts[0], pts[3] - pts[1]) > 4 / view.scale;
-    if (long) void act("draw:add", { kind: myDrawMode, points: pts, color: drawColor, width: drawWidth, ...(gm && drawHidden && { hidden: true }) });
+    if (long) void addDrawing({ kind: myDrawMode, points: pts, color: drawColor, width: drawWidth, ...(gm && drawHidden && { hidden: true }) });
   }
 
   // Borracha (M): apaga só por onde passa, como uma borracha de verdade. O caminho vai ao servidor em
@@ -274,7 +275,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const eraseMode = (tool === "draw" && drawMode === "erase") || (gm && tool === "walls" && wallMode === "erase") || (gm && tool === "torches" && torchErase);
   /** Raio da borracha (pixels do mapa): no desenho, pelo tamanho escolhido; nas paredes, um quarto de casa. */
   const eraserRadius = tool === "walls" || tool === "torches" ? grid.cellPx * WALL_ERASER : Math.max(4 / view.scale, grid.cellPx * (ERASER_CELLS[drawWidth] ?? 0.25));
-  const eraserRef = useRef<{ kind: "draw" | "walls" | "torches"; pending: number[]; sent: boolean; timer: number | null; before: Wall[]; acts: Promise<unknown>[] } | null>(null);
+  const eraserRef = useRef<{ kind: "draw" | "walls" | "torches"; pending: number[]; sent: boolean; timer: number | null; before: { id: string }[]; acts: Promise<unknown>[] } | null>(null);
   const [eraserAt, setEraserAt] = useState<Point | null>(null);
   useEffect(() => {
     if (!eraseMode) setEraserAt(null);
@@ -315,7 +316,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (end) eraseTo(end);
     flushErase();
     eraserRef.current = null;
-    if (e.kind === "walls") void Promise.all(e.acts).then(() => recordErase(e.before, useApp.getState().state?.battle.walls ?? []));
+    // A passada inteira vira um passo do Desfazer: compara o antes e o depois.
+    void Promise.all(e.acts).then(() => {
+      const battle = useApp.getState().state?.battle;
+      if (!battle) return;
+      if (e.kind === "walls") recordWallErase(e.before as Wall[], battle.walls);
+      else if (e.kind === "torches") recordTorchErase(e.before as MapTorch[], battle.torches);
+      else recordDrawingErase(e.before as Drawing[], battle.drawings);
+    });
   }
 
   // Parede sendo traçada pelo mestre: de canto a canto do grid (ou livre); ao soltar vai para todos.
@@ -453,7 +461,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       return;
     }
     if (eraseMode) {
-      eraserRef.current = { kind: tool === "walls" || tool === "torches" ? tool : "draw", pending: [], sent: false, timer: null, before: state.battle.walls, acts: [] };
+      eraserRef.current = { kind: tool === "walls" || tool === "torches" ? tool : "draw", pending: [], sent: false, timer: null, before: tool === "walls" ? state.battle.walls : tool === "torches" ? state.battle.torches : state.battle.drawings, acts: [] };
       setEraserAt(p);
       eraseTo(p);
       return;
@@ -461,7 +469,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (tool === "torches") {
       // Clicou numa tocha: é para arrastar, não para pôr outra em cima.
       if (e.target.name() === "map-torch") return;
-      void act("maptorch:add", { col: (p.x - grid.offsetX) / grid.cellPx, row: (p.y - grid.offsetY) / grid.cellPx, style: torchStyle });
+      void addTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torchStyle);
       return;
     }
     if (tool === "walls") {
@@ -609,7 +617,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     const p = stage.getRelativePointerPosition();
     if (!p) return;
     // Desenho de tocha arrastado do seletor: fica exatamente onde foi solto.
-    if (torch) return void act("maptorch:add", { col: (p.x - grid.offsetX) / grid.cellPx, row: (p.y - grid.offsetY) / grid.cellPx, style: torch as MapTorchStyle });
+    if (torch) return void addTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torch as MapTorchStyle);
     // Soltar da lista é "colocar": se a casa estiver ocupada, vai para a livre mais perto.
     const all = allCombatants(state);
     const c = all.find((o) => o.id === id);
@@ -1090,8 +1098,8 @@ function GridLines({
           ctx.moveTo(x0, y);
           ctx.lineTo(x1, y);
         }
-        // Linhas escuras: sobre a imagem e sobre a mesa (L5).
-        ctx.strokeStyle = onImage ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.09)";
+        // Linhas escuras: sobre a imagem e sobre a mesa (L5). Com cor escolhida pelo mestre, meio transparente.
+        ctx.strokeStyle = !onImage ? "rgba(255,255,255,0.09)" : grid.gridColor ? `${grid.gridColor}80` : "rgba(0,0,0,0.45)";
         ctx.lineWidth = 1 / view.scale;
         ctx.stroke();
       }}

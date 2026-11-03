@@ -137,7 +137,7 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
       title: k("keys.groupGeneral"),
       rows: [
         { keys: keys("?"), label: k("keys.help") },
-        { keys: keys("Ctrl", "&", "Z"), label: k("keys.undoWall"), gm: true },
+        { keys: keys("Ctrl", "&", "Z"), label: k("keys.undoWall") },
         { keys: keys("Esc"), label: k("keys.escape") },
       ],
     },

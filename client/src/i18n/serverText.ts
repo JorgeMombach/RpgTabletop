@@ -216,6 +216,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Escala do mapa": ["Map scale", "Escala del mapa"],
   Espessura: ["Thickness", "Grosor"],
   Tocha: ["Torch", "Antorcha"],
+  "Cor do grid inválida.": ["Invalid grid color.", "Color de la cuadrícula no válido."],
   "Tamanho da borracha": ["Eraser size", "Tamaño de la goma"],
   Falhas: ["Failures", "Fallos"],
   Imagem: ["Image", "Imagen"],

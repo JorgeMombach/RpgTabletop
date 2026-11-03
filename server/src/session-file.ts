@@ -44,7 +44,7 @@ import {
   type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
-import { tableStyleOf, wallStyleOf } from "./actions/map";
+import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseWall } from "./actions/walls";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
@@ -527,6 +527,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       // Arquivos anteriores à 2.10 não têm (pedra lavrada).
       ...(m.wallStyle !== undefined && { wallStyle: wallStyleOf(m.wallStyle) }),
       ...(m.tableStyle !== undefined && { tableStyle: tableStyleOf(m.tableStyle) }),
+      // Arquivos anteriores à 2.12 não têm (preto).
+      ...(m.gridColor !== undefined && { gridColor: gridColorOf(m.gridColor) }),
     },
     mobs,
     npcs,

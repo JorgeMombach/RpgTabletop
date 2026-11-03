@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Group as MGroup, Paper, Text, Tooltip } from "@mantine/core";
-import { IconEraser, IconTrash } from "@tabler/icons-react";
+import { IconArrowBackUp, IconEraser, IconTrash } from "@tabler/icons-react";
 import Konva from "konva";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Layer, Shape } from "react-konva";
@@ -9,6 +9,7 @@ import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { endTokenDrag, useTokenDrag } from "./dragFollow";
+import { moveTorch, undo, useMapUndo } from "./mapHistory";
 import { drawMapTorch } from "./mapTorchArt";
 
 /** Tipo do arrasto de um desenho de tocha do seletor para o mapa. */
@@ -57,7 +58,7 @@ function TorchShape({ t, grid, time, draggable }: { t: MapTorch; grid: MapConfig
       onDragMove={(e) => useTokenDrag.setState({ id: t.id, dx: e.target.x() - at.x, dy: e.target.y() - at.y })}
       onDragEnd={(e) => {
         const node = e.target;
-        void act("maptorch:move", { id: t.id, col: (node.x() - grid.offsetX) / grid.cellPx, row: (node.y() - grid.offsetY) / grid.cellPx }).then((r) => {
+        void moveTorch(t, (node.x() - grid.offsetX) / grid.cellPx, (node.y() - grid.offsetY) / grid.cellPx).then((r) => {
           if (!r.ok) node.position(at);
           endTokenDrag(t.id);
         });
@@ -120,11 +121,12 @@ function TorchIcon({ style }: { style: MapTorchStyle }) {
   return <canvas ref={ref} width={72} height={72} style={{ width: 36, height: 36, display: "block" }} aria-hidden />;
 }
 
-/** Opções da ferramenta Tochas (mestre): os três desenhos, borracha e apagar todas. */
+/** Opções da ferramenta Tochas (mestre): os três desenhos, borracha, desfazer e apagar todas. */
 export function MapTorchOptions({ count }: { count: number }) {
   const t = useT();
   const torchStyle = useApp((s) => s.torchStyle);
   const erasing = useApp((s) => s.torchErase);
+  const undoCount = useMapUndo((s) => s.torches);
 
   async function clearAll() {
     const ok = await confirmAction({ title: t("torches.clearTitle"), message: t("torches.clearMessage"), confirmLabel: t("torches.clear") });
@@ -161,9 +163,16 @@ export function MapTorchOptions({ count }: { count: number }) {
             </ActionIcon>
           </Tooltip>
         </MGroup>
-        <Button size="compact-xs" variant="subtle" color="red" disabled={count === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
-          {t("torches.clear")}
-        </Button>
+        <MGroup gap={4} wrap="nowrap">
+          <Tooltip label={t("torches.undoTip")}>
+            <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("torches")}>
+              {t("walls.undo")}
+            </Button>
+          </Tooltip>
+          <Button size="compact-xs" variant="subtle" color="red" disabled={count === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
+            {t("torches.clear")}
+          </Button>
+        </MGroup>
       </MGroup>
       <Text size="xs" c="dimmed" mt={4}>
         {t(erasing ? "torches.hintErase" : "torches.hint")}
