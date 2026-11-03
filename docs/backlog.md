@@ -125,7 +125,7 @@ Decisões e novidades:
 - [ ] Engasgo ao mover token: os painéis ainda redesenham (ficou para depois).
 
 ## Plano depois da 2.11.0 (aprovado em 2026-11-02, revisto em 2026-11-03)
-Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na branch `fix/correcoes-rolagem-efeitos`, como foi com a 2.10 e a 2.11. Primeiro o que mexe na jogatina; **hospedagem e instalador ficam por último**, talvez numa subida à parte. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
+Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na branch `fix/correcoes-rolagem-efeitos`, como foi com a 2.10 e a 2.11. Primeiro o que mexe na jogatina; ordem por importância (2026-11-03): 0, 2, 3, 5, 6 e depois a 4; **hospedagem e instalador ficam por último**, talvez numa subida à parte. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
 
 ### Fase 0. Correções
 - [x] Rolagens de armas não respeitam a trava do mestre. Reproduzido: o servidor já recusava (aviso "O mestre travou as rolagens"), mas os botões da ficha (ataques, testes de atributo, teste contra a morte) pareciam liberados. Agora usam a mesma trava do painel Dados (`client/src/rollLock.ts`), apagados e com a dica do porquê.
@@ -143,18 +143,19 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Armas no template, com dano ("Martelo de pedra" 1d6+2): o mob criado já vem com elas e o mestre escolhe qual usar ao rolar (ficha ou ataques rápidos do painel Dados).
 - [x] Magias e habilidades guardam o dano: campo aberto mais dano, genérico (magias e recursos; o nome do que rolou vai para o log).
 
-### Fase 4. Salvar e importar
-- [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
-- [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
-
 ### Fase 5. Mesa e mapa
-- [ ] Dois sons ambientes ao mesmo tempo (chuva e taverna), com a música por cima.
-- [ ] Aba de configurações, juntando as opções espalhadas.
-- [ ] Mestre insere jogadores nas cenas. Dúvida: todos de uma vez num ponto, um por um, ou trocar de cena levando o grupo?
+- [x] Dois sons ambientes ao mesmo tempo (chuva e taverna), com a música por cima. Canal novo `ambient2` (*Segundo ambiente* no painel Som).
+- [x] Aba de configurações, juntando as opções espalhadas. Decisão (2026-11-03): engrenagem no topo, para todos, com *Mesa* (só o mestre: regras da mesa, rolagens fora de combate, o que os jogadores veem) e *Este dispositivo* (idioma, volume, animação dos dados, efeitos reduzidos, câmera segue a vez). O painel *Regras da mesa* da aba Mesa saiu (foi para lá).
+- [x] Pedido do mestre da mesa: regra *Esconder dano e cura dos inimigos* (os jogadores param de ver os números que sobem dos mobs e NPCs; os dos aliados continuam).
+- [x] Mestre insere jogadores nas cenas. Decisão: levar o grupo ao abrir (*Levar o grupo ao abrir* no painel Cenas; depois de abrir, um clique no mapa e todos chegam juntos em volta do ponto; ação `allies:gather`).
 
 ### Fase 6. Mapa vivo
 - [ ] Pincel de efeitos, só do mestre: pintar com qualquer efeito livremente pelo mapa, na aba Mapa. Área pintada é um formato de dado novo.
 - [ ] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Dúvida: ao abrir, o jogador vê e pega para o inventário, ou só o mestre revela?
+
+### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
+- [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
+- [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
 
 ### Fase 7. Instalador e hospedagem (por último, talvez numa subida à parte)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.

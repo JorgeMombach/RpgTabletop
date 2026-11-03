@@ -85,6 +85,8 @@ interface AppStore extends DicePrefs {
    * (`fromId`), ou o personagem posto pelo celular (sem `fromId`).
    */
   placing: { ids: string[]; fromId?: string } | null;
+  /** Levar o grupo: o próximo clique no mapa diz onde os aliados chegam (painel Cenas). */
+  gathering: boolean;
   /**
    * Rolagens que ainda estão caindo na animação deste navegador (E26): o log mostra "rolando…"
    * e só revela o resultado quando os dados param.
@@ -133,6 +135,7 @@ export const useApp = create<AppStore>(() => ({
   savedSnapshot: null,
   savedAt: null,
   placing: null,
+  gathering: false,
   rolling: [],
   torchStyle: "stick",
   torchErase: false,

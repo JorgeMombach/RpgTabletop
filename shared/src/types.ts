@@ -562,11 +562,13 @@ export interface TableRules {
   summonOnTurn: boolean;
   /** Em combate, o jogador só fixa ou transforma efeitos de mapa na sua vez. */
   effectOnTurn: boolean;
+  /** Os jogadores não veem os números de dano e cura que sobem dos mobs e NPCs (o mestre continua vendo). */
+  hideFoeHits: boolean;
   /** Com a luz em Noite ou Luar, avisa quem não tem visão no escuro. Só informa. */
   darkReminder: boolean;
 }
 
-export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "effectOnTurn", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
+export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "effectOnTurn", "hideFoeHits", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
 
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
@@ -639,8 +641,12 @@ export type GenSfxId = keyof typeof GEN_SOUNDS.sfx;
 /** De onde vem o som: arquivo da biblioteca do mestre ou gerado pelo app. */
 export type SoundSource = { kind: "file"; name: string } | { kind: "gen"; id: GenAmbientId | GenSfxId };
 
-/** Canais que ficam tocando (em loop). Efeitos (`sfx`) tocam uma vez e não ficam no estado. */
-export type SoundChannel = "music" | "ambient";
+/**
+ * Canais que ficam tocando (em loop). Efeitos (`sfx`) tocam uma vez e não ficam no estado.
+ * Dois ambientes ao mesmo tempo (chuva e taverna), com a música por cima.
+ */
+export const SOUND_CHANNELS = ["music", "ambient", "ambient2"] as const;
+export type SoundChannel = (typeof SOUND_CHANNELS)[number];
 
 export interface SoundTrack {
   source: SoundSource;
@@ -652,7 +658,8 @@ export interface SoundTrack {
 export interface SoundState {
   music: SoundTrack | null;
   ambient: SoundTrack | null;
-  volume: { music: number; ambient: number; sfx: number };
+  ambient2: SoundTrack | null;
+  volume: { music: number; ambient: number; ambient2: number; sfx: number };
 }
 
 /**

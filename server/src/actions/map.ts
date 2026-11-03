@@ -1,4 +1,4 @@
-import { emptyFog, inRows, isColor, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
+import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
@@ -121,6 +121,23 @@ export const mapHandlers: HandlerMap = {
     store.removedMobs.clear();
     // Numeração dos mobs recomeça em "Goblin 1" na batalha nova.
     store.mobCounters.clear();
+  },
+
+  "allies:gather": (store, player, payload) => {
+    requireGm(player);
+    const at = gridPosOf(payload?.at) ?? fail("Posição inválida.");
+    const { allies } = store.game;
+    if (allies.length === 0) fail("Nenhum aliado na mesa.");
+    // Personagens primeiro, perto do ponto; conjurados depois, por fora. Ninguém em cima de mob, NPC ou outro aliado.
+    const order = [...allies.filter((a) => !a.summonerId), ...allies.filter((a) => a.summonerId)];
+    const placed: Combatant[] = allCombatants(store).filter((c) => c.type !== "ally" && c.pos);
+    for (const a of order) {
+      const span = sizeSpan(a.size);
+      const pos = nearestFreeSpot(centeredOn(at, span), blockedCells(placed), span, sharesCell(a.size));
+      moveFollowers(store, a, a.pos, pos);
+      a.pos = pos;
+      placed.push(a);
+    }
   },
 
   "token:move": (store, player, payload) => {

@@ -176,6 +176,8 @@ export interface ActionPayloads {
   "battle:grid": GridInput;
   /** `pos: null` tira o token do mapa. */
   "token:move": { id: string; pos: GridPos | null };
+  /** Mestre: o grupo todo (personagens e conjurados) chega junto em volta desta casa (ao abrir uma cena). */
+  "allies:gather": { at: GridPos };
   /** Rola d20 + mod. DES para um combatente. */
   "init:roll": { id: string };
   /** Mestre: rola para todos os mobs; `grouped` = uma rolagem por template. */

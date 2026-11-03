@@ -59,7 +59,7 @@ export function createGame(): GameState {
     log: [],
     scenes: [{ id: sceneId, name: "Cena 1" }],
     sceneId,
-    rules: { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, darkReminder: false },
+    rules: { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, hideFoeHits: false, darkReminder: false },
   };
 }
 
@@ -71,7 +71,7 @@ export class Store {
   /** Último número usado por template ("Goblin 4" → 4), para não repetir nomes. */
   mobCounters = new Map<string, number>();
   /** Som da mesa (E25). Fica fora do jogo: não vai no arquivo de sessão nem some ao limpar o campo. */
-  sound: SoundState = { music: null, ambient: null, volume: { music: 0.6, ambient: 0.5, sfx: 0.8 } };
+  sound: SoundState = { music: null, ambient: null, ambient2: null, volume: { music: 0.6, ambient: 0.5, ambient2: 0.5, sfx: 0.8 } };
   /** Pasta de sons do mestre (E25); `null` = não configurada. */
   soundsDir: string | null = null;
   /** O que o mestre está mostrando para a mesa; a versão sobe a cada mudança (o servidor reenvia a todos). */

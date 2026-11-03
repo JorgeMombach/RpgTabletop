@@ -396,6 +396,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Teste de CAR": ["CHA check", "Prueba de CAR"],
   Mestre: ["GM", "Máster"],
   "Movimento só na sua vez": ["Move only on your turn", "Moverse solo en tu turno"],
+  "Esconder dano e cura dos inimigos": ["Hide enemy damage and healing", "Ocultar daño y curación de los enemigos"],
   "Efeitos só na sua vez": ["Effects only on your turn", "Efectos solo en tu turno"],
   "Invocar só na sua vez": ["Summon only on your turn", "Invocar solo en tu turno"],
   "Lembrete de escuridão": ["Darkness reminder", "Recordatorio de oscuridad"],

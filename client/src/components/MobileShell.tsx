@@ -13,6 +13,7 @@ import { HandoutButton, HandoutModal } from "./Handout";
 import { AboutModal } from "./About";
 import { Memo } from "./Shell";
 import { SoundSync } from "./SoundSync";
+import { SettingsButton } from "./Settings";
 import { VolumeControl } from "./VolumeControl";
 
 type Tab = "map" | "sheet" | "dice" | "combat";
@@ -99,6 +100,7 @@ export function MobileShell({ state }: { state: ClientState }) {
         )}
         <HandoutButton compact />
         <VolumeControl />
+        <SettingsButton state={state} />
         <Menu position="bottom-end" withinPortal>
           <Menu.Target>
             <ActionIcon variant="default" size="lg" aria-label={t("mobile.menu")}>

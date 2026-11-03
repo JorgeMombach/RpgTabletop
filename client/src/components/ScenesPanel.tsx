@@ -1,10 +1,11 @@
-import { ActionIcon, Badge, Button, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { IconCheck, IconPencil, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { LIMITS, type ClientState } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT } from "../i18n";
+import { useApp } from "../store";
 import { Panel } from "./Panel";
 
 type SceneRow = NonNullable<ClientState["scenes"]>[number];
@@ -19,6 +20,8 @@ export function ScenesPanel({ state }: { state: ClientState }) {
   const inCombat = state.battle.combat.active;
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
+  // Levar o grupo: depois de abrir, o mestre clica no mapa onde os aliados chegam.
+  const [bring, setBring] = useState(false);
 
   async function add() {
     const res = await act("scene:add", { name: name.trim() || t("scenes.defaultName", { n: scenes.length + 1 }) });
@@ -34,7 +37,8 @@ export function ScenesPanel({ state }: { state: ClientState }) {
       const ok = await confirmAction({ title: t("scenes.switchTitle", { name: s.name }), message: t("scenes.switchMessage"), confirmLabel: t("scenes.open") });
       if (!ok) return;
     }
-    void act("scene:switch", { id: s.id });
+    const res = await act("scene:switch", { id: s.id });
+    if (res.ok && bring && state.allies.length > 0) useApp.setState({ gathering: true, placing: null, tool: "move" });
   }
 
   async function remove(s: SceneRow) {
@@ -88,6 +92,9 @@ export function ScenesPanel({ state }: { state: ClientState }) {
           />
         ))}
       </Stack>
+      {scenes.length > 1 && (
+        <Checkbox label={t("scenes.bring")} description={t("scenes.bringHint")} checked={bring} onChange={(e) => setBring(e.currentTarget.checked)} />
+      )}
       <Text size="xs" c="dimmed">
         {t("scenes.hint")}
       </Text>

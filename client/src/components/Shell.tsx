@@ -25,6 +25,7 @@ import { AboutLink, AboutModal } from "./About";
 import { MobileShell } from "./MobileShell";
 import { PlayersPanel } from "./PlayersPanel";
 import { SoundSync } from "./SoundSync";
+import { SettingsButton } from "./Settings";
 import { VolumeControl } from "./VolumeControl";
 import { JoinFightBanner } from "./JoinFightBanner";
 import { SelectedPanel } from "./SelectedPanel";
@@ -120,6 +121,7 @@ function DesktopShell({ state }: { state: ClientState }) {
           <ShortcutsButton />
           <LanguageMenu size="md" />
           <VolumeControl />
+          <SettingsButton state={state} />
           <Group gap={6} wrap="nowrap">
             <Text size="sm" truncate maw={180}>
               {state.self.name}

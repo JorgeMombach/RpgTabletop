@@ -1,4 +1,4 @@
-import type { SoundChannel, SoundSource, SoundState, SoundTrack } from "@rpg/shared";
+import { SOUND_CHANNELS, type SoundChannel, type SoundSource, type SoundState, type SoundTrack } from "@rpg/shared";
 import { AMBIENT, AMBIENT_LEVEL, SFX, SFX_LEVEL, type Voice } from "./synth";
 import { t } from "../i18n";
 
@@ -14,9 +14,9 @@ const FADE = 1.5;
 let ctx: AudioContext | null = null;
 let master: GainNode;
 const channels = {} as Record<SoundChannel | "sfx", GainNode>;
-const playing: Record<SoundChannel, { key: string; stop: (fade: number) => void } | null> = { music: null, ambient: null };
+const playing: Record<SoundChannel, { key: string; stop: (fade: number) => void } | null> = { music: null, ambient: null, ambient2: null };
 /** Pedido mais recente por canal: um arquivo que termina de baixar depois de outra troca é descartado. */
-const latest: Record<SoundChannel, string> = { music: "", ambient: "" };
+const latest: Record<SoundChannel, string> = { music: "", ambient: "", ambient2: "" };
 const buffers = new Map<string, Promise<AudioBuffer>>();
 let listeners: (() => void)[] = [];
 
@@ -45,7 +45,7 @@ function audio(): AudioContext {
   limiter.attack.value = 0.003;
   limiter.release.value = 0.25;
   master.connect(limiter).connect(ctx.destination);
-  for (const ch of ["music", "ambient", "sfx"] as const) {
+  for (const ch of [...SOUND_CHANNELS, "sfx"] as const) {
     channels[ch] = ctx.createGain();
     channels[ch].connect(master);
   }
@@ -156,8 +156,8 @@ function stopLoop(channel: SoundChannel) {
 /** Deixa o som desta pessoa igual ao estado da mesa (chamado a cada estado novo). */
 export function syncSound(sound: SoundState, token: string) {
   audio();
-  for (const ch of ["music", "ambient", "sfx"] as const) ramp(channels[ch].gain, sound.volume[ch]);
-  for (const ch of ["music", "ambient"] as const) {
+  for (const ch of [...SOUND_CHANNELS, "sfx"] as const) ramp(channels[ch].gain, sound.volume[ch]);
+  for (const ch of SOUND_CHANNELS) {
     const track = sound[ch];
     if (track) void playLoop(ch, track, token);
     else if (playing[ch] || latest[ch]) stopLoop(ch);

@@ -13,6 +13,10 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Ataques no template:** no bestiário, o mestre dá ataques prontos ao template (Martelo de pedra +4, 1d6+2); os mobs e NPCs criados com ele já vêm com os ataques na ficha e no painel *Dados*, para rolar o de cada um. Mob e NPC novos também aceitam ataques no formulário.
 - **Dano em magias e habilidades:** magias (ao lado da nota) e recursos (Sopro 6d6) guardam o dano, com um botão que rola na ficha.
 - **Nome no log:** rolagens de ataque, magia e habilidade mostram o que rolou ("Martelo de pedra · Dano").
+- **Configurações:** a engrenagem no topo junta as opções. *Mesa* (só o mestre): regras da mesa, rolagens fora de combate e o que os jogadores veem. *Este dispositivo* (todos): idioma, volume, animação dos dados, efeitos reduzidos e câmera seguindo a vez. As regras da mesa saíram da aba *Mesa* e foram para lá.
+- **Regra da mesa *Esconder dano e cura dos inimigos*:** ligada, os jogadores param de ver os números de dano e cura que sobem dos mobs e NPCs; os dos aliados continuam, e o mestre vê tudo.
+- **Dois ambientes ao mesmo tempo:** o painel *Som* ganhou o *Segundo ambiente* (chuva lá fora e taverna, por exemplo), com volume próprio e a música por cima.
+- **Levar o grupo ao abrir uma cena:** marcando a opção no painel *Cenas*, depois de abrir a cena o mestre clica no mapa e todos os personagens (e invocados) chegam juntos em volta do ponto.
 
 ### Alterado
 - **Ícone novo do app:** o dadinho virou o d20 de bronze da tela de entrada numa placa de couro com cantoneiras, no executável, na barra do Windows, na tela de abertura e na aba do navegador.

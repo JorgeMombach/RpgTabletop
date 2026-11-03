@@ -27,7 +27,7 @@ describe("regras da mesa", () => {
     assert.match(errorOf(await act(ana, "rules:set", { moveOnTurn: true })), /permissão/i);
     assert.match(errorOf(await act(g, "rules:set", { moveOnTurn: "sim" as unknown as boolean })), /inválido/);
     assert.match(errorOf(await act(g, "rules:set", { voar: true } as never)), /desconhecida/);
-    assert.deepEqual(ctx.server.store.game.rules, { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, darkReminder: false });
+    assert.deepEqual(ctx.server.store.game.rules, { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, hideFoeHits: false, darkReminder: false });
   });
 
   it("ligadas: em combate o jogador move, invoca e fixa efeitos só na sua vez; o mestre sempre; fora de combate, livre", async () => {

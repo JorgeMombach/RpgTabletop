@@ -148,11 +148,14 @@ export function createApp(opts: AppOptions) {
       io.to(SESSION_ROOM).emit("handout", store.handout);
     }
     // Golpes e curas (L6): cada um recebe só os dos tokens que enxerga (oculto e coberto pela névoa ficam de fora).
+    // Com a regra "Esconder dano e cura dos inimigos", o jogador recebe só os dos aliados.
     const hits = collectHits(store, hpMemory);
+    const hideFoes = store.game.rules.hideFoeHits;
     for (const player of store.players.values()) {
       if (player.sockets.size === 0) continue;
       const view = viewFor(store, player, host);
-      const seen = new Set([...view.allies, ...view.battle.mobs, ...view.battle.npcs].map((c) => c.id));
+      const foes = hideFoes && player.role !== "gm" ? [] : [...view.battle.mobs, ...view.battle.npcs];
+      const seen = new Set([...view.allies, ...foes].map((c) => c.id));
       const mine = hits.filter((h) => seen.has(h.id));
       for (const sid of player.sockets) {
         io.to(sid).emit("state:full", view);

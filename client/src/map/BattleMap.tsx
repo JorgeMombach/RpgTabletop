@@ -93,7 +93,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, fogReveal, fogShape, fogBrush, reduceFx } = useApp();
-  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
   const image = useImage(mapImage.image);
@@ -109,6 +109,14 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     : undefined;
   const placingLeft = placing ? placing.ids.filter((id) => allCombatants(state).some((c) => c.id === id && !c.pos)).length : 0;
   const placingFrom = placing ? allCombatants(state).find((c) => c.id === placing.fromId) : undefined;
+
+  // Levar o grupo: Esc desiste (os aliados ficam onde estavam na cena).
+  useEffect(() => {
+    if (!gathering) return;
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && useApp.setState({ gathering: false });
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [gathering]);
 
   // Esc encerra a colocação: quem sobrou fica fora do mapa (dá para arrastar da lista depois).
   useEffect(() => {
@@ -439,6 +447,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     stageRef.current?.setPointersPositions(e.evt);
     const p = worldPointer();
     if (!p) return;
+    if (gathering) {
+      void act("allies:gather", { at: cellAt(p, grid) }).then((r) => r.ok && useApp.setState({ gathering: false }));
+      return;
+    }
     if (placing && placingNext) {
       const cell = cellAt(p, grid);
       // Dedo não tem "passar por cima": o primeiro toque mostra a casa (e a régua); tocar de novo nela confirma.
@@ -748,7 +760,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   return (
     <div
       ref={containerRef}
-      className={`battle-map tool-${rulerMode || placing ? "ruler" : tool}${trackShown ? " has-track" : ""}`}
+      className={`battle-map tool-${rulerMode || placing || gathering ? "ruler" : tool}${trackShown ? " has-track" : ""}`}
       // Botão do meio é ping: sem a rolagem automática do navegador.
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onDragOver={(e) => {
@@ -953,6 +965,18 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         </Paper>
       )}
       {!gm && (image || tokens.length > 0) && <DarkReminder state={state} />}
+      {gathering && (
+        <Paper className="map-hint top" px="md" py="sm" shadow="md">
+          <MText size="sm" c="bronze.4" ta="center">
+            {t(compact ? "gather.tap" : "gather.click")} {!compact && t("gather.esc")}
+          </MText>
+          <MGroup justify="center" mt={6}>
+            <Button size="compact-sm" variant="default" onClick={() => useApp.setState({ gathering: false })}>
+              {t("place.cancel")}
+            </Button>
+          </MGroup>
+        </Paper>
+      )}
       {placing && placingNext && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">

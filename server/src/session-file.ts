@@ -99,6 +99,7 @@ function tableRules(raw: unknown): TableRules {
     moveOnTurn: bool(r.moveOnTurn ?? false, "regra da mesa"),
     summonOnTurn: bool(r.summonOnTurn ?? false, "regra da mesa"),
     effectOnTurn: bool(r.effectOnTurn ?? false, "regra da mesa"),
+    hideFoeHits: bool(r.hideFoeHits ?? false, "regra da mesa"),
     darkReminder: bool(r.darkReminder ?? false, "regra da mesa"),
   };
 }
