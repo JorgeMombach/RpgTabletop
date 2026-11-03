@@ -1135,8 +1135,14 @@ abbr.abbr {
   background: var(--mantine-color-dark-7);
 }
 
-button:hover > .ability-cell {
+button:not([data-disabled]):hover > .ability-cell {
   border-color: var(--mantine-color-bronze-6);
+}
+
+/* Teste travado (fora da vez ou pelo mestre): apagado, a dica diz o porquê. */
+button[data-disabled] > .ability-cell {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* Barra de vida (L4): pílula forjada leve, a mesma do mapa (tokenArt.ts). Losangos de bronze nas pontas. */

@@ -7,6 +7,7 @@ import { Panel } from "./Panel";
 const LABEL: Record<keyof TableRules, [MessageKey, MessageKey]> = {
   moveOnTurn: ["rules.moveOnTurn", "rules.moveOnTurnHint"],
   summonOnTurn: ["rules.summonOnTurn", "rules.summonOnTurnHint"],
+  effectOnTurn: ["rules.effectOnTurn", "rules.effectOnTurnHint"],
   darkReminder: ["rules.darkReminder", "rules.darkReminderHint"],
 };
 

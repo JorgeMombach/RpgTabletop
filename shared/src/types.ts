@@ -552,11 +552,13 @@ export interface TableRules {
   moveOnTurn: boolean;
   /** Em combate, o jogador só invoca na sua vez. */
   summonOnTurn: boolean;
+  /** Em combate, o jogador só fixa ou transforma efeitos de mapa na sua vez. */
+  effectOnTurn: boolean;
   /** Com a luz em Noite ou Luar, avisa quem não tem visão no escuro. Só informa. */
   darkReminder: boolean;
 }
 
-export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
+export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "effectOnTurn", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
 
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {

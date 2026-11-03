@@ -14,11 +14,12 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconBackpack, IconFlask, IconMinus, IconPlus, IconSword, IconX } from "@tabler/icons-react";
-import { COINS, LIMITS, type Coin, type Combatant, type Recharge } from "@rpg/shared";
+import { COINS, LIMITS, type ActionPayloads, type Coin, type Combatant, type Recharge } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { fmtMod } from "../format";
 import { useT, type MessageKey } from "../i18n";
+import { useRollLock } from "../rollLock";
 import { doubleDice } from "./DicePanel";
 import { RestButton } from "./RestButton";
 import { EmptyState } from "./EmptyState";
@@ -233,6 +234,12 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
   const attacks = c.attacks ?? [];
   // Mestre rola por mob/NPC: assina com ele e oculta (como no painel Dados).
   const as = gm ? { asId: c.id, hidden: c.type !== "ally" } : {};
+  // Mesma trava do painel Dados: fora da vez ou com o mestre travando, o botão fica apagado e a dica diz o porquê.
+  const lock = useRollLock();
+  const tip = (label: string) => (lock.reason ? t(lock.reason) : label);
+  const roll = (payload: ActionPayloads["dice:roll"]) => () => {
+    if (!lock.blocked) void act("dice:roll", { ...payload, ...as });
+  };
 
   return (
     <Stack gap="xs">
@@ -262,58 +269,33 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
           </Group>
           <Group gap={6} wrap="nowrap">
             {a.bonus !== undefined && (
-              <Tooltip label={t("sheet.attacks.rollAttack", { expr: d20(a.bonus) })}>
-                <Button
-                  size="compact-sm"
-                  disabled={!editable}
-                  onClick={() =>
-                    act("dice:roll", {
-                      expr: d20(a.bonus!),
-                      kind: "attack",
-                      ...as,
-                    })
-                  }
-                >
+              <Tooltip label={tip(t("sheet.attacks.rollAttack", { expr: d20(a.bonus) }))}>
+                <Button size="compact-sm" disabled={!editable} data-disabled={lock.blocked || undefined} onClick={roll({ expr: d20(a.bonus), kind: "attack" })}>
                   {fmtMod(a.bonus)}
                 </Button>
               </Tooltip>
             )}
             {a.damage && (
               <>
-                <Tooltip label={t("sheet.attacks.rollDamage")}>
+                <Tooltip label={tip(t("sheet.attacks.rollDamage"))}>
                   <Button
                     size="compact-sm"
                     variant="default"
                     disabled={!editable}
-                    onClick={() =>
-                      act("dice:roll", {
-                        expr: a.damage!,
-                        kind: "damage",
-                        ...as,
-                      })
-                    }
+                    data-disabled={lock.blocked || undefined}
+                    onClick={roll({ expr: a.damage, kind: "damage" })}
                   >
                     {a.damage}
                   </Button>
                 </Tooltip>
-                <Tooltip
-                  label={t("sheet.attacks.rollCrit", {
-                    expr: doubleDice(a.damage),
-                  })}
-                >
+                <Tooltip label={tip(t("sheet.attacks.rollCrit", { expr: doubleDice(a.damage) }))}>
                   <Button
                     size="compact-sm"
                     variant="default"
                     color="red"
                     disabled={!editable}
-                    onClick={() =>
-                      act("dice:roll", {
-                        expr: doubleDice(a.damage!),
-                        kind: "damage",
-                        crit: true,
-                        ...as,
-                      })
-                    }
+                    data-disabled={lock.blocked || undefined}
+                    onClick={roll({ expr: doubleDice(a.damage), kind: "damage", crit: true })}
                   >
                     {t("sheet.attacks.crit")}
                   </Button>

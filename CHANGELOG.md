@@ -6,6 +6,12 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Adicionado
+- **Regra da mesa *Efeitos só na sua vez*:** ligada pelo mestre, em combate o jogador só fixa ou transforma efeitos de mapa na vez dele. Desligada, continua livre, como as outras regras.
+
+### Corrigido
+- **Botões de rolar da ficha ignoravam a trava:** os ataques salvos (acerto, dano e crítico), os testes de atributo e o teste contra a morte pareciam liberados fora da vez ou com as rolagens travadas pelo mestre. O servidor já recusava a rolagem; agora os botões ficam apagados como no painel *Dados*, e a dica diz o porquê.
+
 ## [2.11.0] - 2026-10-30
 
 ### Adicionado

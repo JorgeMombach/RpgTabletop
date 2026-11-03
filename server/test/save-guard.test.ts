@@ -152,7 +152,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     log: [roll],
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
-    rules: { moveOnTurn: true, summonOnTurn: true, darkReminder: true } satisfies Required<TableRules>,
+    rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);
 }

@@ -4,6 +4,7 @@ import { ABILITIES, abilityMod, type Ability, type Combatant } from "@rpg/shared
 import { act } from "../actions";
 import { fmtMod } from "../format";
 import { useT } from "../i18n";
+import { useRollLock } from "../rollLock";
 
 /** "1d20+3", "1d20-1" ou "1d20". */
 function d20(mod: number) {
@@ -38,6 +39,8 @@ export function StatsSection({ c, canRoll, gm }: { c: Combatant; canRoll: boolea
 
   // Mestre no personagem de um jogador: escolhe rolar à vista ou em segredo (só ele vê; o jogador nem fica sabendo).
   const secretChoice = gm && c.type === "ally";
+  // Mesma trava do painel Dados (o mestre nunca é travado).
+  const lock = useRollLock();
 
   function roll(k: Ability, secret = false) {
     const mod = abilityMod(c.abilities![k]!);
@@ -83,9 +86,9 @@ export function StatsSection({ c, canRoll, gm }: { c: Combatant; canRoll: boolea
           );
         }
         return (
-          <Tooltip key={k} label={canRoll ? t("stats.roll", { ability: t(`ability.${k}.name`), mod }) : t(`ability.${k}.name`)}>
+          <Tooltip key={k} label={canRoll ? (lock.reason ? t(lock.reason) : t("stats.roll", { ability: t(`ability.${k}.name`), mod })) : t(`ability.${k}.name`)}>
             {canRoll ? (
-              <UnstyledButton onClick={() => roll(k)} aria-label={t("stats.roll", { ability: t(`ability.${k}.name`), mod })}>
+              <UnstyledButton data-disabled={lock.blocked || undefined} onClick={() => !lock.blocked && roll(k)} aria-label={t("stats.roll", { ability: t(`ability.${k}.name`), mod })}>
                 {body}
               </UnstyledButton>
             ) : (

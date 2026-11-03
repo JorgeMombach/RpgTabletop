@@ -124,19 +124,14 @@ Decisões e novidades:
 - [x] Coluna da esquerda empurrando o mapa.
 - [ ] Engasgo ao mover token: os painéis ainda redesenham (ficou para depois).
 
-## Plano depois da 2.11.0 (aprovado em 2026-11-02)
-Fases na ordem combinada; cada uma vira uma versão. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
+## Plano depois da 2.11.0 (aprovado em 2026-11-02, revisto em 2026-11-03)
+Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na branch `fix/correcoes-rolagem-efeitos`, como foi com a 2.10 e a 2.11. Primeiro o que mexe na jogatina; **hospedagem e instalador ficam por último**, talvez numa subida à parte. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
 
-### Fase 0. Correções (2.11.1), branch `fix/correcoes-rolagem-efeitos`
-- [ ] Rolagens de armas não respeitam a trava do mestre. Suspeita a reproduzir: os botões da aba Ataques, na ficha, rolam direto, sem a trava que o painel Dados tem.
-- [ ] Jogador consegue pôr efeito de mapa fora da vez (a criação do efeito não olha a vez). Dúvida: trava sempre ou vira opção nas regras da mesa, como *Movimento só na sua vez*? Sugestão: opção.
+### Fase 0. Correções
+- [x] Rolagens de armas não respeitam a trava do mestre. Reproduzido: o servidor já recusava (aviso "O mestre travou as rolagens"), mas os botões da ficha (ataques, testes de atributo, teste contra a morte) pareciam liberados. Agora usam a mesma trava do painel Dados (`client/src/rollLock.ts`), apagados e com a dica do porquê.
+- [x] Jogador consegue pôr efeito de mapa fora da vez. Virou a regra da mesa *Efeitos só na sua vez* (fixar e transformar; desligar e remover continuam livres, para acabar concentração fora da vez).
 
-### Fase 1. Hospedagem (2.12)
-Motivo: a VPN está dando problema nas partidas. Decisão: servidor sob demanda, ligado só durante a sessão (umas 5 horas), sem previsão de comercializar. O mestre salva o arquivo no fim e carrega na próxima, como hoje; a imagem Docker e a chave de mestre já existem.
-- [ ] Comparar e testar: máquina paga por hora, planos gratuitos com conexão em tempo real e túnel a partir do PC do mestre, sem instalar nada nos jogadores. Medir envio dos mapas e estabilidade contra a VPN. Pesquisar preços na hora.
-- [ ] Permissão de mestre e jogadores, escolhida ao criar a sala.
-
-### Fase 2. Acabamento (2.13)
+### Fase 2. Acabamento
 - [ ] Ícone novo do executável (barra do Windows e abertura do app), com protótipo.
 - [ ] Couro como padrão do fundo da mesa em volta do mapa, o mesmo da tela de login. Sessões salvas antigas não mudam sozinhas.
 - [ ] Cor do grid, por cena.
@@ -144,25 +139,27 @@ Motivo: a VPN está dando problema nas partidas. Decisão: servidor sob demanda,
 - [ ] Ctrl+Z em desenho livre, setas, círculos e tochas (hoje só paredes).
 - [ ] Engasgo ao mover token, se incomodar na mesa (pendente da 2.11.0, no bloco N).
 
-### Fase 3. Dano na ficha (2.14)
+### Fase 3. Dano na ficha
 - [ ] Armas no template, com dano ("Martelo de pedra" 1d6+2): o mob criado já vem com elas e o mestre escolhe qual usar ao rolar.
 - [ ] Magias e habilidades guardam o dano: campo aberto mais dano, genérico.
 
-### Fase 4. Salvar e importar (2.15)
+### Fase 4. Salvar e importar
 - [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
 - [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
 
-### Fase 5. Mesa e mapa (2.16)
+### Fase 5. Mesa e mapa
 - [ ] Dois sons ambientes ao mesmo tempo (chuva e taverna), com a música por cima.
 - [ ] Aba de configurações, juntando as opções espalhadas.
 - [ ] Mestre insere jogadores nas cenas. Dúvida: todos de uma vez num ponto, um por um, ou trocar de cena levando o grupo?
 
-### Fase 6. Mapa vivo (2.17)
+### Fase 6. Mapa vivo
 - [ ] Pincel de efeitos, só do mestre: pintar com qualquer efeito livremente pelo mapa, na aba Mapa. Área pintada é um formato de dado novo.
 - [ ] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Dúvida: ao abrir, o jogador vê e pega para o inventário, ou só o mestre revela?
 
-### Fase 7. Instalador
+### Fase 7. Instalador e hospedagem (por último, talvez numa subida à parte)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
+- [ ] Hospedagem (era a Fase 1; adiada em 2026-11-03: a VPN incomoda, mas dá para jogar). Decisão: servidor sob demanda, ligado só durante a sessão (umas 5 horas), sem previsão de comercializar. O mestre salva o arquivo no fim e carrega na próxima, como hoje; a imagem Docker e a chave de mestre já existem. Comparar e testar: máquina paga por hora, planos gratuitos com conexão em tempo real e túnel a partir do PC do mestre, sem instalar nada nos jogadores. Medir envio dos mapas e estabilidade contra a VPN. Pesquisar preços na hora.
+- [ ] Permissão de mestre e jogadores, escolhida ao criar a sala (junto com a hospedagem).
 
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).

@@ -960,7 +960,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
           )}
         </Paper>
       )}
-      {tool === "area" && <AreaOptions canFix={!!myArea} onFix={() => setFixing(true)} />}
+      {tool === "area" && <AreaOptions canFix={!!myArea} locked={turnLocked(state, "effectOnTurn")} onFix={() => setFixing(true)} />}
       {tool === "draw" && <DrawOptions drawings={state.battle.drawings} gm={gm} selfId={state.self.id} />}
       {gm && tool === "walls" && <WallOptions walls={state.battle.walls} style={wallStyle} />}
       {gm && tool === "torches" && <MapTorchOptions count={state.battle.torches.length} />}
@@ -1316,7 +1316,7 @@ function MapToolbar({
 const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
 
 /** Forma e tamanho da área (ferramenta Área). */
-function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) {
+function AreaOptions({ canFix, locked, onFix }: { canFix: boolean; locked: boolean; onFix: () => void }) {
   const t = useT();
   const { areaKind, areaFeet } = useApp();
   return (
@@ -1352,8 +1352,16 @@ function AreaOptions({ canFix, onFix }: { canFix: boolean; onFix: () => void }) 
         <MText size="xs" c="dimmed">
           {t("area.hint")}
         </MText>
-        <Tooltip label={t("area.fixTip")}>
-          <Button size="compact-xs" disabled={!canFix} leftSection={<IconPin size={12} />} onClick={onFix} style={{ flex: "none" }}>
+        {/* Regra da mesa: fora da vez, `data-disabled` para a dica explicar o porquê. */}
+        <Tooltip label={locked ? t("rules.effectLocked") : t("area.fixTip")}>
+          <Button
+            size="compact-xs"
+            disabled={!canFix}
+            data-disabled={locked || undefined}
+            leftSection={<IconPin size={12} />}
+            onClick={() => !locked && onFix()}
+            style={{ flex: "none" }}
+          >
             {t("area.fix")}
           </Button>
         </Tooltip>

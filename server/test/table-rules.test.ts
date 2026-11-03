@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ActionResult } from "@rpg/shared";
+import type { ActionResult, Area } from "@rpg/shared";
 import { act, join, useServer } from "./helpers";
 
-// Regras da mesa: opções que o mestre liga (movimento e invocação só na vez, em combate).
+// Regras da mesa: opções que o mestre liga (movimento, invocação e efeitos só na vez, em combate).
 const { ctx, client } = useServer();
+const sphere = (col: number, row: number): Area => ({ kind: "sphere", origin: { col, row }, angle: 0, feet: 15 });
 
 function idsOf(res: ActionResult): string[] {
   assert.ok(res.ok, res.ok ? "" : res.error);
@@ -26,21 +27,22 @@ describe("regras da mesa", () => {
     assert.match(errorOf(await act(ana, "rules:set", { moveOnTurn: true })), /permissão/i);
     assert.match(errorOf(await act(g, "rules:set", { moveOnTurn: "sim" as unknown as boolean })), /inválido/);
     assert.match(errorOf(await act(g, "rules:set", { voar: true } as never)), /desconhecida/);
-    assert.deepEqual(ctx.server.store.game.rules, { moveOnTurn: false, summonOnTurn: false, darkReminder: false });
+    assert.deepEqual(ctx.server.store.game.rules, { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, darkReminder: false });
   });
 
-  it("ligadas: em combate o jogador move e invoca só na sua vez; o mestre sempre; fora de combate, livre", async () => {
+  it("ligadas: em combate o jogador move, invoca e fixa efeitos só na sua vez; o mestre sempre; fora de combate, livre", async () => {
     const g = await client();
     await join(g, "Mestre");
     const bia = await client("10.47.0.2");
     await join(bia, "Bia");
     const [lia] = idsOf(await act(bia, "ally:create", { name: "Lia", hpMax: 20, dexMod: 0, ac: 14 }));
     const [orc] = idsOf(await act(g, "mob:add", { name: "Orc", hpMax: 15, dexMod: 0, ac: 13 }));
-    assert.ok((await act(g, "rules:set", { moveOnTurn: true, summonOnTurn: true })).ok);
+    assert.ok((await act(g, "rules:set", { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true })).ok);
     assert.ok(ctx.server.store.game.log.some((e) => e.system && e.text === "Regra da mesa ligada: Movimento só na sua vez."));
 
     // Fora de combate: livre.
     assert.ok((await act(bia, "token:move", { id: lia, pos: { col: 1, row: 1 } })).ok);
+    const [nevoa] = idsOf(await act(bia, "effect:add", { name: "Névoa", preset: "custom", area: sphere(8, 8), casterId: lia }));
 
     await act(g, "init:set", { id: orc, value: 20 });
     await act(g, "init:set", { id: lia, value: 5 });
@@ -49,13 +51,18 @@ describe("regras da mesa", () => {
     // Vez do Orc: Bia não move nem invoca; o mestre move qualquer um.
     assert.match(errorOf(await act(bia, "token:move", { id: lia, pos: { col: 2, row: 1 } })), /na sua vez/);
     assert.match(errorOf(await act(bia, "summon:add", { summonerId: lia, name: "Lobo", hpMax: 11, dexMod: 2, ac: 13, qty: 1 })), /na sua vez/);
+    assert.match(errorOf(await act(bia, "effect:add", { name: "Teia", preset: "web", area: sphere(3, 3), casterId: lia })), /na sua vez/);
+    assert.match(errorOf(await act(bia, "effect:transform", { id: nevoa, name: "Fogo", preset: "fire", casterId: lia })), /na sua vez/);
     assert.ok((await act(g, "token:move", { id: lia, pos: { col: 3, row: 1 } })).ok);
+    assert.ok((await act(g, "effect:add", { name: "Teia", preset: "web", area: sphere(3, 3), casterId: null })).ok, "o mestre sempre");
 
     // Vez da Lia: pode, e o invocado dela também anda na vez dela.
     assert.ok((await act(g, "combat:next", {})).ok);
     assert.ok((await act(bia, "token:move", { id: lia, pos: { col: 4, row: 1 } })).ok);
     const [lobo] = idsOf(await act(bia, "summon:add", { summonerId: lia, name: "Lobo", hpMax: 11, dexMod: 2, ac: 13, qty: 1 }));
     assert.ok((await act(bia, "token:move", { id: lobo, pos: { col: 6, row: 6 } })).ok);
+    assert.ok((await act(bia, "effect:add", { name: "Teia", preset: "web", area: sphere(3, 3), casterId: lia })).ok);
+    assert.ok((await act(bia, "effect:transform", { id: nevoa, name: "Fogo", preset: "fire", casterId: lia })).ok);
 
     // Desligar a regra libera de novo.
     assert.ok((await act(g, "combat:next", {})).ok);

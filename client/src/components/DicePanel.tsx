@@ -27,6 +27,7 @@ import { allCombatants, fmtMod } from "../format";
 import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
+import { rollLock } from "../rollLock";
 import { naturalD20, RollLog } from "./RollLog";
 
 const MODES: { value: RollMode; label: MessageKey }[] = [
@@ -110,16 +111,8 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
 
   // Trava por turno: o servidor também recusa; aqui só desabilita e explica.
   const me = state.self.id;
-  const myTurn = current?.ownerId === me;
-  const request = rolls.request;
-  const requested = !!request && request.playerIds.includes(me) && !request.done.includes(me);
-  const reactionOpen = rolls.reactions.some((r) => r.playerId === me && r.turn === combat.turn);
-  const reactionUsed = rolls.reactions.some((r) => r.playerId === me && r.round === combat.round);
+  const { myTurn, requested, reactionOpen, reactionUsed, waiting, blocked } = rollLock(state, rolling);
   const outside = rolls.outside;
-  const locked = !gm && (combat.active ? !myTurn && !requested && !reactionOpen : outside !== "free" && !requested);
-  // Antispam (E26): enquanto os dados desta pessoa caem na tela, não rola de novo.
-  const waiting = !gm && state.log.some((e) => e.authorId === me && rolling.includes(e.id));
-  const blocked = locked || waiting;
 
   // Ataques salvos como botões rápidos (L8): de quem rola. Mestre: o "Rolar como"; jogador: o personagem dele
   // na vez, senão o selecionado, senão o primeiro (sem contar os invocados).

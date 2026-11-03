@@ -3,6 +3,7 @@ import { IconDice5 } from "@tabler/icons-react";
 import type { Combatant } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
+import { useRollLock } from "../rollLock";
 
 /**
  * Testes contra a morte de um personagem com 0 de vida: três marcas de sucesso e três de falha,
@@ -12,6 +13,7 @@ export function DeathSaves({ c, editable, gm }: { c: Combatant; editable: boolea
   const t = useT();
   const s = c.deathSaves?.successes ?? 0;
   const f = c.deathSaves?.failures ?? 0;
+  const lock = useRollLock();
 
   /** Clicar na marca n acende até ela; clicar na última acesa apaga essa. */
   function mark(kind: "successes" | "failures", n: number) {
@@ -56,11 +58,12 @@ export function DeathSaves({ c, editable, gm }: { c: Combatant; editable: boolea
       {row("successes", s, "var(--mantine-color-copper-5)", t("death.successes"))}
       {row("failures", f, "var(--mantine-color-red-6)", t("death.failures"))}
       {editable && (
-        <Tooltip label={t("death.rollTip")}>
+        <Tooltip label={lock.reason ? t(lock.reason) : t("death.rollTip")}>
           <Button
             variant="default"
             leftSection={<IconDice5 size={14} />}
-            onClick={() => act("dice:roll", { expr: "1d20", death: true, ...(gm ? { asId: c.id } : {}) })}
+            data-disabled={lock.blocked || undefined}
+            onClick={() => !lock.blocked && act("dice:roll", { expr: "1d20", death: true, ...(gm ? { asId: c.id } : {}) })}
           >
             {t("death.roll")}
           </Button>

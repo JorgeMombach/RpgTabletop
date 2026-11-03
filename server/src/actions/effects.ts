@@ -4,6 +4,7 @@ import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
 import { logSystem, whoIs } from "./dice";
+import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
 
 export const CONCENTRATION = "Concentração";
@@ -155,6 +156,7 @@ function ownEffect(store: Store, player: ServerPlayer, rawId: unknown): MapEffec
 
 export const effectHandlers: HandlerMap = {
   "effect:add": (store, player, payload) => {
+    requireTurnFor(store, player, "effectOnTurn", "Em combate, só dá para pôr efeitos na sua vez.");
     const { battle } = store.game;
     if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
     const fields = effectFields(store, player, payload);
@@ -182,6 +184,7 @@ export const effectHandlers: HandlerMap = {
     const e = store.game.battle.effects.find((x) => x.id === id) ?? fail("Efeito não encontrado.");
     // Jogador transforma qualquer efeito que esteja vendo (ligado): é a magia dele agindo na área.
     if (player.role !== "gm" && !e.active) fail("Efeito não encontrado.");
+    requireTurnFor(store, player, "effectOnTurn", "Em combate, só dá para pôr efeitos na sua vez.");
     const fields = effectFields(store, player, payload);
     const before: EffectState = {
       name: e.name,
