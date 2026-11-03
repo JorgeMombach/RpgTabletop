@@ -12,6 +12,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Desfazer (Ctrl+Z) em desenhos e tochas:** além das paredes, agora desfaz desenho livre, setas e círculos (inclusive uma passada da borracha) e as tochas fixas (pôr, arrastar e apagar). Cada ferramenta tem o seu botão *Desfazer* e o Ctrl+Z desfaz o último dela; com outra ferramenta, o último que você fez no mapa. Jogadores também desfazem as próprias setas.
 
 ### Alterado
+- **Ícone novo do app:** o dadinho virou o d20 de bronze da tela de entrada numa placa de couro com cantoneiras, no executável, na barra do Windows, na tela de abertura e na aba do navegador.
+- **Dicas em pergaminho:** os tooltips de todo o app viraram um pergaminho com tinta escura e filete de bronze. Nas ferramentas do mapa, a dica traz o nome e a tecla de atalho em cima e a explicação embaixo.
 - **Tochas fixas menores:** os desenhos da tocha fincada e da tocha de ferro ficaram com metade do tamanho (antes, do tamanho de um token) e o braseiro, de uma casa. A luz continua a mesma.
 - **Mesa de couro por padrão:** em volta do mapa, jogo novo começa com o tapete de couro da tela de entrada (antes, madeira). Sessões salvas abrem como estavam, e a madeira continua no painel *Mapa*.
 

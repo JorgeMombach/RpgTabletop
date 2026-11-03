@@ -149,7 +149,7 @@ npm install
 | `npm start` | Roda `node dist/server.cjs` (precisa do `build` antes). A pasta `dist/` roda em qualquer máquina com Node, sem `npm install` |
 | `npm run app` | Compila e abre o app do mestre (Electron) sem empacotar — para testar a janela, o aviso ao fechar etc. |
 | `npm run package` | Gera o app do **sistema atual** em `release/` (electron-builder, ADR-18): `.exe` portátil, `.dmg` ou `.AppImage` |
-| `npm run icon` | Regera `assets/icon.ico` e `assets/icon.png` |
+| `npm run icon` | Regera `assets/icon.ico`, `assets/icon.png` e `assets/splash.bmp` (desenha no Electron, com a fonte Cinzel) |
 
 Regras do projeto (fluxo, testes, changelog, release e **padrões de interface**) estão no [CLAUDE.md](CLAUDE.md).
 

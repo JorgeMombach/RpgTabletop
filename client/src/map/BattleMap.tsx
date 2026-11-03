@@ -16,6 +16,7 @@ import { typingOrDialog } from "../components/Shortcuts";
 import { removeCombatant } from "../commands";
 import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
+import { TipTitle } from "../components/TipTitle";
 import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
@@ -1267,7 +1268,7 @@ function MapToolbar({
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
         {tools.map(({ id, text, label, icon: Icon }) => (
-          <Tooltip key={id} label={`${label} · ${TOOL_KEYS[id]}`}>
+          <Tooltip key={id} label={<TipTitle title={text} shortcut={TOOL_KEYS[id]}>{label}</TipTitle>}>
             {narrow ? (
               <ActionIcon
                 size="lg"

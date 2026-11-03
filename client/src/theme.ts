@@ -155,7 +155,11 @@ export const theme = createTheme({
     Slider: Slider.extend({ defaultProps: { size: "sm", label: null } }),
     Text: Text.extend({ defaultProps: { size: "sm" } }),
     // Tela de toque (E23): sem dica flutuante, que gruda na tela depois do toque. Os botões têm texto ou aria-label.
-    Tooltip: Tooltip.extend({ defaultProps: { withArrow: true, openDelay: 300, multiline: true, maw: 280, disabled: TOUCH_ONLY } }),
+    // Dicas em pergaminho (depois da 2.11): papel envelhecido, tinta escura e filete de bronze, em styles.css (.game-tip).
+    Tooltip: Tooltip.extend({
+      defaultProps: { withArrow: true, arrowSize: 8, openDelay: 300, multiline: true, maw: 280, disabled: TOUCH_ONLY },
+      classNames: { tooltip: "game-tip", arrow: "game-tip-arrow" },
+    }),
     Paper: Paper.extend({ defaultProps: { withBorder: true, radius: "sm", p: "md", bg: "dark.6" } }),
     Modal: Modal.extend({
       defaultProps: { centered: true, radius: "md" },

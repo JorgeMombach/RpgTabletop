@@ -132,10 +132,10 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Jogador consegue pôr efeito de mapa fora da vez. Virou a regra da mesa *Efeitos só na sua vez* (fixar e transformar; desligar e remover continuam livres, para acabar concentração fora da vez).
 
 ### Fase 2. Acabamento
-- [ ] Ícone novo do executável (barra do Windows e abertura do app), com protótipo.
+- [x] Ícone novo do executável (barra do Windows e abertura do app), com protótipo. Escolhido o C, placa de couro com o d20, sem o nome (gerado por `npm run icon`, agora no Electron).
 - [x] Couro como padrão do fundo da mesa em volta do mapa, o mesmo da tela de login. Sessões salvas antigas não mudam sozinhas.
 - [x] Cor do grid, por cena (painel Mapa, abaixo de *Mostrar grid*; preto fica sem campo).
-- [ ] Tooltips mais bonitos, com protótipo.
+- [x] Tooltips mais bonitos, com protótipo. Escolhido o 5, pergaminho com título (`TipTitle` nas ferramentas do mapa).
 - [x] Ctrl+Z em desenho livre, setas, círculos e tochas (hoje só paredes). Histórico único em `client/src/map/mapHistory.ts` (era `wallHistory.ts`); cada ferramenta desfaz o dela; ação nova `maptorch:remove`.
 - [ ] Engasgo ao mover token, se incomodar na mesa (pendente da 2.11.0, no bloco N).
 
