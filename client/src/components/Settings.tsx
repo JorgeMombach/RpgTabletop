@@ -1,6 +1,6 @@
-import { ActionIcon, Checkbox, Modal, SegmentedControl, Select, Slider, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Checkbox, Modal, NumberInput, SegmentedControl, Select, Slider, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import { IconSettings } from "@tabler/icons-react";
-import type { ClientState, OutsideRolls, TableRules } from "@rpg/shared";
+import { LIMITS, type ClientState, type OutsideRolls, type TableRules } from "@rpg/shared";
 import { useState, type ReactNode } from "react";
 import { act } from "../actions";
 import { LANGS, setLang, useLang, useT, type Lang, type MessageKey } from "../i18n";
@@ -116,6 +116,23 @@ function TableSettings({ state }: { state: ClientState }) {
         />
       </Section>
       <Section title={t("settings.seen")}>{SEEN_RULES.map(rule)}</Section>
+      <Section title={t("settings.loot")} hint={t("settings.lootHint")}>
+        <NumberInput
+          key={state.lootSeconds}
+          label={t("settings.lootSeconds")}
+          suffix=" s"
+          min={LIMITS.lootSeconds.min}
+          max={LIMITS.lootSeconds.max}
+          allowDecimal={false}
+          allowNegative={false}
+          clampBehavior="strict"
+          defaultValue={state.lootSeconds}
+          onBlur={(e) => {
+            const n = Number(e.currentTarget.value.replace(/\D/g, ""));
+            if (Number.isInteger(n) && n !== state.lootSeconds) void act("loot:seconds", { seconds: n });
+          }}
+        />
+      </Section>
     </Stack>
   );
 }

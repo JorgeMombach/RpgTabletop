@@ -1,16 +1,16 @@
-import type { ActionResult, Drawing, GridPos, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
+import type { ActionResult, ChestStyle, Drawing, GridPos, LootEntry, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
 
 /**
- * Desfazer do mapa (L5, ampliado depois da 2.11): paredes e portas, desenhos (livre, seta, círculo…) e tochas
- * fixas. Volta o que esta pessoa colocou, apagou com a borracha ou arrastou (tocha), pelo botão de cada
+ * Desfazer do mapa (L5, ampliado depois da 2.11): paredes e portas, desenhos (livre, seta, círculo…), tochas
+ * fixas e baús. Volta o que esta pessoa colocou, apagou com a borracha ou arrastou (tocha), pelo botão de cada
  * ferramenta ou Ctrl+Z. Uma pilha só, mas cada ferramenta desfaz só o que é dela; fora delas, Ctrl+Z desfaz o
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
@@ -20,19 +20,23 @@ type Step =
   | { scope: "drawings"; kind: "erased"; removed: Drawing[]; added: string[] }
   | { scope: "torches"; kind: "added"; id: string }
   | { scope: "torches"; kind: "moved"; id: string; col: number; row: number }
-  | { scope: "torches"; kind: "erased"; removed: MapTorch[] };
+  | { scope: "torches"; kind: "erased"; removed: MapTorch[] }
+  | { scope: "chests"; kind: "added"; id: string }
+  | { scope: "chests"; kind: "moved"; id: string; col: number; row: number }
+  | { scope: "chests"; kind: "removed"; chest: MapChest };
 
 const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0 }));
 
 function sync() {
   useMapUndo.setState({
     walls: steps.filter((s) => s.scope === "walls").length,
     drawings: steps.filter((s) => s.scope === "drawings").length,
     torches: steps.filter((s) => s.scope === "torches").length,
+    chests: steps.filter((s) => s.scope === "chests").length,
   });
 }
 
@@ -147,6 +151,41 @@ async function restoreTorch(t: MapTorch) {
   if (id) renamed("torches", t.id, id);
 }
 
+// ---------- Baús ----------
+
+export async function addChest(col: number, row: number, style: ChestStyle): Promise<ActionResult> {
+  const res = await act("chest:add", { col, row, style });
+  if (res.ok && res.ids?.[0]) push({ scope: "chests", kind: "added", id: res.ids[0] });
+  return res;
+}
+
+/** Baú arrastado para outra casa: desfazer volta para onde estava. */
+export async function moveChest(c: MapChest, col: number, row: number): Promise<ActionResult> {
+  const res = await act("chest:move", { id: c.id, col, row });
+  if (res.ok) push({ scope: "chests", kind: "moved", id: c.id, col: c.col, row: c.row });
+  return res;
+}
+
+/** Apagar o baú (no editor): desfazer põe de volta com nome, desenho, trancas e loot. */
+export async function removeChest(c: MapChest): Promise<ActionResult> {
+  const res = await act("chest:remove", { id: c.id });
+  if (res.ok) push({ scope: "chests", kind: "removed", chest: structuredClone(c) });
+  return res;
+}
+
+const lootInput = (e: LootEntry): LootInput => {
+  const { id: _, ...rest } = e;
+  return rest as LootInput;
+};
+
+async function restoreChest(c: MapChest) {
+  const res = await act("chest:add", { col: c.col, row: c.row, style: c.style });
+  const id = res.ok ? res.ids?.[0] : undefined;
+  if (!id) return;
+  renamed("chests", c.id, id);
+  await act("chest:update", { id, name: c.name, style: c.style, locked: !!c.locked, hidden: !!c.hidden, loot: c.loot.map(lootInput) });
+}
+
 // ---------- Desfazer ----------
 
 /** Desfaz o último passo da ferramenta (ou o último de qualquer uma, sem `scope`). */
@@ -175,6 +214,14 @@ export async function undo(scope?: UndoScope) {
     } else {
       for (const id of step.added) if (has(battle?.drawings, id)) await act("draw:remove", { id });
       for (const d of step.removed) await restoreDrawing(d);
+    }
+  } else if (step.scope === "chests") {
+    if (step.kind === "added") {
+      if (has(battle?.chests, step.id)) await act("chest:remove", { id: step.id });
+    } else if (step.kind === "moved") {
+      if (has(battle?.chests, step.id)) await act("chest:move", { id: step.id, col: step.col, row: step.row });
+    } else {
+      await restoreChest(step.chest);
     }
   } else if (step.kind === "added") {
     if (has(battle?.torches, step.id)) await act("maptorch:remove", { id: step.id });

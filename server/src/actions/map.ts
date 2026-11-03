@@ -107,6 +107,10 @@ export const mapHandlers: HandlerMap = {
     battle.drawings = [];
     battle.walls = [];
     battle.torches = [];
+    battle.chests = [];
+    // A disputa de loot era da batalha que acabou.
+    store.lootCount = null;
+    store.lootResults = null;
     // Cena nova: sem clima, de dia (E26), e sem névoa.
     battle.weather = defaultWeather();
     battle.fog = emptyFog();

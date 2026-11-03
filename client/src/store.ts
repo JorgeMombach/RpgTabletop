@@ -3,12 +3,12 @@ import { useMemo } from "react";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type MapTorchStyle, type Role, type Ruler } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type MapTorchStyle, type Role, type Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "ping" | "fog";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -95,6 +95,11 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Tochas: desenho que o próximo clique coloca, ou a borracha. */
   torchStyle: MapTorchStyle;
   torchErase: boolean;
+  /** Ferramenta Baús: desenho do próximo baú; baú aberto no editor (mestre). */
+  chestStyle: ChestStyle;
+  editingChestId: string | null;
+  /** Baú com a janela de loot aberta nesta tela (abre sozinha quando alguém abre um baú). */
+  lootChestId: string | null;
   /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
   logOut: boolean;
   /** O que o mestre está mostrando para a mesa (chega à parte, com a imagem) e qual deles esta pessoa já fechou. */
@@ -139,6 +144,9 @@ export const useApp = create<AppStore>(() => ({
   rolling: [],
   torchStyle: "stick",
   torchErase: false,
+  chestStyle: "wood",
+  editingChestId: null,
+  lootChestId: null,
   hoverId: null,
   logOut: false,
   handout: null,

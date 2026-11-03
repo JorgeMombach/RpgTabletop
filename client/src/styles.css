@@ -2748,3 +2748,75 @@ button[data-disabled] > .ability-cell {
   line-height: 1.35;
   color: #3b2a17;
 }
+
+/* ---------- Janela de loot (baús, Fase 6; protótipo aprovado) ---------- */
+.loot-window {
+  background: radial-gradient(ellipse at 30% 0%, #3a3044, var(--mantine-color-dark-6) 65%);
+  border: 1px solid #6e5331;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.6), inset 0 0 0 2px var(--mantine-color-dark-6), inset 0 0 0 3px rgb(216 180 122 / 0.3);
+}
+
+.loot-row {
+  padding: 8px 10px;
+  border-radius: var(--mantine-radius-sm);
+  background: rgb(20 18 24 / 0.55);
+  border: 1px solid var(--mantine-color-dark-4);
+}
+
+.loot-row.mine {
+  border-color: rgb(216 180 122 / 0.6);
+  background: rgb(169 132 79 / 0.12);
+}
+
+.loot-ico {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mantine-color-dark-7);
+  border: 1px solid #6e5331;
+  color: var(--mantine-color-bronze-4);
+}
+
+/* Resultado da disputa: pergaminho, como as dicas. */
+.loot-results {
+  background: linear-gradient(#f1e6d0, #e2d2b0);
+  color: #2b1f12;
+  border: 1px solid #8a6a3e;
+  display: grid;
+  gap: 4px;
+}
+
+.loot-results-title {
+  font-family: Cinzel, serif;
+  font-weight: 700;
+  font-size: var(--mantine-font-size-xs);
+  color: #4a3417;
+}
+
+.loot-d20 {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-d20 i {
+  font-style: normal;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  font-weight: 700;
+  font-size: 12px;
+  background: #2b1f12;
+  color: #f1e6d0;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.loot-d20.win i {
+  background: #8a2a2f;
+}

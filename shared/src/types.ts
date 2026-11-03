@@ -514,6 +514,49 @@ export interface MapTorch {
   style: MapTorchStyle;
 }
 
+/** Desenhos de baú que o mestre escolhe: arca de madeira, baú de ferro ou arca ornamentada. */
+export const CHEST_STYLES = ["wood", "iron", "ornate"] as const;
+export type ChestStyle = (typeof CHEST_STYLES)[number];
+
+/** O que vai num baú: moedas, item (vai para a aba Itens) ou arma (item com bônus e/ou dano, que se empunha). */
+export type LootEntry =
+  | { id: string; kind: "coins"; coins: Coins }
+  | { id: string; kind: "item"; name: string; qty: number; note?: string }
+  | { id: string; kind: "weapon"; name: string; qty: number; bonus?: number; damage?: string; note?: string };
+
+/** Entrada de loot como o mestre manda (sem o id). */
+export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<E, "id"> : never) : never;
+
+/**
+ * Baú no mapa (Fase 6, docs/design/baus.md): uma casa, com nome e desenho. Trancado, só o mestre abre;
+ * invisível, só o mestre vê. O jogador recebe `loot` vazio até a primeira abertura.
+ */
+export interface MapChest {
+  id: string;
+  col: number;
+  row: number;
+  name: string;
+  style: ChestStyle;
+  locked?: true;
+  hidden?: true;
+  opened?: true;
+  loot: LootEntry[];
+}
+
+/** Contagem da escolha do loot (não vai no arquivo): quanto falta e quem quer cada coisa (lootId → ids de jogadores). */
+export interface LootCountView {
+  chestId: string;
+  remainingMs: number;
+  wants: Record<string, string[]>;
+}
+
+/** O que a última disputa deu, para a janela mostrar por alguns segundos. `name` vazio = moedas. */
+export interface LootResults {
+  chestId: string;
+  at: number;
+  lines: { lootId: string; name: string; rolls: { who: string; d20: number }[]; gave: { who: string; qty: number; coins?: Coins }[] }[];
+}
+
 /** O que muda de uma cena (mapa) para outra: imagem e grid, mobs, NPCs, efeitos, desenhos, paredes e clima. */
 export interface SceneContent {
   map: MapConfig & { image: string | null; imageVersion: number };
@@ -523,6 +566,7 @@ export interface SceneContent {
   drawings: Drawing[];
   walls: Wall[];
   torches: MapTorch[];
+  chests: MapChest[];
   weather: WeatherState;
   /** Névoa de guerra da cena (G). */
   fog: FogState;
@@ -589,6 +633,7 @@ export interface GameState {
     drawings: Drawing[];
     walls: Wall[];
     torches: MapTorch[];
+    chests: MapChest[];
     weather: WeatherState;
     fog: FogState;
   };
@@ -598,6 +643,8 @@ export interface GameState {
   sceneId: string;
   /** Regras da mesa (valem para todas as cenas). */
   rules: TableRules;
+  /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
+  lootSeconds: number;
 }
 
 export interface HostInfo {
@@ -725,6 +772,9 @@ export interface ClientState {
     drawings: Drawing[];
     walls: Wall[];
     torches: MapTorch[];
+    chests: MapChest[];
+    lootCount: LootCountView | null;
+    lootResults: LootResults | null;
     weather: WeatherState;
     fog: FogState;
     /** Casas que os aliados veem agora (visão dos personagens); vazio sem ela. Calculado, não guardado. */
@@ -735,6 +785,8 @@ export interface ClientState {
   sceneId: string;
   scenes?: { id: string; name: string; hasImage: boolean; mobs: number }[];
   rules: TableRules;
+  /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
+  lootSeconds: number;
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */

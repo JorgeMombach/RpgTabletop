@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { emptyFog, LIMITS, type Combatant, type GameState, type Handout, type PublicPlayer, type Role, type SoundState } from "@rpg/shared";
+import { emptyFog, LIMITS, type Combatant, type GameState, type Handout, type PublicPlayer, type Role, type SoundState, type LootResults } from "@rpg/shared";
 import { defaultWeather } from "./weather";
 
 /** Mob ou NPC removido recentemente, guardado para o "Desfazer". */
@@ -53,12 +53,14 @@ export function createGame(): GameState {
       drawings: [],
       walls: [],
       torches: [],
+      chests: [],
       weather: defaultWeather(),
       fog: emptyFog(),
     },
     log: [],
     scenes: [{ id: sceneId, name: "Cena 1" }],
     sceneId,
+    lootSeconds: 20,
     rules: { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, hideFoeHits: false, darkReminder: false },
   };
 }
@@ -81,6 +83,16 @@ export class Store {
   soundLibrary: string[] | null = null;
   /** Antispam dos jogadores (E26); os testes zeram para rolar em sequência. */
   rollCooldownMs: number = LIMITS.rollCooldownMs;
+  /** Disputa do loot em andamento (uma por vez; não vai no arquivo). `wants`: lootId → ids de jogadores. */
+  lootCount: { chestId: string; endsAt: number; wants: Record<string, string[]> } | null = null;
+  /** Resultado da última disputa, para a janela de loot. */
+  lootResults: LootResults | null = null;
+  /** Testes: duração da contagem em ms (no lugar de `game.lootSeconds`). */
+  lootMsOverride: number | null = null;
+  /** Chamar depois de um tempo; o app troca por um que também manda o estado novo a todos. */
+  schedule: (ms: number, fn: () => void) => void = (ms, fn) => {
+    setTimeout(fn, ms).unref?.();
+  };
 
   constructor(readonly maxPlayers: number) {}
 

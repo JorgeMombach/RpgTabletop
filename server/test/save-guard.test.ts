@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -123,6 +123,23 @@ function fullGame(playerId: string, gmId: string): GameState {
     effects: [effect],
     drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true, authorId: playerId } satisfies Required<Drawing>],
     torches: [{ id: "t1", col: 4.25, row: 6.5, style: "iron" } satisfies Required<MapTorch>],
+    chests: [
+      {
+        id: "b1",
+        col: 3,
+        row: 7,
+        name: "Baú do capitão",
+        style: "ornate",
+        locked: true,
+        hidden: true,
+        opened: true,
+        loot: [
+          { id: "l1", kind: "coins", coins: { gp: 120, sp: 30 } },
+          { id: "l2", kind: "item", name: "Poção de cura", qty: 3, note: "2d4+2" },
+          { id: "l3", kind: "weapon", name: "Machado de batalha", qty: 1, bonus: 5, damage: "1d8+3", note: "pesado" },
+        ],
+      } satisfies Required<MapChest>,
+    ],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door> } satisfies Required<Wall>,
@@ -140,6 +157,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     torches: [],
+    chests: [],
     weather,
     fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] },
     allyPos: { thorin: { col: 3, row: 3 } },
@@ -152,6 +170,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     log: [roll],
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
+    lootSeconds: 45,
     rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, hideFoeHits: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);

@@ -45,6 +45,7 @@ import {
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
 import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { parseChest } from "./actions/chests";
 import { parseWall } from "./actions/walls";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
@@ -503,6 +504,8 @@ export function parseSession(raw: unknown): ParsedSession {
     sceneId,
     // Arquivo de antes das regras da mesa: tudo desligado.
     rules: tableRules(g.rules ?? {}),
+    // Arquivos anteriores aos baús: 20 segundos.
+    lootSeconds: g.lootSeconds === undefined ? 20 : int(g.lootSeconds, "tempo do loot", LIMITS.lootSeconds.min, LIMITS.lootSeconds.max),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
@@ -556,6 +559,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
     // Arquivos de antes das tochas fixas: nenhuma.
     torches: list(b.torches ?? [], "tochas", LIMITS.mapTorches).map((t) => ({ id: requireString(obj(t, "tocha").id, "Tocha"), ...parseMapTorch(t) })),
+    // Arquivos de antes dos baús (2.12): nenhum.
+    chests: list(b.chests ?? [], "baús", LIMITS.chests).map(parseChest),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
@@ -654,6 +659,9 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
   game.battle.map.imageVersion = store.game.battle.map.imageVersion + 1;
   store.game = game;
+  // Disputa de loot não vai no arquivo: o baú volta aberto, no modo Pegar.
+  store.lootCount = null;
+  store.lootResults = null;
   store.mobCounters = parsed.mobCounters;
   store.removedMobs.clear();
 }

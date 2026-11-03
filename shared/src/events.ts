@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput } from "./types";
 import type { FogRect } from "./fog";
 
 export interface JoinPayload {
@@ -299,6 +299,24 @@ export interface ActionPayloads {
   "maptorch:erase": { points: number[]; radius: number };
   /** Mestre: apaga todas as tochas da cena. */
   "maptorch:clear": Record<string, never>;
+  /** Mestre: baú novo (nome "Baú", destrancado, visível, vazio) numa casa livre. */
+  "chest:add": { col: number; row: number; style: ChestStyle };
+  /** Mestre: edita o baú; `loot` substitui o que tinha. */
+  "chest:update": { id: string; name: string; style: ChestStyle; locked: boolean; hidden: boolean; loot: LootInput[] };
+  "chest:move": { id: string; col: number; row: number };
+  "chest:remove": { id: string };
+  /** Abrir o baú (qualquer um; trancado, só o mestre): abre para todos e, na primeira vez, começa a contagem. */
+  "chest:open": { id: string };
+  /** Durante a contagem: marcar ou desmarcar interesse numa coisa do baú. */
+  "loot:want": { chestId: string; lootId: string; want: boolean };
+  /** Depois da contagem: levar (pilha: `qty` unidades; sem `qty`, tudo). */
+  "loot:take": { chestId: string; lootId: string; qty?: number };
+  /** Mestre, a qualquer hora: dar para um personagem (sai da disputa). */
+  "loot:give": { chestId: string; lootId: string; to: string; qty: number };
+  /** Mestre: encerrar a contagem agora. */
+  "loot:end": Record<string, never>;
+  /** Mestre: segundos para escolher o loot (0 = sem contagem). */
+  "loot:seconds": { seconds: number };
   "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
   "wall:remove": { id: string };
   /** Mestre: borracha nas paredes (`points` = col, row em casas). Parede é cortada; porta tocada some inteira. */
@@ -481,6 +499,11 @@ export const LIMITS = {
   walls: 600,
   /** Tochas fixas no mapa, por cena. */
   mapTorches: 60,
+  chests: 40,
+  /** Coisas diferentes num baú. */
+  loot: 20,
+  chestName: 40,
+  lootSeconds: { min: 0, max: 120 },
   /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
   fogRects: 500,
   fogRectSide: 400,

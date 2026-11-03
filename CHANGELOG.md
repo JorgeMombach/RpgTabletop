@@ -18,11 +18,14 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Dois ambientes ao mesmo tempo:** o painel *Som* ganhou o *Segundo ambiente* (chuva lá fora e taverna, por exemplo), com volume próprio e a música por cima.
 - **Levar o grupo ao abrir uma cena:** marcando a opção no painel *Cenas*, depois de abrir a cena o mestre clica no mapa e todos os personagens (e invocados) chegam juntos em volta do ponto.
 - **Armas no inventário:** na aba *Itens*, um item com bônus de ataque e/ou dano é uma arma ("Machado de batalha +5 · 1d8+3"), com o botão *Empunhar*: empunhada, aparece em *Ataques* e nos ataques rápidos do painel *Dados*; guardada, continua só no inventário. Os itens agora também se editam (lápis).
+- **Baús no mapa:** a ferramenta *Baús* (tecla J, só do mestre) põe baús nas casas, em três desenhos (arca de madeira, baú de ferro, arca ornamentada). Cada baú tem nome, pode ficar *Trancado* (cadeado à vista) ou *Invisível* (só o mestre vê) e guarda o loot: moedas, itens e armas. Arrastar muda de casa; clicar abre o editor; Ctrl+Z desfaz. Os jogadores não veem o que tem dentro, nem o baú coberto pela névoa. Vai no arquivo de sessão e fica em cada cena.
+- **Abrir baús e dividir o loot:** clicar num baú (com *Mover*) abre ele na tela de todos ao mesmo tempo. Começa uma contagem (o mestre escolhe os segundos em *Configurações → Mesa*; 0 = sem contagem) em que ninguém leva nada: cada um marca *Quero* no que quer. No fim, quem quis sozinho leva; quando mais de um quer a mesma coisa, o sistema rola d20 de cada um e mostra o resultado (pilhas são distribuídas uma a uma pela ordem do d20; moedas divididas igual, a sobra para o maior). O que ninguém quis fica com *Pegar*. O mestre pode *Dar para…* qualquer coisa a qualquer momento e *Encerrar contagem*. Tudo vai para a ficha (moedas, aba Itens; armas chegam como itens que se empunham) e para o log. Baú trancado só o mestre abre.
 
 ### Alterado
 - **Ícone novo do app:** o dadinho virou o d20 de bronze da tela de entrada numa placa de couro com cantoneiras, no executável, na barra do Windows, na tela de abertura e na aba do navegador.
 - **Dicas em pergaminho:** os tooltips de todo o app viraram um pergaminho com tinta escura e filete de bronze. Nas ferramentas do mapa, a dica traz o nome e a tecla de atalho em cima e a explicação embaixo.
 - **Tochas fixas menores:** os desenhos da tocha fincada e da tocha de ferro ficaram com metade do tamanho (antes, do tamanho de um token) e o braseiro, de uma casa. A luz continua a mesma.
+- **Topo mais limpo:** os botões de idioma e de volume saíram do topo; os dois estão em *Configurações* (a engrenagem). Na tela de entrada, o idioma continua.
 - **Mesa de couro por padrão:** em volta do mapa, jogo novo começa com o tapete de couro da tela de entrada (antes, madeira). Sessões salvas abrem como estavam, e a madeira continua no painel *Mapa*.
 
 ### Corrigido

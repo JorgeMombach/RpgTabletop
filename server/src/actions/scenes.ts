@@ -27,6 +27,7 @@ function emptyScene(store: Store): StoredScene {
     drawings: [],
     walls: [],
     torches: [],
+    chests: [],
     weather: defaultWeather(),
     fog: emptyFog(),
     allyPos: {},
@@ -38,8 +39,8 @@ function storeActive(store: Store): StoredScene {
   const { battle, allies } = store.game;
   const allyPos: Record<string, GridPos> = {};
   for (const a of allies) if (a.pos) allyPos[a.id] = a.pos;
-  const { map, mobs, npcs, effects, drawings, walls, torches, weather, fog } = battle;
-  return { map, mobs, npcs, effects, drawings, walls, torches, weather, fog, allyPos };
+  const { map, mobs, npcs, effects, drawings, walls, torches, chests, weather, fog } = battle;
+  return { map, mobs, npcs, effects, drawings, walls, torches, chests, weather, fog, allyPos };
 }
 
 export const sceneHandlers: HandlerMap = {
@@ -77,6 +78,9 @@ export const sceneHandlers: HandlerMap = {
     // A ordem de iniciativa é da cena que sai: zera tudo, como no fim do combate.
     resetCombat(store);
     for (const c of allCombatants(store)) c.initiative = c.initRoll = null;
+    // A disputa do loot é da cena que sai: acaba sem entregar nada.
+    store.lootCount = null;
+    store.lootResults = null;
     current.stored = storeActive(store);
     delete target.stored;
     game.sceneId = target.id;
