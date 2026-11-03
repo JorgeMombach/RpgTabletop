@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -47,7 +47,7 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "r2", name: "Sopro de fogo", max: 1, used: 1, recharge: "dice", rechargeOn: 5, damage: "6d6" } satisfies Required<Resource>,
     ],
     attacks: [{ id: "a1", name: "Machado grande", bonus: 5, damage: "1d12+3" }],
-    inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }],
+    inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }, { id: "i2", name: "Adaga", qty: 2, note: "de prata", bonus: 4, damage: "1d4+2", wielded: true } satisfies Required<InventoryItem>],
     coins: { pp: 1, gp: 25, ep: 0, sp: 7, cp: 30 },
     conditions: [
       { id: "c1", name: "Concentração", rounds: null },

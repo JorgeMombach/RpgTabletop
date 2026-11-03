@@ -219,7 +219,10 @@ export interface ActionPayloads {
   "rest:all": { kind: "short" | "long" };
   "attack:upsert": AttackInput & { id: string; attackId?: string };
   "attack:remove": { id: string; attackId: string };
-  "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string };
+  /** Com `bonus` e/ou `damage`, o item é uma arma (pode ser empunhada); sem eles, item comum. */
+  "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string; bonus?: number | null; damage?: string };
+  /** Empunhar ou guardar uma arma do inventário: empunhada, entra nos ataques. */
+  "item:wield": { id: string; itemId: string; wielded: boolean };
   "item:remove": { id: string; itemId: string };
   /** Moedas: substitui as quantidades (vazio = 0). */
   "coins:set": { id: string; coins: Coins };

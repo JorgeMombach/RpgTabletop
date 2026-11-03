@@ -13,13 +13,14 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { IconBackpack, IconFlask, IconMinus, IconPlus, IconSword, IconX } from "@tabler/icons-react";
-import { COINS, LIMITS, type ActionPayloads, type Coin, type Combatant, type Recharge } from "@rpg/shared";
+import { IconBackpack, IconFlask, IconMinus, IconPencil, IconPlus, IconSword, IconX } from "@tabler/icons-react";
+import { COINS, LIMITS, type ActionPayloads, type Coin, type Combatant, type InventoryItem, type Recharge } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { fmtMod } from "../format";
 import { useT, type MessageKey } from "../i18n";
 import { useRollLock } from "../rollLock";
+import { attacksOf } from "../weapons";
 import { doubleDice } from "./DicePanel";
 import { DamageRollButton } from "./DamageRollButton";
 import { RestButton } from "./RestButton";
@@ -243,7 +244,7 @@ function d20(bonus: number) {
 function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; gm: boolean }) {
   const t = useT();
   const [adding, setAdding] = useState(false);
-  const attacks = c.attacks ?? [];
+  const attacks = attacksOf(c);
   // Mestre rola por mob/NPC: assina com ele e oculta (como no painel Dados).
   const as = gm ? { asId: c.id, hidden: c.type !== "ally" } : {};
   // Mesma trava do painel Dados: fora da vez ou com o mestre travando, o botão fica apagado e a dica diz o porquê.
@@ -265,7 +266,13 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
             <Text size="sm" fw={600} truncate title={a.name} style={{ flex: 1, minWidth: 0 }}>
               {a.name}
             </Text>
-            {editable && (
+            {/* Arma empunhada do inventário: guarda-se (ou apaga) pela aba Itens. */}
+            {a.fromItem && (
+              <Badge variant="default" size="xs" style={{ flex: "none" }}>
+                {t("sheet.items.wieldedTag")}
+              </Badge>
+            )}
+            {editable && !a.fromItem && (
               <Tooltip label={t("common.remove")}>
                 <ActionIcon
                   variant="subtle"
@@ -387,9 +394,13 @@ function AttackForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
 
 /* ---------- inventário e moedas ---------- */
 
+/** O item como ele é, para mudar só a quantidade sem perder nota nem a arma. */
+const itemPayload = (c: Combatant, i: InventoryItem, qty: number) => ({ id: c.id, itemId: i.id, name: i.name, note: i.note, bonus: i.bonus, damage: i.damage, qty });
+
 function ItemsSection({ c, editable }: { c: Combatant; editable: boolean }) {
   const t = useT();
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const items = c.inventory ?? [];
 
   return (
@@ -398,70 +409,80 @@ function ItemsSection({ c, editable }: { c: Combatant; editable: boolean }) {
       {items.length === 0 && !adding && (
         <EmptyState icon={IconBackpack} text={t("sheet.items.empty")} compact />
       )}
-      {items.map((i) => (
-        <Group key={i.id} gap="xs" wrap="nowrap">
-          <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
-            <Text size="sm" fw={600} truncate title={i.name}>
-              {i.name}
-            </Text>
-            {i.note && (
-              <Text size="xs" c="dimmed" truncate title={i.note}>
-                {i.note}
-              </Text>
+      {items.map((i) => {
+        if (editing === i.id) return <ItemForm key={i.id} c={c} item={i} onDone={() => setEditing(null)} />;
+        const weapon = i.bonus !== undefined || !!i.damage;
+        const stats = [i.bonus !== undefined ? fmtMod(i.bonus) : null, i.damage].filter(Boolean).join(" · ");
+        return (
+          <Stack key={i.id} gap={4}>
+            <Group gap="xs" wrap="nowrap">
+              <Stack gap={0} style={{ flex: 1, minWidth: 0 }}>
+                <Text size="sm" fw={600} truncate title={i.name}>
+                  {i.name}
+                </Text>
+                {(weapon || i.note) && (
+                  <Text size="xs" c="dimmed" truncate title={[stats, i.note].filter(Boolean).join(" · ")}>
+                    {[stats, i.note].filter(Boolean).join(" · ")}
+                  </Text>
+                )}
+              </Stack>
+              {editable && (
+                <ActionIcon
+                  variant="default"
+                  onClick={() => act("item:upsert", itemPayload(c, i, i.qty - 1))}
+                  disabled={i.qty === 0}
+                  aria-label={t("sheet.items.less")}
+                >
+                  <IconMinus size={14} />
+                </ActionIcon>
+              )}
+              <Badge variant="default" miw={36}>
+                ×{i.qty}
+              </Badge>
+              {editable && (
+                <>
+                  <ActionIcon
+                    variant="default"
+                    onClick={() => act("item:upsert", itemPayload(c, i, i.qty + 1))}
+                    aria-label={t("sheet.items.more")}
+                  >
+                    <IconPlus size={14} />
+                  </ActionIcon>
+                  <Tooltip label={t("selected.edit")}>
+                    <ActionIcon variant="subtle" onClick={() => setEditing(i.id)} aria-label={t("sheet.items.editOf", { name: i.name })}>
+                      <IconPencil size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label={t("common.remove")}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      onClick={() => act("item:remove", { id: c.id, itemId: i.id })}
+                      aria-label={t("common.remove")}
+                    >
+                      <IconX size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                </>
+              )}
+            </Group>
+            {/* Arma: empunhada, entra nos ataques (aba Ataques e painel Dados). */}
+            {weapon && editable && (
+              <Tooltip label={t(i.wielded ? "sheet.items.sheatheTip" : "sheet.items.wieldTip")}>
+                <Button
+                  size="compact-xs"
+                  variant={i.wielded ? "light" : "default"}
+                  leftSection={<IconSword size={12} />}
+                  onClick={() => act("item:wield", { id: c.id, itemId: i.id, wielded: !i.wielded })}
+                  style={{ alignSelf: "flex-start" }}
+                >
+                  {t(i.wielded ? "sheet.items.wielded" : "sheet.items.wield")}
+                </Button>
+              </Tooltip>
             )}
           </Stack>
-          {editable && (
-            <ActionIcon
-              variant="default"
-              onClick={() =>
-                act("item:upsert", {
-                  id: c.id,
-                  itemId: i.id,
-                  name: i.name,
-                  note: i.note,
-                  qty: i.qty - 1,
-                })
-              }
-              disabled={i.qty === 0}
-              aria-label={t("sheet.items.less")}
-            >
-              <IconMinus size={14} />
-            </ActionIcon>
-          )}
-          <Badge variant="default" miw={36}>
-            ×{i.qty}
-          </Badge>
-          {editable && (
-            <>
-              <ActionIcon
-                variant="default"
-                onClick={() =>
-                  act("item:upsert", {
-                    id: c.id,
-                    itemId: i.id,
-                    name: i.name,
-                    note: i.note,
-                    qty: i.qty + 1,
-                  })
-                }
-                aria-label={t("sheet.items.more")}
-              >
-                <IconPlus size={14} />
-              </ActionIcon>
-              <Tooltip label={t("common.remove")}>
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  onClick={() => act("item:remove", { id: c.id, itemId: i.id })}
-                  aria-label={t("common.remove")}
-                >
-                  <IconX size={14} />
-                </ActionIcon>
-              </Tooltip>
-            </>
-          )}
-        </Group>
-      ))}
+        );
+      })}
       {adding && <ItemForm c={c} onDone={() => setAdding(false)} />}
       {editable && !adding && (
         <Button variant="default" onClick={() => setAdding(true)}>
@@ -509,11 +530,13 @@ function Coins({ c, editable }: { c: Combatant; editable: boolean }) {
   );
 }
 
-function ItemForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
+function ItemForm({ c, item, onDone }: { c: Combatant; item?: InventoryItem; onDone: () => void }) {
   const t = useT();
-  const [name, setName] = useState("");
-  const [qty, setQty] = useState<string | number>(1);
-  const [note, setNote] = useState("");
+  const [name, setName] = useState(item?.name ?? "");
+  const [qty, setQty] = useState<string | number>(item?.qty ?? 1);
+  const [note, setNote] = useState(item?.note ?? "");
+  const [bonus, setBonus] = useState<string | number>(item?.bonus ?? "");
+  const [damage, setDamage] = useState(item?.damage ?? "");
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -521,9 +544,12 @@ function ItemForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
       (
         await act("item:upsert", {
           id: c.id,
+          ...(item && { itemId: item.id }),
           name,
           qty: Number(qty) || 0,
           note: note || undefined,
+          bonus: bonus === "" ? null : Number(bonus),
+          damage: damage.trim() || undefined,
         })
       ).ok
     )
@@ -560,11 +586,19 @@ function ItemForm({ c, onDone }: { c: Combatant; onDone: () => void }) {
           value={note}
           onChange={(e) => setNote(e.currentTarget.value)}
         />
+        {/* Arma: com bônus e/ou dano, o item pode ser empunhado. */}
+        <Group grow gap="xs" align="flex-start">
+          <NumberInput label={t("sheet.items.bonus")} min={-20} max={40} allowDecimal={false} value={bonus} onChange={setBonus} />
+          <TextInput label={t("sheet.items.damage")} placeholder="1d8+3" maxLength={LIMITS.dice.exprLength} value={damage} onChange={(e) => setDamage(e.currentTarget.value)} />
+        </Group>
+        <Text size="xs" c="dimmed">
+          {t("sheet.items.weaponHint")}
+        </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={onDone}>
             {t("common.cancel")}
           </Button>
-          <Button type="submit">{t("common.add")}</Button>
+          <Button type="submit">{t(item ? "common.save" : "common.add")}</Button>
         </Group>
       </Stack>
     </Paper>

@@ -188,11 +188,14 @@ export const sheetHandlers: HandlerMap = {
     const name = line(payload.name, LIMITS.spellName, "Informe o nome do item.");
     const qty = requireInt(payload.qty, "Quantidade", 0, LIMITS.itemQty);
     const note = optLine(payload.note, LIMITS.spellNote);
-    const fields = { name, qty, ...(note && { note }) };
+    const bonus = payload.bonus === undefined || payload.bonus === null ? undefined : requireInt(payload.bonus, "Bônus de ataque", -20, 40);
+    const damage = damageOf(payload.damage);
+    const fields = { name, qty, ...(note && { note }), ...(bonus !== undefined && { bonus }), ...(damage && { damage }) };
     if (payload.itemId !== undefined) {
       const item = findIn(c.inventory, payload.itemId, "Item");
-      delete item.note;
-      Object.assign(item, fields);
+      const wielded = item.wielded && (bonus !== undefined || damage);
+      for (const k of ["note", "bonus", "damage", "wielded"] as const) delete item[k];
+      Object.assign(item, fields, wielded && { wielded: true });
       return [item.id];
     }
     const inventory = (c.inventory ??= []);
@@ -200,6 +203,13 @@ export const sheetHandlers: HandlerMap = {
     const item = { id: randomUUID(), ...fields };
     inventory.push(item);
     return [item.id];
+  },
+
+  "item:wield": (store, player, payload) => {
+    const item = findIn(editable(store, player, payload?.id).inventory, payload.itemId, "Item");
+    if (item.bonus === undefined && !item.damage) fail("Esse item não é uma arma: dê bônus ou dano a ele.");
+    if (payload.wielded === true) item.wielded = true;
+    else delete item.wielded;
   },
 
   "item:remove": (store, player, payload) => {

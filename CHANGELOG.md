@@ -17,6 +17,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Regra da mesa *Esconder dano e cura dos inimigos*:** ligada, os jogadores param de ver os números de dano e cura que sobem dos mobs e NPCs; os dos aliados continuam, e o mestre vê tudo.
 - **Dois ambientes ao mesmo tempo:** o painel *Som* ganhou o *Segundo ambiente* (chuva lá fora e taverna, por exemplo), com volume próprio e a música por cima.
 - **Levar o grupo ao abrir uma cena:** marcando a opção no painel *Cenas*, depois de abrir a cena o mestre clica no mapa e todos os personagens (e invocados) chegam juntos em volta do ponto.
+- **Armas no inventário:** na aba *Itens*, um item com bônus de ataque e/ou dano é uma arma ("Machado de batalha +5 · 1d8+3"), com o botão *Empunhar*: empunhada, aparece em *Ataques* e nos ataques rápidos do painel *Dados*; guardada, continua só no inventário. Os itens agora também se editam (lápis).
 
 ### Alterado
 - **Ícone novo do app:** o dadinho virou o d20 de bronze da tela de entrada numa placa de couro com cantoneiras, no executável, na barra do Windows, na tela de abertura e na aba do navegador.

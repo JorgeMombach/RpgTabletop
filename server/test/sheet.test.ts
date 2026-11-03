@@ -91,3 +91,35 @@ describe("ataques salvos, inventário e moedas", () => {
     assert.equal((await act(bia, "item:upsert", { id, name: "Pedra", qty: 1 })).ok, false);
   });
 });
+
+describe("arma no inventário", () => {
+  it("item com bônus e dano é uma arma; editar sem eles volta a ser item comum", async () => {
+    const { ana, id } = await withThorin();
+    const [machado] = idsOf(await act(ana, "item:upsert", { id, name: "Machado de batalha", qty: 1, bonus: 5, damage: "1d8+3" }));
+    const item = () => ally().inventory!.find((i) => i.id === machado)!;
+    assert.equal(item().bonus, 5);
+    assert.equal(item().damage, "1d8+3");
+    const bad = await act(ana, "item:upsert", { id, name: "Clava", qty: 1, damage: "muito" });
+    assert.match(bad.ok ? "" : bad.error, /Dano inválido/);
+
+    assert.ok((await act(ana, "item:wield", { id, itemId: machado, wielded: true })).ok);
+    assert.equal(item().wielded, true);
+    assert.ok((await act(ana, "item:upsert", { id, itemId: machado, name: "Machado de batalha", qty: 1 })).ok);
+    assert.equal(item().bonus, undefined);
+    assert.equal(item().damage, undefined);
+    assert.equal(item().wielded, undefined, "sem bônus nem dano, deixa de estar empunhado");
+  });
+
+  it("só arma se empunha; só o dono (ou o mestre) empunha", async () => {
+    const { ana, id } = await withThorin();
+    const [corda] = idsOf(await act(ana, "item:upsert", { id, name: "Corda", qty: 1 }));
+    const [adaga] = idsOf(await act(ana, "item:upsert", { id, name: "Adaga", qty: 2, bonus: 4, damage: "1d4+2" }));
+    const noWeapon = await act(ana, "item:wield", { id, itemId: corda, wielded: true });
+    assert.match(noWeapon.ok ? "" : noWeapon.error, /não é uma arma/);
+    const bia = await player("Bia");
+    assert.equal((await act(bia, "item:wield", { id, itemId: adaga, wielded: true })).ok, false);
+    assert.ok((await act(ana, "item:wield", { id, itemId: adaga, wielded: true })).ok);
+    assert.ok((await act(ana, "item:wield", { id, itemId: adaga, wielded: false })).ok);
+    assert.equal(ally().inventory!.find((i) => i.id === adaga)!.wielded, undefined);
+  });
+});

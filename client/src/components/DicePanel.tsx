@@ -28,6 +28,7 @@ import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
 import { rollLock } from "../rollLock";
+import { attacksOf } from "../weapons";
 import { naturalD20, RollLog } from "./RollLog";
 
 const MODES: { value: RollMode; label: MessageKey }[] = [
@@ -122,7 +123,7 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   const who = gm
     ? side.find((c) => c.id === asId)
     : (mine.find((c) => c.id === current?.id) ?? mine.find((c) => c.id === selectedId) ?? mine.find((c) => !c.summonerId));
-  const quick = who?.attacks ?? [];
+  const quick = who ? attacksOf(who) : [];
 
   /** Ataque salvo: preenche bônus e dano; com bônus, já rola o ataque (o dano fica pronto embaixo). */
   async function quickAttack(a: SavedAttack) {

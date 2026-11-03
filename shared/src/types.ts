@@ -116,6 +116,10 @@ export interface InventoryItem {
   name: string;
   qty: number;
   note?: string;
+  /** Arma (com bônus e/ou dano, como um ataque salvo): empunhada, aparece nos ataques do personagem. */
+  bonus?: number;
+  damage?: string;
+  wielded?: true;
 }
 
 /** Moedas: platina, ouro, electro, prata e cobre (o padrão do 5e). */

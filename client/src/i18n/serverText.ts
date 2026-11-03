@@ -216,6 +216,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Escala do mapa": ["Map scale", "Escala del mapa"],
   Espessura: ["Thickness", "Grosor"],
   Tocha: ["Torch", "Antorcha"],
+  "Esse item não é uma arma: dê bônus ou dano a ele.": ["That item is not a weapon: give it a bonus or damage.", "Ese objeto no es un arma: dale bonificador o daño."],
   "Ataques inválidos.": ["Invalid attacks.", "Ataques no válidos."],
   "ataques do template": ["template attacks", "ataques de la plantilla"],
   "dano da magia": ["spell damage", "daño del conjuro"],

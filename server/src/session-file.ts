@@ -261,6 +261,11 @@ function sheet(out: Combatant, c: Obj) {
       };
       const note = optText(i.note, "item", LIMITS.spellNote);
       if (note) out.note = note;
+      // Arma no inventário (depois da 2.11); arquivos antigos não têm.
+      if (i.bonus !== undefined) out.bonus = int(i.bonus, "item", -20, 40);
+      const damage = optText(i.damage, "item", LIMITS.dice.exprLength);
+      if (damage) out.damage = damage;
+      if ((out.bonus !== undefined || out.damage) && i.wielded !== undefined && bool(i.wielded, "item")) out.wielded = true;
       return out;
     });
   }
