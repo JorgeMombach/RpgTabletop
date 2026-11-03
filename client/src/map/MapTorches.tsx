@@ -15,8 +15,8 @@ import { drawMapTorch } from "./mapTorchArt";
 /** Tipo do arrasto de um desenho de tocha do seletor para o mapa. */
 export const TORCH_DRAG_MIME = "application/x-map-torch";
 
-/** Altura do desenho, em casas: um pouco maior que um token, para ler bem como objeto do mapa. */
-const TORCH_CELLS = 1.5;
+/** Tamanho do desenho, em casas: as tochas, meia casa e pouco (objeto, não token); o braseiro, uma casa. A luz não muda. */
+const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.75, iron: 0.75, brazier: 1 };
 
 const LABEL: Record<MapTorchStyle, MessageKey> = { stick: "torches.stick", iron: "torches.iron", brazier: "torches.brazier" };
 
@@ -34,7 +34,7 @@ export function torchPoint(t: Pick<MapTorch, "col" | "row">, grid: Pick<MapConfi
 
 /** Uma tocha no mapa. Com a ferramenta Tochas, o mestre arrasta para qualquer ponto. */
 function TorchShape({ t, grid, time, draggable }: { t: MapTorch; grid: MapConfig; time: React.RefObject<number>; draggable: boolean }) {
-  const s = grid.cellPx * TORCH_CELLS;
+  const s = grid.cellPx * TORCH_CELLS[t.style];
   const seed = torchSeed(t.id);
   const at = torchPoint(t, grid);
   // Chegou o estado com a tocha no lugar novo: a luz já está lá, sem deslocamento.
