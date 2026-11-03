@@ -3,12 +3,12 @@ import { useMemo } from "react";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type MapTorchStyle, type Role, type Ruler } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type Role, type Ruler } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "ping" | "fog";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -85,6 +85,8 @@ interface AppStore extends DicePrefs {
    * (`fromId`), ou o personagem posto pelo celular (sem `fromId`).
    */
   placing: { ids: string[]; fromId?: string } | null;
+  /** Levar o grupo: o próximo clique no mapa diz onde os aliados chegam (painel Cenas). */
+  gathering: boolean;
   /**
    * Rolagens que ainda estão caindo na animação deste navegador (E26): o log mostra "rolando…"
    * e só revela o resultado quando os dados param.
@@ -93,6 +95,18 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Tochas: desenho que o próximo clique coloca, ou a borracha. */
   torchStyle: MapTorchStyle;
   torchErase: boolean;
+  /** Ferramenta Baús: desenho do próximo baú; baú aberto no editor (mestre). */
+  chestStyle: ChestStyle;
+  editingChestId: string | null;
+  /** Baú com a janela de loot aberta nesta tela (abre sozinha quando alguém abre um baú). */
+  lootChestId: string | null;
+  /** Ferramenta Pincel (mestre): tipo e cor do efeito, apagar em vez de pintar, lado do pincel em casas. */
+  paintPreset: EffectPreset;
+  paintColor: string;
+  paintErase: boolean;
+  paintSize: number;
+  /** Ficha completa aberta no modal (duplo clique no token ou botão Ficha; só no computador). */
+  sheetId: string | null;
   /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
   logOut: boolean;
   /** O que o mestre está mostrando para a mesa (chega à parte, com a imagem) e qual deles esta pessoa já fechou. */
@@ -133,9 +147,18 @@ export const useApp = create<AppStore>(() => ({
   savedSnapshot: null,
   savedAt: null,
   placing: null,
+  gathering: false,
   rolling: [],
   torchStyle: "stick",
   torchErase: false,
+  chestStyle: "wood",
+  editingChestId: null,
+  lootChestId: null,
+  paintPreset: "fire",
+  paintColor: "#d4a24c",
+  paintErase: false,
+  paintSize: 3,
+  sheetId: null,
   hoverId: null,
   logOut: false,
   handout: null,
@@ -178,6 +201,20 @@ export function setDicePrefs(patch: Partial<DicePrefs>) {
 
 export function select(id: string | null) {
   useApp.setState({ selectedId: id });
+}
+
+/**
+ * Ficha completa em modal: o mestre abre a de qualquer combatente; o jogador, só a dos próprios aliados
+ * (personagem, invocações, pets). Fora disso, o duplo clique só seleciona.
+ */
+export function canOpenSheet(state: ClientState, id: string): boolean {
+  if (state.self.role === "gm") return [...state.allies, ...state.battle.mobs, ...state.battle.npcs].some((c) => c.id === id);
+  return state.allies.some((a) => a.id === id && a.ownerId === state.self.id);
+}
+
+export function openSheet(id: string) {
+  const { state } = useApp.getState();
+  useApp.setState({ selectedId: id, ...(state && canOpenSheet(state, id) && { sheetId: id }) });
 }
 
 export function setTool(tool: MapTool) {

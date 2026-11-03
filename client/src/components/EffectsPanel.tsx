@@ -3,9 +3,10 @@ import { IconLink, IconLinkOff, IconTransform, IconTrash } from "@tabler/icons-r
 import type { ClientState, MapEffect } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
-import { allCombatants } from "../format";
+import { allCombatants, turnLocked } from "../format";
 import { useT } from "../i18n";
 import { EffectSwatch } from "./FixEffectModal";
+import { effectLabel } from "../labels";
 import { Panel } from "./Panel";
 import { TransformEffectModal } from "./TransformEffectModal";
 
@@ -16,6 +17,7 @@ export function EffectsPanel({ state }: { state: ClientState }) {
   const { effects } = state.battle;
   const nameOf = (id: string | null) => (id ? allCombatants(state).find((c) => c.id === id)?.name : undefined);
   const [transforming, setTransforming] = useState<MapEffect | null>(null);
+  const effectLocked = turnLocked(state, "effectOnTurn");
 
   return (
     <Panel
@@ -45,8 +47,8 @@ export function EffectsPanel({ state }: { state: ClientState }) {
               <Group key={e.id} gap="xs" wrap="nowrap" style={{ opacity: e.active ? 1 : 0.55 }}>
                 <EffectSwatch preset={e.preset} color={e.color} size={24} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <Text size="sm" truncate title={e.name}>
-                    {e.name}
+                  <Text size="sm" truncate title={effectLabel(e)}>
+                    {effectLabel(e)}
                   </Text>
                   <Text size="xs" c="dimmed" truncate title={detail}>
                     {detail}
@@ -54,8 +56,13 @@ export function EffectsPanel({ state }: { state: ClientState }) {
                 </div>
                 {/* Qualquer um transforma um efeito que vê: é a magia dele agindo na área (E24). */}
                 {(gm || e.active) && (
-                  <Tooltip label={t("effects.transformTip")}>
-                    <ActionIcon size="sm" aria-label={t("effects.transformOf", { name: e.name })} onClick={() => setTransforming(e)}>
+                  <Tooltip label={effectLocked ? t("rules.effectLocked") : t("effects.transformTip")}>
+                    <ActionIcon
+                      size="sm"
+                      aria-label={t("effects.transformOf", { name: effectLabel(e) })}
+                      data-disabled={effectLocked || undefined}
+                      onClick={() => !effectLocked && setTransforming(e)}
+                    >
                       <IconTransform size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -80,13 +87,13 @@ export function EffectsPanel({ state }: { state: ClientState }) {
                       size="xs"
                       checked={e.active}
                       onChange={(ev) => void act("effect:toggle", { id: e.id, active: ev.currentTarget.checked })}
-                      aria-label={t(e.active ? "effects.disableOf" : "effects.enableOf", { name: e.name })}
+                      aria-label={t(e.active ? "effects.disableOf" : "effects.enableOf", { name: effectLabel(e) })}
                     />
                   </Tooltip>
                 )}
                 {canEdit && (
                   <Tooltip label={t("effects.remove")}>
-                    <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: e.name })} onClick={() => act("effect:remove", { id: e.id })}>
+                    <ActionIcon size="sm" aria-label={t("mobs.removeOf", { name: effectLabel(e) })} onClick={() => act("effect:remove", { id: e.id })}>
                       <IconTrash size={16} />
                     </ActionIcon>
                   </Tooltip>

@@ -19,15 +19,15 @@ import { EffectsPanel } from "./EffectsPanel";
 import { GmTabs } from "./GmTabs";
 import { HandoutButton, HandoutModal } from "./Handout";
 import { InitiativePanel } from "./InitiativePanel";
-import { LanguageMenu } from "./LanguageMenu";
 import { Shortcuts, ShortcutsButton } from "./Shortcuts";
 import { AboutLink, AboutModal } from "./About";
 import { MobileShell } from "./MobileShell";
 import { PlayersPanel } from "./PlayersPanel";
 import { SoundSync } from "./SoundSync";
-import { VolumeControl } from "./VolumeControl";
+import { SettingsButton } from "./Settings";
 import { JoinFightBanner } from "./JoinFightBanner";
 import { SelectedPanel } from "./SelectedPanel";
+import { SheetModal } from "./SheetModal";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
 export function TurnStatus({ state }: { state: ClientState }) {
@@ -63,6 +63,7 @@ export const Memo = {
   EffectsPanel: memo(EffectsPanel, samePanelProps),
   PlayersPanel: memo(PlayersPanel, samePanelProps),
   SelectedPanel: memo(SelectedPanel, samePanelProps),
+  SheetModal: memo(SheetModal, samePanelProps),
   DicePanel: memo(DicePanel, samePanelProps),
   JoinFightBanner: memo(JoinFightBanner, samePanelProps),
   TurnStatus: memo(TurnStatus, samePanelProps),
@@ -118,8 +119,7 @@ function DesktopShell({ state }: { state: ClientState }) {
           )}
           <HandoutButton />
           <ShortcutsButton />
-          <LanguageMenu size="md" />
-          <VolumeControl />
+          <SettingsButton state={state} />
           <Group gap={6} wrap="nowrap">
             <Text size="sm" truncate maw={180}>
               {state.self.name}
@@ -186,6 +186,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       <SoundSync sound={state.sound} />
       <AboutModal opened={about} onClose={() => setAbout(false)} />
       <HandoutModal />
+      <Memo.SheetModal state={state} />
     </div>
   );
 }

@@ -117,6 +117,7 @@ export function NpcsPanel({ npcs }: { npcs: Combatant[] }) {
           palette={NPC_COLORS}
           withNotes
           withPhases
+          withAttacks
           submitLabel={t("npcs.create")}
           withHidden
           onCancel={() => setCreating(false)}

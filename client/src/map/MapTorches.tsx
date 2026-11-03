@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Group as MGroup, Paper, Text, Tooltip } from "@mantine/core";
-import { IconEraser, IconTrash } from "@tabler/icons-react";
+import { IconArrowBackUp, IconEraser, IconTrash } from "@tabler/icons-react";
 import Konva from "konva";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Layer, Shape } from "react-konva";
@@ -9,13 +9,14 @@ import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { endTokenDrag, useTokenDrag } from "./dragFollow";
+import { moveTorch, undo, useMapUndo } from "./mapHistory";
 import { drawMapTorch } from "./mapTorchArt";
 
 /** Tipo do arrasto de um desenho de tocha do seletor para o mapa. */
 export const TORCH_DRAG_MIME = "application/x-map-torch";
 
-/** Altura do desenho, em casas: um pouco maior que um token, para ler bem como objeto do mapa. */
-const TORCH_CELLS = 1.5;
+/** Tamanho do desenho, em casas: as tochas, meia casa e pouco (objeto, não token); o braseiro, uma casa. A luz não muda. */
+const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.75, iron: 0.75, brazier: 1 };
 
 const LABEL: Record<MapTorchStyle, MessageKey> = { stick: "torches.stick", iron: "torches.iron", brazier: "torches.brazier" };
 
@@ -33,7 +34,7 @@ export function torchPoint(t: Pick<MapTorch, "col" | "row">, grid: Pick<MapConfi
 
 /** Uma tocha no mapa. Com a ferramenta Tochas, o mestre arrasta para qualquer ponto. */
 function TorchShape({ t, grid, time, draggable }: { t: MapTorch; grid: MapConfig; time: React.RefObject<number>; draggable: boolean }) {
-  const s = grid.cellPx * TORCH_CELLS;
+  const s = grid.cellPx * TORCH_CELLS[t.style];
   const seed = torchSeed(t.id);
   const at = torchPoint(t, grid);
   // Chegou o estado com a tocha no lugar novo: a luz já está lá, sem deslocamento.
@@ -57,7 +58,7 @@ function TorchShape({ t, grid, time, draggable }: { t: MapTorch; grid: MapConfig
       onDragMove={(e) => useTokenDrag.setState({ id: t.id, dx: e.target.x() - at.x, dy: e.target.y() - at.y })}
       onDragEnd={(e) => {
         const node = e.target;
-        void act("maptorch:move", { id: t.id, col: (node.x() - grid.offsetX) / grid.cellPx, row: (node.y() - grid.offsetY) / grid.cellPx }).then((r) => {
+        void moveTorch(t, (node.x() - grid.offsetX) / grid.cellPx, (node.y() - grid.offsetY) / grid.cellPx).then((r) => {
           if (!r.ok) node.position(at);
           endTokenDrag(t.id);
         });
@@ -120,11 +121,12 @@ function TorchIcon({ style }: { style: MapTorchStyle }) {
   return <canvas ref={ref} width={72} height={72} style={{ width: 36, height: 36, display: "block" }} aria-hidden />;
 }
 
-/** Opções da ferramenta Tochas (mestre): os três desenhos, borracha e apagar todas. */
+/** Opções da ferramenta Tochas (mestre): os três desenhos, borracha, desfazer e apagar todas. */
 export function MapTorchOptions({ count }: { count: number }) {
   const t = useT();
   const torchStyle = useApp((s) => s.torchStyle);
   const erasing = useApp((s) => s.torchErase);
+  const undoCount = useMapUndo((s) => s.torches);
 
   async function clearAll() {
     const ok = await confirmAction({ title: t("torches.clearTitle"), message: t("torches.clearMessage"), confirmLabel: t("torches.clear") });
@@ -161,9 +163,16 @@ export function MapTorchOptions({ count }: { count: number }) {
             </ActionIcon>
           </Tooltip>
         </MGroup>
-        <Button size="compact-xs" variant="subtle" color="red" disabled={count === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
-          {t("torches.clear")}
-        </Button>
+        <MGroup gap={4} wrap="nowrap">
+          <Tooltip label={t("torches.undoTip")}>
+            <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("torches")}>
+              {t("walls.undo")}
+            </Button>
+          </Tooltip>
+          <Button size="compact-xs" variant="subtle" color="red" disabled={count === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
+            {t("torches.clear")}
+          </Button>
+        </MGroup>
       </MGroup>
       <Text size="xs" c="dimmed" mt={4}>
         {t(erasing ? "torches.hintErase" : "torches.hint")}

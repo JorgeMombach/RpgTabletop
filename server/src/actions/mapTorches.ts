@@ -37,6 +37,13 @@ export const mapTorchHandlers: HandlerMap = {
     Object.assign(torch, spot(payload as unknown as Record<string, unknown>));
   },
 
+  "maptorch:remove": (store, player, payload) => {
+    requireGm(player);
+    const { battle } = store.game;
+    const torch = battle.torches.find((t) => t.id === payload?.id) ?? fail("Tocha não encontrada.");
+    battle.torches = battle.torches.filter((t) => t !== torch);
+  },
+
   "maptorch:erase": (store, player, payload) => {
     requireGm(player);
     const raw = payload?.points;

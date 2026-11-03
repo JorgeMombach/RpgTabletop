@@ -14,7 +14,6 @@ import { InvitePanel } from "./InvitePanel";
 import { MapPanel } from "./MapPanel";
 import { MobsPanel, NpcsPanel } from "./MobsPanel";
 import { PlayersPanel } from "./PlayersPanel";
-import { RulesPanel } from "./RulesPanel";
 import { ScenesPanel } from "./ScenesPanel";
 import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
@@ -131,7 +130,6 @@ export function GmTabs({ state }: { state: ClientState }) {
       </Tabs.Panel>
       <Tabs.Panel value="table" className="gm-tabs-panel">
         <HandoutPanel />
-        <RulesPanel rules={state.rules} />
         <BestiaryPanel templates={state.templates} />
         <PlayersPanel state={state} />
         <SessionPanel />

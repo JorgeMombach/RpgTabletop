@@ -24,6 +24,10 @@ export interface Spell {
   /** 0 = truque. */
   level: number;
   note?: string;
+  /** Acerto da magia (bônus de ataque mágico): escolhida no painel Dados, rola d20 + bônus, como um ataque. Sem ele (teste de resistência), só o dano. */
+  bonus?: number;
+  /** Dano rolável (2d6+3), com botão na ficha; o resto continua no campo aberto `note`. */
+  damage?: string;
 }
 
 export const SPELL_LEVELS: SpellLevel[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -97,6 +101,8 @@ export interface Resource {
   recharge: Recharge;
   /** Recarga no d6 (`recharge: "dice"`): volta tirando este valor ou mais (5 = "recarga 5–6"). */
   rechargeOn?: number;
+  /** Dano rolável da habilidade (sopro 6d6), com botão na ficha. */
+  damage?: string;
 }
 
 /** Ataque salvo ("Espada longa: +5 / 1d8+3"): rola com um clique. `bonus` ausente = sem rolagem de ataque (ex.: só dano). */
@@ -112,6 +118,10 @@ export interface InventoryItem {
   name: string;
   qty: number;
   note?: string;
+  /** Arma (com bônus e/ou dano, como um ataque salvo): empunhada, aparece nos ataques do personagem. */
+  bonus?: number;
+  damage?: string;
+  wielded?: true;
 }
 
 /** Moedas: platina, ouro, electro, prata e cobre (o padrão do 5e). */
@@ -229,6 +239,8 @@ export interface MobTemplate {
   boss?: boolean;
   /** Chefe: fases depois da primeira (que é a vida/nome/CA do próprio template). */
   phases?: BossPhase[];
+  /** Ataques que os mobs e NPCs criados com o template já trazem (cada um com cópia própria). */
+  attacks?: SavedAttack[];
 }
 
 export interface MapConfig {
@@ -243,11 +255,13 @@ export interface MapConfig {
   imageScale: number;
   /** Como as paredes desta cena são desenhadas (L5). Ausente = pedra lavrada. */
   wallStyle?: WallStyle;
-  /** A mesa em volta do mapa (L5): o que aparece fora da imagem. Ausente = madeira. */
+  /** A mesa em volta do mapa (L5): o que aparece fora da imagem. Ausente = madeira; jogo novo começa em couro. */
   tableStyle?: TableStyle;
+  /** Cor das linhas do grid desta cena (#rrggbb, desenhada meio transparente). Ausente = preto. */
+  gridColor?: string;
 }
 
-/** Mesa em volta do mapa: madeira escura (padrão), tapete de couro ou ardósia. */
+/** Mesa em volta do mapa: madeira escura, tapete de couro (padrão de jogo novo) ou ardósia. */
 export const TABLE_STYLES = ["wood", "leather", "slate"] as const;
 export type TableStyle = (typeof TABLE_STYLES)[number];
 
@@ -431,6 +445,7 @@ export interface EffectState {
  */
 export interface MapEffect {
   id: string;
+  /** Nome próprio ("Lago do vale"); vazio = sem nome, a tela mostra o tipo no idioma de quem vê. */
   name: string;
   preset: EffectPreset;
   color: string;
@@ -447,6 +462,11 @@ export interface MapEffect {
   followId?: string;
   /** Estado de antes de "Transformar", se for para voltar a ele quando este acabar (duração ou concentração). */
   revertTo?: EffectState;
+  /**
+   * Pintura do mestre (pincel de efeitos): as casas cobertas, achatadas (col0, row0, col1, row1…). Com elas, o
+   * formato é este, e `area` só marca a primeira casa. Pintura não tem conjurador nem duração e não anda com token.
+   */
+  cells?: number[];
 }
 
 export const DRAWING_KINDS = ["free", "arrow", "circle"] as const;
@@ -502,6 +522,49 @@ export interface MapTorch {
   style: MapTorchStyle;
 }
 
+/** Desenhos de baú que o mestre escolhe: arca de madeira, baú de ferro ou arca ornamentada. */
+export const CHEST_STYLES = ["wood", "iron", "ornate"] as const;
+export type ChestStyle = (typeof CHEST_STYLES)[number];
+
+/** O que vai num baú: moedas, item (vai para a aba Itens) ou arma (item com bônus e/ou dano, que se empunha). */
+export type LootEntry =
+  | { id: string; kind: "coins"; coins: Coins }
+  | { id: string; kind: "item"; name: string; qty: number; note?: string }
+  | { id: string; kind: "weapon"; name: string; qty: number; bonus?: number; damage?: string; note?: string };
+
+/** Entrada de loot como o mestre manda (sem o id). */
+export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<E, "id"> : never) : never;
+
+/**
+ * Baú no mapa (Fase 6, docs/design/baus.md): uma casa, com nome e desenho. Trancado, só o mestre abre;
+ * invisível, só o mestre vê. O jogador recebe `loot` vazio até a primeira abertura.
+ */
+export interface MapChest {
+  id: string;
+  col: number;
+  row: number;
+  name: string;
+  style: ChestStyle;
+  locked?: true;
+  hidden?: true;
+  opened?: true;
+  loot: LootEntry[];
+}
+
+/** Contagem da escolha do loot (não vai no arquivo): quanto falta e quem quer cada coisa (lootId → ids de jogadores). */
+export interface LootCountView {
+  chestId: string;
+  remainingMs: number;
+  wants: Record<string, string[]>;
+}
+
+/** O que a última disputa deu, para a janela mostrar por alguns segundos. `name` vazio = moedas. */
+export interface LootResults {
+  chestId: string;
+  at: number;
+  lines: { lootId: string; name: string; rolls: { who: string; d20: number }[]; gave: { who: string; qty: number; coins?: Coins }[] }[];
+}
+
 /** O que muda de uma cena (mapa) para outra: imagem e grid, mobs, NPCs, efeitos, desenhos, paredes e clima. */
 export interface SceneContent {
   map: MapConfig & { image: string | null; imageVersion: number };
@@ -511,6 +574,7 @@ export interface SceneContent {
   drawings: Drawing[];
   walls: Wall[];
   torches: MapTorch[];
+  chests: MapChest[];
   weather: WeatherState;
   /** Névoa de guerra da cena (G). */
   fog: FogState;
@@ -552,11 +616,15 @@ export interface TableRules {
   moveOnTurn: boolean;
   /** Em combate, o jogador só invoca na sua vez. */
   summonOnTurn: boolean;
+  /** Em combate, o jogador só fixa ou transforma efeitos de mapa na sua vez. */
+  effectOnTurn: boolean;
+  /** Os jogadores não veem os números de dano e cura que sobem dos mobs e NPCs (o mestre continua vendo). */
+  hideFoeHits: boolean;
   /** Com a luz em Noite ou Luar, avisa quem não tem visão no escuro. Só informa. */
   darkReminder: boolean;
 }
 
-export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
+export const RULE_KEYS = ["moveOnTurn", "summonOnTurn", "effectOnTurn", "hideFoeHits", "darkReminder"] as const satisfies readonly (keyof TableRules)[];
 
 /** Estado do jogo mantido em memória no servidor (sem jogadores). */
 export interface GameState {
@@ -573,6 +641,7 @@ export interface GameState {
     drawings: Drawing[];
     walls: Wall[];
     torches: MapTorch[];
+    chests: MapChest[];
     weather: WeatherState;
     fog: FogState;
   };
@@ -582,6 +651,8 @@ export interface GameState {
   sceneId: string;
   /** Regras da mesa (valem para todas as cenas). */
   rules: TableRules;
+  /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
+  lootSeconds: number;
 }
 
 export interface HostInfo {
@@ -629,8 +700,12 @@ export type GenSfxId = keyof typeof GEN_SOUNDS.sfx;
 /** De onde vem o som: arquivo da biblioteca do mestre ou gerado pelo app. */
 export type SoundSource = { kind: "file"; name: string } | { kind: "gen"; id: GenAmbientId | GenSfxId };
 
-/** Canais que ficam tocando (em loop). Efeitos (`sfx`) tocam uma vez e não ficam no estado. */
-export type SoundChannel = "music" | "ambient";
+/**
+ * Canais que ficam tocando (em loop). Efeitos (`sfx`) tocam uma vez e não ficam no estado.
+ * Dois ambientes ao mesmo tempo (chuva e taverna), com a música por cima.
+ */
+export const SOUND_CHANNELS = ["music", "ambient", "ambient2"] as const;
+export type SoundChannel = (typeof SOUND_CHANNELS)[number];
 
 export interface SoundTrack {
   source: SoundSource;
@@ -642,7 +717,8 @@ export interface SoundTrack {
 export interface SoundState {
   music: SoundTrack | null;
   ambient: SoundTrack | null;
-  volume: { music: number; ambient: number; sfx: number };
+  ambient2: SoundTrack | null;
+  volume: { music: number; ambient: number; ambient2: number; sfx: number };
 }
 
 /**
@@ -704,6 +780,9 @@ export interface ClientState {
     drawings: Drawing[];
     walls: Wall[];
     torches: MapTorch[];
+    chests: MapChest[];
+    lootCount: LootCountView | null;
+    lootResults: LootResults | null;
     weather: WeatherState;
     fog: FogState;
     /** Casas que os aliados veem agora (visão dos personagens); vazio sem ela. Calculado, não guardado. */
@@ -714,6 +793,8 @@ export interface ClientState {
   sceneId: string;
   scenes?: { id: string; name: string; hasImage: boolean; mobs: number }[];
   rules: TableRules;
+  /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
+  lootSeconds: number;
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */

@@ -124,6 +124,47 @@ Decisões e novidades:
 - [x] Coluna da esquerda empurrando o mapa.
 - [ ] Engasgo ao mover token: os painéis ainda redesenham (ficou para depois).
 
+## Plano depois da 2.11.0 (aprovado em 2026-11-02, revisto em 2026-11-03; fases 0, 2, 3, 5 e 6 saíram na 2.12.0)
+Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na branch `fix/correcoes-rolagem-efeitos`, como foi com a 2.10 e a 2.11. Primeiro o que mexe na jogatina; ordem por importância (2026-11-03): 0, 2, 3, 5, 6 e depois a 4; **hospedagem e instalador ficam por último**, talvez numa subida à parte. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
+
+### Fase 0. Correções
+- [x] Rolagens de armas não respeitam a trava do mestre. Reproduzido: o servidor já recusava (aviso "O mestre travou as rolagens"), mas os botões da ficha (ataques, testes de atributo, teste contra a morte) pareciam liberados. Agora usam a mesma trava do painel Dados (`client/src/rollLock.ts`), apagados e com a dica do porquê.
+- [x] Jogador consegue pôr efeito de mapa fora da vez. Virou a regra da mesa *Efeitos só na sua vez* (fixar e transformar; desligar e remover continuam livres, para acabar concentração fora da vez).
+
+### Fase 2. Acabamento
+- [x] Ícone novo do executável (barra do Windows e abertura do app), com protótipo. Escolhido o C, placa de couro com o d20, sem o nome (gerado por `npm run icon`, agora no Electron).
+- [x] Couro como padrão do fundo da mesa em volta do mapa, o mesmo da tela de login. Sessões salvas antigas não mudam sozinhas.
+- [x] Cor do grid, por cena (painel Mapa, abaixo de *Mostrar grid*; preto fica sem campo).
+- [x] Tooltips mais bonitos, com protótipo. Escolhido o 5, pergaminho com título (`TipTitle` nas ferramentas do mapa).
+- [x] Ctrl+Z em desenho livre, setas, círculos e tochas (hoje só paredes). Histórico único em `client/src/map/mapHistory.ts` (era `wallHistory.ts`); cada ferramenta desfaz o dela; ação nova `maptorch:remove`.
+- [ ] Engasgo ao mover token, se incomodar na mesa (pendente da 2.11.0, no bloco N).
+
+### Fase 3. Dano na ficha
+- [x] Armas no template, com dano ("Martelo de pedra" 1d6+2): o mob criado já vem com elas e o mestre escolhe qual usar ao rolar (ficha ou ataques rápidos do painel Dados).
+- [x] Magias e habilidades guardam o dano: campo aberto mais dano, genérico (magias e recursos; o nome do que rolou vai para o log).
+
+### Fase 5. Mesa e mapa
+- [x] Dois sons ambientes ao mesmo tempo (chuva e taverna), com a música por cima. Canal novo `ambient2` (*Segundo ambiente* no painel Som).
+- [x] Aba de configurações, juntando as opções espalhadas. Decisão (2026-11-03): engrenagem no topo, para todos, com *Mesa* (só o mestre: regras da mesa, rolagens fora de combate, o que os jogadores veem) e *Este dispositivo* (idioma, volume, animação dos dados, efeitos reduzidos, câmera segue a vez). O painel *Regras da mesa* da aba Mesa saiu (foi para lá).
+- [x] Pedido do mestre da mesa: regra *Esconder dano e cura dos inimigos* (os jogadores param de ver os números que sobem dos mobs e NPCs; os dos aliados continuam).
+- [x] Mestre insere jogadores nas cenas. Decisão: levar o grupo ao abrir (*Levar o grupo ao abrir* no painel Cenas; depois de abrir, um clique no mapa e todos chegam juntos em volta do ponto; ação `allies:gather`).
+
+### Fase 6. Mapa vivo
+- [x] Ficha completa em modal (pedido em 2026-11-03, antes do pincel): no computador, dois cliques no boneco (mapa, lista, iniciativa) ou o botão *Ficha* abrem a ficha inteira numa janela grande; o painel *Selecionado* vira um cartão de combate (vida, CA e atributos, condições, espaços de magia, recursos). Jogador: só os próprios; mestre: qualquer um. Celular igual. Protótipo aprovado.
+- [x] Painel Dados: ataques e magias em campos com busca (no lugar dos botões); magia com *Acerto* (bônus de ataque mágico) rola o d20 como ataque; sem acerto, só o dano.
+- [x] CA opcional em tudo (personagem, mob, NPC, template); campo de dano do painel Dados limpo depois de rolar o dano (pedidos de 2026-11-03, depois do teste da semana).
+- [x] Pincel de efeitos, só do mestre (ferramenta *Pincel*, E): pinta casa a casa (1, 3×3, 5×5), apagar e desfazer; o mesmo tipo vira um efeito só (`MapEffect.cells`), que liga, transforma e remove. Protótipo aprovado em 2026-11-03.
+- [x] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Desenho aprovado em 2026-11-03: [docs/design/baus.md](design/baus.md) (abre para todos, contagem para escolher, d20 automático na disputa, mestre dá a qualquer momento, armas viram itens que se empunham).
+
+### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
+- [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
+- [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
+
+### Fase 7. Instalador e hospedagem (por último, talvez numa subida à parte)
+- [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
+- [ ] Hospedagem (era a Fase 1; adiada em 2026-11-03: a VPN incomoda, mas dá para jogar). Decisão: servidor sob demanda, ligado só durante a sessão (umas 5 horas), sem previsão de comercializar. O mestre salva o arquivo no fim e carrega na próxima, como hoje; a imagem Docker e a chave de mestre já existem. Comparar e testar: máquina paga por hora, planos gratuitos com conexão em tempo real e túnel a partir do PC do mestre, sem instalar nada nos jogadores. Medir envio dos mapas e estabilidade contra a VPN. Pesquisar preços na hora.
+- [ ] Permissão de mestre e jogadores, escolhida ao criar a sala (junto com a hospedagem).
+
 ## Depois (pago ou entregável próprio)
 - Hospedagem ou túnel para jogar sem VPN (tem custo de servidor).
 - Assinatura do executável no Windows e no Mac (certificados pagos).

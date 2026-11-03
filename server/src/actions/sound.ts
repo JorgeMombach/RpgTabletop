@@ -1,11 +1,11 @@
-import { GEN_SOUNDS, type SoundChannel, type SoundSource } from "@rpg/shared";
+import { GEN_SOUNDS, SOUND_CHANNELS, type SoundChannel, type SoundSource } from "@rpg/shared";
 import { listSounds } from "../sounds";
 import type { Store } from "../store";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
-const CHANNELS: SoundChannel[] = ["music", "ambient"];
+const CHANNELS: readonly SoundChannel[] = SOUND_CHANNELS;
 
 function channelOf(raw: unknown): SoundChannel {
   return CHANNELS.includes(raw as SoundChannel) ? (raw as SoundChannel) : fail("Canal de som inválido.");

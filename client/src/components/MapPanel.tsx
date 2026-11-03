@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Checkbox, FileButton, Group, Input, NumberInput, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, ColorInput, FileButton, Group, Input, NumberInput, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
 import { LIMITS, TABLE_STYLES, type GridInput, type MapConfig, type TableStyle } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { act } from "../actions";
@@ -11,6 +11,9 @@ import { Panel } from "./Panel";
 import { useT, type MessageKey } from "../i18n";
 
 /** Mesa em volta do mapa (L5), por cena. */
+/** Cores prontas do grid: preto (padrão), branco, pergaminho, bronze, sangue e azul. */
+const GRID_SWATCHES = ["#000000", "#ffffff", "#f1e6d0", "#d8b47a", "#b3261e", "#5ba3e6"];
+
 const TABLE_LABEL: Record<TableStyle, MessageKey> = { wood: "mapPanel.tableWood", leather: "mapPanel.tableLeather", slate: "mapPanel.tableSlate" };
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
@@ -165,6 +168,20 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
           </>
         }
       />
+      {/* Cor das linhas, desta cena: escura some em mapa escuro, clara some em mapa claro. */}
+      {map.showGrid && (
+        <ColorInput
+          label={t("mapPanel.gridColor")}
+          description={t("mapPanel.gridColorTip")}
+          format="hex"
+          value={map.gridColor ?? "#000000"}
+          onChangeEnd={(v) => void act("battle:grid", { gridColor: v })}
+          swatches={GRID_SWATCHES}
+          swatchesPerRow={6}
+          withEyeDropper={false}
+          popoverProps={{ withinPortal: true }}
+        />
+      )}
 
       <Input.Wrapper label={t("mapPanel.cell", { px: local.cellPx.toFixed(1) })}>
         <Slider mt={6} min={0} max={CELL_STEPS} step={1} label={null} value={cellToSlider(local.cellPx)} onChange={(v) => change({ cellPx: sliderToCell(v) })} />

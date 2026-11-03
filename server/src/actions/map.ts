@@ -1,4 +1,4 @@
-import { emptyFog, inRows, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
+import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
@@ -33,10 +33,16 @@ function rotationOf(raw: unknown): number {
   return ((raw % 360) + 360) % 360;
 }
 
-/** Mesa em volta do mapa (L5); madeira é o padrão e fica sem campo. */
+/** Mesa em volta do mapa (L5); madeira fica sem campo (era o padrão até a 2.11: arquivos antigos abrem iguais). */
 export function tableStyleOf(raw: unknown): TableStyle | undefined {
   if (!TABLE_STYLES.includes(raw as TableStyle)) fail("Estilo de mesa inválido.");
   return raw === "wood" ? undefined : (raw as TableStyle);
+}
+
+/** Cor do grid da cena; preto fica sem campo. */
+export function gridColorOf(raw: unknown): string | undefined {
+  if (!isColor(raw)) fail("Cor do grid inválida.");
+  return raw.toLowerCase() === "#000000" ? undefined : raw.toLowerCase();
 }
 
 /** Estilo das paredes da cena (L5); pedra lavrada é o padrão e fica sem campo. */
@@ -81,6 +87,11 @@ export const mapHandlers: HandlerMap = {
     if (typeof input.showGrid === "boolean") map.showGrid = input.showGrid;
     if (input.wallStyle !== undefined) map.wallStyle = wallStyleOf(input.wallStyle);
     if (input.tableStyle !== undefined) map.tableStyle = tableStyleOf(input.tableStyle);
+    if (input.gridColor !== undefined) {
+      const color = gridColorOf(input.gridColor);
+      if (color) map.gridColor = color;
+      else delete map.gridColor;
+    }
   },
 
   "battle:clear": (store, player, payload) => {
@@ -96,6 +107,10 @@ export const mapHandlers: HandlerMap = {
     battle.drawings = [];
     battle.walls = [];
     battle.torches = [];
+    battle.chests = [];
+    // A disputa de loot era da batalha que acabou.
+    store.lootCount = null;
+    store.lootResults = null;
     // Cena nova: sem clima, de dia (E26), e sem névoa.
     battle.weather = defaultWeather();
     battle.fog = emptyFog();
@@ -110,6 +125,23 @@ export const mapHandlers: HandlerMap = {
     store.removedMobs.clear();
     // Numeração dos mobs recomeça em "Goblin 1" na batalha nova.
     store.mobCounters.clear();
+  },
+
+  "allies:gather": (store, player, payload) => {
+    requireGm(player);
+    const at = gridPosOf(payload?.at) ?? fail("Posição inválida.");
+    const { allies } = store.game;
+    if (allies.length === 0) fail("Nenhum aliado na mesa.");
+    // Personagens primeiro, perto do ponto; conjurados depois, por fora. Ninguém em cima de mob, NPC ou outro aliado.
+    const order = [...allies.filter((a) => !a.summonerId), ...allies.filter((a) => a.summonerId)];
+    const placed: Combatant[] = allCombatants(store).filter((c) => c.type !== "ally" && c.pos);
+    for (const a of order) {
+      const span = sizeSpan(a.size);
+      const pos = nearestFreeSpot(centeredOn(at, span), blockedCells(placed), span, sharesCell(a.size));
+      moveFollowers(store, a, a.pos, pos);
+      a.pos = pos;
+      placed.push(a);
+    }
   },
 
   "token:move": (store, player, payload) => {

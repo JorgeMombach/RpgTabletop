@@ -127,6 +127,7 @@ export function SoundPanel({ state }: { state: ClientState }) {
     <Panel title={t("sound.title")}>
       <LoopChannel state={state} channel="music" label={t("sound.music")} />
       <LoopChannel state={state} channel="ambient" label={t("sound.ambient")} />
+      <LoopChannel state={state} channel="ambient2" label={t("sound.ambient2")} />
 
       <Divider label={t("sound.sfx")} labelPosition="left" />
       <SimpleGrid cols={2} spacing={6} verticalSpacing={6}>

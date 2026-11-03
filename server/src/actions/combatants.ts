@@ -26,6 +26,7 @@ import { logSystem } from "./dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireImage, requireInt, requireName, requireString } from "../validate";
 import { requireTurnFor } from "./rules";
+import { attacksOf } from "./sheet";
 import type { HandlerMap } from "./types";
 
 /** Janela do "Desfazer" depois de remover um mob. */
@@ -200,6 +201,8 @@ function applyTexts(c: Combatant, input: { description?: unknown; gmNotes?: unkn
 
 function newCombatant(type: Combatant["type"], input: CombatantInput, color: string, gm = true): Combatant {
   const hpMax = hpMaxOf(input?.hpMax);
+  // Ataques prontos: só o mestre (template, mob ou NPC novo); o jogador monta na ficha.
+  const attacks = gm ? attacksOf(input?.attacks) : undefined;
   const ac = acOf(input?.ac);
   const abilities = abilitiesOf(input?.abilities);
   const size = sizeOf(input?.size);
@@ -222,6 +225,7 @@ function newCombatant(type: Combatant["type"], input: CombatantInput, color: str
   applyFlags(c, input);
   applyTexts(c, input, gm);
   if (type !== "ally" && gm) applyPhases(c, phasesOf(input?.phases));
+  if (attacks?.length) c.attacks = attacks;
   return c;
 }
 
@@ -238,6 +242,7 @@ function fromTemplate(t: MobTemplate) {
     description: t.description,
     gmNotes: t.notes,
     phases: t.phases?.map((p) => ({ ...p })),
+    attacks: t.attacks,
   };
 }
 
@@ -326,6 +331,7 @@ export const combatantHandlers: HandlerMap = {
     const ac = acOf(input?.ac);
     const abilities = abilitiesOf(input?.abilities);
     const size = sizeOf(input?.size);
+    const attacks = attacksOf(input?.attacks);
     avatarOf(input.avatar); // valida antes de alterar
 
     if (input.id) {
@@ -336,6 +342,8 @@ export const combatantHandlers: HandlerMap = {
       applyStats(t, ac, abilities);
       applySize(t, size);
       applyAvatar(t, input.avatar);
+      if (attacks?.length) t.attacks = attacks;
+      else if (attacks) delete t.attacks;
       return [t.id];
     }
     const t: MobTemplate = { id: randomUUID(), ...fields, color: colorOf(input.color, MOB_COLORS, templates.length) };
@@ -343,6 +351,7 @@ export const combatantHandlers: HandlerMap = {
     applyStats(t, ac, abilities);
     applySize(t, size);
     applyAvatar(t, input.avatar);
+    if (attacks?.length) t.attacks = attacks;
     templates.push(t);
     return [t.id];
   },

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { DRAG_MIME } from "../map/BattleMap";
 import { allCombatants } from "../format";
 import { useT } from "../i18n";
-import { select, useApp } from "../store";
+import { openSheet, select, useApp } from "../store";
 import { CombatantAvatar } from "./CombatantAvatar";
 import { usePulse } from "./usePulse";
 import { HpBar } from "./HpBar";
@@ -43,6 +43,7 @@ export function CombatantRow({ c, selected, suffix, draggable, trailing }: Props
       component="li"
       className={`crow ${selected ? "selected" : ""} ${down ? "down" : ""}`}
       onClick={() => select(c.id)}
+      onDoubleClick={() => openSheet(c.id)}
       draggable={draggable}
       onDragStart={(e) => e.dataTransfer.setData(DRAG_MIME, c.id)}
       title={hint}

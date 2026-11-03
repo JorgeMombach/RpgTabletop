@@ -50,10 +50,15 @@ describe("som da mesa", () => {
   it("mestre toca música e ambiente; todos recebem o mesmo; jogador não controla", async () => {
     const g = await gm();
     const ana = await player("Ana");
-    const seen = stateWhere(ana.s, (s) => s.sound.music?.source.kind === "file" && s.sound.ambient !== null);
+    const seen = stateWhere(ana.s, (s) => s.sound.music?.source.kind === "file" && s.sound.ambient !== null && s.sound.ambient2 !== null);
     assert.ok((await act(g, "sound:play", { channel: "music", source: { kind: "file", name: "Taverna.mp3" } })).ok);
     assert.ok((await act(g, "sound:play", { channel: "ambient", source: { kind: "gen", id: "rain" } })).ok);
+    // Dois ambientes ao mesmo tempo: chuva lá fora e fogueira.
+    assert.ok((await act(g, "sound:play", { channel: "ambient2", source: { kind: "gen", id: "campfire" } })).ok);
+    assert.ok((await act(g, "sound:volume", { channel: "ambient2", value: 0.3 })).ok);
     const s: ClientState = await seen;
+    assert.deepEqual(s.sound.ambient2?.source, { kind: "gen", id: "campfire" });
+    assert.deepEqual(s.sound.ambient?.source, { kind: "gen", id: "rain" });
     assert.deepEqual(s.sound.music?.source, { kind: "file", name: "Taverna.mp3" });
     assert.ok(Math.abs(Date.now() - s.sound.music!.startedAt) < 5000, "hora de início para quem entra depois");
     assert.equal(s.soundLibrary, undefined, "a lista de arquivos é só do mestre");

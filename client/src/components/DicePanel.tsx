@@ -15,9 +15,8 @@ import {
   Text,
   TextInput,
   Tooltip,
-  UnstyledButton,
 } from "@mantine/core";
-import { IconSword, IconWindowMaximize } from "@tabler/icons-react";
+import { IconSparkles, IconSword, IconWindowMaximize } from "@tabler/icons-react";
 import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode, type SavedAttack } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
@@ -27,6 +26,8 @@ import { allCombatants, fmtMod } from "../format";
 import { setDicePrefs, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
+import { rollLock } from "../rollLock";
+import { attacksOf } from "../weapons";
 import { naturalD20, RollLog } from "./RollLog";
 
 const MODES: { value: RollMode; label: MessageKey }[] = [
@@ -71,6 +72,53 @@ function gmSide(state: ClientState): CombatantView[] {
   return [...state.battle.mobs, ...state.battle.npcs, ...state.allies.filter((a) => a.ownerId === state.self.id)];
 }
 
+/** Ataque salvo ou magia: o que o painel Dados sabe rolar. */
+type QuickItem = Pick<SavedAttack, "id" | "name" | "bonus" | "damage">;
+
+/**
+ * Escolher na lista (com busca) um ataque ou uma magia de quem rola. Funciona como botão: a escolha rola (ou
+ * prepara o dano) e o campo volta vazio. Com as rolagens travadas, o que tem d20 fica apagado na lista.
+ */
+function QuickPick({ label, placeholder, icon, items, blocked, onPick }: { label: string; placeholder: string; icon: ReactNode; items: QuickItem[]; blocked: boolean; onPick: (item: QuickItem) => void }) {
+  const t = useT();
+  const [search, setSearch] = useState("");
+  const stats = (i: QuickItem) => [i.bonus !== undefined ? fmtMod(i.bonus) : null, i.damage].filter(Boolean).join(" · ");
+  return (
+    <Select
+      label={label}
+      placeholder={placeholder}
+      leftSection={icon}
+      searchable
+      // Digitou parte do nome: a primeira que bate já fica marcada e o Enter escolhe.
+      selectFirstOptionOnChange
+      value={null}
+      searchValue={search}
+      onSearchChange={setSearch}
+      nothingFoundMessage={t("dice.pickNone")}
+      data={items.map((i) => ({ value: i.id, label: i.name, disabled: blocked && i.bonus !== undefined }))}
+      renderOption={({ option }) => {
+        const item = items.find((i) => i.id === option.value)!;
+        return (
+          <Group gap="xs" wrap="nowrap" w="100%" justify="space-between">
+            <Text size="sm" truncate title={item.name}>
+              {item.name}
+            </Text>
+            <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+              {stats(item)}
+            </Text>
+          </Group>
+        );
+      }}
+      onChange={(id) => {
+        const item = items.find((i) => i.id === id);
+        setSearch("");
+        if (item) onPick(item);
+      }}
+      comboboxProps={{ withinPortal: true }}
+    />
+  );
+}
+
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>
@@ -98,6 +146,8 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   const [hidden, setHidden] = useState(gm);
   const selectedId = useApp((s) => s.selectedId);
   const rolling = useApp((s) => s.rolling);
+  // Ataque salvo escolhido: o dano dele sai com o nome no log, enquanto o campo de dano não mudar.
+  const [quickName, setQuickName] = useState<{ name: string; damage: string } | null>(null);
   // Escolha manual do "rolar como" vale até a seleção ou o turno mudar.
   const asKey = `${combat.turn}:${selectedId ?? ""}`;
   const [asChoice, setAsChoice] = useState<{ key: string; id: string } | null>(null);
@@ -110,16 +160,8 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
 
   // Trava por turno: o servidor também recusa; aqui só desabilita e explica.
   const me = state.self.id;
-  const myTurn = current?.ownerId === me;
-  const request = rolls.request;
-  const requested = !!request && request.playerIds.includes(me) && !request.done.includes(me);
-  const reactionOpen = rolls.reactions.some((r) => r.playerId === me && r.turn === combat.turn);
-  const reactionUsed = rolls.reactions.some((r) => r.playerId === me && r.round === combat.round);
+  const { myTurn, requested, reactionOpen, reactionUsed, waiting, blocked } = rollLock(state, rolling);
   const outside = rolls.outside;
-  const locked = !gm && (combat.active ? !myTurn && !requested && !reactionOpen : outside !== "free" && !requested);
-  // Antispam (E26): enquanto os dados desta pessoa caem na tela, não rola de novo.
-  const waiting = !gm && state.log.some((e) => e.authorId === me && rolling.includes(e.id));
-  const blocked = locked || waiting;
 
   // Ataques salvos como botões rápidos (L8): de quem rola. Mestre: o "Rolar como"; jogador: o personagem dele
   // na vez, senão o selecionado, senão o primeiro (sem contar os invocados).
@@ -127,16 +169,19 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   const who = gm
     ? side.find((c) => c.id === asId)
     : (mine.find((c) => c.id === current?.id) ?? mine.find((c) => c.id === selectedId) ?? mine.find((c) => !c.summonerId));
-  const quick = who?.attacks ?? [];
+  const quick = who ? attacksOf(who) : [];
+  // Magias com algo a rolar (acerto e/ou dano), na ordem da ficha (por círculo).
+  const spells: QuickItem[] = who && "spells" in who ? (who.spells ?? []).filter((s) => s.bonus !== undefined || s.damage) : [];
 
-  /** Ataque salvo: preenche bônus e dano; com bônus, já rola o ataque (o dano fica pronto embaixo). */
-  async function quickAttack(a: SavedAttack) {
+  /** Ataque ou magia escolhidos: preenche bônus e dano; com bônus, já rola o d20 (o dano fica pronto embaixo). */
+  async function quickAttack(a: QuickItem) {
     setAttackMod(a.bonus ?? 0);
     setDamage(a.damage ?? "");
     setCrit(false);
+    setQuickName({ name: a.name, damage: a.damage ?? "" });
     if (a.bonus === undefined) return;
     saveAttack({ mod: a.bonus, damage: a.damage ?? "" });
-    const res = await roll({ expr: buildExpr(1, 20, a.bonus), mode, kind: "attack" });
+    const res = await roll({ expr: buildExpr(1, 20, a.bonus), mode, kind: "attack", name: a.name });
     if (!res.ok) return;
     const entry = useApp.getState().state?.log.find((l) => l.id === res.ids?.[0]);
     setCrit(!!entry?.roll && naturalD20(entry.roll.terms) === 20);
@@ -176,8 +221,14 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
     e.preventDefault();
     if (!damage.trim()) return;
     saveAttack({ mod: Math.trunc(Number(attackMod)) || 0, damage });
-    const res = await roll({ expr: crit ? doubleDice(damage) : damage, kind: "damage", crit });
-    if (res.ok) setCrit(false);
+    const name = quickName && quickName.damage === damage ? quickName.name : undefined;
+    const res = await roll({ expr: crit ? doubleDice(damage) : damage, kind: "damage", crit, name });
+    if (!res.ok) return;
+    // Dano rolado: o campo volta vazio (com o exemplo) para o próximo ataque não herdar este.
+    setCrit(false);
+    setDamage("");
+    setQuickName(null);
+    saveAttack({ mod: Math.trunc(Number(attackMod)) || 0, damage: "" });
   }
 
   return (
@@ -206,27 +257,24 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
       )}
 
       {who && quick.length > 0 && (
-        <>
-          <SectionTitle>{t("dice.quickAttacks", { name: who.name })}</SectionTitle>
-          <div className="quick-attacks">
-            {quick.map((a) => (
-              <Tooltip
-                key={a.id}
-                label={a.bonus !== undefined ? t("dice.quickTip", { expr: buildExpr(1, 20, a.bonus) }) : t("dice.quickDamageTip", { damage: a.damage ?? "" })}
-              >
-                <UnstyledButton className="quick-attack" data-disabled={(blocked && a.bonus !== undefined) || undefined} onClick={() => !(blocked && a.bonus !== undefined) && void quickAttack(a)}>
-                  <IconSword size={14} className="quick-attack-icon" />
-                  <Text size="sm" fw={700} truncate title={a.name} style={{ flex: 1, minWidth: 0 }}>
-                    {a.name}
-                  </Text>
-                  <Text size="xs" c="dimmed" style={{ flex: "none" }}>
-                    {[a.bonus !== undefined ? fmtMod(a.bonus) : null, a.damage].filter(Boolean).join(" · ")}
-                  </Text>
-                </UnstyledButton>
-              </Tooltip>
-            ))}
-          </div>
-        </>
+        <QuickPick
+          label={t("dice.quickAttacks", { name: who.name })}
+          placeholder={t("dice.pickAttack")}
+          icon={<IconSword size={14} />}
+          items={quick}
+          blocked={blocked}
+          onPick={(a) => void quickAttack(a)}
+        />
+      )}
+      {who && spells.length > 0 && (
+        <QuickPick
+          label={t("dice.quickSpells", { name: who.name })}
+          placeholder={t("dice.pickSpell")}
+          icon={<IconSparkles size={14} />}
+          items={spells}
+          blocked={blocked}
+          onPick={(s) => void quickAttack(s)}
+        />
       )}
 
       <SectionTitle>{t("dice.attack")}</SectionTitle>

@@ -9,7 +9,7 @@ import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import type { Point } from "./geometry";
 import { drawDoor, wallArt, wallSeed } from "./wallArt";
-import { removeWall, undoWall, useWallUndo } from "./wallHistory";
+import { removeWall, undo, useMapUndo } from "./mapHistory";
 
 /** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder) ou apagar. */
 export type WallMode = "wall" | "door" | "erase";
@@ -156,7 +156,7 @@ export function WallPreview({ from, to, door, grid, style }: { from: GridPos; to
 export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle }) {
   const t = useT();
   const { wallMode, wallSnap, wallThick, selectedDoorId } = useApp();
-  const undoCount = useWallUndo((s) => s.count);
+  const undoCount = useMapUndo((s) => s.walls);
   const door = walls.find((w) => w.id === selectedDoorId && w.door);
 
   async function clearAll() {
@@ -188,7 +188,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
         )}
         <Group gap={4} wrap="nowrap">
           <Tooltip label={t("walls.undoTip")}>
-            <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undoWall()}>
+            <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("walls")}>
               {t("walls.undo")}
             </Button>
           </Tooltip>

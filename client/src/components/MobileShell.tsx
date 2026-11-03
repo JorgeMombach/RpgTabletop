@@ -1,9 +1,9 @@
 import { ActionIcon, Badge, Group, Indicator, Menu, Text, UnstyledButton } from "@mantine/core";
-import { IconCheck, IconDeviceDesktop, IconDice5, IconInfoCircle, IconLogout, IconMap, IconMenu2, IconSwords, IconUser } from "@tabler/icons-react";
+import { IconDeviceDesktop, IconDice5, IconInfoCircle, IconLogout, IconMap, IconMenu2, IconSwords, IconUser } from "@tabler/icons-react";
 import type { ClientState } from "@rpg/shared";
 import { useEffect, useState, type ReactNode } from "react";
 import { BattleMap } from "../map/BattleMap";
-import { LANGS, setLang, useLang, useT, type Lang, type MessageKey } from "../i18n";
+import { useT, type MessageKey } from "../i18n";
 import { setLayoutChoice } from "../layout";
 import { leave } from "../session";
 import { select, useApp } from "../store";
@@ -13,7 +13,7 @@ import { HandoutButton, HandoutModal } from "./Handout";
 import { AboutModal } from "./About";
 import { Memo } from "./Shell";
 import { SoundSync } from "./SoundSync";
-import { VolumeControl } from "./VolumeControl";
+import { SettingsButton } from "./Settings";
 
 type Tab = "map" | "sheet" | "dice" | "combat";
 
@@ -42,7 +42,6 @@ function readTab(): Tab {
  */
 export function MobileShell({ state }: { state: ClientState }) {
   const t = useT();
-  const lang = useLang((s) => s.lang);
   const connected = useApp((s) => s.connected);
   const selectedId = useApp((s) => s.selectedId);
   const [tab, setTab] = useState<Tab>(readTab);
@@ -98,7 +97,7 @@ export function MobileShell({ state }: { state: ClientState }) {
           </Badge>
         )}
         <HandoutButton compact />
-        <VolumeControl />
+        <SettingsButton state={state} />
         <Menu position="bottom-end" withinPortal>
           <Menu.Target>
             <ActionIcon variant="default" size="lg" aria-label={t("mobile.menu")}>
@@ -112,12 +111,6 @@ export function MobileShell({ state }: { state: ClientState }) {
             <Menu.Item leftSection={<IconDeviceDesktop size={14} />} onClick={() => setLayoutChoice("desktop")}>
               {t("mobile.desktopLayout")}
             </Menu.Item>
-            <Menu.Label>{t("lang.label")}</Menu.Label>
-            {(Object.keys(LANGS) as Lang[]).map((l) => (
-              <Menu.Item key={l} lang={l} onClick={() => setLang(l)} rightSection={l === lang ? <IconCheck size={14} /> : null}>
-                {LANGS[l]}
-              </Menu.Item>
-            ))}
             <Menu.Divider />
             <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => setAbout(true)}>
               {t("about.title")}

@@ -6,6 +6,7 @@ import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
+import { undo, useMapUndo } from "./mapHistory";
 
 /** Cores do guia visual: bronze, sangue, azul dos aliados, cobre e pergaminho. */
 export const DRAW_COLORS = ["#d8b47a", "#c94a52", "#5ba3e6", "#4fae8c", "#f1e6d0"];
@@ -52,6 +53,7 @@ export function DrawOptions({ drawings, gm, selfId }: { drawings: Drawing[]; gm:
   const mode = modes.includes(drawMode) ? drawMode : "arrow";
   const mine = gm ? drawings : drawings.filter((d) => d.authorId === selfId);
   const erasing = mode === "erase";
+  const undoCount = useMapUndo((s) => s.drawings);
 
   async function clearAll() {
     if (!gm) return void act("draw:clear", {});
@@ -104,15 +106,11 @@ export function DrawOptions({ drawings, gm, selfId }: { drawings: Drawing[]; gm:
           <span />
         )}
         <Group gap={4} wrap="nowrap">
-          <Button
-            size="compact-xs"
-            variant="default"
-            disabled={mine.length === 0}
-            leftSection={<IconArrowBackUp size={12} />}
-            onClick={() => act("draw:remove", { id: mine[mine.length - 1].id })}
-          >
-            {t("draw.undo")}
-          </Button>
+          <Tooltip label={t("draw.undoTip")}>
+            <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("drawings")}>
+              {t("draw.undo")}
+            </Button>
+          </Tooltip>
           <Button size="compact-xs" variant="subtle" color="red" disabled={mine.length === 0} leftSection={<IconTrash size={12} />} onClick={() => void clearAll()}>
             {t(gm ? "draw.clear" : "draw.clearMine")}
           </Button>

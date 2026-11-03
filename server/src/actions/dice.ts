@@ -159,11 +159,14 @@ export const diceHandlers: HandlerMap = {
     const context = outOfTurn(store, player);
     const kindLabel = kind === "attack" ? "Ataque" : kind === "damage" ? (crit ? "Dano (crítico)" : "Dano") : undefined;
     const death = payload?.death === true ? "Teste contra a morte" : undefined;
+    // O que rolou (arma, magia, habilidade): vai na frente, como o jogador escreveu.
+    const what = typeof payload?.name === "string" ? payload.name.replace(/\s+/g, " ").trim().slice(0, LIMITS.spellName) : "";
     // Mestre rolando oculto como o personagem de um jogador (ex.: Percepção sem ele saber): marca "Secreto".
     const secret = gm && payload.hidden === true && by?.type === "ally" ? "Secreto" : undefined;
     // Cada pedaço traduzível à parte; o pedido do mestre ("Resistência DES") fica como ele escreveu.
     const label: LogPart[] = [
       ...(context ? [context] : []),
+      ...(what ? [{ key: what }] : []),
       ...[kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death, secret].filter((s): s is string => !!s).map((key) => ({ key })),
     ];
     if (!gm) player.lastRollAt = now;

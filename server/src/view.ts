@@ -1,4 +1,4 @@
-import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type MapTorch, type Wall } from "@rpg/shared";
+import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type MapChest, type MapTorch, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
@@ -34,6 +34,13 @@ function forPlayers(list: Combatant[]): CombatantView[] {
  * continua indo (não está em lugar nenhum); aliados sempre vão. A imagem do mapa vai inteira (a névoa
  * é desenhada por cima), mas inimigos, efeitos, desenhos e paredes cobertos nem chegam.
  */
+/** Casas de uma pintura (achatadas: col0, row0…) como posições. */
+function paintedCells(flat: number[]): GridPos[] {
+  const out: GridPos[] = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) out.push({ col: flat[i], row: flat[i + 1] });
+  return out;
+}
+
 function inSight(fog: FogState, sight: Record<string, number[]>) {
   // Agora: revelado pelo mestre ou na visão dos aliados. Alguma vez: também o explorado (com a visão ligada).
   const now = (c: GridPos) => isRevealed(fog, c.col, c.row) || inRows(sight, c.col, c.row);
@@ -50,7 +57,8 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
   // Inimigos só aparecem onde se vê agora; o resto do mapa (efeitos, desenhos, paredes) também no explorado.
   return {
     combatant: cells,
-    effect: (e: MapEffect) => anyEver(cellsAroundPoint(e.area.origin.col, e.area.origin.row)),
+    // Pintura: aparece se alguma casa pintada já foi vista.
+    effect: (e: MapEffect) => anyEver(e.cells ? paintedCells(e.cells) : cellsAroundPoint(e.area.origin.col, e.area.origin.row)),
     drawing: (d: Drawing, grid: MapConfig) => {
       const pts: GridPos[] = [];
       for (let i = 0; i + 1 < d.points.length; i += 2) {
@@ -59,6 +67,7 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
       return anyEver(pts);
     },
     torch: (t: MapTorch) => anyEver([{ col: Math.floor(t.col), row: Math.floor(t.row) }]),
+    chest: (c: MapChest) => anyEver([{ col: c.col, row: c.row }]),
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
       // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
@@ -74,6 +83,14 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
   };
 }
 
+/** Baús que cada um recebe: o jogador não recebe o invisível nem o coberto; o conteúdo, só depois da primeira abertura. */
+export function chestsFor(store: Store, gm: boolean): MapChest[] {
+  const { chests, fog } = store.game.battle;
+  if (gm) return chests;
+  const sight = inSight(fog, currentSight(store));
+  return chests.filter((c) => !c.hidden && sight.chest(c)).map((c) => (c.opened ? c : { ...c, loot: [] }));
+}
+
 /**
  * Estado filtrado por papel (ADR-05): jogadores nunca recebem a vida de mobs e NPCs,
  * nem mobs/NPCs ocultos, nem a lista de magias de outros jogadores.
@@ -85,6 +102,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
   const fog = game.battle.fog;
   const visible = currentSight(store);
   const sight = inSight(fog, visible);
+  const chests = chestsFor(store, gm);
+  const seesChest = (id: string) => chests.some((c) => c.id === id);
 
   const players = [...store.players.values()]
     .map(toPublic)
@@ -111,6 +130,12 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       walls: gm ? game.battle.walls : game.battle.walls.filter((w) => !w.door?.secret && sight.wall(w)),
       // Tocha na parte coberta nem chega: nem o desenho nem a luz entregam o lugar.
       torches: gm ? game.battle.torches : game.battle.torches.filter(sight.torch),
+      // Baú invisível ou coberto nem chega; o conteúdo só depois da primeira abertura (surpresa).
+      chests,
+      // A disputa do loot vai para todos (o baú abre na tela de cada um).
+      // ...mas só de baú que a pessoa recebe (coberto pela névoa, nem a disputa nem o resultado chegam).
+      lootCount: store.lootCount && seesChest(store.lootCount.chestId) ? { chestId: store.lootCount.chestId, remainingMs: Math.max(0, store.lootCount.endsAt - Date.now()), wants: store.lootCount.wants } : null,
+      lootResults: store.lootResults && seesChest(store.lootResults.chestId) ? store.lootResults : null,
       weather: game.battle.weather,
       fog,
       sight: visible,
@@ -118,6 +143,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
     sceneId: game.sceneId,
     rules: game.rules,
+    lootSeconds: game.lootSeconds,
     // Cenas preparadas são do mestre: os jogadores só veem a que está no mapa.
     scenes: gm
       ? game.scenes.map((s) => {

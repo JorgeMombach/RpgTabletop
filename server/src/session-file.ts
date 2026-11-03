@@ -44,7 +44,8 @@ import {
   type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
-import { tableStyleOf, wallStyleOf } from "./actions/map";
+import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { parseChest } from "./actions/chests";
 import { parseWall } from "./actions/walls";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
@@ -98,6 +99,8 @@ function tableRules(raw: unknown): TableRules {
   return {
     moveOnTurn: bool(r.moveOnTurn ?? false, "regra da mesa"),
     summonOnTurn: bool(r.summonOnTurn ?? false, "regra da mesa"),
+    effectOnTurn: bool(r.effectOnTurn ?? false, "regra da mesa"),
+    hideFoeHits: bool(r.hideFoeHits ?? false, "regra da mesa"),
     darkReminder: bool(r.darkReminder ?? false, "regra da mesa"),
   };
 }
@@ -158,6 +161,18 @@ function spell(raw: unknown): Spell {
   };
   const note = optText(s.note, "nota da magia", LIMITS.spellNote);
   if (note) out.note = note;
+  if (s.bonus !== undefined) out.bonus = int(s.bonus, "acerto da magia", -20, 40);
+  const damage = optText(s.damage, "dano da magia", LIMITS.dice.exprLength);
+  if (damage) out.damage = damage;
+  return out;
+}
+
+function savedAttack(raw: unknown): SavedAttack {
+  const a = obj(raw, "ataque");
+  const out: SavedAttack = { id: requireString(a.id, "Ataque"), name: text(a.name, "ataque", LIMITS.spellName) || fail("Arquivo inválido: ataque sem nome.") };
+  if (a.bonus !== undefined) out.bonus = int(a.bonus, "ataque", -20, 40);
+  const damage = optText(a.damage, "ataque", LIMITS.dice.exprLength);
+  if (damage) out.damage = damage;
   return out;
 }
 
@@ -223,6 +238,7 @@ function sheet(out: Combatant, c: Obj) {
       const r = obj(raw, "recurso");
       const max = int(r.max, "recurso", 1, LIMITS.resourceMax);
       if (typeof r.recharge !== "string" || !recharges.includes(r.recharge)) fail("Arquivo inválido: recurso.");
+      const damage = optText(r.damage, "dano do recurso", LIMITS.dice.exprLength);
       return {
         id: requireString(r.id, "Recurso"),
         name: text(r.name, "recurso", LIMITS.spellName) || fail("Arquivo inválido: recurso sem nome."),
@@ -230,18 +246,12 @@ function sheet(out: Combatant, c: Obj) {
         used: int(r.used, "recurso", 0, max),
         recharge: r.recharge as Recharge,
         ...(r.rechargeOn !== undefined && { rechargeOn: int(r.rechargeOn, "recarga", 2, 6) }),
+        ...(damage && { damage }),
       };
     });
   }
   if (c.attacks !== undefined) {
-    out.attacks = list(c.attacks, "ataques", LIMITS.attacks).map((raw) => {
-      const a = obj(raw, "ataque");
-      const out: SavedAttack = { id: requireString(a.id, "Ataque"), name: text(a.name, "ataque", LIMITS.spellName) || fail("Arquivo inválido: ataque sem nome.") };
-      if (a.bonus !== undefined) out.bonus = int(a.bonus, "ataque", -20, 40);
-      const damage = optText(a.damage, "ataque", LIMITS.dice.exprLength);
-      if (damage) out.damage = damage;
-      return out;
-    });
+    out.attacks = list(c.attacks, "ataques", LIMITS.attacks).map(savedAttack);
   }
   if (c.inventory !== undefined) {
     out.inventory = list(c.inventory, "inventário", LIMITS.items).map((raw) => {
@@ -253,6 +263,11 @@ function sheet(out: Combatant, c: Obj) {
       };
       const note = optText(i.note, "item", LIMITS.spellNote);
       if (note) out.note = note;
+      // Arma no inventário (depois da 2.11); arquivos antigos não têm.
+      if (i.bonus !== undefined) out.bonus = int(i.bonus, "item", -20, 40);
+      const damage = optText(i.damage, "item", LIMITS.dice.exprLength);
+      if (damage) out.damage = damage;
+      if ((out.bonus !== undefined || out.damage) && i.wielded !== undefined && bool(i.wielded, "item")) out.wielded = true;
       return out;
     });
   }
@@ -296,6 +311,8 @@ function template(raw: unknown): MobTemplate {
   const description = optText(t.description, "descrição", LIMITS.description);
   if (description) out.description = description;
   if (t.phases !== undefined) out.phases = bossPhases(t.phases);
+  // Arquivos anteriores à 2.12 não têm.
+  if (t.attacks !== undefined) out.attacks = list(t.attacks, "ataques do template", LIMITS.attacks).map(savedAttack);
   return out;
 }
 
@@ -322,6 +339,12 @@ function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
   if (e.followId !== undefined && combatantIds.has(requireString(e.followId, "Efeito"))) out.followId = e.followId as string;
   // Estado de antes de "Transformar" (E24); arquivos da 2.x anteriores não têm.
   if (e.revertTo !== undefined) out.revertTo = effectState(obj(e.revertTo, "efeito"), combatantIds);
+  // Pintura do pincel (2.12): pares de casas inteiras.
+  if (e.cells !== undefined) {
+    const cells = list(e.cells, "casas da pintura", LIMITS.paintNumbers);
+    if (cells.length === 0 || cells.length % 2 !== 0 || !cells.every((n) => Number.isInteger(n) && Math.abs(n as number) <= LIMITS.gridCoord)) fail("Arquivo inválido: casas da pintura.");
+    out.cells = cells as number[];
+  }
   return out;
 }
 
@@ -332,7 +355,8 @@ function effectState(e: Obj, combatantIds: Set<string>): EffectState {
   if (casterId && !combatantIds.has(casterId)) fail("Arquivo inválido: conjurador de efeito não existe.");
   const { min, max } = LIMITS.conditionRounds;
   return {
-    name: text(e.name, "efeito", LIMITS.effectName) || fail("Arquivo inválido: efeito sem nome."),
+    // Vazio = sem nome próprio (a tela mostra o tipo).
+    name: text(e.name, "efeito", LIMITS.effectName),
     preset: e.preset as EffectPreset,
     color: isColor(e.color) ? e.color : fail("Arquivo inválido: cor do efeito."),
     ownerId: requireString(e.ownerId, "Dono do efeito"),
@@ -488,6 +512,8 @@ export function parseSession(raw: unknown): ParsedSession {
     sceneId,
     // Arquivo de antes das regras da mesa: tudo desligado.
     rules: tableRules(g.rules ?? {}),
+    // Arquivos anteriores aos baús: 20 segundos.
+    lootSeconds: g.lootSeconds === undefined ? 20 : int(g.lootSeconds, "tempo do loot", LIMITS.lootSeconds.min, LIMITS.lootSeconds.max),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
@@ -526,6 +552,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       // Arquivos anteriores à 2.10 não têm (pedra lavrada).
       ...(m.wallStyle !== undefined && { wallStyle: wallStyleOf(m.wallStyle) }),
       ...(m.tableStyle !== undefined && { tableStyle: tableStyleOf(m.tableStyle) }),
+      // Arquivos anteriores à 2.12 não têm (preto).
+      ...(m.gridColor !== undefined && { gridColor: gridColorOf(m.gridColor) }),
     },
     mobs,
     npcs,
@@ -539,6 +567,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     walls: list(b.walls ?? [], "paredes", LIMITS.walls).map((w) => ({ id: requireString(obj(w, "parede").id, "Parede"), ...parseWall(w) })),
     // Arquivos de antes das tochas fixas: nenhuma.
     torches: list(b.torches ?? [], "tochas", LIMITS.mapTorches).map((t) => ({ id: requireString(obj(t, "tocha").id, "Tocha"), ...parseMapTorch(t) })),
+    // Arquivos de antes dos baús (2.12): nenhum.
+    chests: list(b.chests ?? [], "baús", LIMITS.chests).map(parseChest),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
@@ -637,6 +667,9 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
   game.battle.map.imageVersion = store.game.battle.map.imageVersion + 1;
   store.game = game;
+  // Disputa de loot não vai no arquivo: o baú volta aberto, no modo Pegar.
+  store.lootCount = null;
+  store.lootResults = null;
   store.mobCounters = parsed.mobCounters;
   store.removedMobs.clear();
 }

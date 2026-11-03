@@ -9,6 +9,8 @@ import type { HandlerMap } from "./types";
 const RULE_LABEL: Record<keyof TableRules, string> = {
   moveOnTurn: "Movimento só na sua vez",
   summonOnTurn: "Invocar só na sua vez",
+  effectOnTurn: "Efeitos só na sua vez",
+  hideFoeHits: "Esconder dano e cura dos inimigos",
   darkReminder: "Lembrete de escuridão",
 };
 

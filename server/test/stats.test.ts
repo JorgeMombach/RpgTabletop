@@ -63,6 +63,21 @@ describe("CA e atributos", () => {
     assert.equal(game().battle.npcs.find((n) => n.id === npc)?.ac, 15);
   });
 
+  it("CA é opcional em tudo (há sistemas sem CA): personagem, mob, NPC e template sem CA", async () => {
+    const g = await gm();
+    const ana = await player("Ana");
+    const [lia] = idsOf(await act(ana, "ally:create", { name: "Lia", hpMax: 20, dexMod: 2 }));
+    const [mob] = idsOf(await act(g, "mob:add", { name: "Lobo", hpMax: 11, dexMod: 2 }));
+    const [npc] = idsOf(await act(g, "npc:add", { name: "Taverneiro", hpMax: 9, dexMod: 0 }));
+    const [tid] = idsOf(await act(g, "template:upsert", { name: "Rato", hpMax: 1, dexMod: 2 }));
+    const [rato] = idsOf(await act(g, "mob:addFromTemplate", { templateId: tid, qty: 1 }));
+    assert.equal(game().allies.find((c) => c.id === lia)?.ac, undefined);
+    assert.equal(game().battle.mobs.find((c) => c.id === mob)?.ac, undefined);
+    assert.equal(game().battle.npcs.find((c) => c.id === npc)?.ac, undefined);
+    assert.equal(game().templates[0].ac, undefined);
+    assert.equal(game().battle.mobs.find((c) => c.id === rato)?.ac, undefined);
+  });
+
   it("editar: null apaga a CA, {} apaga os atributos; valor inválido não muda nada", async () => {
     const ana = await player("Ana");
     const [id] = idsOf(await act(ana, "ally:create", { name: "Lia", hpMax: 15, dexMod: 3, ac: 13, abilities: { dex: 16 } }));

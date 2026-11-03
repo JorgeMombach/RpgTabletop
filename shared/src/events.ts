@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput } from "./types";
 import type { FogRect } from "./fog";
 
 export interface JoinPayload {
@@ -21,6 +21,13 @@ export interface Toast {
 }
 
 /** Dados editáveis de um combatente (mob ou aliado). */
+/** Ataque como vem do formulário: nome e bônus e/ou dano. */
+export interface AttackInput {
+  name: string;
+  bonus?: number | null;
+  damage?: string;
+}
+
 export interface CombatantInput {
   name: string;
   hpMax: number;
@@ -41,6 +48,8 @@ export interface CombatantInput {
   boss?: boolean;
   /** Visão no escuro (só personagens dos jogadores). */
   darkvision?: boolean;
+  /** Ataques salvos (só o mestre, ao criar mob ou NPC e no template). No template, `[]` apaga. */
+  attacks?: AttackInput[];
   /** Chefe: as próximas fases (só mob, NPC e template; só o mestre). `[]` apaga. */
   phases?: BossPhase[];
   /** Mob ou NPC já criado oculto (E21; ignorado em aliados). */
@@ -101,7 +110,7 @@ export interface MapImagePayload {
   image: string | null;
 }
 
-export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle">>;
+export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle" | "gridColor">>;
 
 export interface TemplateInput extends CombatantInput {
   /** Presente = edição; ausente = criação. */
@@ -154,7 +163,8 @@ export interface ActionPayloads {
    * `hidden` e `asId` só valem para o mestre (rolagem oculta; rolar como um combatente).
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
    */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean };
+  /** `name`: o que rolou (arma, magia, habilidade), na frente do rótulo no log: "Bola de fogo · Dano". */
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean; name?: string };
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
   "roll:cancel": Record<string, never>;
@@ -166,6 +176,8 @@ export interface ActionPayloads {
   "battle:grid": GridInput;
   /** `pos: null` tira o token do mapa. */
   "token:move": { id: string; pos: GridPos | null };
+  /** Mestre: o grupo todo (personagens e conjurados) chega junto em volta desta casa (ao abrir uma cena). */
+  "allies:gather": { at: GridPos };
   /** Rola d20 + mod. DES para um combatente. */
   "init:roll": { id: string };
   /** Mestre: rola para todos os mobs; `grouped` = uma rolagem por template. */
@@ -193,10 +205,10 @@ export interface ActionPayloads {
   "slots:restore": { id: string };
   /** Vida cheia + slots recuperados (o jogador decide quando). */
   "ally:restoreAll": { id: string };
-  "spell:add": { id: string; name: string; level: number; note?: string };
+  "spell:add": { id: string; name: string; level: number; note?: string; bonus?: number | null; damage?: string };
   "spell:remove": { id: string; spellId: string };
   /** Recurso com usos: sem `resourceId` cria; com, edita. */
-  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge; rechargeOn?: number };
+  "resource:upsert": { id: string; resourceId?: string; name: string; max: number; recharge: Recharge; rechargeOn?: number; damage?: string };
   /** Gasta (`delta` > 0) ou recupera (`delta` < 0) usos. */
   "resource:use": { id: string; resourceId: string; delta: number };
   "resource:remove": { id: string; resourceId: string };
@@ -205,9 +217,12 @@ export interface ActionPayloads {
   rest: { id: string; kind: "short" | "long" };
   /** Mestre: o mesmo descanso para todos os aliados (personagens e invocados). */
   "rest:all": { kind: "short" | "long" };
-  "attack:upsert": { id: string; attackId?: string; name: string; bonus?: number | null; damage?: string };
+  "attack:upsert": AttackInput & { id: string; attackId?: string };
   "attack:remove": { id: string; attackId: string };
-  "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string };
+  /** Com `bonus` e/ou `damage`, o item é uma arma (pode ser empunhada); sem eles, item comum. */
+  "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string; bonus?: number | null; damage?: string };
+  /** Empunhar ou guardar uma arma do inventário: empunhada, entra nos ataques. */
+  "item:wield": { id: string; itemId: string; wielded: boolean };
   "item:remove": { id: string; itemId: string };
   /** Moedas: substitui as quantidades (vazio = 0). */
   "coins:set": { id: string; coins: Coins };
@@ -247,6 +262,11 @@ export interface ActionPayloads {
     revert?: boolean;
   };
   "effect:toggle": { id: string; active: boolean };
+  /**
+   * Mestre: pincel de efeitos. Pintar junta as casas na pintura ligada do mesmo tipo (e cor), ou cria uma.
+   * `erase`: tira as casas das pinturas (só das do tipo, se vier `preset`); a que ficar sem casas some. Casas achatadas: col0, row0, col1, row1…
+   */
+  "effect:paint": { cells: number[]; preset?: EffectPreset; color?: string; erase?: boolean };
   /** Mestre: toca em loop num canal (troca o que estava tocando). */
   "sound:play": { channel: SoundChannel; source: SoundSource };
   "sound:stop": { channel: SoundChannel };
@@ -278,10 +298,30 @@ export interface ActionPayloads {
   "maptorch:add": { col: number; row: number; style: MapTorchStyle };
   /** Mestre: arrasta a tocha. */
   "maptorch:move": { id: string; col: number; row: number };
+  /** Mestre: tira uma tocha (desfazer a que acabou de pôr). */
+  "maptorch:remove": { id: string };
   /** Mestre: borracha nas tochas (`points` = col, row em casas): a tocha tocada some. */
   "maptorch:erase": { points: number[]; radius: number };
   /** Mestre: apaga todas as tochas da cena. */
   "maptorch:clear": Record<string, never>;
+  /** Mestre: baú novo (nome "Baú", destrancado, visível, vazio) numa casa livre. */
+  "chest:add": { col: number; row: number; style: ChestStyle };
+  /** Mestre: edita o baú; `loot` substitui o que tinha. */
+  "chest:update": { id: string; name: string; style: ChestStyle; locked: boolean; hidden: boolean; loot: LootInput[] };
+  "chest:move": { id: string; col: number; row: number };
+  "chest:remove": { id: string };
+  /** Abrir o baú (qualquer um; trancado, só o mestre): abre para todos e, na primeira vez, começa a contagem. */
+  "chest:open": { id: string };
+  /** Durante a contagem: marcar ou desmarcar interesse numa coisa do baú. */
+  "loot:want": { chestId: string; lootId: string; want: boolean };
+  /** Depois da contagem: levar (pilha: `qty` unidades; sem `qty`, tudo). */
+  "loot:take": { chestId: string; lootId: string; qty?: number };
+  /** Mestre, a qualquer hora: dar para um personagem (sai da disputa). */
+  "loot:give": { chestId: string; lootId: string; to: string; qty: number };
+  /** Mestre: encerrar a contagem agora. */
+  "loot:end": Record<string, never>;
+  /** Mestre: segundos para escolher o loot (0 = sem contagem). */
+  "loot:seconds": { seconds: number };
   "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
   "wall:remove": { id: string };
   /** Mestre: borracha nas paredes (`points` = col, row em casas). Parede é cortada; porta tocada some inteira. */
@@ -464,6 +504,14 @@ export const LIMITS = {
   walls: 600,
   /** Tochas fixas no mapa, por cena. */
   mapTorches: 60,
+  chests: 40,
+  /** Casas de uma pintura (pincel de efeitos) e números (col e row) por pincelada. */
+  paintCells: 5000,
+  paintNumbers: 10_000,
+  /** Coisas diferentes num baú. */
+  loot: 20,
+  chestName: 40,
+  lootSeconds: { min: 0, max: 120 },
   /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
   fogRects: 500,
   fogRectSide: 400,

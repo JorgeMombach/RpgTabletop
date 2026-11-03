@@ -56,6 +56,27 @@ describe("golpes e curas (fx:hp)", () => {
     assert.deepEqual(anaHits, []);
   });
 
+  it("regra Esconder dano e cura dos inimigos: o jogador deixa de ver os de mob e NPC, não os dos aliados", async () => {
+    const { g, ana, gmHits, anaHits } = await setup();
+    const [goblin] = idsOf(await act(g, "mob:add", { name: "Goblin", hpMax: 12, dexMod: 0 }));
+    const [velho] = idsOf(await act(g, "npc:add", { name: "Velho", hpMax: 8, dexMod: 0 }));
+    const [lia] = idsOf(await act(ana, "ally:create", { name: "Lia", hpMax: 20, dexMod: 0 }));
+    assert.ok((await act(g, "rules:set", { hideFoeHits: true })).ok);
+    await settle();
+    await act(g, "hp:change", { id: goblin, delta: -5 });
+    await act(g, "hp:change", { id: velho, delta: -3 });
+    await act(g, "hp:change", { id: lia, delta: -4 });
+    await settle();
+    assert.deepEqual(anaHits, [{ id: lia, delta: -4 }]);
+    assert.equal(gmHits.length, 3, "o mestre vê todos");
+    // Desligada, volta a mostrar.
+    assert.ok((await act(g, "rules:set", { hideFoeHits: false })).ok);
+    await settle();
+    await act(g, "hp:change", { id: goblin, delta: -1 });
+    await settle();
+    assert.deepEqual(anaHits.at(-1), { id: goblin, delta: -1 });
+  });
+
   it("vida temporária conta; troca de fase do chefe não vira cura", async () => {
     const { g, gmHits } = await setup();
     const [chefe] = idsOf(await act(g, "mob:add", { name: "Lich", hpMax: 10, dexMod: 0, phases: [{ hpMax: 30 }] }));

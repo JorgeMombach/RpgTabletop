@@ -40,6 +40,8 @@ interface Props {
   turnKey?: number;
   draggable: boolean;
   onSelect: () => void;
+  /** Duplo clique: abre a ficha completa (quem pode, decide `openSheet`). */
+  onOpen?: () => void;
   /** Menu de contexto (L8): botão direito, ou tocar e segurar no celular. Posição na tela (clientX/Y). */
   onMenu?: (x: number, y: number) => void;
   /** Devolve false se o servidor recusou (o token volta para o lugar). */
@@ -268,7 +270,7 @@ function ConditionFx({ names, r, seed }: { names: string[]; r: number; seed: str
 }
 
 /** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
-export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onMenu, onMove }: Props) {
+export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onOpen, onMenu, onMove }: Props) {
   const reduceFx = useApp((s) => s.reduceFx);
   const hits = useHits((s) => s.byId[c.id]);
   const body = useRef<Konva.Group>(null);
@@ -429,6 +431,7 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
       }}
       onClick={onSelect}
       onTap={onSelect}
+      onDblClick={onOpen}
       onContextMenu={(e) => {
         e.evt.preventDefault();
         if (onMenu) onMenu(e.evt.clientX, e.evt.clientY);

@@ -3,6 +3,7 @@ import { LIMITS, SPELL_LEVELS, type Combatant, type SpellLevel, type SpellSlot }
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt } from "../validate";
 import { editable } from "./combatants";
+import { damageOf } from "./sheet";
 import type { HandlerMap } from "./types";
 
 /** Slots e magias são só de aliados; o jogador gerencia livremente (ADR-06). */
@@ -52,7 +53,9 @@ export const magicHandlers: HandlerMap = {
     const name = typeof payload.name === "string" ? payload.name.replace(/\s+/g, " ").trim().slice(0, LIMITS.spellName) : "";
     if (!name) fail("Informe o nome da magia.");
     const note = typeof payload.note === "string" ? payload.note.trim().slice(0, LIMITS.spellNote) : "";
-    const spell = { id: randomUUID(), name, level: requireInt(payload.level, "Nível", 0, 9), ...(note && { note }) };
+    const bonus = payload.bonus === undefined || payload.bonus === null ? undefined : requireInt(payload.bonus, "Acerto", -20, 40);
+    const damage = damageOf(payload.damage);
+    const spell = { id: randomUUID(), name, level: requireInt(payload.level, "Nível", 0, 9), ...(note && { note }), ...(bonus !== undefined && { bonus }), ...(damage && { damage }) };
     spells.push(spell);
     spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, "pt-BR"));
     return [spell.id];

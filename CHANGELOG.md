@@ -6,6 +6,39 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.12.0] - 2026-11-03
+
+### Adicionado
+- **Regra da mesa *Efeitos só na sua vez*:** ligada pelo mestre, em combate o jogador só fixa ou transforma efeitos de mapa na vez dele. Desligada, continua livre, como as outras regras.
+- **Cor do grid por cena:** no painel *Mapa*, abaixo de *Mostrar grid*, o mestre escolhe a cor das linhas (preto, branco, pergaminho, bronze… ou qualquer outra). Ajuda em mapa muito escuro ou muito claro. Vai no arquivo de sessão.
+- **Desfazer (Ctrl+Z) em desenhos e tochas:** além das paredes, agora desfaz desenho livre, setas e círculos (inclusive uma passada da borracha) e as tochas fixas (pôr, arrastar e apagar). Cada ferramenta tem o seu botão *Desfazer* e o Ctrl+Z desfaz o último dela; com outra ferramenta, o último que você fez no mapa. Jogadores também desfazem as próprias setas.
+- **Ataques no template:** no bestiário, o mestre dá ataques prontos ao template (Martelo de pedra +4, 1d6+2); os mobs e NPCs criados com ele já vêm com os ataques na ficha e no painel *Dados*, para rolar o de cada um. Mob e NPC novos também aceitam ataques no formulário.
+- **Dano em magias e habilidades:** magias (ao lado da nota) e recursos (Sopro 6d6) guardam o dano, com um botão que rola na ficha.
+- **Nome no log:** rolagens de ataque, magia e habilidade mostram o que rolou ("Martelo de pedra · Dano").
+- **Configurações:** a engrenagem no topo junta as opções. *Mesa* (só o mestre): regras da mesa, rolagens fora de combate e o que os jogadores veem. *Este dispositivo* (todos): idioma, volume, animação dos dados, efeitos reduzidos e câmera seguindo a vez. As regras da mesa saíram da aba *Mesa* e foram para lá.
+- **Regra da mesa *Esconder dano e cura dos inimigos*:** ligada, os jogadores param de ver os números de dano e cura que sobem dos mobs e NPCs; os dos aliados continuam, e o mestre vê tudo.
+- **Dois ambientes ao mesmo tempo:** o painel *Som* ganhou o *Segundo ambiente* (chuva lá fora e taverna, por exemplo), com volume próprio e a música por cima.
+- **Levar o grupo ao abrir uma cena:** marcando a opção no painel *Cenas*, depois de abrir a cena o mestre clica no mapa e todos os personagens (e invocados) chegam juntos em volta do ponto.
+- **Armas no inventário:** na aba *Itens*, um item com bônus de ataque e/ou dano é uma arma ("Machado de batalha +5 · 1d8+3"), com o botão *Empunhar*: empunhada, aparece em *Ataques* e nos ataques rápidos do painel *Dados*; guardada, continua só no inventário. Os itens agora também se editam (lápis).
+- **Baús no mapa:** a ferramenta *Baús* (tecla J, só do mestre) põe baús nas casas, em três desenhos (arca de madeira, baú de ferro, arca ornamentada). Cada baú tem nome, pode ficar *Trancado* (cadeado à vista) ou *Invisível* (só o mestre vê) e guarda o loot: moedas, itens e armas. Arrastar muda de casa; clicar abre o editor; Ctrl+Z desfaz. Os jogadores não veem o que tem dentro, nem o baú coberto pela névoa. Vai no arquivo de sessão e fica em cada cena.
+- **Pincel de efeitos (mestre):** a ferramenta *Pincel* (tecla E) pinta qualquer efeito pelo mapa, casa a casa (fogo, graxa, gelo, teia, uma cor…), com pincel de 1, 3×3 ou 5×5, *Apagar* e *Desfazer* (Ctrl+Z). A borda sai esfumaçada e animada, como nos outros efeitos. O mesmo tipo vira um efeito só em *Efeitos no mapa* ("Fogo (pintado)"), onde se liga, desliga, transforma (a graxa pintada pega fogo inteira) e remove. Fica até o mestre tirar; a névoa esconde dos jogadores a parte coberta. Vai no arquivo de sessão e fica em cada cena.
+- **Abrir baús e dividir o loot:** clicar num baú (com *Mover*) abre ele na tela de todos ao mesmo tempo. Começa uma contagem (o mestre escolhe os segundos em *Configurações → Mesa*; 0 = sem contagem) em que ninguém leva nada: cada um marca *Quero* no que quer. No fim, quem quis sozinho leva; quando mais de um quer a mesma coisa, o sistema rola d20 de cada um e mostra o resultado (pilhas são distribuídas uma a uma pela ordem do d20; moedas divididas igual, a sobra para o maior). O que ninguém quis fica com *Pegar*. O mestre pode *Dar para…* qualquer coisa a qualquer momento e *Encerrar contagem*. Tudo vai para a ficha (moedas, aba Itens; armas chegam como itens que se empunham) e para o log. Baú trancado só o mestre abre.
+
+### Alterado
+- **Ícone novo do app:** o dadinho virou o d20 de bronze da tela de entrada numa placa de couro com cantoneiras, no executável, na barra do Windows, na tela de abertura e na aba do navegador.
+- **Dicas em pergaminho:** os tooltips de todo o app viraram um pergaminho com tinta escura e filete de bronze. Nas ferramentas do mapa, a dica traz o nome e a tecla de atalho em cima e a explicação embaixo.
+- **Tochas fixas menores:** os desenhos da tocha fincada e da tocha de ferro ficaram com metade do tamanho (antes, do tamanho de um token) e o braseiro, de uma casa. A luz continua a mesma.
+- **Ficha completa em janela própria (computador):** dois cliques no seu boneco (no mapa, na lista de aliados ou na iniciativa) ou o botão *Ficha* abrem a ficha inteira numa janela grande, com espaço: vida, atributos, condições e descrição de um lado; magias (agrupadas por círculo), recursos, ataques e itens do outro; *Editar* e *Mais* também ficam lá. O painel *Selecionado* virou um cartão de combate enxuto, com o que se usa a cada rodada: vida, CA e atributos, condições, espaços de magia e os contadores dos recursos. O jogador abre a ficha dos próprios personagens, invocados e pets; o mestre, a de qualquer um, inclusive mobs e NPCs. No celular nada muda.
+- **Ataques e magias no painel *Dados* com busca:** os botões de ataque viraram um campo *Ataques de…* em que se escolhe (ou digita parte do nome e Enter); embaixo, o campo novo *Magias de…*, com as magias que têm o que rolar. Escolher rola o d20 com o bônus e deixa o dano pronto. A magia ganhou o campo **Acerto** (bônus de ataque mágico, +7): com ele, rola como um ataque; sem ele (Bola de fogo, que é resistência do alvo), escolher só põe o dano no campo. Sem ataques ou magias com dano, o campo não aparece. Vai no arquivo de sessão.
+- **CA opcional:** personagem, mob, NPC e template podem ser criados sem CA (há sistemas que não usam). Sem CA, a ficha simplesmente não mostra a caixinha.
+- **Campo de dano limpo depois de rolar:** no painel *Dados*, rolado o dano, o campo volta vazio (com o exemplo), em vez de guardar o último dano para o próximo ataque.
+- **Efeitos no mapa sem texto escrito, no idioma de quem vê:** o nome do efeito saiu do mapa e aparece ao passar o mouse (no celular, tocando nele), num rótulo de pergaminho com duração, concentração e quem conjurou. Efeito sem nome próprio mostra o tipo no idioma de cada um ("Eletrificado (pintado)" vira "Electrified (painted)" em inglês), inclusive no painel *Efeitos no mapa* e nos avisos do log; nome digitado continua como foi escrito.
+- **Topo mais limpo:** os botões de idioma e de volume saíram do topo; os dois estão em *Configurações* (a engrenagem). Na tela de entrada, o idioma continua.
+- **Mesa de couro por padrão:** em volta do mapa, jogo novo começa com o tapete de couro da tela de entrada (antes, madeira). Sessões salvas abrem como estavam, e a madeira continua no painel *Mapa*.
+
+### Corrigido
+- **Botões de rolar da ficha ignoravam a trava:** os ataques salvos (acerto, dano e crítico), os testes de atributo e o teste contra a morte pareciam liberados fora da vez ou com as rolagens travadas pelo mestre. O servidor já recusava a rolagem; agora os botões ficam apagados como no painel *Dados*, e a dica diz o porquê.
+
 ## [2.11.0] - 2026-10-30
 
 ### Adicionado
@@ -320,7 +353,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.8.1...v2.9.0

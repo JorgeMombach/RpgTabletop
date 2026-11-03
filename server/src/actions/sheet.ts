@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { COINS, LIMITS, type Coins, type Combatant, type Recharge } from "@rpg/shared";
+import { COINS, LIMITS, type Coins, type Combatant, type Recharge, type SavedAttack } from "@rpg/shared";
 import { roll } from "../dice";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString } from "../validate";
@@ -41,10 +41,28 @@ function removeFrom(c: Combatant, key: "resources" | "attacks" | "inventory", ra
 }
 
 /** Expressão de dano: só o formato (o dado é rolado pelo servidor na hora de rolar). */
-function damageOf(raw: unknown): string | undefined {
+export function damageOf(raw: unknown): string | undefined {
   const s = optLine(raw, LIMITS.dice.exprLength);
   if (s && !/^[\d\sdD+\-%]+$/.test(s)) fail("Dano inválido: use algo como 1d8+3.");
   return s;
+}
+
+/** Nome, bônus e dano de um ataque (ficha e template): precisa de um dos dois números. */
+export function attackFields(raw: unknown) {
+  const a = (raw ?? {}) as Record<string, unknown>;
+  const name = line(a.name, LIMITS.spellName, "Informe o nome do ataque.");
+  const bonus = a.bonus === undefined || a.bonus === null ? undefined : requireInt(a.bonus, "Bônus de ataque", -20, 40);
+  const damage = damageOf(a.damage);
+  if (bonus === undefined && !damage) fail("Informe o bônus de ataque, o dano ou os dois.");
+  return { name, ...(bonus !== undefined && { bonus }), ...(damage && { damage }) };
+}
+
+/** Lista de ataques de um formulário (template, mob ou NPC novo), com ids novos. `undefined` = não veio. */
+export function attacksOf(raw: unknown): SavedAttack[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) fail("Ataques inválidos.");
+  if (raw.length > LIMITS.attacks) fail("Limite de {n} ataques.", { n: LIMITS.attacks });
+  return raw.map((a) => ({ id: randomUUID(), ...attackFields(a) }));
 }
 
 function restKind(raw: unknown): "short" | "long" {
@@ -98,15 +116,17 @@ export const sheetHandlers: HandlerMap = {
     const max = requireInt(payload.max, "Usos", 1, LIMITS.resourceMax);
     const kind = RECHARGES.includes(payload.recharge) ? payload.recharge : fail("Quando o recurso volta?");
     const rechargeOn = kind === "dice" ? requireInt(payload.rechargeOn, "Recarga", 2, 6) : undefined;
+    const damage = damageOf(payload.damage);
     if (payload.resourceId !== undefined) {
       const r = findIn(c.resources, payload.resourceId, "Recurso");
       delete r.rechargeOn;
-      Object.assign(r, { name, max, recharge: kind, used: Math.min(r.used, max) }, rechargeOn && { rechargeOn });
+      delete r.damage;
+      Object.assign(r, { name, max, recharge: kind, used: Math.min(r.used, max) }, rechargeOn && { rechargeOn }, damage && { damage });
       return [r.id];
     }
     const resources = (c.resources ??= []);
     if (resources.length >= LIMITS.resources) fail("Limite de {n} recursos.", { n: LIMITS.resources });
-    const r = { id: randomUUID(), name, max, used: 0, recharge: kind, ...(rechargeOn && { rechargeOn }) };
+    const r = { id: randomUUID(), name, max, used: 0, recharge: kind, ...(rechargeOn && { rechargeOn }), ...(damage && { damage }) };
     resources.push(r);
     return [r.id];
   },
@@ -144,11 +164,7 @@ export const sheetHandlers: HandlerMap = {
 
   "attack:upsert": (store, player, payload) => {
     const c = editable(store, player, payload?.id);
-    const name = line(payload.name, LIMITS.spellName, "Informe o nome do ataque.");
-    const bonus = payload.bonus === undefined || payload.bonus === null ? undefined : requireInt(payload.bonus, "Bônus de ataque", -20, 40);
-    const damage = damageOf(payload.damage);
-    if (bonus === undefined && !damage) fail("Informe o bônus de ataque, o dano ou os dois.");
-    const fields = { name, ...(bonus !== undefined && { bonus }), ...(damage && { damage }) };
+    const fields = attackFields(payload);
     if (payload.attackId !== undefined) {
       const a = findIn(c.attacks, payload.attackId, "Ataque");
       delete a.bonus;
@@ -172,11 +188,14 @@ export const sheetHandlers: HandlerMap = {
     const name = line(payload.name, LIMITS.spellName, "Informe o nome do item.");
     const qty = requireInt(payload.qty, "Quantidade", 0, LIMITS.itemQty);
     const note = optLine(payload.note, LIMITS.spellNote);
-    const fields = { name, qty, ...(note && { note }) };
+    const bonus = payload.bonus === undefined || payload.bonus === null ? undefined : requireInt(payload.bonus, "Bônus de ataque", -20, 40);
+    const damage = damageOf(payload.damage);
+    const fields = { name, qty, ...(note && { note }), ...(bonus !== undefined && { bonus }), ...(damage && { damage }) };
     if (payload.itemId !== undefined) {
       const item = findIn(c.inventory, payload.itemId, "Item");
-      delete item.note;
-      Object.assign(item, fields);
+      const wielded = item.wielded && (bonus !== undefined || damage);
+      for (const k of ["note", "bonus", "damage", "wielded"] as const) delete item[k];
+      Object.assign(item, fields, wielded && { wielded: true });
       return [item.id];
     }
     const inventory = (c.inventory ??= []);
@@ -184,6 +203,13 @@ export const sheetHandlers: HandlerMap = {
     const item = { id: randomUUID(), ...fields };
     inventory.push(item);
     return [item.id];
+  },
+
+  "item:wield": (store, player, payload) => {
+    const item = findIn(editable(store, player, payload?.id).inventory, payload.itemId, "Item");
+    if (item.bonus === undefined && !item.damage) fail("Esse item não é uma arma: dê bônus ou dano a ele.");
+    if (payload.wielded === true) item.wielded = true;
+    else delete item.wielded;
   },
 
   "item:remove": (store, player, payload) => {

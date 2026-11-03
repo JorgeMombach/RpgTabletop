@@ -1,6 +1,6 @@
 import { Affix, Button } from "@mantine/core";
 import { IconVolume } from "@tabler/icons-react";
-import type { SoundState } from "@rpg/shared";
+import { SOUND_CHANNELS, type SoundState } from "@rpg/shared";
 import { useEffect, useState } from "react";
 import { audioLocked, onAudioState, playSfx, setPlayerVolume, syncSound, unlockAudio } from "../audio/engine";
 import { sessionToken } from "../session";
@@ -35,7 +35,7 @@ export function SoundSync({ sound }: { sound: SoundState }) {
     };
   }, []);
 
-  const playing = sound.music !== null || sound.ambient !== null;
+  const playing = SOUND_CHANNELS.some((ch) => sound[ch] !== null);
   if (!locked || !playing) return null;
   return (
     <Affix position={{ bottom: 24, left: "50%" }} style={{ transform: "translateX(-50%)" }}>

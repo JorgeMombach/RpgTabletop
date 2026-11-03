@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -14,7 +14,7 @@ const { ctx } = useServer();
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 function fullGame(playerId: string, gmId: string): GameState {
-  const spell: Required<Spell> = { id: "s1", name: "Escudo", level: 1, note: "+5 CA" };
+  const spell: Required<Spell> = { id: "s1", name: "Raio ardente", level: 2, note: "3 raios", bonus: 7, damage: "2d6" };
   // Aliado não pode ser oculto (só mobs e NPCs): `hidden` é conferido no mob abaixo.
   const thorin: Required<Omit<Combatant, "hidden">> = {
     id: "thorin",
@@ -44,10 +44,10 @@ function fullGame(playerId: string, gmId: string): GameState {
     spells: [spell],
     resources: [
       { id: "r1", name: "Fúria", max: 3, used: 1, recharge: "long" },
-      { id: "r2", name: "Sopro de fogo", max: 1, used: 1, recharge: "dice", rechargeOn: 5 } satisfies Required<Resource>,
+      { id: "r2", name: "Sopro de fogo", max: 1, used: 1, recharge: "dice", rechargeOn: 5, damage: "6d6" } satisfies Required<Resource>,
     ],
     attacks: [{ id: "a1", name: "Machado grande", bonus: 5, damage: "1d12+3" }],
-    inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }],
+    inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }, { id: "i2", name: "Adaga", qty: 2, note: "de prata", bonus: 4, damage: "1d4+2", wielded: true } satisfies Required<InventoryItem>],
     coins: { pp: 1, gp: 25, ep: 0, sp: 7, cp: 30 },
     conditions: [
       { id: "c1", name: "Concentração", rounds: null },
@@ -68,7 +68,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   const lich: Combatant = { id: "lich", name: "Lich", type: "mob", templateId: "t1", hp: 90, hpMax: 135, dexMod: 3, color: "#7a5ba3", pos: { col: 8, row: 8 }, initiative: 20, initRoll: 17, conditions: [] };
   const sombra: Required<Combatant> = { ...thorin, id: "sombra", name: "Sombra", type: "mob", ownerId: gmId, hidden: true, summonerId: "lich", size: "huge", pos: { col: 10, row: 8 }, initiative: null, initRoll: null };
   const guarda: Combatant = { id: "guarda", name: "Guarda", type: "npc", hp: 11, hpMax: 11, dexMod: 0, color: "#4fae8c", pos: { col: 1, row: 1 }, initiative: 5, initRoll: 5, conditions: [], hidden: true };
-  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>] };
+  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>], attacks: [{ id: "ta1", name: "Toque gélido", bonus: 12, damage: "3d6" } satisfies Required<SavedAttack>] };
   const effect: Required<MapEffect> = {
     id: "e1",
     name: "Graxa em chamas",
@@ -82,6 +82,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     active: false,
     revertTo: { name: "Graxa", preset: "grease", color: "#3b3a2a", ownerId: playerId, casterId: "lia", rounds: null, concentration: false },
     followId: "thorin",
+    cells: [1, 1, 2, 1],
   };
   const roll: Required<LogEntry> = {
     id: "l1",
@@ -114,7 +115,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
-    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate" },
+    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate", gridColor: "#d8b47a" },
     mobs: [lich, sombra],
     npcs: [guarda],
     combat: { active: true, round: 2, turnIndex: 1, order: ["lich", "thorin", "lia"], turn: 4 },
@@ -123,6 +124,23 @@ function fullGame(playerId: string, gmId: string): GameState {
     effects: [effect],
     drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true, authorId: playerId } satisfies Required<Drawing>],
     torches: [{ id: "t1", col: 4.25, row: 6.5, style: "iron" } satisfies Required<MapTorch>],
+    chests: [
+      {
+        id: "b1",
+        col: 3,
+        row: 7,
+        name: "Baú do capitão",
+        style: "ornate",
+        locked: true,
+        hidden: true,
+        opened: true,
+        loot: [
+          { id: "l1", kind: "coins", coins: { gp: 120, sp: 30 } },
+          { id: "l2", kind: "item", name: "Poção de cura", qty: 3, note: "2d4+2" },
+          { id: "l3", kind: "weapon", name: "Machado de batalha", qty: 1, bonus: 5, damage: "1d8+3", note: "pesado" },
+        ],
+      } satisfies Required<MapChest>,
+    ],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door> } satisfies Required<Wall>,
@@ -140,6 +158,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     torches: [],
+    chests: [],
     weather,
     fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] },
     allyPos: { thorin: { col: 3, row: 3 } },
@@ -152,7 +171,8 @@ function fullGame(playerId: string, gmId: string): GameState {
     log: [roll],
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
-    rules: { moveOnTurn: true, summonOnTurn: true, darkReminder: true } satisfies Required<TableRules>,
+    lootSeconds: 45,
+    rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, hideFoeHits: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);
 }
