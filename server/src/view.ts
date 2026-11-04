@@ -2,8 +2,8 @@ import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type 
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
-/** Ficha pessoal (magias, recursos, ataques, inventário, moedas): só o dono e o mestre veem (SPEC E6). */
-function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resources: _r, attacks: _a, inventory: _i, coins: _c, ...rest }: T) {
+/** Ficha pessoal (magias, recursos, ataques, inventário, moedas, rolagens salvas): só o dono e o mestre veem (SPEC E6). */
+function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resources: _r, attacks: _a, inventory: _i, coins: _c, rolls: _o, ...rest }: T) {
   return rest;
 }
 

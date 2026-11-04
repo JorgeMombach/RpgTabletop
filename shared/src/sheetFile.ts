@@ -29,6 +29,7 @@ export type CharacterSheet = Pick<Combatant, "id" | "name" | "hpMax" | "dexMod" 
       | "attacks"
       | "inventory"
       | "coins"
+      | "rolls"
       | "animal"
       | "darkvision"
     >
@@ -68,6 +69,7 @@ export const CHARACTER_SHEET_KEYS = [
   "attacks",
   "inventory",
   "coins",
+  "rolls",
   "animal",
   "darkvision",
 ] as const satisfies readonly (keyof Combatant)[];

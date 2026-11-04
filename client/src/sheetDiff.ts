@@ -64,6 +64,7 @@ export function sheetDiff(a: Sheet, b: Sheet): DiffRow[] {
   const item = (i: { name: string; qty: number; bonus?: number; damage?: string }) => `${attackLabel(i)}${i.qty !== 1 ? ` ×${i.qty}` : ""}`;
   rows.push(listDiff(t("sheetFile.inventory"), a.inventory?.map(item), b.inventory?.map(item)));
   value(t("sheetFile.coins"), coins(a), coins(b));
+  rows.push(listDiff(t("sheet.rolls.title"), a.rolls?.map((r) => `${r.name} (${r.expr})`), b.rolls?.map((r) => `${r.name} (${r.expr})`)));
   const out = rows.filter((r): r is DiffRow => r !== null);
   // Diferença que nenhuma linha mostra (nota de uma magia, recarga de um recurso…): uma linha genérica, para não abrir a janela vazia.
   return out.length ? out : [{ label: t("sheetFile.details"), table: t("sheetFile.detailsTable"), file: t("sheetFile.detailsFile") }];

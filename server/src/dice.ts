@@ -76,6 +76,13 @@ function formatTerm(t: ParsedTerm, first: boolean): string {
   return `${sign}${t.count}d${t.fate ? "F" : t.faces}${t.explode ? "!" : ""}${keep}`;
 }
 
+/** A expressão como o app escreve ("1d20 + 7" vira "1d20+7"); recusa a inválida como a rolagem. */
+export function normalizeExpression(raw: string): string {
+  return parseExpression(raw)
+    .map((t, i) => formatTerm(t, i === 0))
+    .join("");
+}
+
 /** Índices dos dados que o `keep` descarta (empate: fica o que veio primeiro). */
 function droppedBy(rolls: number[], keep: { high: boolean; n: number }): number[] {
   const order = rolls.map((v, i) => ({ v, i })).sort((a, b) => (keep.high ? b.v - a.v : a.v - b.v) || a.i - b.i);

@@ -49,6 +49,7 @@ import {
   type TableRules,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
+import { normalizeExpression } from "./dice";
 import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseChest } from "./actions/chests";
 import { parseProp } from "./actions/props";
@@ -275,6 +276,17 @@ function sheet(out: Combatant, c: Obj) {
       if (damage) out.damage = damage;
       if ((out.bonus !== undefined || out.damage) && i.wielded !== undefined && bool(i.wielded, "item")) out.wielded = true;
       return out;
+    });
+  }
+  // Rolagens salvas (2.13): arquivos antigos não têm.
+  if (c.rolls !== undefined) {
+    out.rolls = list(c.rolls, "rolagens salvas", LIMITS.savedRolls).map((raw) => {
+      const r = obj(raw, "rolagem salva");
+      return {
+        id: requireString(r.id, "Rolagem"),
+        name: text(r.name, "rolagem salva", LIMITS.spellName) || fail("Arquivo inválido: rolagem salva sem nome."),
+        expr: normalizeExpression(text(r.expr, "rolagem salva", LIMITS.dice.exprLength)),
+      };
     });
   }
   if (c.coins !== undefined) {

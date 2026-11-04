@@ -209,8 +209,8 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 - [x] Mestre leva a câmera de todos até um ponto (o ping completo).
 - [x] Pausar o jogo: aviso na tela de todos (com texto opcional, "Pausa: 10 min") e tokens travados até voltar.
 
-### Passo 8. Rolagens salvas do jogador (P)
-- [ ] Botões pessoais na ficha ("Furtividade +7", "Ataque furtivo 3d6"), com nome e fórmula; vão no arquivo de sessão e na ficha em arquivo.
+### Passo 8. Rolagens salvas do jogador (P, feito em 2026-11-04: seção na aba Ataques e escolha rápida no painel Dados)
+- [x] Botões pessoais na ficha ("Furtividade +7", "Ataque furtivo 3d6"), com nome e fórmula; vão no arquivo de sessão e na ficha em arquivo.
 
 ### Passo 9. Importar mapa do Dungeondraft e similares (M)
 - [ ] Formato Universal VTT (`.dd2vtt`, `.uvtt`): imagem, grid, paredes, portas e luzes viram mapa, paredes, portas e tochas do app de uma vez.

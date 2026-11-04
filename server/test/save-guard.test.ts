@@ -49,6 +49,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     attacks: [{ id: "a1", name: "Machado grande", bonus: 5, damage: "1d12+3" }],
     inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }, { id: "i2", name: "Adaga", qty: 2, note: "de prata", bonus: 4, damage: "1d4+2", wielded: true } satisfies Required<InventoryItem>],
     coins: { pp: 1, gp: 25, ep: 0, sp: 7, cp: 30 },
+    rolls: [{ id: "r1", name: "Furtividade", expr: "2d20kh1+7" }],
     conditions: [
       { id: "c1", name: "Concentração", rounds: null },
       { id: "c2", name: "Abençoado", rounds: 3 },

@@ -230,6 +230,9 @@ export interface ActionPayloads {
   "rest:all": { kind: "short" | "long" };
   "attack:upsert": AttackInput & { id: string; attackId?: string };
   "attack:remove": { id: string; attackId: string };
+  /** Rolagem salva na ficha (Passo 8); com `rollId`, edita. */
+  "savedRoll:upsert": { id: string; rollId?: string; name: string; expr: string };
+  "savedRoll:remove": { id: string; rollId: string };
   /** Com `bonus` e/ou `damage`, o item é uma arma (pode ser empunhada); sem eles, item comum. */
   "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string; bonus?: number | null; damage?: string };
   /** Empunhar ou guardar uma arma do inventário: empunhada, entra nos ataques. */
@@ -482,6 +485,8 @@ export const LIMITS = {
   resources: 20,
   resourceMax: 99,
   attacks: 30,
+  /** Rolagens salvas por ficha (Passo 8). */
+  savedRolls: 30,
   items: 100,
   itemQty: 9999,
   coins: 9_999_999,

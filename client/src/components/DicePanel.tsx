@@ -18,7 +18,7 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { IconHelpCircle, IconSparkles, IconSword, IconWindowMaximize } from "@tabler/icons-react";
+import { IconDice5, IconHelpCircle, IconSparkles, IconSword, IconWindowMaximize } from "@tabler/icons-react";
 import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode, type SavedAttack } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
@@ -82,7 +82,7 @@ type QuickItem = Pick<SavedAttack, "id" | "name" | "bonus" | "damage">;
  * Escolher na lista (com busca) um ataque ou uma magia de quem rola. Funciona como botão: a escolha rola (ou
  * prepara o dano) e o campo volta vazio. Com as rolagens travadas, o que tem d20 fica apagado na lista.
  */
-function QuickPick({ label, placeholder, icon, items, blocked, onPick }: { label: string; placeholder: string; icon: ReactNode; items: QuickItem[]; blocked: boolean; onPick: (item: QuickItem) => void }) {
+function QuickPick({ label, placeholder, icon, items, blocked, onPick, allRoll = false }: { label: string; placeholder: string; icon: ReactNode; items: QuickItem[]; blocked: boolean; onPick: (item: QuickItem) => void; /** Tudo na lista rola (rolagens salvas): travado, tudo fica apagado. */ allRoll?: boolean }) {
   const t = useT();
   const [search, setSearch] = useState("");
   const stats = (i: QuickItem) => [i.bonus !== undefined ? fmtMod(i.bonus) : null, i.damage].filter(Boolean).join(" · ");
@@ -98,7 +98,7 @@ function QuickPick({ label, placeholder, icon, items, blocked, onPick }: { label
       searchValue={search}
       onSearchChange={setSearch}
       nothingFoundMessage={t("dice.pickNone")}
-      data={items.map((i) => ({ value: i.id, label: i.name, disabled: blocked && i.bonus !== undefined }))}
+      data={items.map((i) => ({ value: i.id, label: i.name, disabled: blocked && (allRoll || i.bonus !== undefined) }))}
       renderOption={({ option }) => {
         const item = items.find((i) => i.id === option.value)!;
         return (
@@ -211,6 +211,16 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   // Magias com algo a rolar (acerto e/ou dano), na ordem da ficha (por círculo).
   const spells: QuickItem[] = who && "spells" in who ? (who.spells ?? []).filter((s) => s.bonus !== undefined || s.damage) : [];
 
+  // Rolagens salvas (Passo 8): a fórmula aparece no lugar do dano, na lista.
+  const savedRolls: QuickItem[] = who && "rolls" in who ? (who.rolls ?? []).map((r) => ({ id: r.id, name: r.name, damage: r.expr })) : [];
+
+  /** Rolagem salva escolhida: rola a fórmula; vantagem/desvantagem só se ela tem um 1d20 simples. */
+  function quickSaved(r: QuickItem) {
+    const expr = r.damage ?? "";
+    const plainD20 = /(^|[+-])1d20(?![\d!kf])/i.test(expr.replace(/\s+/g, ""));
+    void roll({ expr, mode: plainD20 ? mode : "normal", name: r.name });
+  }
+
   /** Ataque ou magia escolhidos: preenche bônus e dano; com bônus, já rola o d20 (o dano fica pronto embaixo). */
   async function quickAttack(a: QuickItem) {
     setAttackMod(a.bonus ?? 0);
@@ -312,6 +322,18 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
           items={spells}
           blocked={blocked}
           onPick={(s) => void quickAttack(s)}
+        />
+      )}
+
+      {who && savedRolls.length > 0 && (
+        <QuickPick
+          label={t("dice.quickRolls", { name: who.name })}
+          placeholder={t("dice.pickRoll")}
+          icon={<IconDice5 size={14} />}
+          items={savedRolls}
+          blocked={blocked}
+          allRoll
+          onPick={quickSaved}
         />
       )}
 

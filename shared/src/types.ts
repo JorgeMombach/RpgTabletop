@@ -113,6 +113,13 @@ export interface SavedAttack {
   damage?: string;
 }
 
+/** Rolagem salva na ficha (Passo 8): um nome e uma fórmula ("Furtividade", "1d20+7"). */
+export interface SavedRoll {
+  id: string;
+  name: string;
+  expr: string;
+}
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -181,6 +188,8 @@ export interface Combatant {
   attacks?: SavedAttack[];
   inventory?: InventoryItem[];
   coins?: Coins;
+  /** Rolagens salvas (Passo 8): ficha pessoal, como os ataques. */
+  rolls?: SavedRoll[];
   conditions: Condition[];
   /** Marca de animal (ícone de pata); o formato continua dizendo o lado (E21). */
   animal?: boolean;

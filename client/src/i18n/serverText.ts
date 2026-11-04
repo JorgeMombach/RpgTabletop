@@ -6,6 +6,11 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "Arquivo inválido: rolagem salva sem nome.": ["Invalid file: saved roll without a name.","Archivo no válido: tirada guardada sin nombre."],
+  "Informe o nome da rolagem.": ["Enter the roll's name.","Indica el nombre de la tirada."],
+  "Limite de {n} rolagens salvas.": ["Limit of {n} saved rolls.","Límite de {n} tiradas guardadas."],
+  "rolagem salva": ["saved roll","tirada guardada"],
+  "rolagens salvas": ["saved rolls","tiradas guardadas"],
   "O jogo está pausado: espere o mestre retomar.": ["The game is paused: wait for the GM to resume.", "El juego está en pausa: espera a que el máster lo reanude."],
   "Escreva a mensagem.": ["Write the message.", "Escribe el mensaje."],
   "Sussurro é só com o mestre.": ["Whispers are only with the GM.", "Los susurros son solo con el máster."],
