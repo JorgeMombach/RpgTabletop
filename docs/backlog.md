@@ -212,8 +212,8 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 ### Passo 8. Rolagens salvas do jogador (P, feito em 2026-11-04: seção na aba Ataques e escolha rápida no painel Dados)
 - [x] Botões pessoais na ficha ("Furtividade +7", "Ataque furtivo 3d6"), com nome e fórmula; vão no arquivo de sessão e na ficha em arquivo.
 
-### Passo 9. Importar mapa do Dungeondraft e similares (M)
-- [ ] Formato Universal VTT (`.dd2vtt`, `.uvtt`): imagem, grid, paredes, portas e luzes viram mapa, paredes, portas e tochas do app de uma vez.
+### Passo 9. Importar mapa do Dungeondraft e similares (M, feito em 2026-11-04; luzes viram tochas só se o mestre marcar)
+- [x] Formato Universal VTT (`.dd2vtt`, `.uvtt`): imagem, grid, paredes, portas e luzes viram mapa, paredes, portas e tochas do app de uma vez.
 
 ### Passo 10. Altura e direção do token (P)
 - [ ] Altura/voo: número no token ("30 ft") e sombra embaixo. Só visual.

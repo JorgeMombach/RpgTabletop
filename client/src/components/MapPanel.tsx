@@ -9,6 +9,7 @@ import { setTool, useApp } from "../store";
 import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
 import { useT, type MessageKey } from "../i18n";
+import { UvttImportButton } from "./UvttImport";
 
 /** Mesa em volta do mapa (L5), por cena. */
 /** Cores prontas do grid: preto (padrão), branco, pergaminho, bronze, sangue e azul. */
@@ -102,6 +103,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
             {t("common.remove")}
           </Button>
         )}
+        <UvttImportButton />
       </Group>
 
       {map.hasImage && (

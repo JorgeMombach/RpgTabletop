@@ -1,4 +1,5 @@
-import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
+import { randomUUID } from "node:crypto";
+import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
@@ -6,7 +7,9 @@ import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
 import { moveFollowers } from "./effects";
 import { requireTurnFor } from "./rules";
+import { parseMapTorch } from "./mapTorches";
 import type { HandlerMap } from "./types";
+import { parseWall } from "./walls";
 
 /** Casas que um corpo de lado `span` ocupa a partir de `pos`. */
 function cellsOf(pos: GridPos, span: number): GridPos[] {
@@ -63,6 +66,33 @@ export const mapHandlers: HandlerMap = {
     Object.assign(map, { rotation: 0, imageScale: 1 });
     // A versão faz o servidor reenviar a imagem (evento `map:image`) só quando muda.
     map.imageVersion++;
+  },
+
+  // Mapa do Dungeondraft e similares (Passo 9): o cliente lê o arquivo (parseUvtt) e manda tudo de uma vez.
+  // Imagem nova começa sem deslocamento, rotação nem escala; o grid é o do arquivo. Tudo validado antes de mexer.
+  "map:importUvtt": (store, player, payload) => {
+    requireGm(player);
+    const image = requireImage(payload?.image, "Mapa", LIMITS.mapImageChars);
+    const cellPx = Math.round(requireNumber(payload?.cellPx, "Tamanho do quadrado", LIMITS.cellPx.min, LIMITS.cellPx.max) * 100) / 100;
+    const { battle } = store.game;
+    let walls: Wall[] | undefined;
+    if (payload.walls !== undefined) {
+      if (!Array.isArray(payload.walls)) fail("Paredes inválidas.");
+      if (payload.walls.length > LIMITS.walls) fail("Limite de {n} paredes por cena.", { n: LIMITS.walls });
+      walls = payload.walls.map((w) => ({ id: randomUUID(), ...parseWall(w) }));
+    }
+    let torches: MapTorch[] = [];
+    if (payload.torches !== undefined) {
+      if (!Array.isArray(payload.torches)) fail("Tochas inválidas.");
+      if (battle.torches.length + payload.torches.length > LIMITS.mapTorches) fail("Limite de {n} tochas no mapa: apague algumas.", { n: LIMITS.mapTorches });
+      torches = payload.torches.map((t) => ({ id: randomUUID(), ...parseMapTorch({ ...t, style: "iron" }) }));
+    }
+    const map = battle.map;
+    map.image = image;
+    Object.assign(map, { cellPx, offsetX: 0, offsetY: 0, rotation: 0, imageScale: 1 });
+    map.imageVersion++;
+    if (walls) battle.walls = walls;
+    battle.torches.push(...torches);
   },
 
   "battle:grid": (store, player, input) => {

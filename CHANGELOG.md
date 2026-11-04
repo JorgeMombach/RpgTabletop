@@ -7,6 +7,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Adicionado
+- **Importar mapa do Dungeondraft (mestre):** no painel *Mapa*, *Importar do Dungeondraft* lê arquivos Universal VTT (`.dd2vtt`, `.uvtt`, `.df2vtt`) e monta a cena de uma vez: imagem, grid alinhado, paredes e portas (fechadas ou abertas, como no arquivo). As luzes podem virar tochas (opção desligada por padrão). Curvas com muitos pontos são simplificadas sem diferença visível, para caber no limite de paredes da cena. Substitui imagem, grid, paredes e portas; tokens, efeitos e desenhos ficam.
 - **Rolagens salvas:** na ficha, aba *Ataques*, a seção *Rolagens salvas* guarda nome e fórmula ("Furtividade · 1d20+7", "Ataque furtivo · 3d6", qualquer fórmula da rolagem livre) e rola com um clique, com o nome no log. Também aparecem no painel *Dados* como escolha rápida (*Rolagens de …*). Até 30 por ficha; *Editar* troca nome e fórmula ou apaga. Ficha pessoal: só o dono e o mestre veem. Vão no arquivo de sessão e na ficha em arquivo.
 - **Pausar o jogo (mestre):** botão de pausa no fim da barra do mapa, com aviso opcional para a mesa. Os jogadores veem o mapa escurecido com a placa *Jogo pausado* e não movem tokens (o servidor recusa); chat e dados continuam. O mestre vê o mapa normal com uma faixa e o botão *Retomar*.
 - **"Olhem aqui" (mestre):** na ferramenta *Ping*, a opção *Levar a visão de todos até o ping* faz o mapa de cada um deslizar até o ponto, no zoom de cada um.

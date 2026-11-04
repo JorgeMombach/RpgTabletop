@@ -6,6 +6,8 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "Limite de {n} paredes por cena.": ["Limit of {n} walls per scene.", "Límite de {n} paredes por escena."],
+  "Tochas inválidas.": ["Invalid torches.", "Antorchas no válidas."],
   "Arquivo inválido: rolagem salva sem nome.": ["Invalid file: saved roll without a name.","Archivo no válido: tirada guardada sin nombre."],
   "Informe o nome da rolagem.": ["Enter the roll's name.","Indica el nombre de la tirada."],
   "Limite de {n} rolagens salvas.": ["Limit of {n} saved rolls.","Límite de {n} tiradas guardadas."],

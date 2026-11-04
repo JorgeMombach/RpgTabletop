@@ -184,6 +184,11 @@ export interface ActionPayloads {
   /** Jogador: usa a reação do round (libera rolar até o turno mudar). */
   "reaction:use": Record<string, never>;
   "battle:setMap": { image: string | null };
+  /**
+   * Mapa do Dungeondraft e similares (Passo 9): imagem e grid de uma vez; `walls` (se vier) substitui as paredes
+   * e portas da cena; `torches` (se vier) entra junto com as tochas que já estão. Tudo ou nada.
+   */
+  "map:importUvtt": { image: string; cellPx: number; walls?: { from: GridPos; to: GridPos; door?: { open: boolean } }[]; torches?: { col: number; row: number }[] };
   "battle:grid": GridInput;
   /** `pos: null` tira o token do mapa. */
   "token:move": { id: string; pos: GridPos | null };
