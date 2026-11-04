@@ -176,7 +176,8 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 - [x] Desempenho: até 800 objetos por cena. Medido com 500: o WASD custa o mesmo que com o mapa vazio (a camada dos objetos só redesenha quando eles mudam) e o canvas redesenha em ~2 ms. O estado vai inteiro a cada ação: 500 objetos pesam ~62 KB (id curto e semente curta; a compressão do Socket.IO foi testada e descartada, porque muda a ordem entre o estado e a resposta da ação, e o app depende dela).
 
 ### Depois (segunda leva de objetos)
-- [ ] Estátua, ossos, altar, barraca, carroça, poço, estante, cama, sacos, cogumelos, flores, ponte de tábuas. Portão de troncos para a paliçada, se pedirem.
+- [x] Estátua (cavaleiro, manto ou anjo, com a sombra comprida), ossos, altar, barraca, carroça, poço, estante, cama, sacos, cogumelos, flores, ponte de tábuas. Estátua, barraca e estante atrapalham a visão. Cogumelos e flores entram como miudeza na *Floresta* e no *Bosque ralo*. Protótipo aprovado em 2026-11-03 (a estátua refeita duas vezes).
+- [ ] Portão de troncos para a paliçada, se pedirem.
 
 ### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
 - [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).

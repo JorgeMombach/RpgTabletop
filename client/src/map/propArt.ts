@@ -1,6 +1,7 @@
 import type { PropKind } from "@rpg/shared";
 import { METALS, rivet, shade } from "./tokenArt";
 import { rng, shadowed, textured, WOODS } from "./wallKit";
+import { altar, bed, bones, bridge, cart, flowers, mushrooms, sacks, shelf, statue, tent, well } from "./propArtMore";
 
 /**
  * Objetos do cenário vistos de cima (docs/design/cenario.md, passo 2), no mesmo kit das paredes: sombra no chão,
@@ -11,11 +12,11 @@ import { rng, shadowed, textured, WOODS } from "./wallKit";
 
 const ROCK = ["#8f887a", "#7d766a", "#9c9484", "#6f685c", "#a59d8e"];
 
-type R = () => number;
+export type R = () => number;
 
 /** Tons da folhagem, do mais escuro ao mais claro (quatro faixas bem separadas, como na referência aprovada). */
-type Leaves = [string, string, string, string];
-const GREEN: Leaves = ["#1d3a22", "#2c5a2d", "#43803a", "#6aa64b"];
+export type Leaves = [string, string, string, string];
+export const GREEN: Leaves = ["#1d3a22", "#2c5a2d", "#43803a", "#6aa64b"];
 const OLIVE: Leaves = ["#2f3a17", "#4c5f22", "#6f862f", "#9bb246"];
 const PINE: Leaves = ["#132a1a", "#1e4226", "#2d5e35", "#4a8048"];
 
@@ -24,7 +25,7 @@ const PINE: Leaves = ["#132a1a", "#1e4226", "#2d5e35", "#4a8048"];
  * e escuro embaixo à direita; a borda sai recortada porque as folhas da beirada passam um pouco do bloco. A cor de
  * cada folha vem da posição dela no bloco, em quatro tons. Antes, a sombra nítida no chão, deslocada.
  */
-function foliage(ctx: CanvasRenderingContext2D, r: R, radius: number, lobes: number, tones: Leaves, shadowK: number, spread = 0.5) {
+export function foliage(ctx: CanvasRenderingContext2D, r: R, radius: number, lobes: number, tones: Leaves, shadowK: number, spread = 0.5) {
   const blobs: [number, number, number][] = [];
   for (let i = 0; i < lobes; i++) {
     const a = (i / lobes) * Math.PI * 2 + r() * 0.6;
@@ -83,7 +84,7 @@ function foliage(ctx: CanvasRenderingContext2D, r: R, radius: number, lobes: num
  * laterais entre os dois, cada uma clara ou escura conforme vira para a luz (de cima à esquerda). Granulado,
  * rachas no topo e às vezes musgo.
  */
-function rock(ctx: CanvasRenderingContext2D, r: R, cx: number, cy: number, rad: number, shadowK: number, moss: boolean) {
+export function rock(ctx: CanvasRenderingContext2D, r: R, cx: number, cy: number, rad: number, shadowK: number, moss: boolean) {
   const n = 7 + Math.floor(r() * 5);
   const outer: [number, number][] = [];
   const squash = 0.72 + r() * 0.25;
@@ -165,7 +166,7 @@ function rock(ctx: CanvasRenderingContext2D, r: R, cx: number, cy: number, rad: 
 }
 
 /** Tábua vista de cima (comprimento `w` no eixo x), com veio, nós e pontas escuras. */
-function plank(ctx: CanvasRenderingContext2D, r: R, w: number, h: number, tone: string, shadowK: number) {
+export function plank(ctx: CanvasRenderingContext2D, r: R, w: number, h: number, tone: string, shadowK: number) {
   const p = new Path2D();
   p.roundRect(-w / 2, -h / 2, w, h, h * 0.12);
   shadowed(ctx, h * 2, shadowK, () => {
@@ -695,6 +696,18 @@ const DRAW: Record<PropKind, (ctx: CanvasRenderingContext2D, c: number, seed: nu
   planks,
   table,
   pillar,
+  statue,
+  bones,
+  altar,
+  tent,
+  cart,
+  well,
+  shelf,
+  bed,
+  sacks,
+  mushrooms,
+  flowers,
+  bridge,
 };
 
 /** Desenha o objeto em volta de (0, 0); `c` = lado da casa já com o tamanho do objeto. */
@@ -719,6 +732,18 @@ export const PROP_EXTENT: Record<PropKind, number> = {
   planks: 1.0,
   table: 1.05,
   pillar: 0.85,
+  statue: 1.55,
+  bones: 0.75,
+  altar: 1.0,
+  tent: 1.45,
+  cart: 1.4,
+  well: 0.85,
+  shelf: 1.0,
+  bed: 1.05,
+  sacks: 0.75,
+  mushrooms: 0.55,
+  flowers: 0.55,
+  bridge: 1.7,
 };
 
 const cache = new Map<string, HTMLCanvasElement>();

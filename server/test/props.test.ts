@@ -44,6 +44,18 @@ describe("objetos no mapa", () => {
     assert.equal(props().length, 2);
   });
 
+  it("segunda leva: estátua, barraca e estante atrapalham a visão; os outros não; nenhum fica por cima dos tokens", async () => {
+    const { g } = await setup();
+    const kinds = ["statue", "bones", "altar", "tent", "cart", "well", "shelf", "bed", "sacks", "mushrooms", "flowers", "bridge"] as const;
+    const ids = idsOf(await act(g, "prop:addMany", { items: kinds.map((kind, i) => ({ kind, col: i * 2, row: 1 })) }));
+    assert.equal(ids.length, 12);
+    assert.deepEqual(
+      props().filter((p) => p.blocks).map((p) => p.kind),
+      ["statue", "tent", "shelf"],
+    );
+    assert.equal(props().filter((p) => p.above).length, 0);
+  });
+
   it("mexer: lugar, tamanho, giro, semente, camada e bloqueio; valor inválido não muda nada", async () => {
     const { g } = await setup();
     const [id] = idsOf(await act(g, "prop:add", { kind: "crate", col: 1, row: 1 }));

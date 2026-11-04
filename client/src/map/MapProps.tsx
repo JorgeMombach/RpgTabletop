@@ -24,6 +24,18 @@ export const PROP_LABEL: Record<PropKind, MessageKey> = {
   planks: "props.planks",
   table: "props.table",
   pillar: "props.pillar",
+  statue: "props.statue",
+  bones: "props.bones",
+  altar: "props.altar",
+  tent: "props.tent",
+  cart: "props.cart",
+  well: "props.well",
+  shelf: "props.shelf",
+  bed: "props.bed",
+  sacks: "props.sacks",
+  mushrooms: "props.mushrooms",
+  flowers: "props.flowers",
+  bridge: "props.bridge",
 };
 
 /** Centro do objeto em pixels do mapa. */

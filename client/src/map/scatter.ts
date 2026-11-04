@@ -20,6 +20,8 @@ const SETS: Record<ScatterSet, SetEntry[]> = {
     { kind: "bush", weight: 3, size: [0.8, 1.3] },
     { kind: "stump", weight: 0.5, size: [0.8, 1.2] },
     { kind: "log", weight: 0.5, size: [0.8, 1.1] },
+    { kind: "mushrooms", weight: 0.4, size: [0.8, 1.3] },
+    { kind: "flowers", weight: 0.3, size: [0.8, 1.2] },
   ],
   // Bosque ralo: poucas árvores, mais arbustos, tocos e pedras.
   grove: [
@@ -27,6 +29,8 @@ const SETS: Record<ScatterSet, SetEntry[]> = {
     { kind: "bush", weight: 4, size: [0.7, 1.2] },
     { kind: "stump", weight: 1.5, size: [0.8, 1.2] },
     { kind: "stones", weight: 1.5, size: [0.8, 1.2] },
+    { kind: "flowers", weight: 1, size: [0.8, 1.3] },
+    { kind: "mushrooms", weight: 0.5, size: [0.8, 1.2] },
   ],
   // Pedregal: pedregulhos e pedras soltas.
   rocks: [
@@ -57,6 +61,18 @@ const ROOM: Record<PropKind, number> = {
   planks: 0.55,
   table: 0.6,
   pillar: 0.45,
+  statue: 0.55,
+  bones: 0.38,
+  altar: 0.75,
+  tent: 1.1,
+  cart: 1.0,
+  well: 0.5,
+  shelf: 0.8,
+  bed: 0.8,
+  sacks: 0.4,
+  mushrooms: 0.25,
+  flowers: 0.35,
+  bridge: 1.5,
 };
 
 /** Aleatório com semente (a mesma pincelada sai igual no protótipo). */

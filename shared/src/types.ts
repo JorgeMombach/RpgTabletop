@@ -552,8 +552,34 @@ export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<
  * Baú no mapa (Fase 6, docs/design/baus.md): uma casa, com nome e desenho. Trancado, só o mestre abre;
  * invisível, só o mestre vê. O jogador recebe `loot` vazio até a primeira abertura.
  */
-/** Objetos do cenário (passo 2, docs/design/cenario.md), desenhados por código no cliente. */
-export const PROP_KINDS = ["tree", "bush", "boulder", "stones", "log", "stump", "rubble", "barrel", "crate", "crates", "planks", "table", "pillar"] as const;
+/** Objetos do cenário (passo 2, docs/design/cenario.md), desenhados por código no cliente; da estátua em diante, a segunda leva. */
+export const PROP_KINDS = [
+  "tree",
+  "bush",
+  "boulder",
+  "stones",
+  "log",
+  "stump",
+  "rubble",
+  "barrel",
+  "crate",
+  "crates",
+  "planks",
+  "table",
+  "pillar",
+  "statue",
+  "bones",
+  "altar",
+  "tent",
+  "cart",
+  "well",
+  "shelf",
+  "bed",
+  "sacks",
+  "mushrooms",
+  "flowers",
+  "bridge",
+] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 
 /**
@@ -574,6 +600,18 @@ export const PROP_DEFAULTS: Record<PropKind, { above: boolean; blocks: boolean; 
   planks: { above: false, blocks: false, foot: 0.4 },
   table: { above: false, blocks: false, foot: 0.5 },
   pillar: { above: false, blocks: true, foot: 0.45 },
+  statue: { above: false, blocks: true, foot: 0.4 },
+  bones: { above: false, blocks: false, foot: 0.3 },
+  altar: { above: false, blocks: false, foot: 0.6 },
+  tent: { above: false, blocks: true, foot: 0.8 },
+  cart: { above: false, blocks: false, foot: 0.6 },
+  well: { above: false, blocks: false, foot: 0.5 },
+  shelf: { above: false, blocks: true, foot: 0.6 },
+  bed: { above: false, blocks: false, foot: 0.5 },
+  sacks: { above: false, blocks: false, foot: 0.4 },
+  mushrooms: { above: false, blocks: false, foot: 0.25 },
+  flowers: { above: false, blocks: false, foot: 0.3 },
+  bridge: { above: false, blocks: false, foot: 0.6 },
 };
 
 /**
