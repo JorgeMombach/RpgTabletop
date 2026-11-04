@@ -48,6 +48,9 @@ interface AppStore extends DicePrefs {
   rulers: Record<string, { name: string; ruler: Ruler }>;
   /** Pings no mapa dos últimos segundos (de todos, inclusive os meus). */
   pings: { id: number; playerId: string; name: string; at: MapPoint }[];
+  /** Mestre vendo como um jogador (Passo 11): o jogador escolhido e o estado que ele recebe. */
+  viewAsId: string | null;
+  preview: ClientState | null;
   /** "Olhem aqui" do mestre (Passo 7): o mapa desliza até o ponto; `seq` muda a cada pedido. */
   lookAt: { at: MapPoint; seq: number } | null;
   /** Áreas de magia que outras pessoas estão mostrando agora. */
@@ -139,6 +142,8 @@ export const useApp = create<AppStore>(() => ({
   rulers: {},
   pings: [],
   lookAt: null,
+  viewAsId: null,
+  preview: null,
   areas: {},
   areaKind: "cone",
   areaFeet: AREA_DEFAULT_FEET.cone,

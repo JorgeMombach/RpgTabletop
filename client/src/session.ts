@@ -153,6 +153,16 @@ socket.on("state:full", (incoming) => {
 
 socket.on("toast", (t) => toast(t));
 
+// Ver como jogador (Passo 11): o estado que ele recebe, mantendo os objetos que não mudaram (como o state:full).
+socket.on("view:preview", (incoming) => {
+  useApp.setState((s) => {
+    if (!incoming || !s.viewAsId) return { preview: null, viewAsId: null };
+    return { preview: s.preview ? shareEqual(s.preview, incoming) : incoming };
+  });
+});
+// Reconectou: o servidor esqueceu o pedido (conexão nova). Volta à visão do mestre.
+socket.on("connect", () => useApp.setState({ preview: null, viewAsId: null }));
+
 // Golpes e curas (L6): viram o número que sobe do token (com "Reduzir efeitos", nada).
 socket.on("fx:hp", (hits) => {
   if (!useApp.getState().reduceFx) pushHits(hits);

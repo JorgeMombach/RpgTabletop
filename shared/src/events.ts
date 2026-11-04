@@ -445,6 +445,8 @@ export type ClientToServerEvents = ActionEvents & {
   "session:export": (ack: (res: SessionExportResult) => void) => void;
   /** Mestre: substitui o estado atual pelo do arquivo (validado inteiro antes). */
   "session:import": (file: unknown, ack: (res: ActionResult) => void) => void;
+  /** Mestre: ver o mapa como um jogador (Passo 11); `null` volta à visão do mestre. Chega em `view:preview`. */
+  "view:as": (playerId: string | null) => void;
   /** Confere um arquivo de fichas (valida e compara com a mesa), sem alterar nada. */
   "sheets:check": (file: unknown, ack: (res: SheetCheckResult) => void) => void;
   /** Mestre: efeito sonoro para todos, uma vez (E25). Não fica no estado. */
@@ -454,6 +456,8 @@ export type ClientToServerEvents = ActionEvents & {
 };
 
 export interface ServerToClientEvents {
+  /** Mestre vendo como um jogador (Passo 11): o estado que esse jogador recebe; `null` = acabou. */
+  "view:preview": (state: ClientState | null) => void;
   "state:full": (state: ClientState) => void;
   /** A imagem do mapa vai separada do estado e só quando muda. */
   "map:image": (payload: MapImagePayload) => void;

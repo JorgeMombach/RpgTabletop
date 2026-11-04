@@ -819,6 +819,11 @@ abbr.abbr {
   bottom: auto;
 }
 
+/* Ver como jogador (Passo 11): a faixa fica no lugar da barra, com a borda na cor dos aliados. */
+.view-as-banner {
+  border: 1px solid var(--mantine-color-player-7);
+}
+
 /* Jogo pausado (Passo 7): jogadores veem o mapa escurecido e acinzentado com a placa no meio; o mestre, uma faixa. */
 .pause-veil {
   position: absolute;

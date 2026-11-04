@@ -141,6 +141,20 @@ export function createApp(opts: AppOptions) {
     return { version: imageVersion, image };
   }
 
+  /** Mestre vendo como um jogador (Passo 11): conexão do mestre → id do jogador. */
+  const viewAs = new Map<string, string>();
+
+  /** O estado que o jogador recebe, para a conexão do mestre que pediu (ou `null`, se ele saiu). */
+  function sendPreview(sid: string) {
+    const target = store.players.get(viewAs.get(sid) ?? "");
+    if (!target || target.role !== "player") {
+      viewAs.delete(sid);
+      io.to(sid).emit("view:preview", null);
+      return;
+    }
+    io.to(sid).emit("view:preview", viewFor(store, target, host));
+  }
+
   function broadcast() {
     // Visão dos personagens (névoa): recalcula se alguém andou ou uma porta mexeu, e guarda o explorado.
     updateSight(store);
@@ -168,6 +182,7 @@ export function createApp(opts: AppOptions) {
       for (const sid of player.sockets) {
         io.to(sid).emit("state:full", view);
         if (mine.length) io.to(sid).emit("fx:hp", mine);
+        if (viewAs.has(sid)) sendPreview(sid);
       }
     }
   }
@@ -303,6 +318,20 @@ export function createApp(opts: AppOptions) {
       broadcast();
       ack({ ok: true });
     });
+
+    // Ver como jogador (Passo 11): só o mestre; null volta à visão dele.
+    socket.on("view:as", (playerId) => {
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return;
+      if (typeof playerId !== "string") {
+        viewAs.delete(socket.id);
+        socket.emit("view:preview", null);
+        return;
+      }
+      viewAs.set(socket.id, playerId);
+      sendPreview(socket.id);
+    });
+    socket.on("disconnect", () => viewAs.delete(socket.id));
 
     // Fichas em arquivo (Fase 4): confere o arquivo antes de importar (a importação é a ação `sheets:import`).
     socket.on("sheets:check", (file, ack) => {

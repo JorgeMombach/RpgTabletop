@@ -1,11 +1,16 @@
-import { Badge, Box, Group, Stack, Text } from "@mantine/core";
+import { ActionIcon, Badge, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { IconEye } from "@tabler/icons-react";
 import type { ClientState } from "@rpg/shared";
 import { useT } from "../i18n";
 import { Panel } from "./Panel";
+import { useApp } from "../store";
+import { viewAs } from "../viewAs";
 
 export function PlayersPanel({ state }: { state: ClientState }) {
   const t = useT();
   const online = state.players.filter((p) => p.role === "player" && p.connected).length;
+  const gm = state.self.role === "gm";
+  const viewingId = useApp((s) => s.viewAsId);
 
   return (
     <Panel
@@ -35,6 +40,13 @@ export function PlayersPanel({ state }: { state: ClientState }) {
                 </Text>
               )}
             </Text>
+            {gm && p.role === "player" && (
+              <Tooltip label={t("viewAs.tip", { name: p.name })}>
+                <ActionIcon variant={viewingId === p.id ? "filled" : "subtle"} color={viewingId === p.id ? undefined : "gray"} size="sm" aria-label={t("viewAs.tip", { name: p.name })} aria-pressed={viewingId === p.id} onClick={() => viewAs(viewingId === p.id ? null : p.id)}>
+                  <IconEye size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
             {p.role === "gm" ? (
               <Badge size="xs" variant="light">
                 {t("common.gm")}

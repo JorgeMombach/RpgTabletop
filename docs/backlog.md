@@ -219,8 +219,8 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 - [x] Altura/voo: número no token ("30 ft") e sombra embaixo. Só visual.
 - [x] Direção: setinha para onde o token olha.
 
-### Passo 11. Ver como jogador (P–M)
-- [ ] O mestre escolhe "ver como {jogador}" e enxerga o mapa como ele (névoa, visão, o que está oculto), sem abrir outra aba.
+### Passo 11. Ver como jogador (P–M, feito em 2026-11-04)
+- [x] O mestre escolhe "ver como {jogador}" e enxerga o mapa como ele (névoa, visão, o que está oculto), sem abrir outra aba.
 
 ### Passo 12. Bestiário SRD (M)
 - [ ] Galeria pronta com os monstros do SRD 5.1 (CC BY 4.0), importada pela ficha em arquivo da Fase 4. Crédito na tela *Sobre*; decidir nomes em português ou inglês.

@@ -40,6 +40,7 @@ import { screenLights, TorchGlowLayer } from "./Torch";
 import { MapTorchLayer, TORCH_DRAG_MIME } from "./MapTorches";
 import { ChestEditor, MapChestLayer } from "./MapChests";
 import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
+import { ViewAsBanner } from "./ViewAsBanner";
 import { WeatherOverlay } from "./WeatherOverlay";
 
 /** Tipo usado ao arrastar um combatente da lista para o mapa. */
@@ -77,7 +78,8 @@ const PAN_SPEED = 700;
 /** Raio da borracha das paredes, em casas. */
 const WALL_ERASER = 0.25;
 
-export function BattleMap({ state, compact = false }: { state: ClientState; compact?: boolean }) {
+/** `readOnly` (Passo 11): o mestre vendo como um jogador; só olhar, sem ferramentas nem mexer em nada. */
+export function BattleMap({ state, compact = false, readOnly = false }: { state: ClientState; compact?: boolean; readOnly?: boolean }) {
   const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -899,7 +901,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const keyCtx = useRef({ tool, selectedId, state, canMove, view, size, fit, zoomAt });
   keyCtx.current = { tool, selectedId, state, canMove, view, size, fit, zoomAt };
   useEffect(() => {
-    if (compact) return;
+    if (compact || readOnly) return;
     const down = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || typingOrDialog(e)) return;
       const { tool, selectedId, state, canMove, view, size, fit, zoomAt } = keyCtx.current;
@@ -953,7 +955,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
-  }, [compact]);
+  }, [compact, readOnly]);
 
   // Trilha de iniciativa no topo (L7): só no combate e com alguém visível na ordem; os avisos do topo descem.
   const trackShown = state.battle.combat.active && state.battle.combat.order.some((id) => allCombatants(state).some((c) => c.id === id && !c.hidden));
@@ -988,7 +990,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             const pointer = e.target.getStage()?.getPointerPosition();
             if (pointer) zoomAt({ x: pointer.x - mapLeft, y: pointer.y }, e.evt.deltaY < 0 ? 1.12 : 1 / 1.12);
           }}
-          onPointerDown={onMouseDown}
+          onPointerDown={readOnly ? undefined : onMouseDown}
           onPointerMove={onMouseMove}
           onPointerUp={onMouseUp}
           onPointerLeave={() => {
@@ -1136,10 +1138,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 active={activeIds.has(c.id)}
                 plateNumber={plateNumbers.get(c.id)}
                 turnKey={state.battle.combat.turn}
-                draggable={canMove(c) && tool === "move" && !shiftHeld && !placing && !(state.pause && !gm)}
+                draggable={canMove(c) && tool === "move" && !shiftHeld && !placing && !(state.pause && !gm) && !readOnly}
                 onSelect={() => select(c.id)}
                 onOpen={() => openSheet(c.id)}
-                onMenu={(x, y) => {
+                onMenu={readOnly ? undefined : (x, y) => {
                   select(c.id);
                   setMenu({ id: c.id, x, y });
                 }}
@@ -1215,7 +1217,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
       {menu && <TokenMenu key={`${menu.id}-${menu.focus ?? ""}-${menu.x}`} state={state} id={menu.id} x={menu.x} y={menu.y} focus={menu.focus} onClose={closeMenu} />}
       {trackShown && <InitiativeTrack state={state} width={size.width} onFocus={glideTo} />}
-      <MapToolbar
+      {readOnly && <ViewAsBanner onFit={fit} />}
+      {!readOnly && <MapToolbar
         tool={tool}
         gm={gm}
         compact={compact}
@@ -1223,7 +1226,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
         paused={!!state.pause}
-      />
+      />}
       <PauseOverlay pause={state.pause} gm={gm} />
       {gm && tool === "ping" && <PingOptions />}
 

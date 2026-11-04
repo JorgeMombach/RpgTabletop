@@ -79,6 +79,8 @@ function DesktopShell({ state }: { state: ClientState }) {
   const t = useT();
   const small = useSmallScreen();
   const connected = useApp((s) => s.connected);
+  // Ver como jogador (Passo 11): o mapa mostra o estado dele; os painéis continuam os do mestre.
+  const preview = useApp((s) => (s.state?.self.role === "gm" ? s.preview : null));
   // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
   const logDetached = useApp((s) => s.logDetached && !s.logOut);
   const [about, setAbout] = useState(false);
@@ -161,7 +163,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       />
 
       <main className="map-area">
-        <BattleMap state={state} />
+        <BattleMap state={preview ?? state} readOnly={!!preview} />
         <DiceOverlay />
       </main>
 
