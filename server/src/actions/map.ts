@@ -148,10 +148,23 @@ export const mapHandlers: HandlerMap = {
     }
   },
 
+  // Pausa (Passo 7): aviso na tela de todos; fica fora do arquivo de sessão.
+  "pause:set": (store, player, payload) => {
+    requireGm(player);
+    if (payload?.paused !== true) {
+      store.pause = null;
+      return;
+    }
+    const message = typeof payload.message === "string" ? payload.message.replace(/\s+/g, " ").trim().slice(0, LIMITS.pauseMessage) : "";
+    store.pause = { message };
+  },
+
   "token:move": (store, player, payload) => {
     // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa e, com a regra
     // da mesa ligada, a vez em combate.
     const c = editable(store, player, payload?.id);
+    // Jogo pausado (Passo 7): os jogadores esperam; o mestre continua ajeitando a cena.
+    if (store.pause && player.role !== "gm") fail("O jogo está pausado: espere o mestre retomar.");
     requireTurnFor(store, player, "moveOnTurn", "Em combate, cada um move na sua vez.");
     const pos = gridPosOf(payload.pos);
     // Dois corpos não ocupam o mesmo espaço; criaturas grandes ocupam várias casas e miúdas dividem a casa.

@@ -175,8 +175,10 @@ let pingSeq = 0;
 // O que o mestre mostra para a mesa: abre de novo para todos quando é algo novo.
 socket.on("handout", (handout) => useApp.setState({ handout }));
 
-socket.on("ping", ({ playerId, name, at }) => {
+socket.on("ping", ({ playerId, name, at, look }) => {
   const id = ++pingSeq;
+  // "Olhem aqui" do mestre: o mapa de cada um desliza até o ping (o do mestre já está lá).
+  if (look && playerId !== useApp.getState().state?.self.id) useApp.setState({ lookAt: { at, seq: id } });
   useApp.setState((s) => ({ pings: [...s.pings, { id, playerId, name, at }].slice(-12) }));
   setTimeout(() => useApp.setState((s) => ({ pings: s.pings.filter((p) => p.id !== id) })), PING_MS);
 });

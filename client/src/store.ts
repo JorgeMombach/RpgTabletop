@@ -23,14 +23,14 @@ export interface Rect {
 
 /** Preferências deste navegador: animação dos dados e log destacado (E22); efeitos reduzidos (E26, L6); câmera seguindo a vez (L6). */
 const PREFS_KEY = "rpg.dicePrefs";
-type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean; followTurn: boolean };
+type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean; followTurn: boolean; pingLook: boolean };
 
 function readPrefs(): DicePrefs {
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
-    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true, followTurn: p.followTurn === true };
+    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true, followTurn: p.followTurn === true, pingLook: p.pingLook === true };
   } catch {
-    return { diceAnim: true, logDetached: false, reduceFx: false, followTurn: false };
+    return { diceAnim: true, logDetached: false, reduceFx: false, followTurn: false, pingLook: false };
   }
 }
 
@@ -48,6 +48,8 @@ interface AppStore extends DicePrefs {
   rulers: Record<string, { name: string; ruler: Ruler }>;
   /** Pings no mapa dos últimos segundos (de todos, inclusive os meus). */
   pings: { id: number; playerId: string; name: string; at: MapPoint }[];
+  /** "Olhem aqui" do mestre (Passo 7): o mapa desliza até o ponto; `seq` muda a cada pedido. */
+  lookAt: { at: MapPoint; seq: number } | null;
   /** Áreas de magia que outras pessoas estão mostrando agora. */
   areas: Record<string, { name: string; area: Area }>;
   /** Forma e tamanho escolhidos na ferramenta de área. */
@@ -136,6 +138,7 @@ export const useApp = create<AppStore>(() => ({
   mapImage: { version: 0, image: null },
   rulers: {},
   pings: [],
+  lookAt: null,
   areas: {},
   areaKind: "cone",
   areaFeet: AREA_DEFAULT_FEET.cone,
@@ -209,9 +212,9 @@ export function setVolume(patch: Partial<{ volume: number; muted: boolean }>) {
 
 export function setDicePrefs(patch: Partial<DicePrefs>) {
   useApp.setState(patch);
-  const { diceAnim, logDetached, reduceFx, followTurn } = useApp.getState();
+  const { diceAnim, logDetached, reduceFx, followTurn, pingLook } = useApp.getState();
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx, followTurn }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx, followTurn, pingLook }));
   } catch {
     // sem armazenamento (aba anônima…): vale só nesta aba
   }

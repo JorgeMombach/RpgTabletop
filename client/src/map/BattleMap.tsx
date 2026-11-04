@@ -39,6 +39,7 @@ import { LastSeenOverlay } from "./LastSeen";
 import { screenLights, TorchGlowLayer } from "./Torch";
 import { MapTorchLayer, TORCH_DRAG_MIME } from "./MapTorches";
 import { ChestEditor, MapChestLayer } from "./MapChests";
+import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
 import { WeatherOverlay } from "./WeatherOverlay";
 
 /** Tipo usado ao arrastar um combatente da lista para o mapa. */
@@ -245,9 +246,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const glide = useRef<number>(0);
   function glideTo(c: CombatantView) {
     if (!c.pos) return;
-    cancelAnimationFrame(glide.current);
     const span = sizeSpan(c.size);
-    const target = { x: grid.offsetX + (c.pos.col + span / 2) * grid.cellPx, y: grid.offsetY + (c.pos.row + span / 2) * grid.cellPx };
+    glideToPoint({ x: grid.offsetX + (c.pos.col + span / 2) * grid.cellPx, y: grid.offsetY + (c.pos.row + span / 2) * grid.cellPx });
+  }
+  /** Desliza a câmera até um ponto do mapa (em pixels do mundo), no zoom de agora. */
+  function glideToPoint(target: Point) {
+    cancelAnimationFrame(glide.current);
     const from = { ...viewRef.current };
     const to = { x: size.width / 2 - target.x * from.scale, y: size.height / 2 - target.y * from.scale };
     if (useApp.getState().reduceFx) return void setView({ ...from, ...to });
@@ -268,6 +272,15 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     // Só na troca de turno (e ao ligar a opção): não persegue o token enquanto ele anda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn, followTurn, activeTokenId]);
+
+  // "Olhem aqui" do mestre (Passo 7): o mapa desliza até o ping, no zoom de cada um.
+  const lookAt = useApp((s) => s.lookAt);
+  useEffect(() => {
+    if (!lookAt || !size.width) return;
+    glideToPoint({ x: grid.offsetX + lookAt.at.col * grid.cellPx, y: grid.offsetY + lookAt.at.row * grid.cellPx });
+    // Só a cada pedido novo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookAt?.seq]);
 
   // Mapa novo: enquadra a imagem inteira.
   const fittedFor = useRef<HTMLImageElement | null>(null);
@@ -294,9 +307,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Segurar parado não pinga: brigava com arrastar a visão e os tokens.
   /** Acabou de pingar: o clique que vem junto não tira a seleção. */
   const pinged = useRef(false);
-  function sendPing(p: Point) {
+  function sendPing(p: Point, look = false) {
     pinged.current = true;
-    socket.emit("map:ping", { col: (p.x - grid.offsetX) / grid.cellPx, row: (p.y - grid.offsetY) / grid.cellPx });
+    socket.emit("map:ping", { col: (p.x - grid.offsetX) / grid.cellPx, row: (p.y - grid.offsetY) / grid.cellPx, ...(look && { look }) });
   }
   // Desenho do mestre: o traço fica só aqui enquanto o botão está apertado; ao soltar vai para todos.
   const strokeRef = useRef<number[] | null>(null);
@@ -602,7 +615,8 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     pinged.current = false;
     if (e.evt.altKey) return sendPing(p);
     if (tool === "ping") {
-      sendPing(p);
+      // Só pela ferramenta (não no Alt+clique): o mestre escolhe levar a visão de todos.
+      sendPing(p, gm && useApp.getState().pingLook);
       setTool("move");
       return;
     }
@@ -1119,7 +1133,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 active={activeIds.has(c.id)}
                 plateNumber={plateNumbers.get(c.id)}
                 turnKey={state.battle.combat.turn}
-                draggable={canMove(c) && tool === "move" && !shiftHeld && !placing}
+                draggable={canMove(c) && tool === "move" && !shiftHeld && !placing && !(state.pause && !gm)}
                 onSelect={() => select(c.id)}
                 onOpen={() => openSheet(c.id)}
                 onMenu={(x, y) => {
@@ -1205,7 +1219,10 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
         narrow={size.width < 780}
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
+        paused={!!state.pause}
       />
+      <PauseOverlay pause={state.pause} gm={gm} />
+      {gm && tool === "ping" && <PingOptions />}
 
       {!image && tokens.length === 0 && (
         <Paper className="map-hint" px="md" py="sm" shadow="md">
@@ -1444,9 +1461,12 @@ function MapToolbar({
   narrow,
   onZoom,
   onFit,
+  paused,
 }: {
   tool: string;
   gm: boolean;
+  /** Jogo pausado (Passo 7): o botão de pausa do mestre vira Retomar. */
+  paused: boolean;
   compact: boolean;
   /** Mapa estreito: ferramentas só com ícone. */
   narrow: boolean;
@@ -1593,6 +1613,7 @@ function MapToolbar({
         </Tooltip>
         {followButton}
         {reduceButton}
+        {gm && <PauseButton paused={paused} size="lg" />}
       </MGroup>
     </Paper>
   );

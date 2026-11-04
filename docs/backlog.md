@@ -205,9 +205,9 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 - [x] Sussurro: mestre ↔ jogador, só os dois veem (validado no servidor e filtrado em `view.ts`).
 - [x] Rolagem secreta do jogador para o mestre (só o mestre vê o resultado; o jogador vê que rolou).
 
-### Passo 7. "Olhem aqui" e pausa (P)
-- [ ] Mestre leva a câmera de todos até um ponto (o ping completo).
-- [ ] Pausar o jogo: aviso na tela de todos (com texto opcional, "Pausa: 10 min") e tokens travados até voltar.
+### Passo 7. "Olhem aqui" e pausa (P, feito em 2026-11-04)
+- [x] Mestre leva a câmera de todos até um ponto (o ping completo).
+- [x] Pausar o jogo: aviso na tela de todos (com texto opcional, "Pausa: 10 min") e tokens travados até voltar.
 
 ### Passo 8. Rolagens salvas do jogador (P)
 - [ ] Botões pessoais na ficha ("Furtividade +7", "Ataque furtivo 3d6"), com nome e fórmula; vão no arquivo de sessão e na ficha em arquivo.

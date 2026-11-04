@@ -270,7 +270,9 @@ export function createApp(opts: AppOptions) {
       const now = Date.now();
       if (!player || !at || now - (socket.data.lastPing ?? 0) < PING_GAP_MS) return;
       socket.data.lastPing = now;
-      io.to(SESSION_ROOM).emit("ping", { playerId: player.id, name: whoIs(store, player), at });
+      // "Olhem aqui": só o mestre leva a visão de todos.
+      const look = player.role === "gm" && (raw as { look?: unknown } | null)?.look === true;
+      io.to(SESSION_ROOM).emit("ping", { playerId: player.id, name: whoIs(store, player), at, ...(look && { look }) });
     });
 
     socket.on("area:update", (area) => {

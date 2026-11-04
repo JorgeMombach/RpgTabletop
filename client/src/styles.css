@@ -819,6 +819,35 @@ abbr.abbr {
   bottom: auto;
 }
 
+/* Jogo pausado (Passo 7): jogadores veem o mapa escurecido e acinzentado com a placa no meio; o mestre, uma faixa. */
+.pause-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(10 8 14 / 0.62);
+  backdrop-filter: grayscale(0.6);
+}
+
+.pause-plaque {
+  text-align: center;
+  min-width: min(260px, 100%);
+  max-width: 420px;
+}
+
+.pause-banner {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  z-index: 5;
+  background: rgb(31 27 37 / 0.94) !important;
+  border: 1px solid var(--mantine-color-red-8);
+}
+
 /* Opções da ferramenta Área, logo abaixo da barra do mapa. */
 .map-options {
   position: absolute;

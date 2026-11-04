@@ -92,6 +92,8 @@ export class Store {
   lootMsOverride: number | null = null;
   /** Ficha de antes de um jogador substituir a do personagem pelo arquivo (Fase 4), para o mestre desfazer. Só em memória. */
   sheetUndo = new Map<string, CharacterSheet>();
+  /** Jogo pausado (Passo 7). Fica fora do jogo: não vai no arquivo de sessão. */
+  pause: { message: string } | null = null;
   /** Chamar depois de um tempo; o app troca por um que também manda o estado novo a todos. */
   schedule: (ms: number, fn: () => void) => void = (ms, fn) => {
     setTimeout(fn, ms).unref?.();

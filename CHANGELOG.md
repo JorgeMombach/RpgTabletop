@@ -7,6 +7,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Adicionado
+- **Pausar o jogo (mestre):** botão de pausa no fim da barra do mapa, com aviso opcional para a mesa. Os jogadores veem o mapa escurecido com a placa *Jogo pausado* e não movem tokens (o servidor recusa); chat e dados continuam. O mestre vê o mapa normal com uma faixa e o botão *Retomar*.
+- **"Olhem aqui" (mestre):** na ferramenta *Ping*, a opção *Levar a visão de todos até o ping* faz o mapa de cada um deslizar até o ponto, no zoom de cada um.
 - **Chat e sussurro:** a barra em cima do log (painel *Dados*, log flutuante e janela do log) manda mensagem para todos ou um **sussurro**: o jogador sussurra para o mestre, o mestre para qualquer jogador. Só os dois veem (o servidor nem manda para os outros); o sussurro tem faixa azul e chega com um aviso. Vai no arquivo de sessão.
 - **Rolagem secreta do jogador:** no painel *Dados*, *Rolagem secreta* rola às cegas: só o mestre vê os dados e o total; quem rolou vê a expressão com um **?**, e os outros jogadores nem veem que houve rolagem.
 - **Dados de outros sistemas:** a expressão livre aceita `kh`/`kl` (fica com os maiores ou menores: `4d6kh3`, `2d20kl1`, `3d20kh1` da Ordem Paranormal), dado que explode (`3d6!`, rola de novo no máximo) e dados Fate (`4dF`, −1, 0 ou +1), inclusive combinados (`5d6!kh3`). No log, os descartados aparecem riscados e o que explodiu ganha um **!**; o d20 que ficou ainda acende o crítico e a falha. O **?** no campo da rolagem mostra exemplos prontos.

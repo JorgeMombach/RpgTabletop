@@ -6,6 +6,7 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "O jogo está pausado: espere o mestre retomar.": ["The game is paused: wait for the GM to resume.", "El juego está en pausa: espera a que el máster lo reanude."],
   "Escreva a mensagem.": ["Write the message.", "Escribe el mensaje."],
   "Sussurro é só com o mestre.": ["Whispers are only with the GM.", "Los susurros son solo con el máster."],
   "Dado Fate não explode.": ["Fate dice don't explode.", "Los dados Fate no explotan."],

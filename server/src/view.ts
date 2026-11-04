@@ -155,6 +155,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
         })
       : undefined,
     sound: store.sound,
+    pause: store.pause,
     // A lista de arquivos é do mestre; os jogadores só recebem o que estiver tocando.
     soundLibrary: gm ? store.soundLibrary : undefined,
     host: gm ? host : undefined,

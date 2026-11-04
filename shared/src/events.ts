@@ -77,6 +77,8 @@ export interface PingBroadcast {
   playerId: string;
   name: string;
   at: MapPoint;
+  /** "Olhem aqui" (Passo 7, só o mestre): o mapa de cada um desliza até o ping. */
+  look?: boolean;
 }
 
 export interface RulerBroadcast {
@@ -174,6 +176,8 @@ export interface ActionPayloads {
   "roll:request": { label: string; playerIds: string[] };
   /** Mensagem no log; `to`: sussurro (jogador → "gm"; mestre → id do jogador). */
   "chat:send": { text: string; to?: string };
+  /** Mestre: pausa o jogo para todos (com um aviso opcional) ou retoma (Passo 7). */
+  "pause:set": { paused: boolean; message?: string };
   "roll:cancel": Record<string, never>;
   /** Mestre: rolagens dos jogadores fora de combate (livres, só com pedido ou travadas). */
   "roll:outside": { mode: OutsideRolls };
@@ -424,7 +428,7 @@ export type ClientToServerEvents = ActionEvents & {
   /** Efêmero, como a régua. */
   "area:update": (area: Area | null) => void;
   /** Efêmero: "olhem aqui" no mapa, para todos (inclusive quem pingou). */
-  "map:ping": (at: MapPoint) => void;
+  "map:ping": (at: MapPoint & { look?: boolean }) => void;
   /** Sai da sessão (fica offline). A identidade continua: voltar com o mesmo token recupera o personagem. */
   "session:leave": () => void;
   /** Mestre: estado atual em formato de arquivo (E18). */
@@ -556,6 +560,8 @@ export const LIMITS = {
     faces: { min: 2, max: 1000 },
     constant: 10000,
   },
+  /** Aviso da pausa (caracteres). */
+  pauseMessage: 120,
   /** Tamanho de uma mensagem do chat (caracteres). */
   chatLength: 500,
   /** Entradas mantidas no log compartilhado. */

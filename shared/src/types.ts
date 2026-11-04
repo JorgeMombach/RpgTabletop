@@ -910,6 +910,8 @@ export interface ClientState {
   lootSeconds: number;
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
+  /** Jogo pausado pelo mestre (Passo 7): aviso na tela de todos e tokens dos jogadores parados. Não vai no arquivo de sessão. */
+  pause: { message: string } | null;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */
   soundLibrary?: string[] | null;
   /** Só para o mestre: endereços para passar aos jogadores. */
