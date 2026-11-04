@@ -46,6 +46,7 @@ import {
 import { parseDrawing } from "./actions/drawings";
 import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseChest } from "./actions/chests";
+import { parseProp } from "./actions/props";
 import { parseWall } from "./actions/walls";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
@@ -569,6 +570,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     torches: list(b.torches ?? [], "tochas", LIMITS.mapTorches).map((t) => ({ id: requireString(obj(t, "tocha").id, "Tocha"), ...parseMapTorch(t) })),
     // Arquivos de antes dos baús (2.12): nenhum.
     chests: list(b.chests ?? [], "baús", LIMITS.chests).map(parseChest),
+    // Objetos do cenário (2.13); arquivos anteriores não têm.
+    props: list(b.props ?? [], "objetos", LIMITS.props).map((p) => ({ id: requireString(obj(p, "objeto").id, "Objeto"), ...parseProp(p) })),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),

@@ -111,6 +111,7 @@ export const mapHandlers: HandlerMap = {
     battle.walls = [];
     battle.torches = [];
     battle.chests = [];
+    battle.props = [];
     // A disputa de loot era da batalha que acabou.
     store.lootCount = null;
     store.lootResults = null;

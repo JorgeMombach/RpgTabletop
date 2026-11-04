@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind } from "./types";
 import type { FogRect } from "./fog";
 
 export interface JoinPayload {
@@ -353,6 +353,11 @@ export interface ActionPayloads {
   "scene:switch": { id: string };
   /** Mestre: apaga uma cena guardada (a ativa não). */
   "scene:remove": { id: string };
+  /** Mestre: objeto no mapa (cenário). Sem semente, o servidor sorteia; camada e bloqueio vêm do tipo se não vierem. */
+  "prop:add": { kind: PropKind; col: number; row: number; size?: number; rotation?: number; seed?: number; above?: boolean; blocks?: boolean };
+  /** Mestre: muda só o que vier. */
+  "prop:update": { id: string; col?: number; row?: number; size?: number; rotation?: number; seed?: number; above?: boolean; blocks?: boolean };
+  "prop:remove": { ids: string[] };
   /** Mestre: apaga todas as paredes e portas. */
   "wall:clear": Record<string, never>;
   /** Abrir/fechar: qualquer um, se não estiver trancada (nem for secreta). Trancar e secreta: só o mestre. */
@@ -507,6 +512,9 @@ export const LIMITS = {
   /** Tochas fixas no mapa, por cena. */
   mapTorches: 60,
   chests: 40,
+  /** Objetos por cena e tamanho (escala do desenho). */
+  props: 800,
+  propSize: { min: 0.25, max: 4 },
   /** Casas de uma pintura (pincel de efeitos) e números (col e row) por pincelada. */
   paintCells: 5000,
   paintNumbers: 10_000,

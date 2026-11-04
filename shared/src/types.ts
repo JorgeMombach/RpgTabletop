@@ -552,6 +552,48 @@ export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<
  * Baú no mapa (Fase 6, docs/design/baus.md): uma casa, com nome e desenho. Trancado, só o mestre abre;
  * invisível, só o mestre vê. O jogador recebe `loot` vazio até a primeira abertura.
  */
+/** Objetos do cenário (passo 2, docs/design/cenario.md), desenhados por código no cliente. */
+export const PROP_KINDS = ["tree", "bush", "boulder", "stones", "log", "stump", "rubble", "barrel", "crate", "crates", "planks", "table", "pillar"] as const;
+export type PropKind = (typeof PROP_KINDS)[number];
+
+/**
+ * O que cada tipo traz de saída: camada (`above` = por cima dos tokens, como a copa da árvore), se bloqueia a
+ * visão e o raio do "pé" em casas (o contorno que tapa a visão, no tamanho 1).
+ */
+export const PROP_DEFAULTS: Record<PropKind, { above: boolean; blocks: boolean; foot: number }> = {
+  tree: { above: true, blocks: true, foot: 0.3 },
+  bush: { above: false, blocks: false, foot: 0.35 },
+  boulder: { above: false, blocks: true, foot: 0.5 },
+  stones: { above: false, blocks: false, foot: 0.3 },
+  log: { above: false, blocks: false, foot: 0.3 },
+  stump: { above: false, blocks: false, foot: 0.25 },
+  rubble: { above: false, blocks: false, foot: 0.4 },
+  barrel: { above: false, blocks: false, foot: 0.3 },
+  crate: { above: false, blocks: false, foot: 0.35 },
+  crates: { above: false, blocks: true, foot: 0.6 },
+  planks: { above: false, blocks: false, foot: 0.4 },
+  table: { above: false, blocks: false, foot: 0.5 },
+  pillar: { above: false, blocks: true, foot: 0.45 },
+};
+
+/**
+ * Objeto no mapa (mestre): centro em casas (centésimos), tamanho (escala do desenho), giro em graus (0–359) e a
+ * semente da variação (a mesma árvore sai sempre igual). Coberto pela névoa, o jogador não recebe.
+ */
+export interface MapProp {
+  id: string;
+  kind: PropKind;
+  col: number;
+  row: number;
+  size: number;
+  rotation: number;
+  seed: number;
+  /** Por cima dos tokens (copa): o token passa por baixo. */
+  above: boolean;
+  /** Atrapalha a visão dos personagens, pelo pé (`PROP_DEFAULTS.foot` × tamanho). */
+  blocks: boolean;
+}
+
 export interface MapChest {
   id: string;
   col: number;
@@ -588,6 +630,7 @@ export interface SceneContent {
   walls: Wall[];
   torches: MapTorch[];
   chests: MapChest[];
+  props: MapProp[];
   weather: WeatherState;
   /** Névoa de guerra da cena (G). */
   fog: FogState;
@@ -655,6 +698,7 @@ export interface GameState {
     walls: Wall[];
     torches: MapTorch[];
     chests: MapChest[];
+    props: MapProp[];
     weather: WeatherState;
     fog: FogState;
   };
@@ -794,6 +838,7 @@ export interface ClientState {
     walls: Wall[];
     torches: MapTorch[];
     chests: MapChest[];
+    props: MapProp[];
     lootCount: LootCountView | null;
     lootResults: LootResults | null;
     weather: WeatherState;

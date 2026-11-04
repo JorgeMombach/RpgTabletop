@@ -1,4 +1,4 @@
-import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type MapChest, type MapTorch, type Wall } from "@rpg/shared";
+import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
@@ -68,6 +68,7 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
     },
     torch: (t: MapTorch) => anyEver([{ col: Math.floor(t.col), row: Math.floor(t.row) }]),
     chest: (c: MapChest) => anyEver([{ col: c.col, row: c.row }]),
+    prop: (p: MapProp) => anyEver(cellsAroundPoint(p.col, p.row)),
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
       // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
@@ -132,6 +133,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       torches: gm ? game.battle.torches : game.battle.torches.filter(sight.torch),
       // Baú invisível ou coberto nem chega; o conteúdo só depois da primeira abertura (surpresa).
       chests,
+      // Objeto do cenário coberto pela névoa nem chega.
+      props: gm ? game.battle.props : game.battle.props.filter(sight.prop),
       // A disputa do loot vai para todos (o baú abre na tela de cada um).
       // ...mas só de baú que a pessoa recebe (coberto pela névoa, nem a disputa nem o resultado chegam).
       lootCount: store.lootCount && seesChest(store.lootCount.chestId) ? { chestId: store.lootCount.chestId, remainingMs: Math.max(0, store.lootCount.endsAt - Date.now()), wants: store.lootCount.wants } : null,

@@ -1,10 +1,10 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconArrowUpRight, IconBox, IconBrush, IconCloudFog, IconFlame, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconArrowUpRight, IconBox, IconBrush, IconCloudFog, IconTree, IconFlame, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapTorch } from "@rpg/shared";
+import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -24,7 +24,8 @@ import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
 import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
 import { PaintOptions, paintColorOf } from "./PaintOptions";
-import { addChest, addDrawing, addTorch, addWall, erasePaint, paintCells, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { MapPropLayer, PropOptions, propSpot, tokenSpots } from "./MapProps";
+import { addChest, addDrawing, addProp, addTorch, removeProps, addWall, erasePaint, paintCells, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -64,7 +65,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", paint: "E", fog: "F" };
+const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
@@ -97,6 +98,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, reduceFx } = useApp();
+  const selectedPropId = useApp((s) => s.selectedPropId);
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -156,7 +158,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Ctrl+Z (fora de campos de texto): nas ferramentas Paredes, Desenho e Tochas, desfaz o último dela; nas
   // outras, o último que esta pessoa fez no mapa.
   useEffect(() => {
-    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : undefined;
+    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : undefined;
     const down = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
       const el = e.target as HTMLElement | null;
@@ -167,6 +169,33 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
   }, [tool]);
+
+  // Objetos (mestre): Delete apaga o escolhido; Ctrl+C copia e Ctrl+V cola onde está o mouse.
+  const lastPoint = useRef<Point | null>(null);
+  const propClip = useRef<MapProp | null>(null);
+  useEffect(() => {
+    if (!gm || tool !== "props") return;
+    const down = (e: KeyboardEvent) => {
+      if (typingOrDialog(e)) return;
+      const { state: s, selectedPropId } = useApp.getState();
+      const picked = s?.battle.props.find((p) => p.id === selectedPropId);
+      const key = e.key.toLowerCase();
+      if ((key === "delete" || key === "backspace") && picked) {
+        e.preventDefault();
+        void removeProps([picked]);
+        useApp.setState({ selectedPropId: null });
+      } else if ((e.ctrlKey || e.metaKey) && key === "c" && picked) {
+        propClip.current = picked;
+      } else if ((e.ctrlKey || e.metaKey) && key === "v" && propClip.current && lastPoint.current && s) {
+        e.preventDefault();
+        const { id: _, ...copy } = propClip.current;
+        const spot = propSpot(lastPoint.current.x, lastPoint.current.y, s.battle.map, false);
+        void addProp({ ...copy, ...spot }).then((r) => r.ok && r.ids?.[0] && useApp.setState({ selectedPropId: r.ids[0] }));
+      }
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [gm, tool]);
 
   // Shift segurado = régua temporária.
   useEffect(() => {
@@ -550,6 +579,15 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       void addChest(cell.col, cell.row, useApp.getState().chestStyle).then((r) => r.ok && r.ids?.[0] && useApp.setState({ editingChestId: r.ids[0] }));
       return;
     }
+    if (tool === "props" && gm) {
+      // Clicou num objeto (ou nas alças dele): escolher, arrastar ou mudar tamanho e giro.
+      if (e.target.name() === "map-prop" || e.target.findAncestor("Transformer")) return;
+      // Com um escolhido, o clique no vazio só tira a escolha; senão, põe o objeto do catálogo (Shift: no centro da casa).
+      if (useApp.getState().selectedPropId) return void useApp.setState({ selectedPropId: null });
+      const spot = propSpot(p.x, p.y, grid, e.evt.shiftKey);
+      void addProp({ kind: useApp.getState().propKind, ...spot, size: 1, rotation: 0 });
+      return;
+    }
     if (tool === "torches") {
       // Clicou numa tocha: é para arrastar, não para pôr outra em cima.
       if (e.target.name() === "map-torch") return;
@@ -602,6 +640,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     if (pinch.current) return;
     const p = worldPointer();
     if (!p) return;
+    lastPoint.current = p;
     // Nome do efeito sob o mouse (o mapa não fica com texto escrito); com o dedo, some sozinho.
     showEffectTip(state.battle.effects, grid, p, e?.evt.pointerType === "touch");
     if (eraseMode) {
@@ -735,6 +774,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
 
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
+  const tokenKey = tokenSpots(tokens);
   const plateNumbers = repeatedNumbers(tokens);
   const wallStyle = state.battle.map.wallStyle ?? "stone";
   const doors = doorLayouts(state.battle.walls);
@@ -809,7 +849,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", e: "paint", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -970,6 +1010,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
             {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} style={wallDrawStyle ?? wallStyle} />}
           </Layer>
 
+          {/* Objetos do cenário que ficam no chão (abaixo dos tokens): a luz das tochas e a névoa passam por cima. */}
+          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="below" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} />
+
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
               onde se vê (não "vaza" pela parede para dentro de um cômodo coberto). */}
           <TorchGlowLayer tokens={tokens} torches={state.battle.torches} grid={grid} light={state.battle.weather.light} />
@@ -1007,6 +1050,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
               />
             ))}
           </Layer>
+
+          {/* Copas e o que fica por cima dos tokens (o token passa por baixo; com alguém embaixo, fica meio transparente). */}
+          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="above" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} />
 
           <Layer listening={false}>
             {Object.entries(areas).map(([pid, a]) => (
@@ -1130,6 +1176,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       <LootWindow state={state} />
       {gm && tool === "fog" && <FogOptions fog={state.battle.fog} onRevealMap={revealMap} />}
       {gm && tool === "paint" && <PaintOptions />}
+      {gm && tool === "props" && <PropOptions selected={state.battle.props.find((p) => p.id === selectedPropId) ?? null} />}
       {fixing && myArea && (
         <FixEffectModal
           state={state}
@@ -1417,6 +1464,7 @@ function MapToolbar({
           { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
           { id: "torches", text: t("torches.tool"), label: t("torches.toolTip"), icon: IconFlame },
           { id: "chests", text: t("chests.tool"), label: t("chests.toolTip"), icon: IconBox },
+          { id: "props", text: t("props.tool"), label: t("props.toolTip"), icon: IconTree },
           { id: "paint", text: t("paint.tool"), label: t("paint.toolTip"), icon: IconBrush },
           { id: "fog", text: t("fog.tool"), label: t("fog.toolTip"), icon: IconCloudFog },
         ] as const)

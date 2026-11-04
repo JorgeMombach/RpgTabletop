@@ -1,4 +1,4 @@
-import { seeThrough, type GridPos, type LightId, type Wall } from "./types";
+import { PROP_DEFAULTS, seeThrough, type GridPos, type LightId, type MapProp, type Wall } from "./types";
 
 /**
  * Névoa de guerra (G): casas reveladas, por linha, em intervalos de colunas `[início, fim)` ordenados
@@ -135,6 +135,21 @@ export function blocks(w: Wall): boolean {
   // Cerca, grade, arame, sebe e muro baixo deixam ver, mesmo com o portão fechado.
   if (seeThrough(w.style)) return false;
   return !w.door || !w.door.open;
+}
+
+/**
+ * Objetos que bloqueiam viram um octógono de "paredes" em volta do pé (raio do tipo × tamanho), para entrar na
+ * conta da visão. Não entram no *Cômodo* da névoa (uma árvore não fecha uma sala).
+ */
+export function propOccluders(props: MapProp[]): Wall[] {
+  const out: Wall[] = [];
+  for (const p of props) {
+    if (!p.blocks) continue;
+    const r = PROP_DEFAULTS[p.kind].foot * p.size;
+    const at = (k: number) => ({ col: p.col + Math.cos((k * Math.PI) / 4) * r, row: p.row + Math.sin((k * Math.PI) / 4) * r });
+    for (let k = 0; k < 8; k++) out.push({ id: `${p.id}:${k}`, from: at(k), to: at(k + 1) });
+  }
+  return out;
 }
 
 type P = { x: number; y: number };

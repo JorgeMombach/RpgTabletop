@@ -166,10 +166,10 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 - [x] Visão, luz das tochas e *Cômodo* da névoa ignoram as paredes que deixam ver.
 
 ### Passo 2. Objetos (ferramenta Objetos, tecla O)
-- [ ] Objeto no mapa (`MapProp`): tipo, posição livre, tamanho, giro, semente (variação), acima ou abaixo dos tokens, bloqueia a visão.
-- [ ] Primeira leva: árvore, arbusto, pedregulho, pedras, tronco caído, toco, entulho, barril, caixote (e pilha), tábuas, mesa, pilar. Com protótipo.
-- [ ] Editar: arrastar, alças de tamanho e giro, *Variar*, camada, bloqueia a visão, Ctrl+Z, Ctrl+C/V, Delete; Shift encaixa no grid.
-- [ ] Objeto que bloqueia entra na visão dos personagens; coberto pela névoa não vai para os jogadores; copa fica meio transparente com token embaixo.
+- [x] Objeto no mapa (`MapProp`): tipo, posição livre, tamanho, giro, semente (variação), acima ou abaixo dos tokens, bloqueia a visão.
+- [x] Primeira leva: árvore, arbusto, pedregulho, pedras, tronco caído, toco, entulho, barril, caixote (e pilha), tábuas, mesa, pilar. Protótipo aprovado em 2026-11-03 (árvore e arbusto refeitos no estilo da referência da Deepnight).
+- [x] Editar: arrastar, alças de tamanho e giro, *Variar*, camada, bloqueia a visão, Ctrl+Z, Ctrl+C/V, Delete; Shift encaixa no grid.
+- [x] Objeto que bloqueia entra na visão dos personagens; coberto pela névoa não vai para os jogadores; copa fica meio transparente com token embaixo.
 
 ### Passo 3. Pincel de espalhar
 - [ ] Modo *Espalhar* na ferramenta Objetos: conjuntos *Floresta*, *Bosque ralo*, *Pedregal*, *Entulho*; tamanho do pincel e densidade; apagar com o pincel. Com protótipo.

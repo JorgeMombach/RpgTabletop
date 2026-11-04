@@ -1,4 +1,4 @@
-import type { ActionResult, ChestStyle, Drawing, EffectPreset, GridPos, LootEntry, WallStyle, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
+import type { ActionResult, ChestStyle, Drawing, EffectPreset, GridPos, LootEntry, MapProp, WallStyle, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -10,7 +10,7 @@ import { useApp } from "../store";
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
@@ -25,6 +25,9 @@ type Step =
   | { scope: "chests"; kind: "added"; id: string }
   | { scope: "chests"; kind: "moved"; id: string; col: number; row: number }
   | { scope: "chests"; kind: "removed"; chest: MapChest }
+  | { scope: "props"; kind: "added"; id: string }
+  | { scope: "props"; kind: "changed"; id: string; before: Partial<MapProp> }
+  | { scope: "props"; kind: "removed"; props: MapProp[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] };
 
@@ -39,7 +42,7 @@ const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0 }));
 
 function sync() {
   useMapUndo.setState({
@@ -48,6 +51,7 @@ function sync() {
     torches: steps.filter((s) => s.scope === "torches").length,
     chests: steps.filter((s) => s.scope === "chests").length,
     paint: steps.filter((s) => s.scope === "paint").length,
+    props: steps.filter((s) => s.scope === "props").length,
   });
 }
 
@@ -69,7 +73,7 @@ useApp.subscribe((s) => {
 
 /** Algo voltou com id novo: os passos anteriores que apontavam para o antigo passam a apontar para o novo. */
 function renamed(scope: UndoScope, from: string, to: string) {
-  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved") && s.id === from) s.id = to;
+  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved" || s.kind === "changed") && s.id === from) s.id = to;
 }
 
 /** Compara a lista de antes e a de depois de uma passada da borracha: o que sumiu e o que nasceu (pedaços). */
@@ -206,6 +210,35 @@ export async function restyleWalls(ids: string[], style: WallStyle | null): Prom
   return res;
 }
 
+// ---------- Objetos ----------
+
+export async function addProp(input: Omit<MapProp, "id" | "seed" | "above" | "blocks"> & Partial<Pick<MapProp, "seed" | "above" | "blocks">>): Promise<ActionResult> {
+  const res = await act("prop:add", input);
+  if (res.ok && res.ids?.[0]) push({ scope: "props", kind: "added", id: res.ids[0] });
+  return res;
+}
+
+/** Muda um objeto (lugar, tamanho, giro, variação, camada, bloqueio): desfazer volta só o que mudou. */
+export async function updateProp(p: MapProp, changes: Partial<Omit<MapProp, "id" | "kind">>): Promise<ActionResult> {
+  const before = Object.fromEntries(Object.keys(changes).map((k) => [k, p[k as keyof MapProp]])) as Partial<MapProp>;
+  const res = await act("prop:update", { id: p.id, ...changes });
+  if (res.ok) push({ scope: "props", kind: "changed", id: p.id, before });
+  return res;
+}
+
+export async function removeProps(list: MapProp[]): Promise<ActionResult> {
+  const res = await act("prop:remove", { ids: list.map((p) => p.id) });
+  if (res.ok) push({ scope: "props", kind: "removed", props: structuredClone(list) });
+  return res;
+}
+
+async function restoreProp(p: MapProp) {
+  const { id: _, ...rest } = p;
+  const res = await act("prop:add", rest);
+  const id = res.ok ? res.ids?.[0] : undefined;
+  if (id) renamed("props", p.id, id);
+}
+
 // ---------- Pincel de efeitos ----------
 
 const key = (c: number, r: number) => `${c},${r}`;
@@ -274,6 +307,12 @@ export async function undo(scope?: UndoScope) {
       for (const id of step.added) if (has(battle?.drawings, id)) await act("draw:remove", { id });
       for (const d of step.removed) await restoreDrawing(d);
     }
+  } else if (step.scope === "props") {
+    if (step.kind === "added") {
+      if (has(battle?.props, step.id)) await act("prop:remove", { ids: [step.id] });
+    } else if (step.kind === "changed") {
+      if (has(battle?.props, step.id)) await act("prop:update", { id: step.id, ...step.before });
+    } else for (const p of step.props) await restoreProp(p);
   } else if (step.scope === "paint") {
     if (step.kind === "painted") await act("effect:paint", { erase: true, preset: step.preset, color: step.color, cells: step.cells });
     else for (const g of step.groups) await act("effect:paint", { preset: g.preset, color: g.color, cells: g.cells });

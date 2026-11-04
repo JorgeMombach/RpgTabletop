@@ -16,6 +16,7 @@ import { sceneHandlers } from "./scenes";
 import { wallHandlers } from "./walls";
 import { mapTorchHandlers } from "./mapTorches";
 import { chestHandlers } from "./chests";
+import { propHandlers } from "./props";
 import { weatherHandlers } from "./weather";
 
 export const handlers: HandlerMap = {
@@ -33,6 +34,7 @@ export const handlers: HandlerMap = {
   ...fogHandlers,
   ...mapTorchHandlers,
   ...chestHandlers,
+  ...propHandlers,
   ...ruleHandlers,
   ...soundHandlers,
   ...sheetHandlers,

@@ -28,6 +28,7 @@ function emptyScene(store: Store): StoredScene {
     walls: [],
     torches: [],
     chests: [],
+    props: [],
     weather: defaultWeather(),
     fog: emptyFog(),
     allyPos: {},
@@ -39,8 +40,8 @@ function storeActive(store: Store): StoredScene {
   const { battle, allies } = store.game;
   const allyPos: Record<string, GridPos> = {};
   for (const a of allies) if (a.pos) allyPos[a.id] = a.pos;
-  const { map, mobs, npcs, effects, drawings, walls, torches, chests, weather, fog } = battle;
-  return { map, mobs, npcs, effects, drawings, walls, torches, chests, weather, fog, allyPos };
+  const { map, mobs, npcs, effects, drawings, walls, torches, chests, props, weather, fog } = battle;
+  return { map, mobs, npcs, effects, drawings, walls, torches, chests, props, weather, fog, allyPos };
 }
 
 export const sceneHandlers: HandlerMap = {
