@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { emptyFog, LIMITS, type Combatant, type GameState, type Handout, type PublicPlayer, type Role, type SoundState, type LootResults } from "@rpg/shared";
+import { emptyFog, LIMITS, type Combatant, type GameState, type Handout, type PublicPlayer, type Role, type SoundState, type LootResults, type CharacterSheet } from "@rpg/shared";
 import { defaultWeather } from "./weather";
 
 /** Mob ou NPC removido recentemente, guardado para o "Desfazer". */
@@ -90,6 +90,8 @@ export class Store {
   lootResults: LootResults | null = null;
   /** Testes: duração da contagem em ms (no lugar de `game.lootSeconds`). */
   lootMsOverride: number | null = null;
+  /** Ficha de antes de um jogador substituir a do personagem pelo arquivo (Fase 4), para o mestre desfazer. Só em memória. */
+  sheetUndo = new Map<string, CharacterSheet>();
   /** Chamar depois de um tempo; o app troca por um que também manda o estado novo a todos. */
   schedule: (ms: number, fn: () => void) => void = (ms, fn) => {
     setTimeout(fn, ms).unref?.();

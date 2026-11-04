@@ -6,6 +6,23 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "A mesa passaria de {n} personagens.": ["The table would go over {n} characters.","La mesa pasaría de {n} personajes."],
+  "Arquivo inválido: fichas repetidas.": ["Invalid file: repeated sheets.","Archivo no válido: fichas repetidas."],
+  "Escolha o que fazer com {name}.": ["Choose what to do with {name}.","Elige qué hacer con {name}."],
+  "Este arquivo não é uma ficha do Jamal's Tabletop.": ["This file is not a Jamal's Tabletop sheet.","Este archivo no es una ficha de Jamal's Tabletop."],
+  "Ficha": ["Sheet","Ficha"],
+  "Importe primeiro o seu personagem: a invocação fica ligada a ele.": ["Import your character first: the summon is linked to it.","Importa primero tu personaje: la invocación queda ligada a él."],
+  "Não há ficha anterior para voltar.": ["There is no previous sheet to go back to.","No hay ficha anterior a la que volver."],
+  "O arquivo não tem nenhuma ficha.": ["The file has no sheets.","El archivo no tiene ninguna ficha."],
+  "O bestiário passaria de {n} modelos.": ["The bestiary would go over {n} templates.","El bestiario pasaría de {n} plantillas."],
+  "O mestre voltou a ficha anterior de {name}.": ["The GM restored {name}'s previous sheet.","El máster volvió a la ficha anterior de {name}."],
+  "Você já tem um personagem: o arquivo traz mais de um.": ["You already have a character: the file has more than one.","Ya tienes un personaje: el archivo trae más de uno."],
+  "Você já tem um personagem: {name} só pode substituir o seu.": ["You already have a character: {name} can only replace yours.","Ya tienes un personaje: {name} solo puede reemplazar el tuyo."],
+  "ficha": ["sheet","ficha"],
+  "fichas": ["sheets","fichas"],
+  "invocação": ["summon","invocación"],
+  "monstros": ["monsters","monstruos"],
+  "{who} substituiu {name} pela ficha do arquivo.": ["{who} replaced {name} with the sheet from the file.","{who} reemplazó a {name} por la ficha del archivo."],
   "A iniciativa de {name} já foi rolada. Só o mestre muda.": ["{name}'s initiative was already rolled. Only the GM can change it.", "La iniciativa de {name} ya se tiró. Solo el máster la cambia."],
   "Espessura da parede": ["Wall thickness", "Grosor de la pared"],
   "Estilo de mesa inválido.": ["Invalid table style.", "Estilo de mesa no válido."],

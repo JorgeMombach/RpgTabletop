@@ -20,6 +20,7 @@ import { handlers } from "./actions";
 import type { Handler } from "./actions/types";
 import { hostInfo, roleOf, type RoleRules } from "./net";
 import { exportSession, importSession } from "./session-file";
+import { checkSheets } from "./actions/sheetFiles";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
@@ -299,6 +300,20 @@ export function createApp(opts: AppOptions) {
       }
       broadcast();
       ack({ ok: true });
+    });
+
+    // Fichas em arquivo (Fase 4): confere o arquivo antes de importar (a importação é a ação `sheets:import`).
+    socket.on("sheets:check", (file, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (!player) return ack({ ok: false, error: "Entre na sessão primeiro." });
+      try {
+        ack({ ok: true, ...checkSheets(store, player, file) });
+      } catch (err) {
+        if (err instanceof ActionError) return ack(failure(err));
+        console.error("[sheets:check]", err);
+        ack({ ok: false, error: "Arquivo inválido." });
+      }
     });
 
     // Som (E25): efeito de uma vez para todos e upload de arquivo para a pasta. Só o mestre.

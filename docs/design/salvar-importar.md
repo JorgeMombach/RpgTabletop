@@ -47,7 +47,7 @@ O mesmo personagem pode estar em dois lugares com versões diferentes: o mestre 
 
 **Janela de diferenças.** Mostra o que mudou, campo a campo, com o valor da mesa e o do arquivo ("Vida máx.: mesa 42 · arquivo 38"; listas resumidas: "Inventário: +2 (Corda, Poção de cura) · −1 (Adaga)"). Não compara datas: data de arquivo engana, e o jogador vê pelos números qual versão está adiantada. Só a ficha entra na comparação (seção 2). Opções:
 
-- **Substituir a da mesa:** por conta e risco de quem importa. Troca só a ficha; o estado de batalha continua (posição, condições, vida atual, que é limitada à vida máxima nova; espaços e recursos gastos, limitados ao máximo novo).
+- **Substituir a da mesa:** por conta e risco de quem importa. Troca só a ficha; o estado de batalha continua (posição, condições, vida atual, que é limitada à vida máxima nova; espaços e recursos gastos, limitados ao máximo novo). Se a ficha nova for maior e o token passaria a encostar em outro, só ele vai para a casa livre mais próxima (ninguém é empurrado).
 - **Importar como cópia:** id novo e o nome com "(2)".
 - **Cancelar.**
 

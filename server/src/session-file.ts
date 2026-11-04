@@ -8,6 +8,11 @@ import {
   LIMITS,
   SESSION_FILE_APP,
   SESSION_FILE_FORMAT,
+  SHEET_FILE_FORMAT,
+  characterSheet,
+  templateSheet,
+  type CharacterSheet,
+  type SheetKind,
   SIZES,
   SPELL_LEVELS,
   TURN_ACTIONS,
@@ -315,6 +320,55 @@ function template(raw: unknown): MobTemplate {
   // Arquivos anteriores à 2.12 não têm.
   if (t.attacks !== undefined) out.attacks = list(t.attacks, "ataques do template", LIMITS.attacks).map(savedAttack);
   return out;
+}
+
+/** Ficha de personagem de um arquivo de fichas (Fase 4): os campos de ficha, validados como os do combatente. */
+function characterOf(raw: unknown): CharacterSheet {
+  const c = obj(raw, "ficha");
+  const hpMax = int(c.hpMax, "vida máxima", LIMITS.hpMax.min, LIMITS.hpMax.max);
+  const out: Combatant = {
+    id: requireString(c.id, "Ficha"),
+    name: requireName(c.name),
+    type: "ally",
+    hp: hpMax,
+    hpMax,
+    dexMod: int(c.dexMod, "mod. DES", LIMITS.dexMod.min, LIMITS.dexMod.max),
+    color: isColor(c.color) ? c.color : fail("Arquivo inválido: cor."),
+    pos: null,
+    initiative: null,
+    initRoll: null,
+    conditions: [],
+  };
+  stats(out, c);
+  sheet(out, c);
+  if (c.aura !== undefined) out.aura = int(c.aura, "alcance", LIMITS.aura.min, LIMITS.aura.max);
+  if (c.auraColor !== undefined) out.auraColor = isColor(c.auraColor) ? c.auraColor : fail("Arquivo inválido: cor do alcance.");
+  if (c.avatar !== undefined) out.avatar = requireImage(c.avatar, "Avatar", LIMITS.avatarChars);
+  if (c.spellSlots !== undefined) out.spellSlots = spellSlots(c.spellSlots);
+  if (c.spells !== undefined) out.spells = list(c.spells, "magias", LIMITS.spells).map(spell);
+  if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
+  if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
+  const description = optText(c.description, "descrição", LIMITS.description);
+  if (description) out.description = description;
+  const gmNotes = optText(c.gmNotes, "notas do mestre", LIMITS.notes);
+  if (gmNotes) out.gmNotes = gmNotes;
+  const s = characterSheet(out);
+  if (c.summon !== undefined && bool(c.summon, "invocação")) s.summon = true;
+  return s;
+}
+
+/** Lê e valida um arquivo de fichas inteiro (personagens ou monstros). Lança `ActionError` se algo não bater. */
+export function parseSheetFile(raw: unknown): { kind: SheetKind; items: CharacterSheet[] | MobTemplate[] } {
+  const f = obj(raw, "não é um objeto JSON");
+  if (f.app !== SESSION_FILE_APP || (f.kind !== "characters" && f.kind !== "monsters")) fail("Este arquivo não é uma ficha do Jamal's Tabletop.");
+  if (typeof f.format !== "number" || !Number.isInteger(f.format) || f.format < 1) fail("Arquivo inválido: versão do formato.");
+  if (f.format > SHEET_FILE_FORMAT) {
+    fail("Este arquivo foi salvo por uma versão mais nova do app (formato {format}). Atualize o Jamal's Tabletop para abrir.", { format: String(f.format) });
+  }
+  const items = f.kind === "characters" ? list(f.items, "fichas", 200).map(characterOf) : list(f.items, "monstros", 500).map((t) => templateSheet(template(t)));
+  if (items.length === 0) fail("O arquivo não tem nenhuma ficha.");
+  if (new Set(items.map((i) => i.id)).size !== items.length) fail("Arquivo inválido: fichas repetidas.");
+  return f.kind === "characters" ? { kind: "characters", items: items as CharacterSheet[] } : { kind: "monsters", items: items as MobTemplate[] };
 }
 
 /** Fases de chefe (as próximas): vida, e nome e CA se tiverem. */
@@ -675,4 +729,5 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   store.lootResults = null;
   store.mobCounters = parsed.mobCounters;
   store.removedMobs.clear();
+  store.sheetUndo.clear();
 }

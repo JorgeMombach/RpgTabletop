@@ -10,6 +10,8 @@ import { Panel } from "./Panel";
 import { EmptyState } from "./EmptyState";
 import { IconUsers } from "@tabler/icons-react";
 import { RestAllMenu } from "./RestButton";
+import { SheetFileMenu } from "./SheetFileMenu";
+import { downloadCharacters } from "../sheetFiles";
 
 export function AlliesPanel({ state }: { state: ClientState }) {
   const selectedId = useApp((s) => s.selectedId);
@@ -18,6 +20,11 @@ export function AlliesPanel({ state }: { state: ClientState }) {
   // Conjurados (E21) não contam como o personagem do jogador.
   const hasOwn = state.allies.some((a) => a.ownerId === state.self.id && !a.summonerId);
   const t = useT();
+  // O jogador baixa o personagem com as invocações e pets dele (entram juntos e continuam ligados).
+  const downloadMine = () => {
+    const main = state.allies.find((a) => a.ownerId === state.self.id && !a.summonerId);
+    if (main) void downloadCharacters([main, ...state.allies.filter((a) => a.summonerId === main.id)], main.name, false);
+  };
   const ownerName = (id?: string) => state.players.find((p) => p.id === id)?.name;
 
   return (
@@ -26,6 +33,16 @@ export function AlliesPanel({ state }: { state: ClientState }) {
       aside={
         <Group gap={4} wrap="nowrap">
           {gm && state.allies.length > 0 && <RestAllMenu />}
+          <SheetFileMenu
+            importLabel={t("sheetFile.menuImportCharacters")}
+            download={
+              gm
+                ? { label: t("sheetFile.downloadAll"), disabled: state.allies.length === 0, run: () => void downloadCharacters(state.allies, t("sheetFile.allCharactersName"), true) }
+                : hasOwn
+                  ? { label: t("sheetFile.downloadMine"), run: () => void downloadMine() }
+                  : undefined
+            }
+          />
           {/* Jogador tem um personagem só (o servidor também recusa um segundo). */}
           {!creating && (gm || !hasOwn) && (
             <Button variant="default" onClick={() => setCreating(true)}>

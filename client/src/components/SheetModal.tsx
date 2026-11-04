@@ -1,5 +1,6 @@
-import { Button, Divider, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
-import { IconPencil } from "@tabler/icons-react";
+import { ActionIcon, Button, Divider, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
+import { IconDownload, IconPencil } from "@tabler/icons-react";
+import { downloadCharacters, downloadMonsters } from "../sheetFiles";
 import type { ClientState, Combatant } from "@rpg/shared";
 import { useEffect, useState } from "react";
 import { fmtMod } from "../format";
@@ -56,6 +57,18 @@ function SheetBody({ state, c, onClose }: { state: ClientState; c: Combatant; on
             {kind} · <Abbr title={t("selected.initTip")}>{t("selected.init")}</Abbr> {fmtMod(c.dexMod)}
           </Text>
         </div>
+        {canEdit && mode === "view" && (
+          <Tooltip label={t("sheetFile.downloadTip")}>
+            <ActionIcon
+              variant="default"
+              size="lg"
+              aria-label={t("sheetFile.download")}
+              onClick={() => void (c.type === "ally" ? downloadCharacters([c], c.name, gm) : downloadMonsters([c], c.name))}
+            >
+              <IconDownload size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         {canEdit && mode === "view" && (
           <Tooltip label={t("selected.editTip")}>
             <Button variant="default" leftSection={<IconPencil size={14} />} onClick={() => setMode("edit")}>

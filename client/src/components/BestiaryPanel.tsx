@@ -11,6 +11,8 @@ import { CombatantAvatar } from "./CombatantAvatar";
 import { CombatantForm } from "./CombatantForm";
 import { EmptyState } from "./EmptyState";
 import { Panel } from "./Panel";
+import { SheetFileMenu } from "./SheetFileMenu";
+import { downloadMonsters } from "../sheetFiles";
 
 type Mode = { kind: "none" } | { kind: "newTemplate" } | { kind: "newMob" } | { kind: "edit"; id: string };
 
@@ -19,7 +21,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
   const t = useT();
   const [mode, setMode] = useState<Mode>({ kind: "none" });
   return (
-    <Panel title={t("bestiary.title")} anchor="bestiary" aside={mode.kind === "none" && <BestiaryActions setMode={setMode} />}>
+    <Panel title={t("bestiary.title")} anchor="bestiary" aside={mode.kind === "none" && <BestiaryActions setMode={setMode} templates={templates} />}>
       <BestiaryBody templates={templates} mode={mode} setMode={setMode} />
     </Panel>
   );
@@ -38,7 +40,7 @@ export function BestiaryModal({ templates, opened, onClose }: { templates: MobTe
       <Stack gap="sm">
         {mode.kind === "none" && (
           <Group justify="flex-end">
-            <BestiaryActions setMode={setMode} />
+            <BestiaryActions setMode={setMode} templates={templates} />
           </Group>
         )}
         <BestiaryBody templates={templates} mode={mode} setMode={setMode} onAdded={close} />
@@ -47,10 +49,14 @@ export function BestiaryModal({ templates, opened, onClose }: { templates: MobTe
   );
 }
 
-function BestiaryActions({ setMode }: { setMode: (m: Mode) => void }) {
+function BestiaryActions({ setMode, templates }: { setMode: (m: Mode) => void; templates: MobTemplate[] }) {
   const t = useT();
   return (
           <Group gap="xs">
+            <SheetFileMenu
+              importLabel={t("sheetFile.menuImportMonsters")}
+              download={{ label: t("sheetFile.downloadBestiary"), disabled: templates.length === 0, run: () => void downloadMonsters(templates, t("sheetFile.bestiaryName")) }}
+            />
             <Tooltip label={t("bestiary.singleTip")}>
               <Button variant="default" onClick={() => setMode({ kind: "newMob" })}>
                 {t("bestiary.single")}

@@ -10,6 +10,7 @@ import { select, useApp } from "../store";
 import { D20Emblem } from "./D20Emblem";
 import { DiceOverlay } from "./DiceOverlay";
 import { HandoutButton, HandoutModal } from "./Handout";
+import { SheetImportModal } from "./SheetImportModal";
 import { AboutModal } from "./About";
 import { Memo } from "./Shell";
 import { SoundSync } from "./SoundSync";
@@ -165,6 +166,7 @@ export function MobileShell({ state }: { state: ClientState }) {
 
       <SoundSync sound={state.sound} />
       <AboutModal opened={about} onClose={() => setAbout(false)} />
+      <SheetImportModal gm={false} />
       <HandoutModal />
     </div>
   );

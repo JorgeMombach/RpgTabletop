@@ -1,6 +1,7 @@
 import { shareEqual } from "@rpg/shared";
 import { socket } from "./socket";
-import { logText } from "./i18n";
+import { act } from "./actions";
+import { logText, t } from "./i18n";
 import { pushHits } from "./map/hits";
 import { toast } from "./notify";
 import { IS_LOG_WINDOW } from "./logWindow";
@@ -118,6 +119,9 @@ export function askMapImage(version: number) {
   socket.emit("map:imageRequest");
 }
 
+/** Aviso do log quando um jogador substitui a ficha pelo arquivo (modelo do servidor, `sheetFiles.ts`). */
+const SHEET_REPLACED = "{who} substituiu {name} pela ficha do arquivo.";
+
 socket.on("state:full", (incoming) => {
   const previous = useApp.getState().state;
   // O que não mudou continua o mesmo objeto: a interface só redesenha o que mudou de verdade.
@@ -129,7 +133,15 @@ socket.on("state:full", (incoming) => {
   // Na janela do log, não: a janela principal já avisa.
   if (!previous || IS_LOG_WINDOW) return;
   const seen = new Set(previous.log.map((e) => e.id));
-  for (const e of state.log) if (e.system && !seen.has(e.id)) toast({ kind: "info", text: logText(e) });
+  const gm = state.self.role === "gm";
+  for (const e of state.log) {
+    if (!e.system || seen.has(e.id)) continue;
+    // Jogador substituiu a ficha pelo arquivo (Fase 4): o mestre pode voltar a anterior.
+    const id = e.textParams?.id;
+    if (gm && e.textKey === SHEET_REPLACED && typeof id === "string") {
+      toast({ kind: "info", text: logText(e), action: { label: t("common.undo"), run: () => void act("sheet:undo", { id }) } }, 20_000);
+    } else toast({ kind: "info", text: logText(e) });
+  }
 });
 
 socket.on("toast", (t) => toast(t));

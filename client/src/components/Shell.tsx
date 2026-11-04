@@ -18,6 +18,7 @@ import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
 import { GmTabs } from "./GmTabs";
 import { HandoutButton, HandoutModal } from "./Handout";
+import { SheetImportModal } from "./SheetImportModal";
 import { InitiativePanel } from "./InitiativePanel";
 import { Shortcuts, ShortcutsButton } from "./Shortcuts";
 import { AboutLink, AboutModal } from "./About";
@@ -187,6 +188,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       <AboutModal opened={about} onClose={() => setAbout(false)} />
       <HandoutModal />
       <Memo.SheetModal state={state} />
+      <SheetImportModal gm={state.self.role === "gm"} />
     </div>
   );
 }

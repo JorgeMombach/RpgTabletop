@@ -1,6 +1,7 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind } from "./types";
 import type { FogRect } from "./fog";
+import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
 
 export interface JoinPayload {
   name: string;
@@ -120,6 +121,10 @@ export interface TemplateInput extends CombatantInput {
 
 /** Payload de cada ação que altera o estado. Toda ação responde com `ActionResult`. */
 export interface ActionPayloads {
+  /** Importa um arquivo de fichas (Fase 4); `choices`: o que fazer com cada ficha diferente da mesa, pelo id do arquivo. */
+  "sheets:import": { file: unknown; choices?: Record<string, SheetImportChoice> };
+  /** Mestre: volta a ficha que um jogador substituiu pela do arquivo. */
+  "sheet:undo": { id: string };
   "template:upsert": TemplateInput;
   "template:remove": { id: string };
   "mob:addFromTemplate": { templateId: string; qty: number; hidden?: boolean };
@@ -395,6 +400,9 @@ export type ActionFailure = { ok: false; error: string; errorKey?: string; error
 
 export type SessionExportResult = { ok: true; file: SessionFile } | ActionFailure;
 
+/** Conferência de um arquivo de fichas antes de importar: o que é novo, igual ou diferente da mesa. */
+export type SheetCheckResult = { ok: true; kind: SheetKind; items: SheetCheckItem[] } | ActionFailure;
+
 export type ActionName = keyof ActionPayloads;
 
 export type ActionResult = { ok: true; ids?: string[] } | ActionFailure;
@@ -421,6 +429,8 @@ export type ClientToServerEvents = ActionEvents & {
   "session:export": (ack: (res: SessionExportResult) => void) => void;
   /** Mestre: substitui o estado atual pelo do arquivo (validado inteiro antes). */
   "session:import": (file: unknown, ack: (res: ActionResult) => void) => void;
+  /** Confere um arquivo de fichas (valida e compara com a mesa), sem alterar nada. */
+  "sheets:check": (file: unknown, ack: (res: SheetCheckResult) => void) => void;
   /** Mestre: efeito sonoro para todos, uma vez (E25). Não fica no estado. */
   "sound:sfx": (source: SoundSource, ack: (res: ActionResult) => void) => void;
   /** Mestre: adiciona um arquivo de áudio à pasta de sons (E25). */
