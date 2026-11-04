@@ -222,8 +222,11 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 ### Passo 11. Ver como jogador (P–M, feito em 2026-11-04)
 - [x] O mestre escolhe "ver como {jogador}" e enxerga o mapa como ele (névoa, visão, o que está oculto), sem abrir outra aba.
 
-### Passo 12. Bestiário SRD (M)
-- [ ] Galeria pronta com os monstros do SRD 5.1 (CC BY 4.0), importada pela ficha em arquivo da Fase 4. Crédito na tela *Sobre*; decidir nomes em português ou inglês.
+### Passo 12. Catálogo de monstros SRD 5.1 (M–G, em fases; desenho em [docs/design/catalogo-srd.md](design/catalogo-srd.md))
+Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não importar arquivo); "Adicionar ao bestiário" copia como modelo editável; traduzido em pt-BR/en/es; SRD 5.1 (2014). O 5.2 (2024) fica para depois, como outra coleção.
+- [ ] Fase A. Estrutura: abas *Meus modelos* / *Catálogo* no Bestiário, busca e filtros (ND, tipo, tamanho), resumo, *Adicionar ao bestiário* e *Pôr no mapa*, origem (`srd:…`) com etiqueta e *Restaurar original*, cor do token por tipo, crédito CC BY 4.0 na tela *Sobre*. Com poucos monstros de teste. Protótipo aprovado antes.
+- [ ] Fase B. Dados essenciais do SRD 5.1 traduzidos (nome, tipo, tamanho, ND, vida, CA, iniciativa, atributos, ataques). Conferir a licença da fonte do JSON. Revisão de amostra dos nomes antes do lote.
+- [ ] Fase C. Textos das habilidades nas notas do mestre (traços, ações especiais e lendárias, resistências, sentidos), traduzidos, com revisão de amostra.
 
 ### Passo 13. Tabelas aleatórias (M)
 - [ ] O mestre cria tabelas (encontros, nomes, loot) e rola com um clique; resultado no log (só para ele, se quiser).
