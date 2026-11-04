@@ -91,6 +91,10 @@ Depois (segunda leva, se a primeira ficar boa): estátua, ossos, altar, barraca,
 2. **Objetos**: protótipo do catálogo com variações (várias árvores, várias pedras lado a lado) → ferramenta, edição, visão.
 3. **Pincel de espalhar**: protótipo de uma floresta espalhada → pincel, conjuntos, densidade.
 
+## 6. Ferramentas de construção na aba Mapa (decidido em 2026-11-03)
+
+A barra do mapa ficou cheia para o mestre. Ela fica só com o que se usa jogando (Mover, Régua, Área, Ping, Desenho/Setas e Névoa, que revela salas durante o jogo); Paredes, Tochas, Baús, Objetos e Pincel de efeitos vão para o painel **Construir** na aba *Mapa* (entre Cenas e Mapa), e as opções de cada uma passam a ficar dentro do painel, em vez de flutuar por cima do mapa. Atalhos continuam; com outra aba aberta, a coluna troca para *Mapa*.
+
 ## Fora daqui
 
 - Objetos que o jogador coloca, colisão/movimento bloqueado (o app não é motor de regras, ADR-06), objetos animados, imagens enviadas pelo mestre como objeto.

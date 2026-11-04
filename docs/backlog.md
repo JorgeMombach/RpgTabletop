@@ -179,6 +179,12 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 - [x] Estátua (cavaleiro, manto ou anjo, com a sombra comprida), ossos, altar, barraca, carroça, poço, estante, cama, sacos, cogumelos, flores, ponte de tábuas. Estátua, barraca e estante atrapalham a visão. Cogumelos e flores entram como miudeza na *Floresta* e no *Bosque ralo*. Protótipo aprovado em 2026-11-03 (a estátua refeita duas vezes).
 - [ ] Portão de troncos para a paliçada, se pedirem.
 
+### Passo 4. Ferramentas de construção na aba Mapa (aprovado em 2026-11-03, a fazer)
+- [ ] Barra do mapa só com as ferramentas de jogo: Mover, Régua, Área, Ping, Desenho/Setas e **Névoa** (fica na barra: é usada durante o jogo), mais zoom e enquadrar.
+- [ ] Painel **Construir** na aba *Mapa* do mestre (ordem: Cenas, Construir, Mapa), com Paredes, Tochas, Baús, Objetos e Pincel de efeitos (ícone e nome). As opções da ferramenta escolhida aparecem dentro do painel, não mais flutuando em cima do mapa.
+- [ ] Atalhos G, L, J, O, E continuam; com outra aba aberta, a coluna troca sozinha para *Mapa*. Clicar de novo na ferramenta escolhida volta para Mover.
+- [ ] Conferir tudo na coluna com a largura mínima (260 px). Protótipo aprovado.
+
 ### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
 - [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
 - [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
