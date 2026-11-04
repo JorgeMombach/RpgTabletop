@@ -188,6 +188,10 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 ### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
 - [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
 - [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
+- [ ] Só a ficha vai no arquivo, sem estado de batalha (vida atual, posição, condições, gastos). Desenho em [docs/design/salvar-importar.md](design/salvar-importar.md).
+- [ ] Versões diferentes (adendo de 2026-11-04): comparação pelo id; igual não muda nada; diferente abre a janela de diferenças (campo a campo, mesa × arquivo) com Substituir, Importar como cópia ou Cancelar. Vários conflitos numa lista só, com "aplicar a todos". Id de personagem de outro jogador entra como cópia.
+- [ ] Jogador substituindo a ficha: linha no log e aviso ao mestre com Desfazer (ficha anterior só em memória).
+- [ ] Protótipo da janela de diferenças aprovado antes de codar.
 
 ### Fase 7. Instalador e hospedagem (por último, talvez numa subida à parte)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
