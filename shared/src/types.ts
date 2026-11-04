@@ -269,8 +269,19 @@ export type TableStyle = (typeof TABLE_STYLES)[number];
 export const WALL_THICKNESS = { default: 0.18, min: 0.1, max: 1 };
 
 /** Estilos de parede: pedra lavrada (masmorra, castelo), rocha bruta (caverna, ruína) e madeira (casa, paliçada). */
-export const WALL_STYLES = ["stone", "rock", "wood"] as const;
+/**
+ * Desenhos de parede. Os três primeiros são os de sempre; os outros vieram com o cenário (docs/design/cenario.md).
+ * Cada parede pode ter o seu; sem ele, vale o da cena (`MapConfig.wallStyle`, só os que bloqueiam a visão).
+ */
+export const WALL_STYLES = ["stone", "rock", "wood", "brick", "palisade", "rampart", "fence", "iron", "barbed", "hedge", "lowstone"] as const;
 export type WallStyle = (typeof WALL_STYLES)[number];
+
+/** Desenhos que só marcam o limite e deixam ver através (cerca, grade, arame, sebe, muro baixo), mesmo com o portão fechado. */
+export const SEE_THROUGH_WALLS: readonly WallStyle[] = ["fence", "iron", "barbed", "hedge", "lowstone"];
+
+export function seeThrough(style: WallStyle | undefined): boolean {
+  return !!style && SEE_THROUGH_WALLS.includes(style);
+}
 
 export interface CombatState {
   active: boolean;
@@ -508,6 +519,8 @@ export interface Wall {
   /** Espessura do desenho, em casas (0,1 a 1; L5). Ausente = a de sempre (`WALL_THICKNESS`). Bloqueia pela linha do meio. */
   thickness?: number;
   door?: Door;
+  /** Desenho desta parede; sem ele, o da cena. */
+  style?: WallStyle;
 }
 
 /** Desenhos de tocha fixa que o mestre escolhe: fincada, de ferro ou braseiro. */

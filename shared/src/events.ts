@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle } from "./types";
 import type { FogRect } from "./fog";
 
 export interface JoinPayload {
@@ -322,7 +322,9 @@ export interface ActionPayloads {
   "loot:end": Record<string, never>;
   /** Mestre: segundos para escolher o loot (0 = sem contagem). */
   "loot:seconds": { seconds: number };
-  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number; style?: WallStyle };
+  /** Mestre: troca o desenho das paredes (e portas); `null` volta ao desenho da cena. */
+  "wall:style": { ids: string[]; style: WallStyle | null };
   "wall:remove": { id: string };
   /** Mestre: borracha nas paredes (`points` = col, row em casas). Parede é cortada; porta tocada some inteira. */
   "wall:erase": { points: number[]; radius: number };

@@ -6,6 +6,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Adicionado
+- **Paredes novas e desenho por parede:** além de pedra, rocha e madeira, agora tem tijolo, paliçada e muralha (bloqueiam a visão) e cerca de madeira, grade de ferro, arame farpado, sebe e muro baixo de pedra, que **deixam ver** através (a visão dos personagens, a luz das tochas e o *Cômodo* da névoa passam por eles). Cada parede tem o seu desenho: no painel da ferramenta *Paredes*, *Desenho* escolhe o das próximas (com amostra); o modo *Trocar desenho* muda o das paredes que você arrastar por cima, e *Todas* muda todas da cena (Ctrl+Z desfaz). Porta numa cerca, sebe, arame ou muro baixo vira **portão de cerca**; numa grade ou muralha, **portão de ferro**. Paredes de sessões antigas continuam com o desenho da cena. Vai no arquivo de sessão.
+
 ## [2.12.0] - 2026-11-03
 
 ### Adicionado

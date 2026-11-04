@@ -24,7 +24,7 @@ import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
 import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
 import { PaintOptions, paintColorOf } from "./PaintOptions";
-import { addChest, addDrawing, addTorch, addWall, erasePaint, paintCells, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addChest, addDrawing, addTorch, addWall, erasePaint, paintCells, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -96,7 +96,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, reduceFx } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, reduceFx } = useApp();
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering } = useApp();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
@@ -290,9 +290,37 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
   const eraserRadius = tool === "walls" || tool === "torches" ? grid.cellPx * WALL_ERASER : Math.max(4 / view.scale, grid.cellPx * (ERASER_CELLS[drawWidth] ?? 0.25));
   const eraserRef = useRef<{ kind: "draw" | "walls" | "torches"; pending: number[]; sent: boolean; timer: number | null; before: { id: string }[]; acts: Promise<unknown>[] } | null>(null);
   const [eraserAt, setEraserAt] = useState<Point | null>(null);
+  // Trocar desenho das paredes: mesmo círculo da borracha; as paredes tocadas na passada mudam ao soltar.
+  const restyleMode = gm && tool === "walls" && wallMode === "restyle";
+  const restyleRef = useRef<Set<string> | null>(null);
+  const [restyleIds, setRestyleIds] = useState<Set<string> | null>(null);
+  function restyleAt(p: Point) {
+    const set = restyleRef.current;
+    if (!set) return;
+    const r = grid.cellPx * WALL_ERASER;
+    let grew = false;
+    for (const w of state.battle.walls) {
+      if (set.has(w.id)) continue;
+      const a = { x: grid.offsetX + w.from.col * grid.cellPx, y: grid.offsetY + w.from.row * grid.cellPx };
+      const b = { x: grid.offsetX + w.to.col * grid.cellPx, y: grid.offsetY + w.to.row * grid.cellPx };
+      const len2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1;
+      const k = Math.max(0, Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / len2));
+      if (Math.hypot(p.x - (a.x + (b.x - a.x) * k), p.y - (a.y + (b.y - a.y) * k)) > r) continue;
+      set.add(w.id);
+      grew = true;
+    }
+    if (grew) setRestyleIds(new Set(set));
+  }
+  function finishRestyle() {
+    const set = restyleRef.current;
+    restyleRef.current = null;
+    if (!set || set.size === 0) return setRestyleIds(null);
+    // A prévia fica até o servidor responder (sem piscar o desenho antigo).
+    void restyleWalls([...set], wallDrawStyle).then(() => setRestyleIds(null));
+  }
   useEffect(() => {
-    if (!eraseMode) setEraserAt(null);
-  }, [eraseMode]);
+    if (!eraseMode && !restyleMode) setEraserAt(null);
+  }, [eraseMode, restyleMode]);
   function flushErase() {
     const e = eraserRef.current;
     if (!e) return;
@@ -346,7 +374,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     const w = wallRef.current;
     wallRef.current = null;
     setWallDraft(null);
-    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door", useApp.getState().wallThick);
+    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door", useApp.getState().wallThick, wallDrawStyle ?? undefined);
   }
 
   // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
@@ -528,6 +556,11 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       void addTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torchStyle);
       return;
     }
+    if (restyleMode) {
+      restyleRef.current = new Set();
+      restyleAt(p);
+      return;
+    }
     if (tool === "walls") {
       const c = wallPointAt(p, grid, wallSnap);
       wallRef.current = { from: c, to: c };
@@ -580,6 +613,11 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       fogAt(cellAt(p, grid));
       return;
     }
+    if (restyleMode) {
+      setEraserAt(p);
+      restyleAt(p);
+      return;
+    }
     if (tool === "paint") {
       const cell = cellAt(p, grid);
       setPaintHover((h) => (h && sameCell(h, cell) ? h : cell));
@@ -629,6 +667,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     finishWall();
     finishFog();
     finishPaint();
+    finishRestyle();
     calibStart.current = null;
     areaDragging.current = false;
     updateRuler(null);
@@ -922,13 +961,13 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
                 w={w}
                 grid={grid}
                 gm={gm}
-                style={wallStyle}
+                style={restyleIds?.has(w.id) ? (wallDrawStyle ?? wallStyle) : (w.style ?? wallStyle)}
                 layout={doors.get(w.id)}
                 selected={w.id === selectedDoorId}
                 onClick={() => onWallClick(w)}
               />
             ))}
-            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} style={wallStyle} />}
+            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} style={wallDrawStyle ?? wallStyle} />}
           </Layer>
 
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
@@ -987,7 +1026,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
-            {eraseMode && eraserAt && (
+            {(eraseMode || restyleMode) && eraserAt && (
               <Circle
                 x={eraserAt.x}
                 y={eraserAt.y}

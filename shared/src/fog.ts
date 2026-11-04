@@ -1,4 +1,4 @@
-import type { GridPos, LightId, Wall } from "./types";
+import { seeThrough, type GridPos, type LightId, type Wall } from "./types";
 
 /**
  * Névoa de guerra (G): casas reveladas, por linha, em intervalos de colunas `[início, fim)` ordenados
@@ -132,6 +132,8 @@ export function cellsAroundPoint(col: number, row: number): GridPos[] {
 
 /** Parede ou porta que bloqueia a passagem: toda parede e porta fechada (inclusive a secreta). */
 export function blocks(w: Wall): boolean {
+  // Cerca, grade, arame, sebe e muro baixo deixam ver, mesmo com o portão fechado.
+  if (seeThrough(w.style)) return false;
   return !w.door || !w.door.open;
 }
 

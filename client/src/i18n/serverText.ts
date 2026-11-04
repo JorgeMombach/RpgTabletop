@@ -100,6 +100,8 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Escuridão": ["Darkness", "Oscuridad"],
   "Personalizado": ["Custom", "Personalizado"],
   "Luz sagrada": ["Holy light", "Luz sagrada"],
+  "Desenho de parede inválido.": ["Invalid wall style.", "Diseño de pared no válido."],
+  "Paredes inválidas.": ["Invalid walls.", "Paredes no válidas."],
   "Efeito inválido.": ["Invalid effect.", "Efecto no válido."],
   "Casas inválidas.": ["Invalid cells.", "Casillas no válidas."],
   "Efeito pintado não anda com token.": ["A painted effect doesn't follow a token.", "Un efecto pintado no sigue a una ficha."],

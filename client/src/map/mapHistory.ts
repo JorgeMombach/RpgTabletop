@@ -1,4 +1,4 @@
-import type { ActionResult, ChestStyle, Drawing, EffectPreset, GridPos, LootEntry, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
+import type { ActionResult, ChestStyle, Drawing, EffectPreset, GridPos, LootEntry, WallStyle, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -16,6 +16,7 @@ type Step =
   | { scope: "walls"; kind: "added"; id: string }
   | { scope: "walls"; kind: "removed"; wall: Wall }
   | { scope: "walls"; kind: "erased"; removed: Wall[]; added: string[] }
+  | { scope: "walls"; kind: "restyled"; before: { id: string; style?: WallStyle }[] }
   | { scope: "drawings"; kind: "added"; id: string }
   | { scope: "drawings"; kind: "erased"; removed: Drawing[]; added: string[] }
   | { scope: "torches"; kind: "added"; id: string }
@@ -80,8 +81,8 @@ function diff<T extends { id: string }>(before: T[], after: T[]) {
 
 // ---------- Paredes ----------
 
-export async function addWall(from: GridPos, to: GridPos, door: boolean, thickness: number): Promise<ActionResult> {
-  const res = await act("wall:add", { from, to, door, thickness });
+export async function addWall(from: GridPos, to: GridPos, door: boolean, thickness: number, style?: WallStyle): Promise<ActionResult> {
+  const res = await act("wall:add", { from, to, door, thickness, ...(style && { style }) });
   if (res.ok && res.ids?.[0]) push({ scope: "walls", kind: "added", id: res.ids[0] });
   return res;
 }
@@ -105,8 +106,8 @@ export function recordWallErase(before: Wall[], after: Wall[]) {
 
 /** Põe de volta uma parede apagada (com o estado da porta). */
 async function restoreWall(wall: Wall) {
-  const { from, to, door, thickness } = wall;
-  const res = await act("wall:add", { from, to, door: !!door, thickness });
+  const { from, to, door, thickness, style } = wall;
+  const res = await act("wall:add", { from, to, door: !!door, thickness, ...(style && { style }) });
   const id = res.ok ? res.ids?.[0] : undefined;
   if (!id) return;
   renamed("walls", wall.id, id);
@@ -196,6 +197,15 @@ async function restoreChest(c: MapChest) {
   await act("chest:update", { id, name: c.name, style: c.style, locked: !!c.locked, hidden: !!c.hidden, loot: c.loot.map(lootInput) });
 }
 
+/** Troca o desenho das paredes (`null` = o da cena). Desfazer devolve o desenho de antes de cada uma. */
+export async function restyleWalls(ids: string[], style: WallStyle | null): Promise<ActionResult> {
+  const walls = useApp.getState().state?.battle.walls ?? [];
+  const before = walls.filter((w) => ids.includes(w.id)).map((w) => ({ id: w.id, ...(w.style && { style: w.style }) }));
+  const res = await act("wall:style", { ids, style });
+  if (res.ok && before.length > 0) push({ scope: "walls", kind: "restyled", before });
+  return res;
+}
+
 // ---------- Pincel de efeitos ----------
 
 const key = (c: number, r: number) => `${c},${r}`;
@@ -248,6 +258,11 @@ export async function undo(scope?: UndoScope) {
       if (has(battle?.walls, step.id)) await act("wall:remove", { id: step.id });
     } else if (step.kind === "removed") {
       await restoreWall(step.wall);
+    } else if (step.kind === "restyled") {
+      // Agrupa por desenho de antes (um envio por desenho), só as paredes que ainda existem.
+      const groups = new Map<WallStyle | null, string[]>();
+      for (const b of step.before) if (has(battle?.walls, b.id)) groups.set(b.style ?? null, [...(groups.get(b.style ?? null) ?? []), b.id]);
+      for (const [style, ids] of groups) await act("wall:style", { ids, style });
     } else {
       for (const id of step.added) if (has(battle?.walls, id)) await act("wall:remove", { id });
       for (const w of step.removed) await restoreWall(w);

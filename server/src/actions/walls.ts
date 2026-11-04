@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, WALL_THICKNESS, type Door, type GridPos, type Wall } from "@rpg/shared";
+import { LIMITS, WALL_STYLES, WALL_THICKNESS, type Door, type GridPos, type Wall, type WallStyle } from "@rpg/shared";
 import { eraseWall, pathOf } from "../erase";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
@@ -17,7 +17,11 @@ function corner(raw: unknown): GridPos {
   return { col: cent(p.col), row: cent(p.row) };
 }
 
-/** Valida as pontas e a porta de uma parede (do mestre ou do arquivo de sessão), sem o id. */
+function styleOf(raw: unknown): WallStyle {
+  return WALL_STYLES.includes(raw as WallStyle) ? (raw as WallStyle) : fail("Desenho de parede inválido.");
+}
+
+/** Valida as pontas, a porta e o desenho de uma parede (do mestre ou do arquivo de sessão), sem o id. */
 export function parseWall(raw: unknown): Omit<Wall, "id"> {
   const w = (raw ?? {}) as Record<string, unknown>;
   const from = corner(w.from);
@@ -41,6 +45,7 @@ export function parseWall(raw: unknown): Omit<Wall, "id"> {
     if (d.locked === true) out.door.locked = true;
     if (d.secret === true) out.door.secret = true;
   }
+  if (w.style !== undefined) out.style = styleOf(w.style);
   return out;
 }
 
@@ -52,7 +57,7 @@ export const wallHandlers: HandlerMap = {
   "wall:add": (store, player, payload) => {
     requireGm(player);
     const { battle } = store.game;
-    const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to, thickness: payload?.thickness }) };
+    const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to, thickness: payload?.thickness, style: payload?.style }) };
     if (payload.door === true) wall.door = { open: false };
     if (battle.walls.length >= LIMITS.walls) fail("Limite de {n} paredes e portas no mapa.", { n: LIMITS.walls });
     battle.walls.push(wall);
@@ -83,9 +88,9 @@ export const wallHandlers: HandlerMap = {
         out.push(w);
         continue;
       }
-      // Os trechos que sobram continuam a parede (mesma espessura), com ids novos.
+      // Os trechos que sobram continuam a parede (mesma espessura e desenho), com ids novos.
       for (const part of left) {
-        const piece: Wall = { id: randomUUID(), ...part, ...(w.thickness !== undefined && { thickness: w.thickness }) };
+        const piece: Wall = { id: randomUUID(), ...part, ...(w.thickness !== undefined && { thickness: w.thickness }), ...(w.style && { style: w.style }) };
         out.push(piece);
         ids.push(piece.id);
       }
@@ -93,6 +98,19 @@ export const wallHandlers: HandlerMap = {
     if (out.length > LIMITS.walls) fail("Limite de {n} paredes e portas no mapa.", { n: LIMITS.walls });
     battle.walls = out;
     return ids;
+  },
+
+  "wall:style": (store, player, payload) => {
+    requireGm(player);
+    const ids = payload?.ids;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > LIMITS.walls) fail("Paredes inválidas.");
+    const style = payload.style === null ? null : styleOf(payload.style);
+    // Confere todas antes de mudar alguma.
+    const targets = ids.map((id) => findWall(store.game.battle.walls, id));
+    for (const w of targets) {
+      if (style) w.style = style;
+      else delete w.style;
+    }
   },
 
   "wall:clear": (store, player) => {

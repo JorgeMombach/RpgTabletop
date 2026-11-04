@@ -1,21 +1,35 @@
-import { Button, Checkbox, Group, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
-import { IconArrowBackUp, IconTrash } from "@tabler/icons-react";
+import { Button, Checkbox, Group, Paper, SegmentedControl, Select, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { IconArrowBackUp, IconBrush, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Shape as KShape } from "react-konva";
-import { WALL_STYLES, WALL_THICKNESS, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
+import { seeThrough, WALL_STYLES, WALL_THICKNESS, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
+import { useEffect, useRef } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import type { Point } from "./geometry";
 import { drawDoor, wallArt, wallSeed } from "./wallArt";
-import { removeWall, undo, useMapUndo } from "./mapHistory";
+import { removeWall, restyleWalls, undo, useMapUndo } from "./mapHistory";
 
-/** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder) ou apagar. */
-export type WallMode = "wall" | "door" | "erase";
+/** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder), trocar o desenho ou apagar. */
+export type WallMode = "wall" | "door" | "restyle" | "erase";
 
-const MODE_LABEL: Record<WallMode, MessageKey> = { wall: "walls.wall", door: "walls.door", erase: "walls.erase" };
-const STYLE_LABEL: Record<WallStyle, MessageKey> = { stone: "walls.styleStone", rock: "walls.styleRock", wood: "walls.styleWood" };
+const MODE_LABEL: Record<WallMode, MessageKey> = { wall: "walls.wall", door: "walls.door", restyle: "walls.restyle", erase: "walls.erase" };
+export const STYLE_LABEL: Record<WallStyle, MessageKey> = {
+  stone: "walls.styleStone",
+  rock: "walls.styleRock",
+  wood: "walls.styleWood",
+  brick: "walls.styleBrick",
+  palisade: "walls.stylePalisade",
+  rampart: "walls.styleRampart",
+  fence: "walls.styleFence",
+  iron: "walls.styleIron",
+  barbed: "walls.styleBarbed",
+  hedge: "walls.styleHedge",
+  lowstone: "walls.styleLowstone",
+};
+const SCENE = "__cena";
 
 /** Canto do grid mais perto do ponto (em pixels do mapa). */
 export function cornerAt(p: Point, g: MapConfig): GridPos {
@@ -77,7 +91,7 @@ export function doorLayouts(walls: Wall[]): Map<string, DoorLayout> {
 }
 
 /**
- * Parede (no estilo da cena: pedra lavrada, rocha bruta ou madeira) ou porta de madeira com cintas de ferro.
+ * Parede (no desenho dela, ou no da cena) ou porta de madeira com cintas de ferro (portão, na cerca e na grade).
  * Aberta, a folha gira na dobradiça e deixa a passagem livre. Mestre: trancada com cadeado vermelho, secreta
  * translúcida e tracejada. A espessura acompanha o tamanho do quadrado.
  */
@@ -137,7 +151,7 @@ export function WallShape({
           });
         } else {
           const m = ctx.getTransform();
-          const art = wallArt(style, L, thick, seed, Math.hypot(m.a, m.b));
+          const art = wallArt(style, L, thick, seed, Math.hypot(m.a, m.b), grid.cellPx);
           ctx.drawImage(art.canvas, -art.pad, -art.pad, L + art.pad * 2, art.pad * 2);
         }
         ctx.restore();
@@ -152,10 +166,27 @@ export function WallPreview({ from, to, door, grid, style }: { from: GridPos; to
   return <WallShape w={{ from, to, thickness, door: door ? { open: false } : undefined }} grid={grid} gm style={style} selected />;
 }
 
-/** Opções da ferramenta Paredes (mestre): modo, traço, estilo da cena, a porta escolhida (aberta, trancada, secreta), desfazer e apagar tudo. */
+/** Amostra do desenho de parede (lista de desenhos): um trecho curto desenhado de verdade. */
+function WallSwatch({ style }: { style: WallStyle }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    const ctx = c.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, 48, 20);
+    const t = 5.5;
+    const art = wallArt(style, 40, t, 7, dpr, 20);
+    ctx.drawImage(art.canvas, 4 - art.pad, 10 - art.pad, 40 + art.pad * 2, art.pad * 2);
+  }, [style]);
+  return <canvas ref={ref} width={96} height={40} style={{ width: 48, height: 20, flex: "none" }} aria-hidden />;
+}
+
+/** Opções da ferramenta Paredes (mestre): modo, desenho, traço, a porta escolhida (aberta, trancada, secreta), desfazer e apagar tudo. */
 export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle }) {
   const t = useT();
-  const { wallMode, wallSnap, wallThick, selectedDoorId } = useApp();
+  const { wallMode, wallSnap, wallThick, selectedDoorId, wallDrawStyle } = useApp();
   const undoCount = useMapUndo((s) => s.walls);
   const door = walls.find((w) => w.id === selectedDoorId && w.door);
 
@@ -174,7 +205,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
           onChange={(v) => useApp.setState({ wallMode: v as WallMode, selectedDoorId: null })}
           aria-label={t("walls.mode")}
         />
-        {wallMode !== "erase" && (
+        {(wallMode === "wall" || wallMode === "door") && (
           <SegmentedControl
             size="xs"
             data={[
@@ -197,7 +228,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
           </Button>
         </Group>
       </Group>
-      {wallMode !== "erase" && (
+      {(wallMode === "wall" || wallMode === "door") && (
         <Group gap="xs" mt={6} wrap="nowrap">
           <Text size="xs" c="dimmed" style={{ flex: "none" }}>
             {t("walls.thickness")}
@@ -215,18 +246,46 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
           />
         </Group>
       )}
-      <Group gap="xs" mt={6} wrap="nowrap">
-        <Text size="xs" c="dimmed">
-          {t("walls.style")}
-        </Text>
-        <SegmentedControl
-          size="xs"
-          data={WALL_STYLES.map((s) => ({ value: s, label: t(STYLE_LABEL[s]) }))}
-          value={style}
-          onChange={(v) => void act("battle:grid", { wallStyle: v as WallStyle })}
-          aria-label={t("walls.style")}
-        />
-      </Group>
+      {wallMode !== "erase" && (
+        <Group gap="xs" mt={6} wrap="nowrap">
+          <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+            {t("walls.style")}
+          </Text>
+          <Select
+            size="xs"
+            style={{ flex: 1, minWidth: 0 }}
+            data={[{ value: SCENE, label: t("walls.sceneStyle", { style: t(STYLE_LABEL[style]) }) }, ...WALL_STYLES.map((s) => ({ value: s, label: t(STYLE_LABEL[s]) }))]}
+            value={wallDrawStyle ?? SCENE}
+            onChange={(v) => v && useApp.setState({ wallDrawStyle: v === SCENE ? null : (v as WallStyle) })}
+            allowDeselect={false}
+            leftSection={<WallSwatch style={wallDrawStyle ?? style} />}
+            leftSectionWidth={56}
+            renderOption={({ option }) => {
+              const s = option.value === SCENE ? style : (option.value as WallStyle);
+              return (
+                <Group gap="xs" wrap="nowrap">
+                  <WallSwatch style={s} />
+                  <Text size="sm">{option.label}</Text>
+                  {seeThrough(s) && (
+                    <Text size="xs" c="dimmed">
+                      {t("walls.seeThrough")}
+                    </Text>
+                  )}
+                </Group>
+              );
+            }}
+            comboboxProps={{ withinPortal: true }}
+            aria-label={t("walls.style")}
+          />
+          {wallMode === "restyle" && (
+            <Tooltip label={t("walls.restyleAllTip")}>
+              <Button size="compact-xs" variant="default" leftSection={<IconBrush size={12} />} disabled={walls.length === 0} onClick={() => void restyleWalls(walls.map((w) => w.id), wallDrawStyle)}>
+                {t("walls.restyleAll")}
+              </Button>
+            </Tooltip>
+          )}
+        </Group>
+      )}
       {door?.door ? (
         <Stack gap={4} mt={6}>
           <Group gap="md" wrap="wrap">
@@ -253,7 +312,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
         </Stack>
       ) : (
         <Text size="xs" c="dimmed" mt={4}>
-          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "door" ? "walls.hintDoor" : wallSnap ? "walls.hintWall" : "walls.hintWallFree")}
+          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "restyle" ? "walls.hintRestyle" : wallMode === "door" ? "walls.hintDoor" : wallSnap ? "walls.hintWall" : "walls.hintWallFree")}
         </Text>
       )}
     </Paper>

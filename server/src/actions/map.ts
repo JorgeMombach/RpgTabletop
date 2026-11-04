@@ -1,4 +1,4 @@
-import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
+import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
@@ -45,9 +45,12 @@ export function gridColorOf(raw: unknown): string | undefined {
   return raw.toLowerCase() === "#000000" ? undefined : raw.toLowerCase();
 }
 
-/** Estilo das paredes da cena (L5); pedra lavrada é o padrão e fica sem campo. */
+/**
+ * Estilo das paredes da cena (L5); pedra lavrada é o padrão e fica sem campo. Só os que bloqueiam a visão: a
+ * parede sem desenho próprio sempre bloqueia (a visão olha só a parede).
+ */
 export function wallStyleOf(raw: unknown): WallStyle | undefined {
-  if (!WALL_STYLES.includes(raw as WallStyle)) fail("Estilo de parede inválido.");
+  if (!WALL_STYLES.includes(raw as WallStyle) || seeThrough(raw as WallStyle)) fail("Estilo de parede inválido.");
   return raw === "stone" ? undefined : (raw as WallStyle);
 }
 

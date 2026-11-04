@@ -156,6 +156,28 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Pincel de efeitos, só do mestre (ferramenta *Pincel*, E): pinta casa a casa (1, 3×3, 5×5), apagar e desfazer; o mesmo tipo vira um efeito só (`MapEffect.cells`), que liga, transforma e remove. Protótipo aprovado em 2026-11-03.
 - [x] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Desenho aprovado em 2026-11-03: [docs/design/baus.md](design/baus.md) (abre para todos, contagem para escolher, d20 automático na disputa, mestre dá a qualquer momento, armas viram itens que se empunham).
 
+## Cenário (2.13.0, branch `feat/cenario`, combinado em 2026-11-03)
+Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): tudo desenhado por código, com protótipo de cada peça.
+
+### Passo 1. Paredes novas
+- [x] Desenho por parede (`Wall.style`; sem ele vale o da cena). Escolha no painel da ferramenta Paredes (*Desenho*, com amostra); o modo *Trocar desenho* muda as paredes arrastadas por cima e *Todas* muda a cena (em vez de "clicar numa parede": clicar já traça outra).
+- [x] Desenhos novos: tijolo, paliçada, muralha (bloqueiam a visão); cerca de madeira, grade de ferro, arame farpado, sebe, muro baixo de pedra (deixam ver). Protótipo aprovado em 2026-11-03.
+- [x] Portões: porta numa cerca (ou sebe) vira portão de cerca; numa grade ou muralha, portão de ferro. Portão de desenho que deixa ver continua deixando ver fechado.
+- [x] Visão, luz das tochas e *Cômodo* da névoa ignoram as paredes que deixam ver.
+
+### Passo 2. Objetos (ferramenta Objetos, tecla O)
+- [ ] Objeto no mapa (`MapProp`): tipo, posição livre, tamanho, giro, semente (variação), acima ou abaixo dos tokens, bloqueia a visão.
+- [ ] Primeira leva: árvore, arbusto, pedregulho, pedras, tronco caído, toco, entulho, barril, caixote (e pilha), tábuas, mesa, pilar. Com protótipo.
+- [ ] Editar: arrastar, alças de tamanho e giro, *Variar*, camada, bloqueia a visão, Ctrl+Z, Ctrl+C/V, Delete; Shift encaixa no grid.
+- [ ] Objeto que bloqueia entra na visão dos personagens; coberto pela névoa não vai para os jogadores; copa fica meio transparente com token embaixo.
+
+### Passo 3. Pincel de espalhar
+- [ ] Modo *Espalhar* na ferramenta Objetos: conjuntos *Floresta*, *Bosque ralo*, *Pedregal*, *Entulho*; tamanho do pincel e densidade; apagar com o pincel. Com protótipo.
+- [ ] Desempenho: até 800 objetos por cena; medir o WASD com 500.
+
+### Depois (segunda leva de objetos)
+- [ ] Estátua, ossos, altar, barraca, carroça, poço, estante, cama, sacos, cogumelos, flores, ponte de tábuas. Portão de troncos para a paliçada, se pedirem.
+
 ### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
 - [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
 - [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
