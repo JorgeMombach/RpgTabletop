@@ -1238,6 +1238,7 @@ export const ptBR = {
   "creature.undead": "Morto-vivo",
   "about.use.srd": "Monstros do catálogo do bestiário",
   "about.srdNotice": "Este app contém material do System Reference Document 5.1 (\"SRD 5.1\"), da Wizards of the Coast LLC, disponível em https://dnd.wizards.com/resources/systems-reference-document. O SRD 5.1 é licenciado sob a Creative Commons Attribution 4.0 International (https://creativecommons.org/licenses/by/4.0/legalcode).",
+  "about.use.open5e": "Fonte dos dados do SRD 5.1 (monstros do catálogo)",
   "top.round": "Rodada {round}",
   "top.turnOf": " · vez de ",
   "top.yourTurn": "Sua vez!",

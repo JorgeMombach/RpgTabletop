@@ -1231,6 +1231,7 @@ export const en: Partial<Messages> = {
   "creature.undead": "Undead",
   "about.use.srd": "Bestiary catalog monsters",
   "about.srdNotice": "This app includes material from the System Reference Document 5.1 (\"SRD 5.1\") by Wizards of the Coast LLC, available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License (https://creativecommons.org/licenses/by/4.0/legalcode).",
+  "about.use.open5e": "SRD 5.1 data source (catalog monsters)",
   "top.round": "Round {round}",
   "top.turnOf": " · turn of ",
   "top.yourTurn": "Your turn!",

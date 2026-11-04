@@ -34,7 +34,11 @@ O catálogo aceita mais de uma coleção. A primeira é o SRD 5.1, embutida. Dep
 2. **Dados essenciais do SRD 5.1**, traduzidos: nome, tipo, tamanho, ND, vida, CA, iniciativa (mod. DES), atributos e ataques (nome, bônus, dano). Jorge revisa uma amostra dos nomes antes do lote todo.
 3. **Textos das habilidades** (traços, ações especiais, lendárias, resistências, sentidos) nas notas do mestre, traduzidos. Revisão de amostra antes do resto.
 
-## 6. Regras e cuidados
+## 6. Fonte dos dados (fase B)
+
+Open5e (`data/v2/wizards-of-the-coast/srd-2014`), que declara o SRD 5.1 sob CC BY 4.0; o código dela é MIT e não cobre o SRD. A 5e-database foi descartada (arquivada e ainda em OGL). O app gera `server/src/catalog/srd51-entries.ts` com `node scripts/srd51/build.mjs <pasta>`; as traduções ficam em `scripts/srd51/translations.mjs` (Wight = Inumano, decidido pelo Jorge). Bônus e dano saem do texto do ataque: vale o primeiro dano e os que vêm com "plus"; alternativas (duas mãos), dano de salvaguarda e efeitos ficam de fora. Ataque de dano fixo (1 de dano) ou só de efeito (teia) entra sem fórmula. Duas cópias da fonte com ND 0 ("Elf, Drow", "Gnome, Deep") ficam de fora: 323 monstros.
+
+## 7. Regras e cuidados
 
 - **Licença:** SRD 5.1 sob CC BY 4.0. Crédito na tela *Sobre*: "Contém material do System Reference Document 5.1, da Wizards of the Coast LLC, disponível sob a licença Creative Commons Attribution 4.0 International". Conferir a licença da fonte do JSON antes de usar (o conteúdo é livre; o arquivo de cada projeto pode ter regras próprias).
 - **Nomes em português:** alinhar com o que as mesas conhecem quando for nome curto; o texto dos livros oficiais não é aberto e não se copia (só o SRD).

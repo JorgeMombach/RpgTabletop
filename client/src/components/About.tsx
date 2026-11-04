@@ -16,6 +16,7 @@ const CREDITS: { name: string; url: string; license: string; use: MessageKey }[]
   { name: "three.js", url: "https://threejs.org", license: "MIT", use: "about.use.dice3d" },
   { name: "Tabler Icons", url: "https://tabler.io/icons", license: "MIT", use: "about.use.icons" },
   { name: "game-icons.net (Lorc, Delapouite, sbed, Skoll)", url: "https://game-icons.net", license: "CC BY 3.0", use: "about.use.gameIcons" },
+  { name: "Open5e", url: "https://open5e.com", license: "MIT", use: "about.use.open5e" },
   { name: "System Reference Document 5.1 (Wizards of the Coast LLC)", url: "https://dnd.wizards.com/resources/systems-reference-document", license: "CC BY 4.0", use: "about.use.srd" },
   { name: "node-qrcode", url: "https://github.com/soldair/node-qrcode", license: "MIT", use: "about.use.qr" },
   { name: "Alegreya Sans", url: "https://fonts.google.com/specimen/Alegreya+Sans", license: "SIL OFL 1.1", use: "about.use.font" },

@@ -38,7 +38,7 @@ describe("catálogo de monstros", () => {
     const res = await act(g, "catalog:add", { entryId: "srd:young-red-dragon", lang: "es" });
     assert.ok(res.ok, res.ok ? "" : res.error);
     const d = tpl("srd:young-red-dragon")!;
-    assert.equal(d.name, "Dragón Rojo Joven");
+    assert.equal(d.name, "Dragón rojo joven");
     assert.equal(d.source, "srd:young-red-dragon");
     assert.deepEqual([d.hpMax, d.ac, d.dexMod, d.size], [178, 18, 0, "large"]);
     assert.equal(d.attacks?.[0].name, "Mordisco");
@@ -53,7 +53,7 @@ describe("catálogo de monstros", () => {
     assert.notEqual(copy.id, "srd:young-red-dragon");
     assert.equal(copy.name, "Dragão Vermelho Jovem (2)");
     assert.equal(copy.source, "srd:young-red-dragon");
-    assert.match(errorOf(await act(g, "catalog:add", { entryId: "srd:tarrasque", lang: "pt-BR" })), /não está no catálogo/);
+    assert.match(errorOf(await act(g, "catalog:add", { entryId: "srd:beholder", lang: "pt-BR" })), /não está no catálogo/);
   });
 
   it("pôr no mapa cria o modelo e os mobs; já no bestiário, usa o modelo editado do mestre", async () => {
@@ -83,5 +83,26 @@ describe("catálogo de monstros", () => {
     assert.ok((await act(g, "template:upsert", { name: "Caseiro", hpMax: 5, dexMod: 0 })).ok);
     const own = templates().find((t) => t.name === "Caseiro")!;
     assert.match(errorOf(await act(g, "template:restore", { id: own.id, lang: "pt-BR" })), /não veio do catálogo/);
+  });
+});
+
+describe("catálogo SRD 5.1 completo", () => {
+  it("323 monstros, todos traduzidos, com ataques lidos do texto do SRD", async () => {
+    const { SRD51 } = await import("../src/catalog/srd51");
+    const all = SRD51.entries;
+    assert.equal(all.length, 323);
+    assert.equal(new Set(all.map((e) => e.id)).size, 323, "ids sem repetir");
+    for (const e of all) {
+      for (const lang of ["pt-BR", "en", "es"] as const) assert.ok(e.name[lang], `${e.id} sem nome em ${lang}`);
+      for (const a of e.attacks) for (const lang of ["pt-BR", "en", "es"] as const) assert.ok(a.name[lang], `${e.id}: ataque sem nome em ${lang}`);
+    }
+    const by = (id: string) => all.find((e) => e.id === id)!;
+    // Alternativa "com as duas mãos" não soma; "plus" soma; dano de salvaguarda não entra.
+    assert.equal(by("srd:guard").attacks[0].damage, "1d6+1");
+    assert.equal(by("srd:mummy").attacks[0].damage, "5d6+3");
+    assert.equal(by("srd:imp").attacks[0].damage, "1d4+3");
+    assert.deepEqual(by("srd:wight").name, { "pt-BR": "Inumano", en: "Wight", es: "Tumulario" });
+    assert.deepEqual(by("srd:ancient-gold-dragon").name, { "pt-BR": "Dragão de Ouro Ancião", en: "Ancient Gold Dragon", es: "Dragón de oro anciano" });
+    assert.equal(by("srd:kobold").cr, "1/8");
   });
 });
