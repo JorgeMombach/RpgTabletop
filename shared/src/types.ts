@@ -340,6 +340,14 @@ export type RollTerm =
       rolls: number[];
       /** Com vantagem/desvantagem: índice do dado que valeu (o outro é descartado). */
       keptIndex?: number;
+      /** `kh`/`kl`: fica com os `n` maiores (`high`) ou menores; os outros dados não somam. */
+      keep?: { high: boolean; n: number };
+      /** Índices dos dados descartados pelo `keep` (aparecem riscados no log). */
+      dropped?: number[];
+      /** `!`: dado que tira o máximo rola de novo; as rolagens extras vêm depois, em `rolls`. */
+      explode?: true;
+      /** `dF`: dados Fate, valem −1, 0 ou +1 (`faces` = 3). */
+      fate?: true;
     }
   | { kind: "const"; sign: 1 | -1; value: number };
 

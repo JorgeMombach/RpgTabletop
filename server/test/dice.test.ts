@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ClientState } from "@rpg/shared";
+import { LIMITS, type ClientState } from "@rpg/shared";
 import { roll, type Rng } from "../src/dice";
 import { ActionError } from "../src/validate";
 import { act, join, stateWhere, useServer } from "./helpers";
@@ -112,5 +112,56 @@ describe("log compartilhado", () => {
     const res = await act(pl, "dice:roll", { expr: "1d20+banana" });
     assert.equal(res.ok, false);
     assert.match(res.ok ? "" : res.error, /banana/);
+  });
+});
+
+// Passo 5 (backlog, "Mesa completa"): fórmulas de outros sistemas.
+describe("dados de outros sistemas", () => {
+  const dice = (r: ReturnType<typeof roll>, i = 0) => {
+    const t = r.terms[i];
+    assert.ok(t.kind === "dice");
+    return t;
+  };
+
+  it("kh/kl ficam com os maiores ou menores; os outros vão riscados", () => {
+    const r = roll("4d6kh3", "normal", seq(2, 6, 1, 5));
+    assert.equal(r.expr, "4d6kh3");
+    assert.equal(r.total, 6 + 5 + 2);
+    assert.deepEqual(dice(r).dropped, [2]);
+    const low = roll("2d20kl1+3", "normal", seq(17, 4));
+    assert.equal(low.expr, "2d20kl1+3");
+    assert.equal(low.total, 4 + 3);
+    assert.deepEqual(dice(low).dropped, [0]);
+    // Sem número: fica com um (Ordem Paranormal: 3d20kh).
+    const op = roll("3d20kh", "normal", seq(8, 19, 11));
+    assert.equal(op.expr, "3d20kh1");
+    assert.equal(op.total, 19);
+  });
+
+  it("dado que explode rola de novo no máximo, e as explosões contam para o kh", () => {
+    const r = roll("2d6!", "normal", seq(6, 6, 3, 2));
+    assert.equal(r.expr, "2d6!");
+    assert.deepEqual(dice(r).rolls, [6, 6, 3, 2]);
+    assert.equal(r.total, 17);
+    const k = roll("2d6!kh1", "normal", seq(6, 4, 2));
+    assert.deepEqual(dice(k).rolls, [6, 4, 2]);
+    assert.equal(k.total, 6, "fica com o maior dado, não com a soma da explosão");
+    // Corrente sem fim (d2 sempre 2): para no limite de dados da rolagem.
+    const chain = roll("1d2!", "normal", seq(2));
+    assert.equal(dice(chain).rolls.length, LIMITS.dice.count);
+  });
+
+  it("dados Fate valem −1, 0 ou +1", () => {
+    const r = roll("4dF+1", "normal", seq(1, 2, 3, 3));
+    assert.equal(r.expr, "4dF+1");
+    assert.deepEqual(dice(r).rolls, [-1, 0, 1, 1]);
+    assert.equal(dice(r).fate, true);
+    assert.equal(r.total, 2);
+  });
+
+  it("recusa combinações que não fazem sentido", () => {
+    assert.throws(() => roll("2d6kh3"), (e: unknown) => e instanceof ActionError && /ficar com 3 de 2/.test(e.message));
+    assert.throws(() => roll("4dF!"), ActionError);
+    assert.throws(() => roll("2d20kh1", "adv"), (e: unknown) => e instanceof ActionError && /Vantagem/.test(e.message));
   });
 });

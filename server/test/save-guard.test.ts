@@ -98,6 +98,8 @@ function fullGame(playerId: string, gmId: string): GameState {
       mode: "adv",
       terms: [
         { kind: "dice", sign: 1, count: 2, faces: 20, rolls: [17, 4], keptIndex: 0 },
+        { kind: "dice", sign: 1, count: 2, faces: 6, rolls: [6, 3, 2], explode: true, keep: { high: true, n: 1 }, dropped: [1, 2] },
+        { kind: "dice", sign: 1, count: 2, faces: 3, rolls: [-1, 1], fate: true },
         { kind: "const", sign: 1, value: 5 },
       ],
       total: 22,

@@ -196,9 +196,9 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 ## Mesa completa (ainda na 2.13.0, brainstorm aprovado em 2026-11-04)
 Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o que dá mais retorno pelo esforço primeiro; o grid hexagonal por último. Peça visual nova passa por protótipo antes. Continua valendo o ADR-06: o app registra, não aplica regra.
 
-### Passo 5. Dados de outros sistemas (P–M)
-- [ ] Fórmulas novas: `kh`/`kl` (fica com os maiores/menores: `2d20kh1`, `4d6kh3`), dado que explode (`d6!`) e dados Fate (`4dF`). Log mostra os dados descartados riscados.
-- [ ] Abre o app para Ordem Paranormal (vários d20, fica com o maior) e Tormenta20, além de outros sistemas.
+### Passo 5. Dados de outros sistemas (P–M, feito em 2026-11-04)
+- [x] Fórmulas novas: `kh`/`kl` (fica com os maiores/menores: `2d20kh1`, `4d6kh3`), dado que explode (`d6!`) e dados Fate (`4dF`). Log mostra os dados descartados riscados.
+- [x] Abre o app para Ordem Paranormal (vários d20, fica com o maior) e Tormenta20, além de outros sistemas.
 
 ### Passo 6. Chat e sussurro (M)
 - [ ] Mensagem de texto no log, junto com as rolagens.

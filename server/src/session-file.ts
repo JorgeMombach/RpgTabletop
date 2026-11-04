@@ -427,9 +427,18 @@ function rollTerm(raw: unknown): RollTerm {
   if (t.kind === "const") return { kind: "const", sign, value: int(t.value, "rolagem", 0, LIMITS.dice.constant) };
   if (t.kind !== "dice") fail("Arquivo inválido: rolagem.");
   const faces = int(t.faces, "rolagem", 1, LIMITS.dice.faces.max);
-  const rolls = list(t.rolls, "rolagem", LIMITS.dice.count).map((v) => int(v, "rolagem", 1, faces));
+  // Fate (2.13): −1, 0 ou +1.
+  const fate = t.fate !== undefined && bool(t.fate, "rolagem");
+  const rolls = list(t.rolls, "rolagem", LIMITS.dice.count).map((v) => (fate ? int(v, "rolagem", -1, 1) : int(v, "rolagem", 1, faces)));
   const term: RollTerm = { kind: "dice", sign, count: int(t.count, "rolagem", 1, LIMITS.dice.count), faces, rolls };
   if (t.keptIndex !== undefined) term.keptIndex = int(t.keptIndex, "rolagem", 0, rolls.length - 1);
+  if (fate) term.fate = true;
+  if (t.explode !== undefined && bool(t.explode, "rolagem")) term.explode = true;
+  if (t.keep !== undefined) {
+    const k = obj(t.keep, "rolagem");
+    term.keep = { high: bool(k.high, "rolagem"), n: int(k.n, "rolagem", 1, term.count) };
+    term.dropped = list(t.dropped ?? [], "rolagem", LIMITS.dice.count).map((v) => int(v, "rolagem", 0, rolls.length - 1));
+  }
   return term;
 }
 

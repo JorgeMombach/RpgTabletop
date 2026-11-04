@@ -3,8 +3,10 @@ import {
   Alert,
   Button,
   Checkbox,
+  Code,
   Divider,
   Group,
+  Menu,
   MultiSelect,
   NumberInput,
   SegmentedControl,
@@ -16,7 +18,7 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { IconSparkles, IconSword, IconWindowMaximize } from "@tabler/icons-react";
+import { IconHelpCircle, IconSparkles, IconSword, IconWindowMaximize } from "@tabler/icons-react";
 import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode, type SavedAttack } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
@@ -128,6 +130,39 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 /** `inline` = tela de celular (E23): o log fica sempre no painel, sem janela flutuante. */
+/** Fórmulas de outros sistemas (Passo 5): exemplos prontos; clicar põe no campo. */
+const FORMULAS: { expr: string; key: MessageKey }[] = [
+  { expr: "2d20kh1", key: "dice.formulaKh" },
+  { expr: "3d20kh1", key: "dice.formulaOp" },
+  { expr: "4d6kh3", key: "dice.formulaStats" },
+  { expr: "2d20kl1", key: "dice.formulaKl" },
+  { expr: "3d6!", key: "dice.formulaExplode" },
+  { expr: "4dF", key: "dice.formulaFate" },
+];
+
+function FormulaHelp({ onPick }: { onPick: (expr: string) => void }) {
+  const t = useT();
+  return (
+    <Menu position="bottom-end" withinPortal width={280}>
+      <Menu.Target>
+        <Tooltip label={t("dice.formulas")}>
+          <ActionIcon variant="subtle" color="gray" aria-label={t("dice.formulas")}>
+            <IconHelpCircle size={16} />
+          </ActionIcon>
+        </Tooltip>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t("dice.formulas")}</Menu.Label>
+        {FORMULAS.map(({ expr, key }) => (
+          <Menu.Item key={expr} onClick={() => onPick(expr)} leftSection={<Code>{expr}</Code>}>
+            <Text size="xs">{t(key)}</Text>
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
 export function DicePanel({ state, inline = false }: { state: ClientState; inline?: boolean }) {
   const t = useT();
   const logDetached = useApp((s) => s.logDetached) && !inline;
@@ -349,6 +384,7 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
           onChange={(e) => setExpr(e.currentTarget.value)}
           placeholder={t("dice.exprPlaceholder")}
           aria-label={t("dice.expr")}
+          rightSection={<FormulaHelp onPick={setExpr} />}
         />
         <Button type="submit" disabled={blocked || !expr.trim()}>
           {t("dice.roll")}

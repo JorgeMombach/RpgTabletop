@@ -108,9 +108,17 @@ const SHINE_MS = 8000;
 
 /** Valor natural do d20 que valeu, para destacar 20 e 1. */
 export function naturalD20(terms: RollTerm[]): number | null {
-  const d = terms.find((t) => t.kind === "dice" && t.faces === 20 && (t.count === 1 || t.keptIndex !== undefined));
+  // Um d20 só que valeu: 1d20, vantagem/desvantagem ou "fica com um" (2d20kh1, Ordem Paranormal). Explodindo, não.
+  const d = terms.find((t) => t.kind === "dice" && t.faces === 20 && !t.explode && (t.keptIndex !== undefined || (t.keep ? t.keep.n === 1 : t.count === 1)));
   if (!d || d.kind !== "dice") return null;
-  return d.rolls[d.keptIndex ?? 0];
+  if (d.keptIndex !== undefined) return d.rolls[d.keptIndex];
+  return d.rolls.find((_, j) => !d.dropped?.includes(j)) ?? null;
+}
+
+/** Como o dado aparece no log: Fate vira +, − ou espaço em branco (0). */
+function faceText(t: Extract<RollTerm, { kind: "dice" }>, v: number): string {
+  if (!t.fate) return String(v);
+  return v > 0 ? "+" : v < 0 ? "−" : "0";
 }
 
 /** Tom do d20 natural (L6): 20 = crítico (ouro), 1 = falha (sangue). */
@@ -146,21 +154,25 @@ function RollBody({ entry }: { entry: LogEntry }) {
               <Group key={i} gap={3} wrap="nowrap">
                 {t.sign < 0 && <Text size="xs">−</Text>}
                 {t.rolls.map((v, j) => {
-                  const dropped = t.keptIndex !== undefined && t.keptIndex !== j;
+                  const dropped = (t.keptIndex !== undefined && t.keptIndex !== j) || !!t.dropped?.includes(j);
+                  // Dado que explodiu (tirou o máximo e rolou de novo): borda em bronze e "!" na dica.
+                  const exploded = !!t.explode && v === t.faces;
                   // O d20 que valeu, pintado (L6); o descartado fica apagado.
-                  const color = dropped || t.faces !== 20 ? "gray" : v === 20 ? GOLD : v === 1 ? "red.6" : "gray";
+                  const color = dropped || t.faces !== 20 || t.fate ? "gray" : v === 20 ? GOLD : v === 1 ? "red.6" : "gray";
+                  const name = t.fate ? "dF" : `d${t.faces}`;
                   return (
-                    <Tooltip key={j} label={`d${t.faces}${dropped ? ` ${tr("log.dropped")}` : ""}`}>
+                    <Tooltip key={j} label={`${name}${exploded ? ` ${tr("log.exploded")}` : ""}${dropped ? ` ${tr("log.dropped")}` : ""}`}>
                       <Badge
                         size="sm"
                         radius="sm"
-                        variant={color === "gray" ? "default" : "filled"}
-                        color={color}
+                        variant={color === "gray" ? (exploded ? "outline" : "default") : "filled"}
+                        color={exploded && color === "gray" ? "bronze" : color}
                         autoContrast
                         miw={24}
                         style={dropped ? { opacity: 0.4, textDecoration: "line-through" } : undefined}
                       >
-                        {v}
+                        {faceText(t, v)}
+                        {exploded && "!"}
                       </Badge>
                     </Tooltip>
                   );

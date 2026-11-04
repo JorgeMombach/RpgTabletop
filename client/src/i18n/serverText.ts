@@ -6,6 +6,8 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "Dado Fate não explode.": ["Fate dice don't explode.", "Los dados Fate no explotan."],
+  "Não dá para ficar com {n} de {count} dados.": ["Can't keep {n} of {count} dice.", "No se puede quedar con {n} de {count} dados."],
   "A mesa passaria de {n} personagens.": ["The table would go over {n} characters.","La mesa pasaría de {n} personajes."],
   "Arquivo inválido: fichas repetidas.": ["Invalid file: repeated sheets.","Archivo no válido: fichas repetidas."],
   "Escolha o que fazer com {name}.": ["Choose what to do with {name}.","Elige qué hacer con {name}."],
