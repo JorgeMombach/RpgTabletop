@@ -6,6 +6,11 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "Esse modelo não veio do catálogo.": ["This template didn't come from the catalog.","Esta plantilla no vino del catálogo."],
+  "Esse monstro não está no catálogo.": ["That monster isn't in the catalog.","Ese monstruo no está en el catálogo."],
+  "Monstro": ["Monster","Monstruo"],
+  "origem do template": ["template source","origen de la plantilla"],
+  "{name} já está no bestiário.": ["{name} is already in the bestiary.","{name} ya está en el bestiario."],
   "Direção": ["Facing","Dirección"],
   "altura": ["height","altura"],
   "direção": ["facing","dirección"],

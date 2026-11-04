@@ -1,17 +1,18 @@
-import { ActionIcon, Button, Checkbox, Group, Modal, NumberInput, Paper, Stack, Text, Tooltip } from "@mantine/core";
-import { IconBook2, IconPaw, IconPencil, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, SegmentedControl, Stack, Text, Tooltip } from "@mantine/core";
+import { IconBook2, IconPaw, IconPencil, IconRestore, IconTrash } from "@tabler/icons-react";
 import { LIMITS, MOB_COLORS, type MobTemplate } from "@rpg/shared";
 import { useState } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { fmtMod } from "../format";
-import { useT } from "../i18n";
+import { useLang, useT } from "../i18n";
 import { Abbr } from "./Abbr";
 import { CombatantAvatar } from "./CombatantAvatar";
 import { CombatantForm } from "./CombatantForm";
 import { EmptyState } from "./EmptyState";
 import { Panel } from "./Panel";
 import { SheetFileMenu } from "./SheetFileMenu";
+import { CatalogTab } from "./CatalogTab";
 import { downloadMonsters } from "../sheetFiles";
 
 type Mode = { kind: "none" } | { kind: "newTemplate" } | { kind: "newMob" } | { kind: "edit"; id: string };
@@ -20,10 +21,32 @@ type Mode = { kind: "none" } | { kind: "newTemplate" } | { kind: "newMob" } | { 
 export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
   const t = useT();
   const [mode, setMode] = useState<Mode>({ kind: "none" });
+  const [tab, setTab] = useState<BestiaryTab>(templates.length === 0 ? "catalog" : "mine");
   return (
-    <Panel title={t("bestiary.title")} anchor="bestiary" aside={mode.kind === "none" && <BestiaryActions setMode={setMode} templates={templates} />}>
-      <BestiaryBody templates={templates} mode={mode} setMode={setMode} />
+    <Panel title={t("bestiary.title")} anchor="bestiary" aside={tab === "mine" && mode.kind === "none" && <BestiaryActions setMode={setMode} templates={templates} />}>
+      <TabSwitch tab={tab} setTab={setTab} count={templates.length} />
+      {tab === "mine" ? <BestiaryBody templates={templates} mode={mode} setMode={setMode} /> : <CatalogTab templates={templates} />}
     </Panel>
+  );
+}
+
+/** Abas do bestiário (Passo 12): os modelos do mestre e o catálogo embutido. */
+type BestiaryTab = "mine" | "catalog";
+
+function TabSwitch({ tab, setTab, count }: { tab: BestiaryTab; setTab: (t: BestiaryTab) => void; count: number }) {
+  const t = useT();
+  return (
+    <SegmentedControl
+      fullWidth
+      size="xs"
+      value={tab}
+      onChange={(v) => setTab(v as BestiaryTab)}
+      data={[
+        { value: "mine", label: t("catalog.mine", { n: count }) },
+        { value: "catalog", label: t("catalog.tab") },
+      ]}
+      aria-label={t("bestiary.title")}
+    />
   );
 }
 
@@ -31,6 +54,7 @@ export function BestiaryPanel({ templates }: { templates: MobTemplate[] }) {
 export function BestiaryModal({ templates, opened, onClose }: { templates: MobTemplate[]; opened: boolean; onClose: () => void }) {
   const t = useT();
   const [mode, setMode] = useState<Mode>({ kind: "none" });
+  const [tab, setTab] = useState<BestiaryTab>(templates.length === 0 ? "catalog" : "mine");
   const close = () => {
     setMode({ kind: "none" });
     onClose();
@@ -38,12 +62,13 @@ export function BestiaryModal({ templates, opened, onClose }: { templates: MobTe
   return (
     <Modal opened={opened} onClose={close} title={t("bestiary.title")} size="md">
       <Stack gap="sm">
-        {mode.kind === "none" && (
+        <TabSwitch tab={tab} setTab={setTab} count={templates.length} />
+        {tab === "mine" && mode.kind === "none" && (
           <Group justify="flex-end">
             <BestiaryActions setMode={setMode} templates={templates} />
           </Group>
         )}
-        <BestiaryBody templates={templates} mode={mode} setMode={setMode} onAdded={close} />
+        {tab === "mine" ? <BestiaryBody templates={templates} mode={mode} setMode={setMode} onAdded={close} /> : <CatalogTab templates={templates} onAdded={close} />}
       </Stack>
     </Modal>
   );
@@ -161,6 +186,12 @@ function TemplateRow({ t: tpl, onEdit, onAdded }: { t: MobTemplate; onEdit: () =
     if (ok) void act("template:remove", { id: tpl.id });
   }
 
+  /** Volta vida, CA, atributos e ataques aos do catálogo; nome, cor e imagem ficam (Passo 12). */
+  async function restore() {
+    const ok = await confirmAction({ title: t("catalog.restoreTitle", { name: tpl.name }), message: t("catalog.restoreMessage"), confirmLabel: t("catalog.restore") });
+    if (ok) void act("template:restore", { id: tpl.id, lang: useLang.getState().lang });
+  }
+
   return (
     <Paper p="xs" bg="dark.7">
       <Stack gap="xs">
@@ -170,6 +201,13 @@ function TemplateRow({ t: tpl, onEdit, onAdded }: { t: MobTemplate; onEdit: () =
             <Text size="sm" truncate title={tpl.notes ? `${tpl.name} — ${tpl.notes}` : tpl.name}>
               {tpl.animal && <IconPaw size={14} style={{ verticalAlign: -2, marginRight: 4 }} aria-label={t("kind.animal")} />}
               {tpl.name}
+              {tpl.source && (
+                <Tooltip label={t("catalog.sourceTip")}>
+                  <Badge size="xs" variant="outline" color="bronze" ml={6} style={{ verticalAlign: 1 }}>
+                    SRD
+                  </Badge>
+                </Tooltip>
+              )}
             </Text>
             <Text size="xs" c="dimmed">
               {t("bestiary.hp", { n: tpl.hpMax })}
@@ -183,6 +221,13 @@ function TemplateRow({ t: tpl, onEdit, onAdded }: { t: MobTemplate; onEdit: () =
               <Abbr title={t("selected.initTip")}>{t("selected.init")}</Abbr> {fmtMod(tpl.dexMod)}
             </Text>
           </div>
+          {tpl.source && (
+            <Tooltip label={t("catalog.restoreTip")}>
+              <ActionIcon size="sm" onClick={() => void restore()} aria-label={t("catalog.restore")}>
+                <IconRestore size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           <Tooltip label={t("bestiary.edit")}>
             <ActionIcon size="sm" onClick={onEdit} aria-label={t("bestiary.editOf", { name: tpl.name })}>
               <IconPencil size={16} />

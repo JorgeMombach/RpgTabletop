@@ -2,6 +2,7 @@
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind } from "./types";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
+import type { CatalogCollection, CatalogLang } from "./catalog";
 
 export interface JoinPayload {
   name: string;
@@ -128,6 +129,13 @@ export interface ActionPayloads {
   /** Mestre: volta a ficha que um jogador substituiu pela do arquivo. */
   "sheet:undo": { id: string };
   "template:upsert": TemplateInput;
+  /**
+   * Mestre: copia um monstro do catálogo para o bestiário (Passo 12), com o nome no idioma dele. `place`: quantos
+   * mobs já pôr em campo. Se o monstro já está no bestiário, `place` usa o modelo de lá e `copy` cria outra cópia.
+   */
+  "catalog:add": { entryId: string; lang: CatalogLang; place?: number; copy?: boolean };
+  /** Mestre: volta os números de um modelo copiado do catálogo aos originais (nome, cor e imagem ficam). */
+  "template:restore": { id: string; lang: CatalogLang };
   "template:remove": { id: string };
   "mob:addFromTemplate": { templateId: string; qty: number; hidden?: boolean };
   "mob:add": CombatantInput;
@@ -447,6 +455,8 @@ export type ClientToServerEvents = ActionEvents & {
   "session:import": (file: unknown, ack: (res: ActionResult) => void) => void;
   /** Mestre: ver o mapa como um jogador (Passo 11); `null` volta à visão do mestre. Chega em `view:preview`. */
   "view:as": (playerId: string | null) => void;
+  /** Mestre: as coleções do catálogo de monstros (Passo 12). */
+  "catalog:list": (ack: (res: { ok: true; collections: CatalogCollection[] } | ActionFailure) => void) => void;
   /** Confere um arquivo de fichas (valida e compara com a mesa), sem alterar nada. */
   "sheets:check": (file: unknown, ack: (res: SheetCheckResult) => void) => void;
   /** Mestre: efeito sonoro para todos, uma vez (E25). Não fica no estado. */

@@ -9,6 +9,7 @@ import { magicHandlers } from "./magic";
 import { mapHandlers } from "./map";
 import { sheetHandlers } from "./sheet";
 import { sheetFileHandlers } from "./sheetFiles";
+import { catalogHandlers } from "./catalog";
 import { soundHandlers } from "./sound";
 import { fogHandlers } from "./fog";
 import { handoutHandlers } from "./handout";
@@ -40,5 +41,6 @@ export const handlers: HandlerMap = {
   ...soundHandlers,
   ...sheetHandlers,
   ...sheetFileHandlers,
+  ...catalogHandlers,
   ...weatherHandlers,
 };

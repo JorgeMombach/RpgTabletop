@@ -2841,3 +2841,10 @@ button[data-disabled] > .ability-cell {
   gap: var(--mantine-spacing-xl);
   align-items: start;
 }
+
+/* Catálogo de monstros (Passo 12): os seis atributos do resumo, em caixinhas. */
+.catalog-ability {
+  background: var(--mantine-color-dark-6);
+  border-radius: 4px;
+  padding: 2px 0;
+}

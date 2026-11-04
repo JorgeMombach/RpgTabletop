@@ -84,7 +84,7 @@ export function characterSheet(c: Combatant | CharacterSheet, notes = true): Cha
   return s;
 }
 
-const TEMPLATE_KEYS = ["ac", "abilities", "size", "avatar", "description", "notes", "animal", "boss", "phases", "attacks"] as const satisfies readonly (keyof MobTemplate)[];
+const TEMPLATE_KEYS = ["ac", "abilities", "size", "avatar", "description", "notes", "animal", "boss", "phases", "attacks", "source"] as const satisfies readonly (keyof MobTemplate)[];
 
 /** Modelo do bestiário com os campos em ordem fixa (para comparar). */
 export function templateSheet(t: MobTemplate): MobTemplate {

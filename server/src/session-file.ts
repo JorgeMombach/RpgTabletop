@@ -334,6 +334,9 @@ function template(raw: unknown): MobTemplate {
   if (t.phases !== undefined) out.phases = bossPhases(t.phases);
   // Arquivos anteriores à 2.12 não têm.
   if (t.attacks !== undefined) out.attacks = list(t.attacks, "ataques do template", LIMITS.attacks).map(savedAttack);
+  // Origem no catálogo (2.13); arquivos antigos não têm.
+  const source = optText(t.source, "origem do template", 64);
+  if (source) out.source = source;
   return out;
 }
 

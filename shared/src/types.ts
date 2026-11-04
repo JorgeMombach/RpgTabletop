@@ -254,6 +254,8 @@ export interface MobTemplate {
   phases?: BossPhase[];
   /** Ataques que os mobs e NPCs criados com o template já trazem (cada um com cópia própria). */
   attacks?: SavedAttack[];
+  /** Copiado do catálogo (Passo 12): a origem ("srd:goblin"), para a etiqueta e o Restaurar original. */
+  source?: string;
 }
 
 export interface MapConfig {

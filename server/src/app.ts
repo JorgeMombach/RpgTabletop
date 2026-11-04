@@ -21,6 +21,7 @@ import type { Handler } from "./actions/types";
 import { hostInfo, roleOf, type RoleRules } from "./net";
 import { exportSession, importSession } from "./session-file";
 import { checkSheets } from "./actions/sheetFiles";
+import { CATALOG } from "./catalog/srd51";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
@@ -317,6 +318,14 @@ export function createApp(opts: AppOptions) {
       }
       broadcast();
       ack({ ok: true });
+    });
+
+    // Catálogo de monstros (Passo 12): só o mestre; o cliente pede ao abrir a aba.
+    socket.on("catalog:list", (ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Sem permissão para essa ação." });
+      ack({ ok: true, collections: CATALOG });
     });
 
     // Ver como jogador (Passo 11): só o mestre; null volta à visão dele.
