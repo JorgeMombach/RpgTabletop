@@ -6,6 +6,7 @@ import { returnToTable } from "../logWindow";
 import { useApp } from "../store";
 import { D20Emblem } from "./D20Emblem";
 import { RollLog } from "./RollLog";
+import { ChatBar } from "./ChatBar";
 
 /** Página da janela do log (`?janela=log`): só o log de rolagens, ao vivo, ocupando a janela toda. */
 export function LogWindow() {
@@ -38,6 +39,9 @@ export function LogWindow() {
           {t("logWindow.back")}
         </Button>
       </Group>
+      <div className="log-chat">
+        <ChatBar />
+      </div>
       <div className="log-window-body">
         <RollLog log={state.log} selfId={state.self.id} />
       </div>

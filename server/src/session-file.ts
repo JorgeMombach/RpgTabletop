@@ -487,6 +487,13 @@ function logEntry(raw: unknown): LogEntry {
   }
   if (e.gm === true) out.gm = true;
   if (typeof e.subjectId === "string" && e.subjectId.length <= 64) out.subjectId = e.subjectId;
+  // Chat, sussurro e rolagem secreta (2.13); arquivos antigos não têm.
+  if (e.chat === true) out.chat = true;
+  if (e.secret === true) out.secret = true;
+  if (e.whisper !== undefined) {
+    const w = obj(e.whisper, "log");
+    out.whisper = { to: requireString(w.to, "Log"), toName: text(w.toName, "log", 64) };
+  }
   return out;
 }
 
@@ -727,7 +734,11 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
     // O estado de antes de Transformar também tem dono: ao voltar a ele, continua com quem controlava.
     if (e.revertTo) e.revertTo.ownerId = owner(e.revertTo.ownerId);
   }
-  for (const e of game.log) e.authorId = owner(e.authorId);
+  for (const e of game.log) {
+    e.authorId = owner(e.authorId);
+    // Sussurro para um jogador: religa como o autor ("gm" é sempre o mestre de agora).
+    if (e.whisper && e.whisper.to !== "gm") e.whisper.to = owner(e.whisper.to);
+  }
   for (const d of [...game.battle.drawings, ...game.scenes.flatMap((sc) => sc.stored?.drawings ?? [])]) if (d.authorId) d.authorId = owner(d.authorId);
 
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.

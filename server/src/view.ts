@@ -1,4 +1,4 @@
-import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
+import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type LogEntry, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
@@ -143,7 +143,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       fog,
       sight: visible,
     },
-    log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
+    log: gm ? game.log : game.log.filter((e) => visibleEntry(e, player.id)).map((e) => (e.secret && e.roll ? blindEntry(e) : e)),
     sceneId: game.sceneId,
     rules: game.rules,
     lootSeconds: game.lootSeconds,
@@ -159,4 +159,19 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     soundLibrary: gm ? store.soundLibrary : undefined,
     host: gm ? host : undefined,
   };
+}
+
+/**
+ * Entrada do log que um jogador recebe: rolagem oculta do mestre e rolagem secreta só para quem rolou;
+ * sussurro (Passo 6) só para quem escreveu e quem recebe (o mestre recebe tudo, nem passa por aqui).
+ */
+function visibleEntry(e: LogEntry, playerId: string): boolean {
+  if (e.whisper) return e.authorId === playerId || e.whisper.to === playerId;
+  if (e.hidden || e.secret) return e.authorId === playerId;
+  return true;
+}
+
+/** Rolagem secreta na tela de quem rolou: às cegas, sem os dados nem o total (nem no texto). */
+function blindEntry(e: LogEntry): LogEntry {
+  return { ...e, text: e.label ?? "", roll: { expr: e.roll!.expr, mode: e.roll!.mode, terms: [], total: 0 } };
 }

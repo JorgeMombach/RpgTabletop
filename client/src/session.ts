@@ -1,6 +1,7 @@
 import { shareEqual } from "@rpg/shared";
 import { socket } from "./socket";
 import { act } from "./actions";
+import { rollerName } from "./format";
 import { logText, t } from "./i18n";
 import { pushHits } from "./map/hits";
 import { toast } from "./notify";
@@ -135,7 +136,13 @@ socket.on("state:full", (incoming) => {
   const seen = new Set(previous.log.map((e) => e.id));
   const gm = state.self.role === "gm";
   for (const e of state.log) {
-    if (!e.system || seen.has(e.id)) continue;
+    if (seen.has(e.id)) continue;
+    // Sussurro que chegou (Passo 6): avisa, o log pode estar fechado.
+    if (e.whisper && e.authorId !== state.self.id) {
+      toast({ kind: "info", text: t("chat.whisperToast", { name: rollerName(e), text: e.text }) }, 10_000);
+      continue;
+    }
+    if (!e.system) continue;
     // Jogador substituiu a ficha pelo arquivo (Fase 4): o mestre pode voltar a anterior.
     const id = e.textParams?.id;
     if (gm && e.textKey === SHEET_REPLACED && typeof id === "string") {

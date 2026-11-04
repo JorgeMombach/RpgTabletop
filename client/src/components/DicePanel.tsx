@@ -31,6 +31,7 @@ import { Panel } from "./Panel";
 import { rollLock } from "../rollLock";
 import { attacksOf } from "../weapons";
 import { naturalD20, RollLog } from "./RollLog";
+import { ChatBar } from "./ChatBar";
 
 const MODES: { value: RollMode; label: MessageKey }[] = [
   { value: "normal", label: "dice.normal" },
@@ -179,6 +180,8 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   const [crit, setCrit] = useState(false);
   // Mestre rola atrás do escudo por padrão (SPEC E16); desmarca para mostrar.
   const [hidden, setHidden] = useState(gm);
+  // Jogador: rolagem às cegas, só o mestre vê o resultado (Passo 6).
+  const [secret, setSecret] = useState(false);
   const selectedId = useApp((s) => s.selectedId);
   const rolling = useApp((s) => s.rolling);
   // Ataque salvo escolhido: o dano dele sai com o nome no log, enquanto o campo de dano não mudar.
@@ -223,7 +226,7 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   }
 
   async function roll(payload: ActionPayloads["dice:roll"]) {
-    return act("dice:roll", { ...payload, hidden: gm && hidden, asId: gm && asId !== AS_MASTER ? asId : undefined });
+    return act("dice:roll", { ...payload, hidden: gm && hidden, secret: !gm && secret, asId: gm && asId !== AS_MASTER ? asId : undefined });
   }
 
   function rollDie(faces: number) {
@@ -391,7 +394,13 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
         </Button>
       </Group>
 
-      {gm && <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label={t("dice.hidden")} />}
+      {gm ? (
+        <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label={t("dice.hidden")} />
+      ) : (
+        <Tooltip label={t("dice.secretTip")} multiline w={260}>
+          <Checkbox checked={secret} onChange={(e) => setSecret(e.currentTarget.checked)} label={t("dice.secret")} w="fit-content" />
+        </Tooltip>
+      )}
 
       <Divider />
       <LogHeader canDetach={!inline} />
@@ -409,7 +418,10 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
           {t("dice.logFloating")}
         </Text>
       ) : (
-        <RollLog log={state.log} selfId={state.self.id} />
+        <>
+          <ChatBar />
+          <RollLog log={state.log} selfId={state.self.id} />
+        </>
       )}
     </Panel>
   );

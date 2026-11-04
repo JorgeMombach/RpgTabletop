@@ -3,7 +3,7 @@ import type { LogEntry, RollTerm } from "@rpg/shared";
 import { rollerName } from "../format";
 import { logLabel, logText, t as tr, useLang, useT } from "../i18n";
 import { EmptyState } from "./EmptyState";
-import { IconDice5 } from "@tabler/icons-react";
+import { IconDice5, IconEyeOff, IconLock } from "@tabler/icons-react";
 import { useApp } from "../store";
 
 /** Ouro do 20 natural (L6), o mesmo do resultado no mapa. */
@@ -66,12 +66,14 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
   const shine = tone === "crit" && !reduceFx && Date.now() - e.ts < SHINE_MS;
   // "Personagem (jogador)"; do lado do mestre, "Goblin 2 (Mestre)" (E26).
   const author = rollerName(e);
+  // Rolagem secreta na tela de quem rolou: só a expressão, às cegas (Passo 6).
+  const blind = !!e.secret && !!e.roll && e.roll.terms.length === 0;
   return (
     <Paper
       p="xs"
       bg="dark.7"
-      className={tone ? `roll-entry roll-${tone}${shine ? " shine" : ""}` : undefined}
-      style={e.hidden ? { borderStyle: "dashed" } : undefined}
+      className={tone ? `roll-entry roll-${tone}${shine ? " shine" : ""}` : e.whisper ? "log-whisper" : undefined}
+      style={e.hidden || e.secret ? { borderStyle: "dashed" } : undefined}
     >
       <Group gap={6} wrap="nowrap" mb={4}>
         <Text size="xs" fw={600} c={e.system ? "dimmed" : e.authorId === selfId ? "bronze.4" : undefined} truncate title={author}>
@@ -80,6 +82,16 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
         {e.hidden && (
           <Badge size="xs" variant="default">
             {tr("log.hidden")}
+          </Badge>
+        )}
+        {e.secret && (
+          <Badge size="xs" variant="default" leftSection={<IconEyeOff size={10} />} tt="none" style={{ flex: "none" }}>
+            {tr("log.secret")}
+          </Badge>
+        )}
+        {e.whisper && (
+          <Badge size="xs" variant="light" color="player" leftSection={<IconLock size={10} />} tt="none" style={{ minWidth: 0 }}>
+            {whisperLabel(e, selfId)}
           </Badge>
         )}
         <Text size="xs" c="dimmed" ml="auto" style={{ flex: "none" }}>
@@ -92,6 +104,22 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
           <Loader size={12} color="bronze" />
           <Text size="sm" c="dimmed">
             {e.label ? tr("log.rollingLabel", { label: logLabel(e) ?? "" }) : tr("log.rolling")}
+          </Text>
+        </Group>
+      ) : blind ? (
+        <Group gap="sm" wrap="nowrap">
+          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+            {e.label && (
+              <Text size="xs" fw={600} truncate title={logLabel(e)}>
+                {logLabel(e)}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed">
+              {tr("log.blindBefore")} <Code>{e.roll!.expr}</Code> {tr("log.blindAfter")}
+            </Text>
+          </Stack>
+          <Text fz={22} fw={700} c="dimmed">
+            ?
           </Text>
         </Group>
       ) : e.roll ? (
@@ -113,6 +141,13 @@ export function naturalD20(terms: RollTerm[]): number | null {
   if (!d || d.kind !== "dice") return null;
   if (d.keptIndex !== undefined) return d.rolls[d.keptIndex];
   return d.rolls.find((_, j) => !d.dropped?.includes(j)) ?? null;
+}
+
+/** Etiqueta do sussurro, do ponto de vista de quem lê ("sussurro para Ana", "sussurro do mestre"…). */
+function whisperLabel(e: LogEntry, selfId: string): string {
+  const w = e.whisper!;
+  if (e.authorId === selfId) return w.to === "gm" ? tr("log.whisperToGm") : tr("log.whisperTo", { name: w.toName });
+  return w.to === "gm" ? tr("log.whisperToYou") : tr("log.whisperFromGm");
 }
 
 /** Como o dado aparece no log: Fate vira +, − ou espaço em branco (0). */

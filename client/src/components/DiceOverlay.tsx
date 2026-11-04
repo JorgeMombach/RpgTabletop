@@ -52,7 +52,8 @@ export function DiceOverlay() {
       queue.current = [];
       return;
     }
-    const rolls = fresh.filter((e) => e.roll);
+    // Rolagem secreta na tela de quem rolou (às cegas, sem dados): nada para animar nem mostrar.
+    const rolls = fresh.filter((e) => e.roll && e.roll.terms.length > 0);
     if (rolls.length === 0) return;
     queue.current.push(...rolls);
     useApp.setState((s) => ({ rolling: [...s.rolling, ...rolls.map((e) => e.id)] }));

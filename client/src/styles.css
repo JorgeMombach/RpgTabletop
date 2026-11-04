@@ -967,6 +967,12 @@ abbr.abbr {
   flex: none;
 }
 
+/* Barra de mensagem em cima do log flutuante e da janela do log (Passo 6). */
+.log-chat {
+  flex: none;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm) 0;
+}
+
 .floating-log-body {
   flex: 1;
   min-height: 0;
@@ -1564,6 +1570,12 @@ button[data-disabled] > .ability-cell {
     transform: translate(var(--dx), 60px) rotate(var(--r));
     opacity: 0;
   }
+}
+
+/* Sussurro no log (Passo 6): filete na cor dos aliados e fundo levemente azulado, para ler de relance que é privado. */
+.log-whisper {
+  box-shadow: inset 3px 0 0 var(--mantine-color-player-5);
+  background-color: color-mix(in srgb, var(--mantine-color-player-9) 22%, var(--mantine-color-dark-7)) !important;
 }
 
 /* No log: filete na cor do d20 natural; o crítico recém-rolado ganha um reflexo que passa uma vez. */

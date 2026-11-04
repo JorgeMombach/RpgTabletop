@@ -169,9 +169,11 @@ export interface ActionPayloads {
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
    */
   /** `name`: o que rolou (arma, magia, habilidade), na frente do rótulo no log: "Bola de fogo · Dano". */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean; name?: string };
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; /** Jogador: rolagem às cegas, só o mestre vê o resultado. */ secret?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean; name?: string };
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
+  /** Mensagem no log; `to`: sussurro (jogador → "gm"; mestre → id do jogador). */
+  "chat:send": { text: string; to?: string };
   "roll:cancel": Record<string, never>;
   /** Mestre: rolagens dos jogadores fora de combate (livres, só com pedido ou travadas). */
   "roll:outside": { mode: OutsideRolls };
@@ -554,6 +556,8 @@ export const LIMITS = {
     faces: { min: 2, max: 1000 },
     constant: 10000,
   },
+  /** Tamanho de uma mensagem do chat (caracteres). */
+  chatLength: 500,
   /** Entradas mantidas no log compartilhado. */
   logSize: 200,
   /** Tamanho máximo do dataURL (caracteres). */

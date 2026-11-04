@@ -200,10 +200,10 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 - [x] Fórmulas novas: `kh`/`kl` (fica com os maiores/menores: `2d20kh1`, `4d6kh3`), dado que explode (`d6!`) e dados Fate (`4dF`). Log mostra os dados descartados riscados.
 - [x] Abre o app para Ordem Paranormal (vários d20, fica com o maior) e Tormenta20, além de outros sistemas.
 
-### Passo 6. Chat e sussurro (M)
-- [ ] Mensagem de texto no log, junto com as rolagens.
-- [ ] Sussurro: mestre ↔ jogador, só os dois veem (validado no servidor e filtrado em `view.ts`).
-- [ ] Rolagem secreta do jogador para o mestre (só o mestre vê o resultado; o jogador vê que rolou).
+### Passo 6. Chat e sussurro (M, feito em 2026-11-04: sussurro só mestre ↔ jogador; rolagem secreta às cegas)
+- [x] Mensagem de texto no log, junto com as rolagens.
+- [x] Sussurro: mestre ↔ jogador, só os dois veem (validado no servidor e filtrado em `view.ts`).
+- [x] Rolagem secreta do jogador para o mestre (só o mestre vê o resultado; o jogador vê que rolou).
 
 ### Passo 7. "Olhem aqui" e pausa (P)
 - [ ] Mestre leva a câmera de todos até um ponto (o ping completo).

@@ -395,6 +395,15 @@ export interface LogEntry {
   gm?: boolean;
   /** Combatente da rolagem de iniciativa: o valor dele só aparece quando os dados param. */
   subjectId?: string;
+  /** Mensagem de texto de alguém (Passo 6), não rolagem nem aviso da mesa. */
+  chat?: true;
+  /** Sussurro (mestre ↔ jogador): só o autor, `to` e o mestre veem. `toName` é o nome de quem recebe. */
+  whisper?: { to: string; toName: string };
+  /**
+   * Rolagem secreta do jogador (às cegas): só o mestre vê o resultado. Quem rolou recebe `roll` só com a
+   * expressão (`terms` vazio, `total` 0) e o texto sem o total; os outros jogadores nem recebem.
+   */
+  secret?: true;
 }
 
 /** Pedaço de texto do log: modelo em português e valores. */
