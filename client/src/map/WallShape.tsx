@@ -1,4 +1,4 @@
-import { Button, Checkbox, Group, Paper, SegmentedControl, Select, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { Button, Checkbox, Box, Group, SegmentedControl, Select, Slider, Stack, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconBrush, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Shape as KShape } from "react-konva";
@@ -196,10 +196,11 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
   }
 
   return (
-    <Paper className="map-options" p="xs" shadow="md" radius="md">
-      <Group gap="xs" wrap="wrap" justify="space-between">
+    <Box>
+      <Stack gap={6}>
         <SegmentedControl
           size="xs"
+          fullWidth
           data={(Object.keys(MODE_LABEL) as WallMode[]).map((m) => ({ value: m, label: t(MODE_LABEL[m]) }))}
           value={wallMode}
           onChange={(v) => useApp.setState({ wallMode: v as WallMode, selectedDoorId: null })}
@@ -208,6 +209,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
         {(wallMode === "wall" || wallMode === "door") && (
           <SegmentedControl
             size="xs"
+            fullWidth
             data={[
               { value: "snap", label: t("walls.snap") },
               { value: "free", label: t("walls.free") },
@@ -217,7 +219,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
             aria-label={t("walls.snapLabel")}
           />
         )}
-        <Group gap={4} wrap="nowrap">
+        <Group gap={4} wrap="nowrap" justify="space-between">
           <Tooltip label={t("walls.undoTip")}>
             <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("walls")}>
               {t("walls.undo")}
@@ -227,7 +229,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
             {t("walls.clear")}
           </Button>
         </Group>
-      </Group>
+      </Stack>
       {(wallMode === "wall" || wallMode === "door") && (
         <Group gap="xs" mt={6} wrap="nowrap">
           <Text size="xs" c="dimmed" style={{ flex: "none" }}>
@@ -315,6 +317,6 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
           {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "restyle" ? "walls.hintRestyle" : wallMode === "door" ? "walls.hintDoor" : wallSnap ? "walls.hintWall" : "walls.hintWallFree")}
         </Text>
       )}
-    </Paper>
+    </Box>
   );
 }

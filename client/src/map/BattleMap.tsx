@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 // Group/Text do Mantine renomeados: os nomes colidem com os do react-konva.
 import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, SegmentedControl, Text as MText, Tooltip } from "@mantine/core";
-import { IconArrowUpRight, IconBox, IconBrush, IconCloudFog, IconTree, IconFlame, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconWall, IconRuler2, IconSparkles } from "@tabler/icons-react";
+import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
@@ -22,9 +22,9 @@ import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
-import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
-import { PaintOptions, paintColorOf } from "./PaintOptions";
-import { MapPropLayer, PropOptions, propSpot, tokenSpots } from "./MapProps";
+import { doorLayouts, wallPointAt, wallSpan, WallPreview, WallShape } from "./WallShape";
+import { paintColorOf } from "./PaintOptions";
+import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
 import { addChest, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
@@ -37,8 +37,8 @@ import { Token } from "./Token";
 import { useImage } from "./useImage";
 import { LastSeenOverlay } from "./LastSeen";
 import { screenLights, TorchGlowLayer } from "./Torch";
-import { MapTorchLayer, MapTorchOptions, TORCH_DRAG_MIME } from "./MapTorches";
-import { ChestEditor, MapChestLayer, MapChestOptions } from "./MapChests";
+import { MapTorchLayer, TORCH_DRAG_MIME } from "./MapTorches";
+import { ChestEditor, MapChestLayer } from "./MapChests";
 import { WeatherOverlay } from "./WeatherOverlay";
 
 /** Tipo usado ao arrastar um combatente da lista para o mapa. */
@@ -67,7 +67,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", fog: "F" };
+export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
@@ -1249,14 +1249,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       )}
       {tool === "area" && <AreaOptions canFix={!!myArea} locked={turnLocked(state, "effectOnTurn")} onFix={() => setFixing(true)} />}
       {tool === "draw" && <DrawOptions drawings={state.battle.drawings} gm={gm} selfId={state.self.id} />}
-      {gm && tool === "walls" && <WallOptions walls={state.battle.walls} style={wallStyle} />}
-      {gm && tool === "torches" && <MapTorchOptions count={state.battle.torches.length} />}
-      {gm && tool === "chests" && <MapChestOptions />}
       {gm && <ChestEditor chests={state.battle.chests} />}
       <LootWindow state={state} />
       {gm && tool === "fog" && <FogOptions fog={state.battle.fog} onRevealMap={revealMap} />}
-      {gm && tool === "paint" && <PaintOptions />}
-      {gm && tool === "props" && <PropOptions selected={state.battle.props.find((p) => p.id === selectedPropId) ?? null} />}
       {fixing && myArea && (
         <FixEffectModal
           state={state}
@@ -1541,11 +1536,6 @@ function MapToolbar({
       : ({ id: "draw", text: t("draw.arrows"), label: t("draw.arrowsTip"), icon: IconArrowUpRight } as const),
     ...(gm
       ? ([
-          { id: "walls", text: t("walls.tool"), label: t("walls.toolTip"), icon: IconWall },
-          { id: "torches", text: t("torches.tool"), label: t("torches.toolTip"), icon: IconFlame },
-          { id: "chests", text: t("chests.tool"), label: t("chests.toolTip"), icon: IconBox },
-          { id: "props", text: t("props.tool"), label: t("props.toolTip"), icon: IconTree },
-          { id: "paint", text: t("paint.tool"), label: t("paint.toolTip"), icon: IconBrush },
           { id: "fog", text: t("fog.tool"), label: t("fog.toolTip"), icon: IconCloudFog },
         ] as const)
       : []),

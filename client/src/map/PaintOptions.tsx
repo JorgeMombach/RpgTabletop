@@ -1,4 +1,4 @@
-import { Button, ColorInput, Group, Paper, SegmentedControl, Select, Text, Tooltip } from "@mantine/core";
+import { Button, ColorInput, Box, Group, SegmentedControl, Select, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp } from "@tabler/icons-react";
 import { EFFECT_PRESETS, type EffectPreset } from "@rpg/shared";
 import { memo } from "react";
@@ -29,11 +29,11 @@ export const PaintOptions = memo(function PaintOptions() {
   const color = paintColorOf(paintPreset, paintColor);
 
   return (
-    <Paper className="map-options" p="xs" shadow="md" radius="md">
+    <Box>
       <Group gap="xs" wrap="wrap" align="center">
         <Select
           size="xs"
-          w={180}
+          style={{ flex: "1 1 160px" }}
           data={PRESETS.map((p) => ({ value: p, label: presetLabel(p) }))}
           value={paintPreset}
           onChange={(v) => v && useApp.setState({ paintPreset: v as EffectPreset, paintErase: false })}
@@ -77,6 +77,6 @@ export const PaintOptions = memo(function PaintOptions() {
       <Text size="xs" c="dimmed" mt={6}>
         {t(paintErase ? "paint.hintErase" : "paint.hint")}
       </Text>
-    </Paper>
+    </Box>
   );
 });

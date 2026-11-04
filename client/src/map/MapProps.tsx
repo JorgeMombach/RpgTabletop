@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Checkbox, Group, Paper, SegmentedControl, Select, Slider, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Box, Group, SegmentedControl, Select, Slider, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconDice5, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { memo, useEffect, useRef } from "react";
@@ -225,7 +225,7 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
   const undoCount = useMapUndo((s) => s.props);
   const brush = mode !== "place";
   return (
-    <Paper className="map-options" p="xs" shadow="md" radius="md">
+    <Box>
       <Group gap="xs" wrap="wrap" mb={6}>
         <SegmentedControl
           size="xs"
@@ -241,7 +241,7 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
         {mode === "scatter" && (
           <Select
             size="xs"
-            w={150}
+            style={{ flex: "1 1 140px" }}
             data={SCATTER_SETS.map((s) => ({ value: s, label: t(SET_LABEL[s]) }))}
             value={scatterSet}
             onChange={(v) => v && useApp.setState({ scatterSet: v as ScatterSet })}
@@ -359,6 +359,6 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
           </Button>
         </Tooltip>
       </Group>
-    </Paper>
+    </Box>
   );
 });

@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 import { SetupCard } from "./SetupCard";
 import { useT, type MessageKey } from "../i18n";
+import { setTool, useApp } from "../store";
 import { AlliesPanel } from "./AlliesPanel";
+import { BuildPanel, isBuildTool } from "./BuildPanel";
 import { BestiaryPanel } from "./BestiaryPanel";
 import { EffectsPanel } from "./EffectsPanel";
 import { HandoutPanel } from "./Handout";
@@ -42,7 +44,7 @@ function readTab(): Tab {
 
 /**
  * Coluna da esquerda do mestre em abas (a lista de painéis tinha ficado comprida demais):
- * Combate, Mapa (cenas e mapa), Ambiente (clima e som) e Mesa (mostrar para a mesa, regras da mesa, bestiário, jogadores, sessão, convite).
+ * Combate, Mapa (cenas, construir e mapa), Ambiente (clima e som) e Mesa (mostrar para a mesa, regras da mesa, bestiário, jogadores, sessão, convite).
  * A aba não troca sozinha: quando a vez muda com outra aba aberta, a de Combate ganha um ponto.
  * A aba escolhida fica guardada neste navegador.
  */
@@ -76,6 +78,12 @@ export function GmTabs({ state }: { state: ClientState }) {
   const [turnDot, setTurnDot] = useState(false);
   const { combat } = state.battle;
 
+  // Ferramenta de construção escolhida (atalho) com outra aba aberta: a coluna vai para Mapa, onde estão as opções dela.
+  const tool = useApp((s) => s.tool);
+  useEffect(() => {
+    if (isBuildTool(tool) && useGmTab.getState().tab !== "map") openGmTab("map", "build");
+  }, [tool]);
+
   // Vez nova com o mestre em outra aba: avisa com o ponto (some ao abrir Combate).
   const lastTurn = useRef(combat.turn);
   useEffect(() => {
@@ -86,6 +94,8 @@ export function GmTabs({ state }: { state: ClientState }) {
 
   function open(next: Tab) {
     setTab(next);
+    // Saindo da aba Mapa, a construção para (as opções ficariam escondidas).
+    if (next !== "map" && isBuildTool(useApp.getState().tool)) setTool("move");
     if (next === "combat") setTurnDot(false);
     try {
       localStorage.setItem(KEY, next);
@@ -122,6 +132,7 @@ export function GmTabs({ state }: { state: ClientState }) {
       </Tabs.Panel>
       <Tabs.Panel value="map" className="gm-tabs-panel">
         <ScenesPanel state={state} />
+        <BuildPanel />
         <MapPanel map={state.battle.map} />
       </Tabs.Panel>
       <Tabs.Panel value="ambience" className="gm-tabs-panel">

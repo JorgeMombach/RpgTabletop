@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Checkbox, Group as MGroup, Modal, NumberInput, Paper, SegmentedControl, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Box, Button, Checkbox, Group as MGroup, Modal, NumberInput, Paper, SegmentedControl, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { Layer, Shape } from "react-konva";
@@ -113,7 +113,7 @@ export function MapChestOptions() {
   const chestStyle = useApp((s) => s.chestStyle);
   const undoCount = useMapUndo((s) => s.chests);
   return (
-    <Paper className="map-options" p="xs" shadow="md" radius="md">
+    <Box>
       <MGroup gap="xs" wrap="wrap" align="center" justify="space-between">
         <MGroup gap={4} wrap="nowrap" role="radiogroup" aria-label={t("chests.pick")}>
           {CHEST_STYLES.map((style) => (
@@ -141,7 +141,7 @@ export function MapChestOptions() {
       <Text size="xs" c="dimmed" mt={4}>
         {t("chests.hint")}
       </Text>
-    </Paper>
+    </Box>
   );
 }
 

@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Group as MGroup, Paper, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Box, Group as MGroup, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconEraser, IconTrash } from "@tabler/icons-react";
 import Konva from "konva";
 import { useEffect, useLayoutEffect, useRef } from "react";
@@ -134,7 +134,7 @@ export function MapTorchOptions({ count }: { count: number }) {
   }
 
   return (
-    <Paper className="map-options" p="xs" shadow="md" radius="md">
+    <Box>
       <MGroup gap="xs" wrap="wrap" align="center" justify="space-between">
         <MGroup gap={4} wrap="nowrap" role="radiogroup" aria-label={t("torches.pick")}>
           {MAP_TORCH_STYLES.map((style) => (
@@ -177,6 +177,6 @@ export function MapTorchOptions({ count }: { count: number }) {
       <Text size="xs" c="dimmed" mt={4}>
         {t(erasing ? "torches.hintErase" : "torches.hint")}
       </Text>
-    </Paper>
+    </Box>
   );
 }
