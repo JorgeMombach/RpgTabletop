@@ -21,7 +21,7 @@ import type { Handler } from "./actions/types";
 import { hostInfo, roleOf, type RoleRules } from "./net";
 import { exportSession, importSession } from "./session-file";
 import { checkSheets } from "./actions/sheetFiles";
-import { CATALOG } from "./catalog/srd51";
+import { CATALOG, catalogDetails } from "./catalog/srd51";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
@@ -326,6 +326,13 @@ export function createApp(opts: AppOptions) {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (player?.role !== "gm") return ack({ ok: false, error: "Sem permissão para essa ação." });
       ack({ ok: true, collections: CATALOG });
+    });
+
+    socket.on("catalog:details", (id, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Sem permissão para essa ação." });
+      ack({ ok: true, details: typeof id === "string" ? catalogDetails(id) : null });
     });
 
     // Ver como jogador (Passo 11): só o mestre; null volta à visão dele.

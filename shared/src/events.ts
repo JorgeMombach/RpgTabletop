@@ -2,7 +2,7 @@
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind } from "./types";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
-import type { CatalogCollection, CatalogLang } from "./catalog";
+import type { CatalogCollection, CatalogDetails, CatalogLang } from "./catalog";
 
 export interface JoinPayload {
   name: string;
@@ -457,6 +457,8 @@ export type ClientToServerEvents = ActionEvents & {
   "view:as": (playerId: string | null) => void;
   /** Mestre: as coleções do catálogo de monstros (Passo 12). */
   "catalog:list": (ack: (res: { ok: true; collections: CatalogCollection[] } | ActionFailure) => void) => void;
+  /** Mestre: as habilidades de um monstro do catálogo (só quando ele abre; `null` = ainda sem texto). */
+  "catalog:details": (id: string, ack: (res: { ok: true; details: CatalogDetails | null } | ActionFailure) => void) => void;
   /** Confere um arquivo de fichas (valida e compara com a mesa), sem alterar nada. */
   "sheets:check": (file: unknown, ack: (res: SheetCheckResult) => void) => void;
   /** Mestre: efeito sonoro para todos, uma vez (E25). Não fica no estado. */

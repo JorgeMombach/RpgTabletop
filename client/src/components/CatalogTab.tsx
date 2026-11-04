@@ -8,6 +8,7 @@ import { fmtMod } from "../format";
 import { localizeError, useLang, useT, type MessageKey } from "../i18n";
 import { toast } from "../notify";
 import { socket } from "../socket";
+import { CatalogDetailsView } from "./CatalogDetails";
 import { CombatantAvatar } from "./CombatantAvatar";
 
 /** Faixas de ND do filtro (0 a 1, 2 a 4…). */
@@ -103,6 +104,7 @@ function CatalogRow({ e, open, onToggle, owned, onAdded }: { e: CatalogEntry; op
   const t = useT();
   const lang = useLang((s) => s.lang);
   const [qty, setQty] = useState<string | number>(1);
+  const [showDetails, setShowDetails] = useState(false);
   const name = e.name[lang];
   const kind = `${t(`creature.${e.type}` as MessageKey)} · ${t(`size.${e.size}` as MessageKey).replace(/ \(.*\)$/, "")}`;
 
@@ -194,6 +196,10 @@ function CatalogRow({ e, open, onToggle, owned, onAdded }: { e: CatalogEntry; op
               </Tooltip>
             </Group>
           </Group>
+          <Button variant="subtle" color="gray" size="compact-xs" w="fit-content" leftSection={<IconChevronDown size={12} style={{ transform: showDetails ? "rotate(180deg)" : undefined }} />} onClick={() => setShowDetails((v) => !v)}>
+            {t(showDetails ? "catalog.hideDetails" : "catalog.showDetails")}
+          </Button>
+          {showDetails && <CatalogDetailsView id={e.id} />}
         </Stack>
         )}
       </Collapse>

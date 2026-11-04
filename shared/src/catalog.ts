@@ -68,3 +68,21 @@ export function catalogStats(e: CatalogEntry, lang: CatalogLang): Pick<MobTempla
     notes: `ND ${e.cr} · SRD 5.1`,
   };
 }
+
+/** Um traço ou ação do texto do monstro ("Táticas de Matilha." + descrição). */
+export interface CatalogBlock {
+  name: string;
+  desc: string;
+}
+
+/** Habilidades do monstro num idioma (Passo 12, fase C): linhas da ficha e os textos, só para o mestre ler. */
+export interface CatalogDetailsLang {
+  /** "Deslocamento", "Testes de resistência", "Sentidos", "Idiomas"…: rótulo e texto. */
+  lines: { label: string; text: string }[];
+  traits: CatalogBlock[];
+  actions: CatalogBlock[];
+  reactions: CatalogBlock[];
+  legendary: CatalogBlock[];
+}
+
+export type CatalogDetails = Record<CatalogLang, CatalogDetailsLang>;

@@ -106,3 +106,26 @@ describe("catálogo SRD 5.1 completo", () => {
     assert.equal(by("srd:kobold").cr, "1/8");
   });
 });
+
+describe("habilidades do catálogo (fase C)", () => {
+  it("o mestre recebe o texto nos três idiomas; jogador não; sem tradução ainda, null", async () => {
+    const g = await gm();
+    type Res = { ok: boolean; details?: import("@rpg/shared").CatalogDetails | null };
+    const res: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:basilisk");
+    assert.ok(res.ok);
+    const pt = res.details!["pt-BR"];
+    assert.equal(pt.traits[0].name, "Olhar Petrificante");
+    assert.match(pt.traits[0].desc, /teste de resistência de Constituição CD 12/);
+    assert.ok(pt.lines.some((l) => l.label === "Sentidos" && /visão no escuro 60 ft/.test(l.text)));
+    assert.equal(res.details!.en.traits[0].name, "Petrifying Gaze");
+    // Custo da ação lendária vem do dado da fonte.
+    const sphinx: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:androsphinx");
+    assert.ok(sphinx.details!.es.legendary.some((l) => l.name === "Teletransporte (cuesta 2 acciones)"));
+    const none: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:zombie");
+    assert.equal(none.details, null);
+    const ana: Client = await client("10.82.0.9");
+    await join(ana, "Ana-c");
+    const no: Res = await ana.timeout(5000).emitWithAck("catalog:details", "srd:basilisk");
+    assert.equal(no.ok, false);
+  });
+});

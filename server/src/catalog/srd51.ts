@@ -2,6 +2,7 @@
 // (https://creativecommons.org/licenses/by/4.0/). Crédito na tela Sobre.
 // Os dados vêm de srd51-entries.ts, gerado por scripts/srd51/build.mjs (traduções em scripts/srd51/translations.mjs).
 import type { CatalogCollection } from "@rpg/shared";
+import { SRD51_DETAILS } from "./srd51-details";
 import { SRD51_ENTRIES } from "./srd51-entries";
 
 export const SRD51: CatalogCollection = { id: "srd51", name: "SRD 5.1", entries: SRD51_ENTRIES };
@@ -10,3 +11,6 @@ export const SRD51: CatalogCollection = { id: "srd51", name: "SRD 5.1", entries:
 export const CATALOG = [SRD51];
 
 export const catalogEntry = (id: string) => CATALOG.flatMap((c) => c.entries).find((e) => e.id === id);
+
+/** Habilidades do monstro (fase C), nos três idiomas; `null` se ainda não tem o texto traduzido. */
+export const catalogDetails = (id: string) => SRD51_DETAILS[id] ?? null;
