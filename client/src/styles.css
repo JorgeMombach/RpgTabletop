@@ -2410,6 +2410,12 @@ button[data-disabled] > .ability-cell {
   padding: 8px;
 }
 
+/* Altura e direção do token (Passo 10), ao lado do menu como as condições. */
+.token-menu-pose {
+  width: 236px;
+  padding: 8px;
+}
+
 .token-menu-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

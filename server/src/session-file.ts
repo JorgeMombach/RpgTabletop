@@ -223,6 +223,9 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
   if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
   if (c.torch !== undefined && bool(c.torch, "tocha")) out.torch = true;
+  // Altura e direção (2.13): arquivos antigos não têm.
+  if (c.elevation !== undefined) out.elevation = int(c.elevation, "altura", LIMITS.elevation.min, LIMITS.elevation.max);
+  if (c.facing !== undefined) out.facing = int(c.facing, "direção", 0, 359);
   if (c.boss !== undefined && bool(c.boss, "chefe")) out.boss = true;
   if (c.phases !== undefined) out.phases = bossPhases(c.phases);
   if (c.phase !== undefined) out.phase = int(c.phase, "fase do chefe", 1, LIMITS.phases + 1);

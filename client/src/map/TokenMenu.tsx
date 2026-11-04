@@ -1,7 +1,17 @@
-import { Button, Group, Kbd, NumberInput, Portal, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
+import { ActionIcon, Button, Group, Kbd, NumberInput, Portal, SimpleGrid, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
 import {
   IconArrowBarToDown,
   IconArrowBigUpLine,
+  IconArrowDown,
+  IconArrowDownLeft,
+  IconArrowDownRight,
+  IconArrowLeft,
+  IconArrowRight,
+  IconArrowUp,
+  IconArrowUpLeft,
+  IconArrowUpRight,
+  IconArrowsUp,
+  IconX,
   IconChevronRight,
   IconDroplet,
   IconEye,
@@ -38,8 +48,12 @@ export function TokenMenu({ state, id, x, y, focus, onClose }: { state: ClientSt
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const condRef = useRef<HTMLButtonElement>(null);
+  const poseRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });
-  const [condOpen, setCondOpen] = useState(focus === "conditions");
+  // Submenu aberto ao lado: condições ou altura e direção (Passo 10). Passar por outro item fecha.
+  const [sub, setSub] = useState<"conditions" | "pose" | null>(focus === "conditions" ? "conditions" : null);
+  const condOpen = sub === "conditions";
+  const setCondOpen = (open: boolean) => setSub(open ? "conditions" : null);
   const [amount, setAmount] = useState<string | number>("");
   const c = allCombatants(state).find((o) => o.id === id);
 
@@ -170,6 +184,23 @@ export function TokenMenu({ state, id, x, y, focus, onClose }: { state: ClientSt
             {t("menu.conditions")}
           </MenuItem>
         )}
+        {canEdit && c.pos && (
+          <MenuItem
+            ref={poseRef}
+            icon={<IconArrowsUp size={16} />}
+            open={sub === "pose"}
+            onClick={() => setSub("pose")}
+            onMouseEnter={() => setSub("pose")}
+            right={
+              <>
+                {!!c.elevation && <span className="token-menu-count">{c.elevation > 0 ? "↑" : "↓"}{Math.abs(c.elevation)}</span>}
+                <IconChevronRight size={14} color="var(--mantine-color-dark-3)" />
+              </>
+            }
+          >
+            {t("pose.menu")}
+          </MenuItem>
+        )}
         <MenuItem icon={<IconId size={16} />} onClick={run(() => select(c.id))} onMouseEnter={() => setCondOpen(false)}>
           {t("menu.view")}
         </MenuItem>
@@ -213,6 +244,7 @@ export function TokenMenu({ state, id, x, y, focus, onClose }: { state: ClientSt
         )}
       </div>
       {condOpen && canEdit && <ConditionGrid c={c} menu={ref} anchor={condRef} />}
+      {sub === "pose" && canEdit && <PosePanel c={c} menu={ref} anchor={poseRef} />}
     </Portal>
   );
 }
@@ -332,6 +364,103 @@ function ConditionGrid({ c, menu, anchor }: { c: CombatantView; menu: React.RefO
         <Button variant="default" onClick={() => void addOther()} disabled={!name.trim()}>
           {t("menu.addCondition")}
         </Button>
+      </Group>
+    </div>
+  );
+}
+
+/** Rosa das 8 direções (0° = para cima); o meio tira a direção. */
+const COMPASS = [
+  [IconArrowUpLeft, 315],
+  [IconArrowUp, 0],
+  [IconArrowUpRight, 45],
+  [IconArrowLeft, 270],
+  [null, null],
+  [IconArrowRight, 90],
+  [IconArrowDownLeft, 225],
+  [IconArrowDown, 180],
+  [IconArrowDownRight, 135],
+] as const;
+
+/** Altura e direção ao lado do menu (Passo 10): só visual. Atalhos com o token selecionado: PgUp/PgDn e , . */
+function PosePanel({ c, menu, anchor }: { c: CombatantView; menu: React.RefObject<HTMLDivElement | null>; anchor: React.RefObject<HTMLButtonElement | null> }) {
+  const t = useT();
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: -9999, top: -9999 });
+  const [height, setHeight] = useState<string | number>(c.elevation ?? 0);
+  useEffect(() => setHeight(c.elevation ?? 0), [c.elevation]);
+
+  // Ao lado do menu, na altura do item (como as condições).
+  useLayoutEffect(() => {
+    const m = menu.current?.getBoundingClientRect();
+    const a = anchor.current?.getBoundingClientRect();
+    const el = ref.current?.getBoundingClientRect();
+    if (!m || !a || !el) return;
+    const right = m.right + 4;
+    setPos({
+      left: right + el.width + EDGE > window.innerWidth ? Math.max(EDGE, m.left - el.width - 4) : right,
+      top: Math.max(EDGE, Math.min(a.top - 8, window.innerHeight - el.height - EDGE)),
+    });
+  }, [menu, anchor]);
+
+  const setElevation = (v: number) => void act("token:pose", { id: c.id, elevation: Math.max(LIMITS.elevation.min, Math.min(LIMITS.elevation.max, Math.round(v))) });
+  const label = { ff: "heading", fz: 11, fw: 700, tt: "uppercase", c: "bronze.4", style: { letterSpacing: "0.08em" } } as const;
+
+  return (
+    <div ref={ref} className="token-menu token-menu-pose" style={pos} onContextMenu={(e) => e.preventDefault()}>
+      <Text {...label} mb={6}>
+        {t("pose.height")}
+      </Text>
+      <Group gap={4} wrap="nowrap">
+        <Button size="compact-sm" variant="default" onClick={() => setElevation((c.elevation ?? 0) - 5)}>
+          −5
+        </Button>
+        <NumberInput
+          w={76}
+          size="xs"
+          hideControls
+          allowDecimal={false}
+          suffix=" ft"
+          min={LIMITS.elevation.min}
+          max={LIMITS.elevation.max}
+          value={height}
+          onChange={setHeight}
+          onBlur={() => Number(height) !== (c.elevation ?? 0) && setElevation(Number(height) || 0)}
+          onKeyDown={(e) => e.key === "Enter" && setElevation(Number(height) || 0)}
+          aria-label={t("pose.height")}
+        />
+        <Button size="compact-sm" variant="default" onClick={() => setElevation((c.elevation ?? 0) + 5)}>
+          +5
+        </Button>
+        <Button size="compact-sm" variant="subtle" color="gray" disabled={!c.elevation} onClick={() => setElevation(0)}>
+          {t("pose.ground")}
+        </Button>
+      </Group>
+      <Text size="xs" c="dimmed" mt={4}>
+        <Kbd className="game-kbd small">PgUp</Kbd> <Kbd className="game-kbd small">PgDn</Kbd> {t("pose.heightKeys")}
+      </Text>
+      <Text {...label} mt={10} mb={6}>
+        {t("pose.facing")}
+      </Text>
+      <Group gap="sm" wrap="nowrap" align="flex-start">
+        <SimpleGrid cols={3} spacing={2} verticalSpacing={2}>
+          {COMPASS.map(([Icon, deg], i) =>
+            Icon ? (
+              <ActionIcon key={i} variant={c.facing === deg ? "filled" : "default"} size="md" aria-label={t("pose.face", { deg })} aria-pressed={c.facing === deg} onClick={() => void act("token:pose", { id: c.id, facing: deg })}>
+                <Icon size={14} />
+              </ActionIcon>
+            ) : (
+              <Tooltip key={i} label={t("pose.noFacing")}>
+                <ActionIcon variant="subtle" color="gray" size="md" disabled={c.facing === undefined} aria-label={t("pose.noFacing")} onClick={() => void act("token:pose", { id: c.id, facing: null })}>
+                  <IconX size={14} />
+                </ActionIcon>
+              </Tooltip>
+            ),
+          )}
+        </SimpleGrid>
+        <Text size="xs" c="dimmed">
+          <Kbd className="game-kbd small">,</Kbd> <Kbd className="game-kbd small">.</Kbd> {t("pose.facingKeys")}
+        </Text>
       </Group>
     </div>
   );

@@ -57,6 +57,8 @@ function fullGame(playerId: string, gmId: string): GameState {
     animal: true,
     darkvision: true,
     torch: true,
+    elevation: 30,
+    facing: 45,
     boss: true,
     // Fases de chefe valem para qualquer tipo no arquivo (a interface só oferece em mob e NPC).
     phases: [{ hpMax: 40 }],

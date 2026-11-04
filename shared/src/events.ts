@@ -192,6 +192,8 @@ export interface ActionPayloads {
   "battle:grid": GridInput;
   /** `pos: null` tira o token do mapa. */
   "token:move": { id: string; pos: GridPos | null };
+  /** Altura e direção do token (Passo 10); `null` volta ao chão / tira a direção. */
+  "token:pose": { id: string; elevation?: number | null; facing?: number | null };
   /** Mestre: o grupo todo (personagens e conjurados) chega junto em volta desta casa (ao abrir uma cena). */
   "allies:gather": { at: GridPos };
   /** Rola d20 + mod. DES para um combatente. */
@@ -570,6 +572,8 @@ export const LIMITS = {
     faces: { min: 2, max: 1000 },
     constant: 10000,
   },
+  /** Altura do token em pés (Passo 10). */
+  elevation: { min: -1000, max: 10000 },
   /** Aviso da pausa (caracteres). */
   pauseMessage: 120,
   /** Tamanho de uma mensagem do chat (caracteres). */

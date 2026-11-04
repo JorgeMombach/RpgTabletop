@@ -189,6 +189,19 @@ export const mapHandlers: HandlerMap = {
     store.pause = { message };
   },
 
+  // Altura e direção (Passo 10): só visual, como mover (quem move o token, muda; pausado, o jogador espera).
+  "token:pose": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    if (store.pause && player.role !== "gm") fail("O jogo está pausado: espere o mestre retomar.");
+    const elevation = payload.elevation == null ? payload.elevation : requireInt(payload.elevation, "Altura", LIMITS.elevation.min, LIMITS.elevation.max);
+    const facing = payload.facing == null ? payload.facing : (((requireInt(payload.facing, "Direção", -3600, 3600) % 360) + 360) % 360);
+    // Validado tudo: aplica. 0 de altura = no chão (sem campo).
+    if (elevation === null || elevation === 0) delete c.elevation;
+    else if (elevation !== undefined) c.elevation = elevation;
+    if (facing === null) delete c.facing;
+    else if (facing !== undefined) c.facing = facing;
+  },
+
   "token:move": (store, player, payload) => {
     // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa e, com a regra
     // da mesa ligada, a vez em combate.

@@ -98,6 +98,8 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
         { keys: keys("Enter"), label: k("keys.menu") },
         { keys: keys("←", "↑", "→", "↓"), label: k("keys.step") },
         { keys: keys("T"), label: k("keys.torch") },
+        { keys: keys("PgUp", "PgDn"), label: k("keys.height") },
+        { keys: keys(",", "."), label: k("keys.facing") },
         { keys: keys("H"), label: k("keys.hide"), gm: true },
         { keys: keys("Del"), label: k("keys.remove") },
         { keys: keys("Esc"), label: k("keys.deselect") },

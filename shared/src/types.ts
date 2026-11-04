@@ -197,6 +197,10 @@ export interface Combatant {
   darkvision?: boolean;
   /** Tocha acesa: ilumina em volta (20 ft de luz forte e 20 de meia-luz). */
   torch?: boolean;
+  /** Altura em pés (Passo 10): positiva voando, negativa escavando. Só visual (ADR-06). Ausente = no chão. */
+  elevation?: number;
+  /** Para onde o token olha, em graus (0 = para cima, sentido horário). Só visual. Ausente = sem direção. */
+  facing?: number;
   /** Chefe (mob/NPC): moldura de ouro e fita com o nome no mapa. Todos veem (as fases, não). */
   boss?: boolean;
   /** Chefe (mob/NPC): fases que ainda vão começar, em ordem. Só o mestre recebe (têm vida). */

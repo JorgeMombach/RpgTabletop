@@ -215,9 +215,9 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 ### Passo 9. Importar mapa do Dungeondraft e similares (M, feito em 2026-11-04; luzes viram tochas só se o mestre marcar)
 - [x] Formato Universal VTT (`.dd2vtt`, `.uvtt`): imagem, grid, paredes, portas e luzes viram mapa, paredes, portas e tochas do app de uma vez.
 
-### Passo 10. Altura e direção do token (P)
-- [ ] Altura/voo: número no token ("30 ft") e sombra embaixo. Só visual.
-- [ ] Direção: setinha para onde o token olha.
+### Passo 10. Altura e direção do token (P, feito em 2026-11-04)
+- [x] Altura/voo: número no token ("30 ft") e sombra embaixo. Só visual.
+- [x] Direção: setinha para onde o token olha.
 
 ### Passo 11. Ver como jogador (P–M)
 - [ ] O mestre escolhe "ver como {jogador}" e enxerga o mapa como ele (névoa, visão, o que está oculto), sem abrir outra aba.

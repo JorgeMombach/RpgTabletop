@@ -941,6 +941,9 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       if (key === "t") return done(), void act("torch:set", { id: c.id, lit: !c.torch });
       if (key === "h" && gm && c.type !== "ally") return done(), void act("combatant:setHidden", { id: c.id, hidden: !c.hidden });
       if (key === "Delete" && (gm || c.type === "ally")) return done(), void removeCombatant(c);
+      // Altura e direção (Passo 10): PgUp/PgDn sobe e desce 5 ft; vírgula e ponto giram 45°.
+      if (c.pos && (key === "PageUp" || key === "PageDown")) return done(), void act("token:pose", { id: c.id, elevation: (c.elevation ?? 0) + (key === "PageUp" ? 5 : -5) });
+      if (c.pos && (key === "," || key === ".")) return done(), void act("token:pose", { id: c.id, facing: (c.facing ?? 0) + (key === "." ? 45 : -45) });
       const step: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
       if (step[key] && c.pos && canMove(c)) {
         done();
