@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { useMemo } from "react";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
+import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
 import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
 
@@ -110,6 +111,11 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
   propKind: PropKind;
   selectedPropId: string | null;
+  /** Pôr um objeto, espalhar um conjunto (pincel) ou apagar com o pincel; conjunto, lado do pincel e densidade. */
+  propMode: "place" | "scatter" | "erase";
+  scatterSet: ScatterSet;
+  scatterSize: number;
+  scatterDensity: number;
   /** Ficha completa aberta no modal (duplo clique no token ou botão Ficha; só no computador). */
   sheetId: string | null;
   /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
@@ -166,6 +172,10 @@ export const useApp = create<AppStore>(() => ({
   paintSize: 3,
   propKind: "tree",
   selectedPropId: null,
+  propMode: "place",
+  scatterSet: "forest",
+  scatterSize: 5,
+  scatterDensity: 0.6,
   sheetId: null,
   hoverId: null,
   logOut: false,

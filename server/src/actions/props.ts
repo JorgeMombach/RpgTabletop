@@ -1,8 +1,14 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { LIMITS, PROP_DEFAULTS, PROP_KINDS, type MapProp, type PropKind } from "@rpg/shared";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
+
+/**
+ * Id curto (8 caracteres): o estado vai inteiro a cada ação, e com centenas de objetos o UUID era quase metade do
+ * peso. Até 800 por cena, repetir é desprezível.
+ */
+const newId = () => randomBytes(6).toString("base64url");
 
 /** Ponto em casas, em centésimos (como as tochas). */
 function coord(raw: unknown): number {
@@ -13,6 +19,8 @@ function coord(raw: unknown): number {
 const sizeOf = (raw: unknown) => Math.round(requireNumber(raw, "Tamanho do objeto", LIMITS.propSize.min, LIMITS.propSize.max) * 100) / 100;
 /** Giro em graus inteiros, de 0 a 359. */
 const rotationOf = (raw: unknown) => ((Math.round(requireNumber(raw, "Giro do objeto", -3600, 3600)) % 360) + 360) % 360;
+/** Versões sorteadas de cada objeto: 65 mil bastam e o número fica curto (o estado vai inteiro a cada ação). */
+const PROP_SEEDS = 2 ** 16;
 const seedOf = (raw: unknown) => Math.round(requireNumber(raw, "Variação do objeto", 0, 2 ** 31 - 1));
 
 function flag(raw: unknown): boolean {
@@ -31,7 +39,7 @@ export function parseProp(raw: unknown): Omit<MapProp, "id"> {
     row: coord(p.row),
     size: p.size === undefined ? 1 : sizeOf(p.size),
     rotation: p.rotation === undefined ? 0 : rotationOf(p.rotation),
-    seed: p.seed === undefined ? Math.floor(Math.random() * 2 ** 31) : seedOf(p.seed),
+    seed: p.seed === undefined ? Math.floor(Math.random() * PROP_SEEDS) : seedOf(p.seed),
     above: p.above === undefined ? PROP_DEFAULTS[kind].above : flag(p.above),
     blocks: p.blocks === undefined ? PROP_DEFAULTS[kind].blocks : flag(p.blocks),
   };
@@ -45,10 +53,22 @@ export const propHandlers: HandlerMap = {
   "prop:add": (store, player, payload) => {
     requireGm(player);
     const { battle } = store.game;
-    const prop: MapProp = { id: randomUUID(), ...parseProp(payload) };
+    const prop: MapProp = { id: newId(), ...parseProp(payload) };
     if (battle.props.length >= LIMITS.props) fail("Limite de {n} objetos no mapa.", { n: LIMITS.props });
     battle.props.push(prop);
     return [prop.id];
+  },
+
+  "prop:addMany": (store, player, payload) => {
+    requireGm(player);
+    const { battle } = store.game;
+    const items = payload?.items;
+    if (!Array.isArray(items) || items.length === 0 || items.length > LIMITS.props) fail("Objeto inválido.");
+    // Confere todos antes de pôr algum.
+    const added: MapProp[] = items.map((it) => ({ id: newId(), ...parseProp(it) }));
+    if (battle.props.length + added.length > LIMITS.props) fail("Limite de {n} objetos no mapa.", { n: LIMITS.props });
+    battle.props.push(...added);
+    return added.map((p) => p.id);
   },
 
   "prop:update": (store, player, payload) => {

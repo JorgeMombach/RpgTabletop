@@ -25,7 +25,9 @@ import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./Drawin
 import { doorLayouts, wallPointAt, wallSpan, WallOptions, WallPreview, WallShape } from "./WallShape";
 import { PaintOptions, paintColorOf } from "./PaintOptions";
 import { MapPropLayer, PropOptions, propSpot, tokenSpots } from "./MapProps";
-import { addChest, addDrawing, addProp, addTorch, removeProps, addWall, erasePaint, paintCells, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { scatter } from "./scatter";
+import { toast } from "../notify";
+import { addChest, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -458,6 +460,44 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     void sent.then(() => setPaintDraft(null));
   }
 
+  // Pincel de espalhar (ou de apagar objetos): as casas da passada aparecem de leve; ao soltar, vai tudo junto.
+  const propBrushRef = useRef<Set<string> | null>(null);
+  const [propDraft, setPropDraft] = useState<GridPos[] | null>(null);
+  function propBrushAt(cell: GridPos) {
+    const seen = propBrushRef.current;
+    if (!seen) return;
+    const r = brushRect(cell, useApp.getState().scatterSize);
+    let grew = false;
+    for (let c = r.col; c < r.col + r.w; c++)
+      for (let row = r.row; row < r.row + r.h; row++) {
+        const k = `${c},${row}`;
+        if (seen.has(k) || seen.size >= 4000) continue;
+        seen.add(k);
+        grew = true;
+      }
+    if (grew) setPropDraft([...seen].map((k) => ({ col: Number(k.split(",")[0]), row: Number(k.split(",")[1]) })));
+  }
+  function finishPropBrush() {
+    const seen = propBrushRef.current;
+    propBrushRef.current = null;
+    if (!seen || seen.size === 0) return;
+    const { propMode, scatterSet, scatterDensity } = useApp.getState();
+    const all = state.battle.props;
+    let sent: Promise<unknown>;
+    if (propMode === "erase") {
+      const hit = all.filter((p) => seen.has(`${Math.floor(p.col)},${Math.floor(p.row)}`));
+      sent = hit.length ? removeProps(hit) : Promise.resolve();
+    } else {
+      // Até o limite da cena; passou, avisa.
+      const room = LIMITS.props - all.length;
+      const items = scatter(scatterSet, seen, scatterDensity, all, Math.random).slice(0, Math.max(0, room));
+      if (room <= 0) toast({ kind: "error", text: t("props.limit", { n: LIMITS.props }) });
+      sent = items.length ? addProps(items) : Promise.resolve();
+    }
+    // A prévia fica até o servidor responder (sem piscar).
+    void sent.then(() => setPropDraft(null));
+  }
+
   /** "Revelar o mapa": todas as casas da imagem. */
   const revealMap =
     image && layout
@@ -579,6 +619,12 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       void addChest(cell.col, cell.row, useApp.getState().chestStyle).then((r) => r.ok && r.ids?.[0] && useApp.setState({ editingChestId: r.ids[0] }));
       return;
     }
+    if (tool === "props" && gm && useApp.getState().propMode !== "place") {
+      // Espalhar ou apagar com o pincel: junta as casas da passada; ao soltar, vai tudo de uma vez.
+      propBrushRef.current = new Set();
+      propBrushAt(cellAt(p, grid));
+      return;
+    }
     if (tool === "props" && gm) {
       // Clicou num objeto (ou nas alças dele): escolher, arrastar ou mudar tamanho e giro.
       if (e.target.name() === "map-prop" || e.target.findAncestor("Transformer")) return;
@@ -657,10 +703,11 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
       restyleAt(p);
       return;
     }
-    if (tool === "paint") {
+    if (tool === "paint" || (tool === "props" && useApp.getState().propMode !== "place")) {
       const cell = cellAt(p, grid);
       setPaintHover((h) => (h && sameCell(h, cell) ? h : cell));
-      paintAt(cell);
+      if (tool === "paint") paintAt(cell);
+      else propBrushAt(cell);
       return;
     }
     if (wallRef.current) {
@@ -706,6 +753,7 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
     finishWall();
     finishFog();
     finishPaint();
+    finishPropBrush();
     finishRestyle();
     calibStart.current = null;
     areaDragging.current = false;
@@ -952,6 +1000,38 @@ export function BattleMap({ state, compact = false }: { state: ClientState; comp
               <EffectShape key={e.id} effect={e} grid={grid} scale={view.scale} />
             ))}
           </Layer>
+
+          {/* Pincel de espalhar objetos: a área da passada (de leve) e o quadrado do pincel. */}
+          {gm && tool === "props" && useApp.getState().propMode !== "place" && (
+            <Layer listening={false}>
+              {propDraft?.map((c) => (
+                <Rect
+                  key={`${c.col},${c.row}`}
+                  x={grid.offsetX + c.col * grid.cellPx}
+                  y={grid.offsetY + c.row * grid.cellPx}
+                  width={grid.cellPx}
+                  height={grid.cellPx}
+                  fill={useApp.getState().propMode === "erase" ? "#000000" : "#d8b47a"}
+                  opacity={useApp.getState().propMode === "erase" ? 0.3 : 0.16}
+                />
+              ))}
+              {paintHover &&
+                (() => {
+                  const r = brushRect(paintHover, useApp.getState().scatterSize);
+                  return (
+                    <Rect
+                      x={grid.offsetX + r.col * grid.cellPx}
+                      y={grid.offsetY + r.row * grid.cellPx}
+                      width={r.w * grid.cellPx}
+                      height={r.h * grid.cellPx}
+                      stroke={useApp.getState().propMode === "erase" ? "#e05a5a" : "#d8b47a"}
+                      strokeWidth={1.5 / view.scale}
+                      dash={[6 / view.scale, 4 / view.scale]}
+                    />
+                  );
+                })()}
+            </Layer>
+          )}
 
           {/* Pincel de efeitos: a pincelada antes de ir ao servidor e o quadrado do pincel sob o mouse. */}
           {gm && tool === "paint" && (

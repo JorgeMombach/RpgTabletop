@@ -1,4 +1,4 @@
-import type { ActionResult, ChestStyle, Drawing, EffectPreset, GridPos, LootEntry, MapProp, WallStyle, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
+import { PROP_DEFAULTS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -26,6 +26,7 @@ type Step =
   | { scope: "chests"; kind: "moved"; id: string; col: number; row: number }
   | { scope: "chests"; kind: "removed"; chest: MapChest }
   | { scope: "props"; kind: "added"; id: string }
+  | { scope: "props"; kind: "addedMany"; ids: string[] }
   | { scope: "props"; kind: "changed"; id: string; before: Partial<MapProp> }
   | { scope: "props"; kind: "removed"; props: MapProp[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
@@ -226,17 +227,31 @@ export async function updateProp(p: MapProp, changes: Partial<Omit<MapProp, "id"
   return res;
 }
 
+/** Pincelada do "Espalhar": todos num envio só; desfazer tira a pincelada inteira. */
+export async function addProps(items: Omit<MapProp, "id" | "above" | "blocks">[]): Promise<ActionResult> {
+  const res = await act("prop:addMany", { items });
+  if (res.ok && res.ids?.length) push({ scope: "props", kind: "addedMany", ids: res.ids });
+  return res;
+}
+
 export async function removeProps(list: MapProp[]): Promise<ActionResult> {
   const res = await act("prop:remove", { ids: list.map((p) => p.id) });
   if (res.ok) push({ scope: "props", kind: "removed", props: structuredClone(list) });
   return res;
 }
 
-async function restoreProp(p: MapProp) {
-  const { id: _, ...rest } = p;
-  const res = await act("prop:add", rest);
-  const id = res.ok ? res.ids?.[0] : undefined;
-  if (id) renamed("props", p.id, id);
+/** Põe de volta os apagados (num envio só), com camada e bloqueio de antes; os passos antigos passam aos ids novos. */
+async function restoreProps(list: MapProp[]) {
+  if (list.length === 0) return;
+  const res = await act("prop:addMany", { items: list.map(({ id: _, above: _a, blocks: _b, ...rest }) => rest) });
+  if (!res.ok || !res.ids) return;
+  for (let i = 0; i < list.length; i++) {
+    const id = res.ids[i];
+    renamed("props", list[i].id, id);
+    for (const s of steps) if (s.scope === "props" && s.kind === "addedMany") s.ids = s.ids.map((x) => (x === list[i].id ? id : x));
+    const { above, blocks } = list[i];
+    if (above !== PROP_DEFAULTS[list[i].kind].above || blocks !== PROP_DEFAULTS[list[i].kind].blocks) await act("prop:update", { id, above, blocks });
+  }
 }
 
 // ---------- Pincel de efeitos ----------
@@ -310,9 +325,12 @@ export async function undo(scope?: UndoScope) {
   } else if (step.scope === "props") {
     if (step.kind === "added") {
       if (has(battle?.props, step.id)) await act("prop:remove", { ids: [step.id] });
+    } else if (step.kind === "addedMany") {
+      const ids = step.ids.filter((id) => has(battle?.props, id));
+      if (ids.length) await act("prop:remove", { ids });
     } else if (step.kind === "changed") {
       if (has(battle?.props, step.id)) await act("prop:update", { id: step.id, ...step.before });
-    } else for (const p of step.props) await restoreProp(p);
+    } else await restoreProps(step.props);
   } else if (step.scope === "paint") {
     if (step.kind === "painted") await act("effect:paint", { erase: true, preset: step.preset, color: step.color, cells: step.cells });
     else for (const g of step.groups) await act("effect:paint", { preset: g.preset, color: g.color, cells: g.cells });

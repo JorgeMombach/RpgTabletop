@@ -70,6 +70,29 @@ describe("objetos no mapa", () => {
     );
   });
 
+  it("pincel de espalhar: vários objetos num envio só; um inválido ou passar do limite recusa a pincelada inteira", async () => {
+    const { g, ana } = await setup();
+    const items = [
+      { kind: "tree" as const, col: 1.2, row: 1.3, size: 1.1, rotation: 40, seed: 5 },
+      { kind: "bush" as const, col: 2.5, row: 2.5, size: 0.9, rotation: 0, seed: 6 },
+    ];
+    const ids = idsOf(await act(g, "prop:addMany", { items }));
+    assert.equal(ids.length, 2);
+    assert.deepEqual(
+      props().map((p) => [p.kind, p.size, p.above, p.blocks]),
+      [
+        ["tree", 1.1, true, true],
+        ["bush", 0.9, false, false],
+      ],
+    );
+    assert.match(errorOf(await act(ana, "prop:addMany", { items })), /permissão/);
+    assert.match(errorOf(await act(g, "prop:addMany", { items: [items[0], { ...items[1], kind: "dragão" as "bush" }] })), /Objeto inválido/);
+    assert.match(errorOf(await act(g, "prop:addMany", { items: [] })), /Objeto inválido/);
+    const many = Array.from({ length: LIMITS.props - 1 }, (_, i) => ({ kind: "stones" as const, col: i % 30, row: Math.floor(i / 30), size: 1, rotation: 0, seed: i }));
+    assert.match(errorOf(await act(g, "prop:addMany", { items: many })), /Limite de/);
+    assert.equal(props().length, 2, "a recusa não põe nada");
+  });
+
   it("objeto que bloqueia atrapalha a visão pelo pé; o que não bloqueia, não", () => {
     const base: MapProp = { id: "p", kind: "boulder", col: 3.5, row: 3.5, size: 1, rotation: 0, seed: 1, above: false, blocks: true };
     const viewer = [{ pos: { col: 1, row: 3 }, span: 1, feet: 30 }];

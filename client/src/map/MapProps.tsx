@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Checkbox, Group, Paper, SegmentedControl, Slider, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, Group, Paper, SegmentedControl, Select, Slider, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconDice5, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { memo, useEffect, useRef } from "react";
@@ -8,6 +8,7 @@ import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { removeProps, undo, updateProp, useMapUndo } from "./mapHistory";
 import { drawProp, PROP_EXTENT, propImage } from "./propArt";
+import { SCATTER_SETS, type ScatterSet } from "./scatter";
 
 export const PROP_LABEL: Record<PropKind, MessageKey> = {
   tree: "props.tree",
@@ -200,12 +201,72 @@ export function PropIcon({ kind, size = 34 }: { kind: PropKind; size?: number })
  * Opções da ferramenta Objetos (mestre): o catálogo (o próximo a pôr) e, com um objeto escolhido, variar, camada,
  * atrapalhar a visão, tamanho e apagar. Em `memo`: o mapa redesenha a cada passo do WASD.
  */
+const SET_LABEL: Record<ScatterSet, MessageKey> = { forest: "props.setForest", grove: "props.setGrove", rocks: "props.setRocks", rubble: "props.setRubble" };
+
 export const PropOptions = memo(function PropOptions({ selected }: { selected: MapProp | null }) {
   const t = useT();
   const propKind = useApp((s) => s.propKind);
+  const mode = useApp((s) => s.propMode);
+  const scatterSet = useApp((s) => s.scatterSet);
+  const scatterSize = useApp((s) => s.scatterSize);
+  const scatterDensity = useApp((s) => s.scatterDensity);
   const undoCount = useMapUndo((s) => s.props);
+  const brush = mode !== "place";
   return (
     <Paper className="map-options" p="xs" shadow="md" radius="md">
+      <Group gap="xs" wrap="wrap" mb={6}>
+        <SegmentedControl
+          size="xs"
+          data={[
+            { value: "place", label: t("props.modePlace") },
+            { value: "scatter", label: t("props.modeScatter") },
+            { value: "erase", label: t("props.modeErase") },
+          ]}
+          value={mode}
+          onChange={(v) => useApp.setState({ propMode: v as "place" | "scatter" | "erase", selectedPropId: null })}
+          aria-label={t("props.mode")}
+        />
+        {mode === "scatter" && (
+          <Select
+            size="xs"
+            w={150}
+            data={SCATTER_SETS.map((s) => ({ value: s, label: t(SET_LABEL[s]) }))}
+            value={scatterSet}
+            onChange={(v) => v && useApp.setState({ scatterSet: v as ScatterSet })}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+            aria-label={t("props.set")}
+          />
+        )}
+        {brush && (
+          <SegmentedControl
+            size="xs"
+            data={["3", "5", "9"].map((n) => ({ value: n, label: t("fog.brushSize", { n }) }))}
+            value={String(scatterSize)}
+            onChange={(v) => useApp.setState({ scatterSize: Number(v) })}
+            aria-label={t("fog.brushSizeLabel")}
+          />
+        )}
+        {mode === "scatter" && (
+          <Group gap={6} wrap="nowrap" style={{ flex: "1 1 140px" }}>
+            <Text size="xs" c="dimmed" style={{ flex: "none" }}>
+              {t("props.density")}
+            </Text>
+            <Slider
+              size="xs"
+              style={{ flex: 1 }}
+              min={0.2}
+              max={1}
+              step={0.05}
+              value={scatterDensity}
+              onChange={(v) => useApp.setState({ scatterDensity: v })}
+              label={(v) => `${Math.round(v * 100)}%`}
+              aria-label={t("props.density")}
+            />
+          </Group>
+        )}
+      </Group>
+      {!brush && (
       <Group gap={2} wrap="wrap" role="radiogroup" aria-label={t("props.pick")}>
         {PROP_KINDS.map((k) => (
           <Tooltip key={k} label={t(PROP_LABEL[k])}>
@@ -223,13 +284,14 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
           </Tooltip>
         ))}
       </Group>
-      {selected ? (
+      )}
+      {selected && !brush ? (
         <Group gap="xs" mt={6} wrap="wrap" align="center">
           <Text size="xs" fw={700}>
             {t(PROP_LABEL[selected.kind])}
           </Text>
           <Tooltip label={t("props.varyTip")}>
-            <Button size="compact-xs" variant="default" leftSection={<IconDice5 size={12} />} onClick={() => void updateProp(selected, { seed: Math.floor(Math.random() * 2 ** 31) })}>
+            <Button size="compact-xs" variant="default" leftSection={<IconDice5 size={12} />} onClick={() => void updateProp(selected, { seed: Math.floor(Math.random() * 2 ** 16) })}>
               {t("props.vary")}
             </Button>
           </Tooltip>
@@ -277,7 +339,7 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
       ) : null}
       <Group gap="xs" mt={6} justify="space-between" wrap="nowrap">
         <Text size="xs" c="dimmed" style={{ flex: 1, minWidth: 0 }}>
-          {t(selected ? "props.hintSelected" : "props.hint")}
+          {t(mode === "scatter" ? "props.hintScatter" : mode === "erase" ? "props.hintErase" : selected ? "props.hintSelected" : "props.hint")}
         </Text>
         <Tooltip label={t("props.undoTip")}>
           <Button size="compact-xs" variant="default" style={{ flex: "none" }} disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("props")}>

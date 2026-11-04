@@ -358,6 +358,8 @@ export interface ActionPayloads {
   /** Mestre: muda só o que vier. */
   "prop:update": { id: string; col?: number; row?: number; size?: number; rotation?: number; seed?: number; above?: boolean; blocks?: boolean };
   "prop:remove": { ids: string[] };
+  /** Mestre: pincel de espalhar, a pincelada inteira num envio só (tudo ou nada). */
+  "prop:addMany": { items: { kind: PropKind; col: number; row: number; size?: number; rotation?: number; seed?: number }[] };
   /** Mestre: apaga todas as paredes e portas. */
   "wall:clear": Record<string, never>;
   /** Abrir/fechar: qualquer um, se não estiver trancada (nem for secreta). Trancar e secreta: só o mestre. */

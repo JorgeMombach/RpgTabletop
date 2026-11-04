@@ -172,8 +172,8 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 - [x] Objeto que bloqueia entra na visão dos personagens; coberto pela névoa não vai para os jogadores; copa fica meio transparente com token embaixo.
 
 ### Passo 3. Pincel de espalhar
-- [ ] Modo *Espalhar* na ferramenta Objetos: conjuntos *Floresta*, *Bosque ralo*, *Pedregal*, *Entulho*; tamanho do pincel e densidade; apagar com o pincel. Com protótipo.
-- [ ] Desempenho: até 800 objetos por cena; medir o WASD com 500.
+- [x] Modo *Espalhar* na ferramenta Objetos: conjuntos *Floresta*, *Bosque ralo*, *Pedregal*, *Entulho*; tamanho do pincel e densidade; apagar com o pincel. Protótipo aprovado em 2026-11-03 (espalha do maior para o menor: árvores primeiro, arbustos nos vãos).
+- [x] Desempenho: até 800 objetos por cena. Medido com 500: o WASD custa o mesmo que com o mapa vazio (a camada dos objetos só redesenha quando eles mudam) e o canvas redesenha em ~2 ms. O estado vai inteiro a cada ação: 500 objetos pesam ~62 KB (id curto e semente curta; a compressão do Socket.IO foi testada e descartada, porque muda a ordem entre o estado e a resposta da ação, e o app depende dela).
 
 ### Depois (segunda leva de objetos)
 - [ ] Estátua, ossos, altar, barraca, carroça, poço, estante, cama, sacos, cogumelos, flores, ponte de tábuas. Portão de troncos para a paliçada, se pedirem.
