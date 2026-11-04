@@ -193,7 +193,52 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 - [x] Jogador substituindo a ficha: linha no log e aviso ao mestre com Desfazer (ficha anterior só em memória).
 - [x] Protótipo da janela de diferenças aprovado antes de codar.
 
-### Fase 7. Instalador e hospedagem (por último, talvez numa subida à parte)
+## Mesa completa (ainda na 2.13.0, brainstorm aprovado em 2026-11-04)
+Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o que dá mais retorno pelo esforço primeiro; o grid hexagonal por último. Peça visual nova passa por protótipo antes. Continua valendo o ADR-06: o app registra, não aplica regra.
+
+### Passo 5. Dados de outros sistemas (P–M)
+- [ ] Fórmulas novas: `kh`/`kl` (fica com os maiores/menores: `2d20kh1`, `4d6kh3`), dado que explode (`d6!`) e dados Fate (`4dF`). Log mostra os dados descartados riscados.
+- [ ] Abre o app para Ordem Paranormal (vários d20, fica com o maior) e Tormenta20, além de outros sistemas.
+
+### Passo 6. Chat e sussurro (M)
+- [ ] Mensagem de texto no log, junto com as rolagens.
+- [ ] Sussurro: mestre ↔ jogador, só os dois veem (validado no servidor e filtrado em `view.ts`).
+- [ ] Rolagem secreta do jogador para o mestre (só o mestre vê o resultado; o jogador vê que rolou).
+
+### Passo 7. "Olhem aqui" e pausa (P)
+- [ ] Mestre leva a câmera de todos até um ponto (o ping completo).
+- [ ] Pausar o jogo: aviso na tela de todos (com texto opcional, "Pausa: 10 min") e tokens travados até voltar.
+
+### Passo 8. Rolagens salvas do jogador (P)
+- [ ] Botões pessoais na ficha ("Furtividade +7", "Ataque furtivo 3d6"), com nome e fórmula; vão no arquivo de sessão e na ficha em arquivo.
+
+### Passo 9. Importar mapa do Dungeondraft e similares (M)
+- [ ] Formato Universal VTT (`.dd2vtt`, `.uvtt`): imagem, grid, paredes, portas e luzes viram mapa, paredes, portas e tochas do app de uma vez.
+
+### Passo 10. Altura e direção do token (P)
+- [ ] Altura/voo: número no token ("30 ft") e sombra embaixo. Só visual.
+- [ ] Direção: setinha para onde o token olha.
+
+### Passo 11. Ver como jogador (P–M)
+- [ ] O mestre escolhe "ver como {jogador}" e enxerga o mapa como ele (névoa, visão, o que está oculto), sem abrir outra aba.
+
+### Passo 12. Bestiário SRD (M)
+- [ ] Galeria pronta com os monstros do SRD 5.1 (CC BY 4.0), importada pela ficha em arquivo da Fase 4. Crédito na tela *Sobre*; decidir nomes em português ou inglês.
+
+### Passo 13. Tabelas aleatórias (M)
+- [ ] O mestre cria tabelas (encontros, nomes, loot) e rola com um clique; resultado no log (só para ele, se quiser).
+- [ ] Rolar loot direto para dentro de um baú.
+
+### Passo 14. Diário da campanha (M)
+- [ ] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão.
+
+### Passo 15. Calendário e hora do jogo (P)
+- [ ] "Dia 3, 14h", avançando por descanso ou viagem; opcional: a luz do clima acompanha a hora.
+
+### Passo 16. Grid hexagonal (G, por último)
+- [ ] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar.
+
+### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
 - [ ] Hospedagem (era a Fase 1; adiada em 2026-11-03: a VPN incomoda, mas dá para jogar). Decisão: servidor sob demanda, ligado só durante a sessão (umas 5 horas), sem previsão de comercializar. O mestre salva o arquivo no fim e carrega na próxima, como hoje; a imagem Docker e a chave de mestre já existem. Comparar e testar: máquina paga por hora, planos gratuitos com conexão em tempo real e túnel a partir do PC do mestre, sem instalar nada nos jogadores. Medir envio dos mapas e estabilidade contra a VPN. Pesquisar preços na hora.
 - [ ] Permissão de mestre e jogadores, escolhida ao criar a sala (junto com a hospedagem).
@@ -204,3 +249,4 @@ Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): t
 
 ## Ideias novas
 (entram aqui conforme surgirem e sobem para a seção certa quando decididas)
+- Editar a ficha (botão *Editar*) para um tamanho maior também levar o token para a casa livre mais próxima, como já faz a ficha importada (hoje a mesa ajeita na mão).
