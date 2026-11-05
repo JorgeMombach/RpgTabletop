@@ -121,7 +121,7 @@ describe("habilidades do catálogo (fase C)", () => {
     // Custo da ação lendária vem do dado da fonte.
     const sphinx: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:androsphinx");
     assert.ok(sphinx.details!.es.legendary.some((l) => l.name === "Teletransporte (cuesta 2 acciones)"));
-    const none: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:zombie");
+    const none: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:adult-red-dragon");
     assert.equal(none.details, null);
     const ana: Client = await client("10.82.0.9");
     await join(ana, "Ana-c");
