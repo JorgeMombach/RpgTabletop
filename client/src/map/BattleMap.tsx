@@ -632,7 +632,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       // Clicou num baú: abre o editor (no próprio baú). Na casa vazia, põe um e já abre o editor.
       if (e.target.name() === "map-chest") return;
       const cell = cellAt(p, grid);
-      void addChest(cell.col, cell.row, useApp.getState().chestStyle).then((r) => r.ok && r.ids?.[0] && useApp.setState({ editingChestId: r.ids[0] }));
+      void addChest(cell.col, cell.row, useApp.getState().chestStyle).then((r) => r.ok && r.ids?.[0] && useApp.setState({ editingChestId: r.ids[0], newChestId: r.ids[0] }));
       return;
     }
     if (tool === "props" && gm && useApp.getState().propMode !== "place") {

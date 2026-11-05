@@ -10,7 +10,7 @@ import { socket } from "../socket";
 import { toast } from "../notify";
 import { drawChest, type ChestState } from "./chestArt";
 import { cellAt } from "./geometry";
-import { moveChest, removeChest, undo, useMapUndo } from "./mapHistory";
+import { discardNewChest, moveChest, removeChest, undo, useMapUndo } from "./mapHistory";
 
 export const CHEST_LABEL: Record<ChestStyle, MessageKey> = { wood: "chests.wood", iron: "chests.iron", ornate: "chests.ornate" };
 
@@ -203,15 +203,20 @@ export function ChestEditor({ chests }: { chests: MapChest[] }) {
   const t = useT();
   const id = useApp((s) => s.editingChestId);
   const chest = chests.find((c) => c.id === id);
-  const close = () => useApp.setState({ editingChestId: null });
+  // Fechar sem salvar um baú que acabou de ser posto (Cancelar, X, Esc) tira ele do mapa, junto com o passo do Desfazer.
+  const close = (saved = false) => {
+    const { newChestId } = useApp.getState();
+    useApp.setState({ editingChestId: null, newChestId: null });
+    if (!saved && chest && newChestId === chest.id) void discardNewChest(chest.id);
+  };
   return (
-    <Modal opened={!!chest} onClose={close} title={t("chests.editTitle")} size="lg">
+    <Modal opened={!!chest} onClose={() => close()} title={t("chests.editTitle")} size="lg">
       {chest && <ChestForm key={chest.id} chest={chest} onDone={close} />}
     </Modal>
   );
 }
 
-function ChestForm({ chest, onDone }: { chest: MapChest; onDone: () => void }) {
+function ChestForm({ chest, onDone }: { chest: MapChest; onDone: (saved?: boolean) => void }) {
   const t = useT();
   const [name, setName] = useState(chest.name);
   const [style, setStyle] = useState<ChestStyle>(chest.style);
@@ -226,7 +231,7 @@ function ChestForm({ chest, onDone }: { chest: MapChest; onDone: () => void }) {
     setBusy(true);
     const res = await act("chest:update", { id: chest.id, name, style, locked, hidden, loot: fromRows(rows) });
     setBusy(false);
-    if (res.ok) onDone();
+    if (res.ok) onDone(true);
   }
 
   return (
@@ -317,11 +322,11 @@ function ChestForm({ chest, onDone }: { chest: MapChest; onDone: () => void }) {
       }} />
 
       <MGroup justify="space-between" gap="xs" mt="xs">
-        <Button variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => void removeChest(chest).then((r) => r.ok && onDone())}>
+        <Button variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => void removeChest(chest).then((r) => r.ok && onDone(true))}>
           {t("chests.remove")}
         </Button>
         <MGroup gap="xs">
-          <Button variant="default" onClick={onDone}>
+          <Button variant="default" onClick={() => onDone()}>
             {t("common.cancel")}
           </Button>
           <Button loading={busy} onClick={() => void save()}>

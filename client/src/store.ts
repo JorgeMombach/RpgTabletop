@@ -106,6 +106,8 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Baús: desenho do próximo baú; baú aberto no editor (mestre). */
   chestStyle: ChestStyle;
   editingChestId: string | null;
+  /** Baú que acabou de ser posto e ainda não foi salvo: fechar a janela sem salvar tira ele do mapa. */
+  newChestId: string | null;
   /** Baú com a janela de loot aberta nesta tela (abre sozinha quando alguém abre um baú). */
   lootChestId: string | null;
   /** Ferramenta Pincel (mestre): tipo e cor do efeito, apagar em vez de pintar, lado do pincel em casas. */
@@ -173,6 +175,7 @@ export const useApp = create<AppStore>(() => ({
   torchErase: false,
   chestStyle: "wood",
   editingChestId: null,
+  newChestId: null,
   lootChestId: null,
   paintPreset: "fire",
   paintColor: "#d4a24c",

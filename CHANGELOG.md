@@ -27,7 +27,12 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Paredes novas e desenho por parede:** além de pedra, rocha e madeira, agora tem tijolo, paliçada e muralha (bloqueiam a visão) e cerca de madeira, grade de ferro, arame farpado, sebe e muro baixo de pedra, que **deixam ver** através (a visão dos personagens, a luz das tochas e o *Cômodo* da névoa passam por eles). Cada parede tem o seu desenho: no painel da ferramenta *Paredes*, *Desenho* escolhe o das próximas (com amostra); o modo *Trocar desenho* muda o das paredes que você arrastar por cima, e *Todas* muda todas da cena (Ctrl+Z desfaz). Porta numa cerca, sebe, arame ou muro baixo vira **portão de cerca**; numa grade ou muralha, **portão de ferro**. Paredes de sessões antigas continuam com o desenho da cena. Vai no arquivo de sessão.
 
 ### Alterado
+- **Dado explosivo na animação:** em `3d6!`, os dados 3D rolam primeiro os 3; os que tiraram o máximo ficam à vista um instante e só então rolam os extras (e os extras dos extras), em vez de cair tudo de uma vez.
+- **Excluir aliado:** a confirmação agora diz com todas as letras que a exclusão é permanente (ficha, magias, itens) e que não precisa excluir quem só saiu da mesa; o botão virou *Excluir para sempre*.
 - **Painel Construir (mestre):** Paredes, Tochas, Baús, Objetos e Pincel de efeitos saíram da barra do mapa e foram para o painel *Construir*, na aba *Mapa* (entre *Cenas* e *Mapa*). As opções de cada ferramenta aparecem dentro do painel, em vez de cobrir o mapa. A barra fica com o que se usa jogando (Mover, Régua, Área, Ping, Desenho e Névoa). Os atalhos (G, L, J, O, E) continuam e trazem a aba *Mapa* sozinhos; trocar de aba volta para *Mover*.
+
+### Corrigido
+- **Cancelar ao pôr um baú:** fechar a janela de um baú recém-posto sem salvar (Cancelar, X ou Esc) tira o baú do mapa.
 
 ## [2.12.0] - 2026-11-03
 

@@ -1,7 +1,7 @@
 import { Paper, Stack, Text } from "@mantine/core";
 import type { LogEntry } from "@rpg/shared";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { diceBox, fitBox, notationFor, paintBox, setDiceVolume } from "../dice3d";
+import { diceBox, fitBox, notationsFor, paintBox, setDiceVolume } from "../dice3d";
 import { rollerName } from "../format";
 import { useApp, useVolume } from "../store";
 import { naturalD20, natTone } from "./RollLog";
@@ -13,6 +13,8 @@ const SHOW_MS = 2500;
 const LOAD_TIMEOUT_MS = 8000;
 /** Se a física travar (aba em segundo plano…), segue a fila assim mesmo. */
 const ROLL_TIMEOUT_MS = 6000;
+/** Dado explosivo: quanto tempo os dados que explodiram ficam à vista antes de rolarem os extras. */
+const EXPLODE_PAUSE_MS = 900;
 /** Fila longa (várias pessoas rolando juntas): as mais antigas pulam a animação (continuam no log). */
 const MAX_QUEUE = 3;
 
@@ -81,7 +83,8 @@ export function DiceOverlay() {
     try {
       let next: LogEntry | undefined;
       while ((next = queue.current.shift())) {
-        const notation = notationFor(next.roll!);
+        const waves = notationsFor(next.roll!);
+        const notation = waves[0];
         // Caixa que não termina de carregar (um som que não chega…): segue sem animação, não trava a fila.
         const box = notation && boxRef.current ? await Promise.race([diceBox(boxRef.current).catch(() => null), wait(LOAD_TIMEOUT_MS).then(() => null)]) : null;
         if (box && notation && boxRef.current) {
@@ -92,6 +95,11 @@ export function DiceOverlay() {
           const { volume, muted } = useVolume.getState();
           setDiceVolume(box, muted ? 0 : volume * (useApp.getState().state?.sound.volume.sfx ?? 0.8));
           await Promise.race([box.roll(notation), wait(ROLL_TIMEOUT_MS)]);
+          // Dado explosivo: os dados que tiraram o máximo ficam à vista um instante; depois rolam os extras.
+          for (const extra of waves.slice(1)) {
+            await wait(EXPLODE_PAUSE_MS);
+            await Promise.race([box.roll(extra), wait(ROLL_TIMEOUT_MS)]);
+          }
         }
         setShown(next);
         reveal([next.id]);

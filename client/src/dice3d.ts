@@ -11,30 +11,45 @@ const DRAWABLE = new Set([4, 6, 8, 10, 12, 20, 100]);
 const MAX_DICE = 20;
 
 /**
- * Notação da biblioteca a partir da rolagem do servidor: os valores vão todos num `@` só, no fim,
- * na ordem dos dados ("2d6+1d8@6,6,2"). `null` = nada para animar.
- * O "d100" da biblioteca é só o dado das dezenas (10…90, 00): o d100 vira o par dezenas + d10,
- * como na mesa (29 = "20" + 9; 100 = "00" + 0).
+ * Notações da biblioteca a partir da rolagem do servidor, em levas. Em cada uma, os valores vão num `@` só, no fim,
+ * na ordem dos dados ("2d6+1d8@6,6,2"). O "d100" da biblioteca é só o dado das dezenas (10…90, 00): o d100 vira o
+ * par dezenas + d10, como na mesa (29 = "20" + 9; 100 = "00" + 0).
+ * Dado explosivo (Passo 5): a primeira leva joga os dados da rolagem; cada dado que tirou o máximo num termo
+ * explosivo ("3d6!") ganha um dado novo na leva seguinte, como na mesa: primeiro rolam os 3, depois o extra do 6.
+ * Sem explosão, uma leva só. Vazio = nada para animar.
  */
-export function notationFor(roll: RollResult): string | null {
-  const parts: string[] = [];
-  const values: number[] = [];
+export function notationsFor(roll: RollResult): string[] {
+  const waves: { parts: string[]; values: number[] }[] = [];
+  const wave = (i: number) => (waves[i] ??= { parts: [], values: [] });
+  let total = 0;
   for (const t of roll.terms) {
     if (t.kind !== "dice" || !DRAWABLE.has(t.faces)) continue;
     if (t.faces === 100) {
       for (const v of t.rolls) {
         const units = v % 10;
         const tens = v - units;
-        parts.push("1d100", "1d10");
-        values.push(tens === 0 || v === 100 ? 100 : tens, units === 0 ? 10 : units);
+        wave(0).parts.push("1d100", "1d10");
+        wave(0).values.push(tens === 0 || v === 100 ? 100 : tens, units === 0 ? 10 : units);
+        total += 2;
       }
       continue;
     }
-    parts.push(`${t.rolls.length}d${t.faces}`);
-    values.push(...t.rolls);
+    // Leva de cada dado: o original é a 0; o que veio de uma explosão, a seguinte à do dado que explodiu.
+    const perWave: number[][] = [];
+    let at = 0;
+    for (const v of t.rolls) {
+      (perWave[at] ??= []).push(v);
+      at = t.explode && v === t.faces ? at + 1 : 0;
+    }
+    perWave.forEach((vals, i) => {
+      if (!vals?.length) return;
+      wave(i).parts.push(`${vals.length}d${t.faces}`);
+      wave(i).values.push(...vals);
+      total += vals.length;
+    });
   }
-  if (parts.length === 0 || values.length > MAX_DICE) return null;
-  return `${parts.join("+")}@${values.join(",")}`;
+  if (total === 0 || total > MAX_DICE) return [];
+  return waves.filter((w) => w.parts.length > 0).map((w) => `${w.parts.join("+")}@${w.values.join(",")}`);
 }
 
 /** Bronze do guia visual: dados do mestre (e de quem não tem cor). */

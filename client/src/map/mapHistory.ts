@@ -175,6 +175,16 @@ export async function addChest(col: number, row: number, style: ChestStyle): Pro
   return res;
 }
 
+/** Baú posto e cancelado sem salvar: sai do mapa e o passo "posto" sai da pilha (não há o que desfazer). */
+export async function discardNewChest(id: string): Promise<void> {
+  const i = steps.map((s) => s.scope === "chests" && s.kind === "added" && s.id === id).lastIndexOf(true);
+  if (i >= 0) {
+    steps.splice(i, 1);
+    sync();
+  }
+  await act("chest:remove", { id });
+}
+
 /** Baú arrastado para outra casa: desfazer volta para onde estava. */
 export async function moveChest(c: MapChest, col: number, row: number): Promise<ActionResult> {
   const res = await act("chest:move", { id: c.id, col, row });
