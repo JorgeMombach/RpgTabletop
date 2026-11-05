@@ -19,6 +19,7 @@ import { PlayersPanel } from "./PlayersPanel";
 import { ScenesPanel } from "./ScenesPanel";
 import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
+import { TablesPanel } from "./TablesPanel";
 import { WeatherPanel } from "./WeatherPanel";
 
 export type GmTab = "combat" | "map" | "ambience" | "table";
@@ -142,6 +143,7 @@ export function GmTabs({ state }: { state: ClientState }) {
       <Tabs.Panel value="table" className="gm-tabs-panel">
         <HandoutPanel />
         <BestiaryPanel templates={state.templates} />
+        <TablesPanel tables={state.tables} />
         <PlayersPanel state={state} />
         <SessionPanel />
         {state.host && <InvitePanel host={state.host} />}

@@ -62,6 +62,7 @@ export function createGame(): GameState {
     scenes: [{ id: sceneId, name: "Cena 1" }],
     sceneId,
     lootSeconds: 20,
+    tables: [],
     rules: { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, hideFoeHits: false, darkReminder: false },
   };
 }

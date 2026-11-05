@@ -419,6 +419,11 @@ export interface LogEntry {
    * expressão (`terms` vazio, `total` 0) e o texto sem o total; os outros jogadores nem recebem.
    */
   secret?: true;
+  /**
+   * Rolagem numa tabela aleatória (Passo 13): qual tabela, o dado ("d8", ou "1–7" quando os pesos não fecham
+   * num dado) e o valor sorteado. O texto da linha sorteada, já com os dados resolvidos, vai em `text`.
+   */
+  table?: { id: string; name: string; die: string; value: number };
 }
 
 /** Pedaço de texto do log: modelo em português e valores. */
@@ -576,6 +581,28 @@ export type LootEntry =
   | { id: string; kind: "coins"; coins: Coins }
   | { id: string; kind: "item"; name: string; qty: number; note?: string }
   | { id: string; kind: "weapon"; name: string; qty: number; bonus?: number; damage?: string; note?: string };
+
+/**
+ * Tabela aleatória do mestre (Passo 13, docs/design/tabelas.md). Linha de texto aceita dados ("2d4 goblins") e
+ * outra tabela entre colchetes ("[Nomes de goblin]"); linha de loot é como no baú, com dado no lugar dos números.
+ */
+export interface RollTable {
+  id: string;
+  name: string;
+  kind: "text" | "loot";
+  rows: TableRow[];
+  /** Última escolha de quem vê a rolagem: todos (`true`) ou só o mestre (ausente). */
+  public?: true;
+}
+
+/** Linha da tabela: peso (chance relativa) e o texto ou o loot. */
+export type TableRow = { weight: number; text: string } | { weight: number; loot: TableLoot };
+
+/** Loot de uma linha de tabela: quantidades são dados ("3d6") ou números ("2"). */
+export type TableLoot =
+  | { kind: "coins"; coin: Coin; amount: string }
+  | { kind: "item"; name: string; qty: string; note?: string }
+  | { kind: "weapon"; name: string; qty: string; bonus?: number; damage?: string; note?: string };
 
 /** Entrada de loot como o mestre manda (sem o id). */
 export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<E, "id"> : never) : never;
@@ -780,6 +807,8 @@ export interface GameState {
   rules: TableRules;
   /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
   lootSeconds: number;
+  /** Tabelas aleatórias do mestre (Passo 13): da campanha, não da cena. */
+  tables: RollTable[];
 }
 
 export interface HostInfo {
@@ -923,6 +952,8 @@ export interface ClientState {
   rules: TableRules;
   /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
   lootSeconds: number;
+  /** Tabelas aleatórias (Passo 13): só o mestre recebe; jogador recebe lista vazia. */
+  tables: RollTable[];
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Jogo pausado pelo mestre (Passo 7): aviso na tela de todos e tokens dos jogadores parados. Não vai no arquivo de sessão. */

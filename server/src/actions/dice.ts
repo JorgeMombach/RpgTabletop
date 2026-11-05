@@ -59,6 +59,18 @@ export function logRoll(
   });
 }
 
+/** Rolagem numa tabela aleatória (Passo 13): o texto da linha sorteada, com o dado e o valor em `table`. */
+export function pushTableLog(store: Store, player: ServerPlayer, entry: Required<Pick<LogEntry, "table" | "text">> & { hidden: boolean }): string {
+  return pushLog(store, {
+    authorId: player.id,
+    author: "Mestre",
+    gm: true,
+    text: entry.text,
+    table: entry.table,
+    hidden: entry.hidden || undefined,
+  });
+}
+
 /**
  * Aviso da mesa no log (ex.: condição que acabou); o cliente também mostra como toast. `hidden` = só o mestre.
  * Escrito como modelo, igual às recusas: `logSystem(store, "{who} passou a vez.", { who })`; a tradução

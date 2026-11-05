@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow } from "./types";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
 import type { CatalogCollection, CatalogDetails, CatalogLang } from "./catalog";
@@ -351,6 +351,11 @@ export interface ActionPayloads {
   "loot:end": Record<string, never>;
   /** Mestre: segundos para escolher o loot (0 = sem contagem). */
   "loot:seconds": { seconds: number };
+  /** Mestre: cria (sem `id`) ou edita uma tabela aleatória (Passo 13). */
+  "table:upsert": { id?: string; name: string; kind: "text" | "loot"; rows: TableRow[] };
+  "table:remove": { id: string };
+  /** Mestre: rola a tabela; `public` = todos veem (a tabela lembra a escolha). */
+  "table:roll": { id: string; public: boolean };
   "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number; style?: WallStyle };
   /** Mestre: troca o desenho das paredes (e portas); `null` volta ao desenho da cena. */
   "wall:style": { ids: string[]; style: WallStyle | null };
@@ -459,6 +464,8 @@ export type ClientToServerEvents = ActionEvents & {
   "catalog:list": (ack: (res: { ok: true; collections: CatalogCollection[] } | ActionFailure) => void) => void;
   /** Mestre: as habilidades de um monstro do catálogo (só quando ele abre; `null` = ainda sem texto). */
   "catalog:details": (id: string, ack: (res: { ok: true; details: CatalogDetails | null } | ActionFailure) => void) => void;
+  /** Mestre: rola uma tabela de loot `times` vezes e recebe o loot (Passo 13), para pôr num baú que está editando. */
+  "table:rollLoot": (req: { tableId: string; times: number }, ack: (res: { ok: true; loot: LootInput[] } | ActionFailure) => void) => void;
   /** Confere um arquivo de fichas (valida e compara com a mesa), sem alterar nada. */
   "sheets:check": (file: unknown, ack: (res: SheetCheckResult) => void) => void;
   /** Mestre: efeito sonoro para todos, uma vez (E25). Não fica no estado. */
@@ -567,6 +574,14 @@ export const LIMITS = {
   /** Coisas diferentes num baú. */
   loot: 20,
   chestName: 40,
+  /** Tabelas aleatórias (Passo 13): quantas, linhas por tabela, nome, texto da linha, peso, vezes no baú e tabelas dentro de tabelas. */
+  tables: 50,
+  tableRows: 100,
+  tableName: 40,
+  tableText: 200,
+  tableWeight: 99,
+  tableTimes: 10,
+  tableDepth: 5,
   lootSeconds: { min: 0, max: 120 },
   /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
   fogRects: 500,

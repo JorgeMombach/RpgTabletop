@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -120,6 +120,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     chat: true,
     whisper: { to: playerId, toName: "Ana" },
     secret: true,
+    table: { id: "tab-encontro", name: "Encontro", die: "d8", value: 5 },
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
@@ -182,6 +183,19 @@ function fullGame(playerId: string, gmId: string): GameState {
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
     lootSeconds: 45,
+    tables: [
+      { id: "tab-encontro", name: "Encontro", kind: "text", rows: [{ weight: 3, text: "2d4 goblins e [Nomes]" }], public: true } satisfies Required<RollTable>,
+      {
+        id: "tab-loot",
+        name: "Loot",
+        kind: "loot",
+        rows: [
+          { weight: 1, loot: { kind: "coins", coin: "gp", amount: "3d6" } },
+          { weight: 2, loot: { kind: "item", name: "Poção", qty: "1d2", note: "cura 2d4+2" } },
+          { weight: 1, loot: { kind: "weapon", name: "Machado", qty: "1", bonus: 5, damage: "1d8+3", note: "pesado" } satisfies Required<Extract<TableLoot, { kind: "weapon" }>> },
+        ],
+      },
+    ],
     rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, hideFoeHits: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);

@@ -20,6 +20,7 @@ import { mapTorchHandlers } from "./mapTorches";
 import { chestHandlers } from "./chests";
 import { propHandlers } from "./props";
 import { weatherHandlers } from "./weather";
+import { tableHandlers } from "./tables";
 
 export const handlers: HandlerMap = {
   ...combatantHandlers,
@@ -43,4 +44,5 @@ export const handlers: HandlerMap = {
   ...sheetFileHandlers,
   ...catalogHandlers,
   ...weatherHandlers,
+  ...tableHandlers,
 };

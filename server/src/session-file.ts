@@ -47,6 +47,7 @@ import {
   type FogState,
   type BossPhase,
   type TableRules,
+  type RollTable,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
 import { normalizeExpression } from "./dice";
@@ -54,6 +55,7 @@ import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseChest } from "./actions/chests";
 import { parseProp } from "./actions/props";
 import { parseWall } from "./actions/walls";
+import { parseTable } from "./tables";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
@@ -512,6 +514,21 @@ function logEntry(raw: unknown): LogEntry {
     const w = obj(e.whisper, "log");
     out.whisper = { to: requireString(w.to, "Log"), toName: text(w.toName, "log", 64) };
   }
+  // Rolagem numa tabela aleatória (Passo 13).
+  if (e.table !== undefined) {
+    const t = obj(e.table, "log");
+    out.table = { id: requireString(t.id, "Log"), name: text(t.name, "log", LIMITS.tableName), die: text(t.die, "log", 12), value: int(t.value, "log", 0, 1e6) };
+  }
+  return out;
+}
+
+/** Tabelas aleatórias (Passo 13), conferidas como se o mestre as criasse; nomes não se repetem. */
+function rollTables(raw: unknown): RollTable[] {
+  const out = list(raw, "tabelas", LIMITS.tables).map((r): RollTable => {
+    const t = obj(r, "tabela");
+    return { id: requireString(t.id, "Tabela"), ...parseTable(t), ...(t.public === true && { public: true }) };
+  });
+  if (new Set(out.map((t) => t.id)).size !== out.length || new Set(out.map((t) => t.name.toLowerCase())).size !== out.length) fail("Arquivo inválido: {what}.", { what: "tabelas" });
   return out;
 }
 
@@ -603,6 +620,8 @@ export function parseSession(raw: unknown): ParsedSession {
     rules: tableRules(g.rules ?? {}),
     // Arquivos anteriores aos baús: 20 segundos.
     lootSeconds: g.lootSeconds === undefined ? 20 : int(g.lootSeconds, "tempo do loot", LIMITS.lootSeconds.min, LIMITS.lootSeconds.max),
+    // Arquivos anteriores às tabelas aleatórias (Passo 13): nenhuma.
+    tables: rollTables(g.tables ?? []),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");

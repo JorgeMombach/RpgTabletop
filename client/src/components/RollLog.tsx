@@ -1,9 +1,10 @@
-import { Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import type { LogEntry, RollTerm } from "@rpg/shared";
 import { rollerName } from "../format";
 import { logLabel, logText, t as tr, useLang, useT } from "../i18n";
 import { EmptyState } from "./EmptyState";
-import { IconDice5, IconEyeOff, IconLock } from "@tabler/icons-react";
+import { IconDice5, IconEyeOff, IconLock, IconRefresh } from "@tabler/icons-react";
+import { act } from "../actions";
 import { useApp } from "../store";
 
 /** Ouro do 20 natural (L6), o mesmo do resultado no mapa. */
@@ -124,10 +125,41 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
         </Group>
       ) : e.roll ? (
         <RollBody entry={e} />
+      ) : e.table ? (
+        <TableBody e={e} mine={e.authorId === selfId} />
       ) : (
         <Text size="sm">{logText(e)}</Text>
       )}
     </Paper>
+  );
+}
+
+/** Rolagem numa tabela aleatória (Passo 13): "Tabela · Encontro", "d8: 5 → 6 goblins (2d4)"; o mestre rola de novo dali. */
+function TableBody({ e, mine }: { e: LogEntry; mine: boolean }) {
+  const tb = e.table!;
+  // Rolar de novo só serve na rolagem da própria tabela (o loot que foi para um baú não se repete daqui).
+  const again = mine && !tb.die.startsWith("×");
+  return (
+    <Group gap="xs" wrap="nowrap" align="flex-start">
+      <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+        <Text size="xs" fw={600} truncate title={tb.name}>
+          {tr("tables.logLabel", { name: tb.name })}
+        </Text>
+        <Text size="sm">
+          <Text span size="xs" c="dimmed">
+            {tb.die.startsWith("×") ? tb.die : `${tb.die}: ${tb.value}`} →{" "}
+          </Text>
+          {e.text}
+        </Text>
+      </Stack>
+      {again && (
+        <Tooltip label={tr("tables.rollAgain")}>
+          <ActionIcon size="sm" variant="subtle" color="gray" aria-label={tr("tables.rollAgain")} onClick={() => void act("table:roll", { id: tb.id, public: !e.hidden })}>
+            <IconRefresh size={14} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </Group>
   );
 }
 

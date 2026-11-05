@@ -1,6 +1,6 @@
 // Traduções do catálogo SRD 5.1 (Passo 12, fase B): nome de cada monstro e de cada ataque em pt-BR e es.
 // Fonte da verdade dos nomes: para corrigir um nome, mude aqui e rode `node scripts/srd51/build.mjs <pasta>`.
-// Nomes que as mesas falam em inglês (Goblin, Orc, Lich…) ficam iguais. Os marcados em DOUBTS pedem revisão.
+// Nomes que as mesas falam em inglês (Goblin, Orc, Lich…) ficam iguais. Nomes revisados pelo mestre em 2026-11-04 (ficam como estão; ajustar se alguém reclamar).
 
 const DRAGON_COLORS = {
   black: ["Negro", "negro"],
@@ -320,23 +320,6 @@ const NAMES = {
 };
 
 /** Nomes em que tenho dúvida da forma que as mesas brasileiras usam: Jorge revisa depois. */
-export const DOUBTS = [
-  "ghast",
-  "cloaker",
-  "darkmantle",
-  "blink-dog",
-  "gibbering-mouther",
-  "shield-guardian",
-  "shrieker",
-  "sprite",
-  "phase-spider",
-  "werebear",
-  "wraith",
-  "roper",
-  "thug",
-  "merfolk",
-  "axe-beak",
-];
 
 export function nameOf(pk) {
   return dragon(pk) ?? NAMES[pk] ?? null;

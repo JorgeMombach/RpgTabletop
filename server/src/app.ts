@@ -21,6 +21,7 @@ import type { Handler } from "./actions/types";
 import { hostInfo, roleOf, type RoleRules } from "./net";
 import { exportSession, importSession } from "./session-file";
 import { checkSheets } from "./actions/sheetFiles";
+import { rollLootFor } from "./actions/tables";
 import { CATALOG, catalogDetails } from "./catalog/srd51";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
@@ -333,6 +334,22 @@ export function createApp(opts: AppOptions) {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (player?.role !== "gm") return ack({ ok: false, error: "Sem permissão para essa ação." });
       ack({ ok: true, details: typeof id === "string" ? catalogDetails(id) : null });
+    });
+
+    // Loot de uma tabela para o baú que o mestre está editando (Passo 13): devolve o loot; o log muda.
+    socket.on("table:rollLoot", (req, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (!player) return ack({ ok: false, error: "Sem permissão para essa ação." });
+      try {
+        const loot = rollLootFor(store, player, req);
+        broadcast();
+        ack({ ok: true, loot });
+      } catch (err) {
+        if (err instanceof ActionError) return ack(failure(err));
+        console.error("[table:rollLoot]", err);
+        ack({ ok: false, error: "Não deu para rolar a tabela." });
+      }
     });
 
     // Ver como jogador (Passo 11): só o mestre; null volta à visão dele.

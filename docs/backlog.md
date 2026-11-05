@@ -225,12 +225,12 @@ Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o qu
 ### Passo 12. Catálogo de monstros SRD 5.1 (M–G, feito em 2026-11-04; desenho em [docs/design/catalogo-srd.md](design/catalogo-srd.md))
 Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não importar arquivo); "Adicionar ao bestiário" copia como modelo editável; traduzido em pt-BR/en/es; SRD 5.1 (2014). O 5.2 (2024) fica para depois, como outra coleção.
 - [x] Fase A (feita em 2026-11-04). Estrutura: abas *Meus modelos* / *Catálogo* no Bestiário, busca e filtros (ND, tipo, tamanho), resumo, *Adicionar ao bestiário* e *Pôr no mapa*, origem (`srd:…`) com etiqueta e *Restaurar original*, cor do token por tipo, crédito CC BY 4.0 na tela *Sobre*. Com poucos monstros de teste. Protótipo aprovado antes.
-- [x] Fase B (feita em 2026-11-04: 323 monstros, fonte Open5e, gerados por `scripts/srd51/build.mjs`; nomes em dúvida listados em `DOUBTS` de `scripts/srd51/translations.mjs`). Dados essenciais do SRD 5.1 traduzidos (nome, tipo, tamanho, ND, vida, CA, iniciativa, atributos, ataques). Conferir a licença da fonte do JSON. Revisão de amostra dos nomes antes do lote.
+- [x] Fase B (feita em 2026-11-04: 323 monstros, fonte Open5e, gerados por `scripts/srd51/build.mjs`; nomes revisados em 2026-11-04). Dados essenciais do SRD 5.1 traduzidos (nome, tipo, tamanho, ND, vida, CA, iniciativa, atributos, ataques). Conferir a licença da fonte do JSON. Revisão de amostra dos nomes antes do lote.
 - [x] Fase C (feita em 2026-11-04: 323 monstros em 10 lotes; seção *Habilidades (SRD)* só para o mestre, fora das notas; gerado por `scripts/srd51/details.mjs` a partir de `scripts/srd51/texts/`, e os dragões por `scripts/srd51/dragons.mjs`, que encaixa os textos em modelos). Textos das habilidades (traços, ações especiais e lendárias, resistências, sentidos), traduzidos em pt-BR/es.
 
-### Passo 13. Tabelas aleatórias (M)
-- [ ] O mestre cria tabelas (encontros, nomes, loot) e rola com um clique; resultado no log (só para ele, se quiser).
-- [ ] Rolar loot direto para dentro de um baú.
+### Passo 13. Tabelas aleatórias (M, feito em 2026-11-05; desenho em [docs/design/tabelas.md](design/tabelas.md))
+- [x] O mestre cria tabelas (encontros, nomes, loot) e rola com um clique; resultado no log (só para ele, se quiser). Peso por linha, dados e outra tabela dentro do texto, cinco exemplos nos três idiomas.
+- [x] Rolar loot direto para dentro de um baú (entra na janela de edição; o baú muda ao salvar).
 
 ### Passo 14. Diário da campanha (M)
 - [ ] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão.
