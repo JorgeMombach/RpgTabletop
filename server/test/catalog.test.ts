@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ActionResult, CatalogCollection } from "@rpg/shared";
+import { CATALOG, catalogDetails } from "../src/catalog/srd51";
 import { act, join, useServer, type Client } from "./helpers";
 
 // Passo 12, fase A (docs/design/catalogo-srd.md): catálogo de monstros embutido; copiar para o bestiário.
@@ -108,7 +109,12 @@ describe("catálogo SRD 5.1 completo", () => {
 });
 
 describe("habilidades do catálogo (fase C)", () => {
-  it("o mestre recebe o texto nos três idiomas; jogador não; sem tradução ainda, null", async () => {
+  it("todo monstro do catálogo tem o texto das habilidades", () => {
+    const missing = CATALOG.flatMap((c) => c.entries).filter((e) => !catalogDetails(e.id));
+    assert.deepEqual(missing.map((e) => e.id), []);
+  });
+
+  it("o mestre recebe o texto nos três idiomas; jogador não; id desconhecido, null", async () => {
     const g = await gm();
     type Res = { ok: boolean; details?: import("@rpg/shared").CatalogDetails | null };
     const res: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:basilisk");
@@ -121,7 +127,7 @@ describe("habilidades do catálogo (fase C)", () => {
     // Custo da ação lendária vem do dado da fonte.
     const sphinx: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:androsphinx");
     assert.ok(sphinx.details!.es.legendary.some((l) => l.name === "Teletransporte (cuesta 2 acciones)"));
-    const none: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:adult-red-dragon");
+    const none: Res = await g.timeout(5000).emitWithAck("catalog:details", "srd:nao-existe");
     assert.equal(none.details, null);
     const ana: Client = await client("10.82.0.9");
     await join(ana, "Ana-c");
