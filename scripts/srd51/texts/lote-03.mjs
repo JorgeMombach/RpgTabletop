@@ -1,10 +1,6 @@
 // Lote 3 das habilidades (Passo 12, fase C): Dretch a Morcego Gigante. Formato em scripts/srd51/details.mjs.
-import { ADAMANTINE, amphibious, coldSilver, falseAppearance, FIRE_POISON, INFERNAL, magicRes, magicWeapons, multi, NONMAGICAL, POISON, sight, smell } from "./_comum.mjs";
+import { ADAMANTINE, amphibious, feyAncestry, spiderClimb, sunlight, webWalker, coldSilver, falseAppearance, FIRE_POISON, INFERNAL, magicRes, magicWeapons, multi, NONMAGICAL, POISON, sight, smell } from "./_comum.mjs";
 
-const FEY_ANCESTRY = (pt, es) => ["Ancestralidade Feérica", `${pt} tem vantagem em testes de resistência contra ficar enfeitiçado, e magia não pode fazê-lo dormir.`, "Linaje feérico", `${es} tiene ventaja en las tiradas de salvación para no quedar hechizado, y la magia no puede dormirlo.`];
-const SUNLIGHT = (pt, es) => ["Sensibilidade à Luz Solar", `Sob a luz do sol, ${pt} tem desvantagem nas jogadas de ataque e nos testes de Sabedoria (Percepção) que dependam da visão.`, "Sensibilidad a la luz solar", `Bajo la luz del sol, ${es} tiene desventaja en las tiradas de ataque y en las pruebas de Sabiduría (Percepción) que dependan de la vista.`];
-const SPIDER_CLIMB = (pt, es) => ["Escalar como Aranha", `${pt} pode escalar superfícies difíceis, inclusive de cabeça para baixo no teto, sem precisar fazer teste de habilidade.`, "Trepar cual arácnido", `${es} puede trepar por superficies difíciles, incluso boca abajo por el techo, sin necesidad de hacer una prueba de característica.`];
-const WEB_WALKER = (pt, es) => ["Andarilho das Teias", `${pt} ignora restrições de movimento causadas por teias.`, "Caminante de telarañas", `${es} ignora las restricciones de movimiento causadas por telarañas.`];
 const DROW_SPELLS = (pt, es, attrPt, attrEs) => [
   "Conjuração Inata",
   `A habilidade de conjuração inata ${pt} é ${attrPt}. Pode conjurar as seguintes magias, sem precisar de componentes materiais:\nÀ vontade: luzes dançantes\n1/dia cada: escuridão, fogo das fadas`,
@@ -38,16 +34,16 @@ export default {
   drider: {
     lang: ["Élfico, Dialeto Subterrâneo", "Élfico, infracomún"],
     t: {
-      "fey-ancestry": FEY_ANCESTRY("O drider", "El drider"),
+      "fey-ancestry": feyAncestry("O drider", "El drider"),
       "innate-spellcasting": [
         "Conjuração Inata",
         "A habilidade de conjuração inata do drider é Sabedoria (CD de resistência de magia 13). Pode conjurar as seguintes magias, sem precisar de componentes materiais:\nÀ vontade: luzes dançantes\n1/dia cada: escuridão, fogo das fadas",
         "Lanzamiento de conjuros innato",
         "La aptitud mágica innata del drider es Sabiduría (CD de salvación de conjuros 13). Puede lanzar los siguientes conjuros sin necesidad de componentes materiales:\nA voluntad: luces danzantes\n1/día cada uno: oscuridad, fuego feérico",
       ],
-      "spider-climb": SPIDER_CLIMB("O drider", "El drider"),
-      "sunlight-sensitivity": SUNLIGHT("o drider", "el drider"),
-      "web-walker": WEB_WALKER("O drider", "El drider"),
+      "spider-climb": spiderClimb("O drider", "El drider"),
+      "sunlight-sensitivity": sunlight("o drider", "el drider"),
+      "web-walker": webWalker("O drider", "El drider"),
     },
     a: {
       multiattack: multi(
@@ -59,9 +55,9 @@ export default {
   drow: {
     lang: ["Élfico, Dialeto Subterrâneo", "Élfico, infracomún"],
     t: {
-      "fey-ancestry": FEY_ANCESTRY("O drow", "El drow"),
+      "fey-ancestry": feyAncestry("O drow", "El drow"),
       "innate-spellcasting": DROW_SPELLS("do drow", "del drow", "Carisma (CD de resistência de magia 11)", "Carisma (CD de salvación de conjuros 11)"),
-      "sunlight-sensitivity": SUNLIGHT("o drow", "el drow"),
+      "sunlight-sensitivity": sunlight("o drow", "el drow"),
     },
   },
   druid: {
@@ -117,7 +113,7 @@ export default {
         "Resiliencia duergar",
         "El duergar tiene ventaja en las tiradas de salvación contra el veneno, los conjuros y las ilusiones, y para no quedar hechizado ni paralizado.",
       ],
-      "sunlight-sensitivity": SUNLIGHT("o duergar", "el duergar"),
+      "sunlight-sensitivity": sunlight("o duergar", "el duergar"),
     },
     a: {
       enlarge: [
@@ -248,9 +244,9 @@ export default {
   },
   ettercap: {
     t: {
-      "spider-climb": SPIDER_CLIMB("O ettercap", "El ettercap"),
+      "spider-climb": spiderClimb("O ettercap", "El ettercap"),
       "web-sense": ["Sentir Teias", "Em contato com uma teia, o ettercap sabe a localização exata de qualquer outra criatura em contato com a mesma teia.", "Sentido arácnido", "Mientras está en contacto con una telaraña, el ettercap conoce la ubicación exacta de cualquier otra criatura en contacto con la misma telaraña."],
-      "web-walker": WEB_WALKER("O ettercap", "El ettercap"),
+      "web-walker": webWalker("O ettercap", "El ettercap"),
     },
     a: { multiattack: multi("O ettercap faz dois ataques: um de mordida e um de garras.", "El ettercap hace dos ataques: uno de mordisco y otro de garras.") },
   },
