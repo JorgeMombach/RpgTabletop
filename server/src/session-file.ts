@@ -56,6 +56,7 @@ import { parseChest } from "./actions/chests";
 import { parseProp } from "./actions/props";
 import { parseWall } from "./actions/walls";
 import { parseTable } from "./tables";
+import { parseClock } from "./actions/clock";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
@@ -622,6 +623,8 @@ export function parseSession(raw: unknown): ParsedSession {
     lootSeconds: g.lootSeconds === undefined ? 20 : int(g.lootSeconds, "tempo do loot", LIMITS.lootSeconds.min, LIMITS.lootSeconds.max),
     // Arquivos anteriores às tabelas aleatórias (Passo 13): nenhuma.
     tables: rollTables(g.tables ?? []),
+    // Hora do jogo (Passo 15); arquivos antigos: desligada.
+    clock: parseClock(g.clock),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");

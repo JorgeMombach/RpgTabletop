@@ -63,6 +63,7 @@ export function createGame(): GameState {
     sceneId,
     lootSeconds: 20,
     tables: [],
+    clock: null,
     rules: { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, hideFoeHits: false, darkReminder: false },
   };
 }

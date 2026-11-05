@@ -20,6 +20,7 @@ import { ScenesPanel } from "./ScenesPanel";
 import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
 import { TablesPanel } from "./TablesPanel";
+import { ClockPanel } from "./ClockPanel";
 import { WeatherPanel } from "./WeatherPanel";
 
 export type GmTab = "combat" | "map" | "ambience" | "table";
@@ -137,6 +138,7 @@ export function GmTabs({ state }: { state: ClientState }) {
         <MapPanel map={state.battle.map} />
       </Tabs.Panel>
       <Tabs.Panel value="ambience" className="gm-tabs-panel">
+        <ClockPanel clock={state.clock} />
         <WeatherPanel state={state} />
         <SoundPanel state={state} />
       </Tabs.Panel>

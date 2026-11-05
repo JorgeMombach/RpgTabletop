@@ -29,12 +29,19 @@ import { SettingsButton } from "./Settings";
 import { JoinFightBanner } from "./JoinFightBanner";
 import { SelectedPanel } from "./SelectedPanel";
 import { SheetModal } from "./SheetModal";
+import { clockTime } from "./ClockPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
 export function TurnStatus({ state }: { state: ClientState }) {
   const t = useT();
   const { combat } = state.battle;
-  if (!combat.active) return null;
+  // Fora de combate, a hora do jogo (Passo 15), se o mestre ligou.
+  if (!combat.active)
+    return state.clock ? (
+      <Text size="sm" c="dimmed" className="turn-status" truncate>
+        {t("clock.now", { day: state.clock.day, time: clockTime(state.clock.minutes) })}
+      </Text>
+    ) : null;
   const group = currentGroup(state);
   const who = group.length > 0 ? { name: groupName(group.map((c) => c.name)) } : undefined;
   return (

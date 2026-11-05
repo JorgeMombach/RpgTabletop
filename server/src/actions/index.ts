@@ -21,6 +21,7 @@ import { chestHandlers } from "./chests";
 import { propHandlers } from "./props";
 import { weatherHandlers } from "./weather";
 import { tableHandlers } from "./tables";
+import { clockHandlers } from "./clock";
 
 export const handlers: HandlerMap = {
   ...combatantHandlers,
@@ -45,4 +46,5 @@ export const handlers: HandlerMap = {
   ...catalogHandlers,
   ...weatherHandlers,
   ...tableHandlers,
+  ...clockHandlers,
 };

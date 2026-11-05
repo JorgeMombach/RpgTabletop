@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -196,6 +196,7 @@ function fullGame(playerId: string, gmId: string): GameState {
         ],
       },
     ],
+    clock: { day: 12, minutes: 14 * 60 + 30, lightFollows: true } satisfies Required<GameClock>,
     rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, hideFoeHits: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);

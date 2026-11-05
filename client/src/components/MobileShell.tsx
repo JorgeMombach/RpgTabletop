@@ -85,7 +85,7 @@ export function MobileShell({ state }: { state: ClientState }) {
           <Text size="sm" fw={700} c="bronze.4" className="turn-status">
             {t("top.yourTurn")}
           </Text>
-        ) : combat.active ? (
+        ) : combat.active || state.clock ? (
           <Memo.TurnStatus state={state} />
         ) : (
           <Text fw={700} ff="heading" c="bronze.4" fz={15} truncate className="turn-status">

@@ -356,6 +356,10 @@ export interface ActionPayloads {
   "table:remove": { id: string };
   /** Mestre: rola a tabela; `public` = todos veem (a tabela lembra a escolha). */
   "table:roll": { id: string; public: boolean };
+  /** Mestre: liga, acerta ou desliga (`null`) a hora do jogo (Passo 15). */
+  "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
+  /** Mestre: avança a hora do jogo (descanso, viagem). */
+  "clock:advance": { minutes: number };
   "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number; style?: WallStyle };
   /** Mestre: troca o desenho das paredes (e portas); `null` volta ao desenho da cena. */
   "wall:style": { ids: string[]; style: WallStyle | null };
@@ -582,6 +586,9 @@ export const LIMITS = {
   tableWeight: 99,
   tableTimes: 10,
   tableDepth: 5,
+  /** Hora do jogo (Passo 15): maior dia e maior avanço de uma vez (30 dias, em minutos). */
+  clockDay: 99_999,
+  clockAdvance: 43_200,
   lootSeconds: { min: 0, max: 120 },
   /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
   fogRects: 500,

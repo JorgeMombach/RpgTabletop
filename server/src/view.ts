@@ -149,6 +149,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
     lootSeconds: game.lootSeconds,
     // Tabelas aleatórias (Passo 13): só o mestre (o conteúdo é surpresa).
     tables: gm ? game.tables : [],
+    clock: game.clock,
     // Cenas preparadas são do mestre: os jogadores só veem a que está no mapa.
     scenes: gm
       ? game.scenes.map((s) => {

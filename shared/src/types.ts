@@ -809,6 +809,16 @@ export interface GameState {
   lootSeconds: number;
   /** Tabelas aleatórias do mestre (Passo 13): da campanha, não da cena. */
   tables: RollTable[];
+  /** Calendário e hora do jogo (Passo 15); `null` = desligado. */
+  clock: GameClock | null;
+}
+
+/** Hora do jogo (Passo 15): "Dia 3, 14:00". Com `lightFollows`, a luz do clima segue a hora (dia, entardecer, noite). */
+export interface GameClock {
+  day: number;
+  /** Minutos desde a meia-noite (0 a 1439). */
+  minutes: number;
+  lightFollows?: true;
 }
 
 export interface HostInfo {
@@ -954,6 +964,8 @@ export interface ClientState {
   lootSeconds: number;
   /** Tabelas aleatórias (Passo 13): só o mestre recebe; jogador recebe lista vazia. */
   tables: RollTable[];
+  /** Hora do jogo (Passo 15): todos veem. */
+  clock: GameClock | null;
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
   /** Jogo pausado pelo mestre (Passo 7): aviso na tela de todos e tokens dos jogadores parados. Não vai no arquivo de sessão. */

@@ -6,7 +6,10 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.13.0] - 2026-11-05
+
 ### Adicionado
+- **Hora do jogo (mestre):** painel *Hora do jogo* na aba *Ambiente*. Ligado, guarda o dia e a hora da aventura ("Dia 3 · 14:00", no topo da tela de todos fora de combate) e avança com *1 h*, *Descanso curto (1 h)*, *Descanso longo (8 h)* ou *Viajar* N horas; cada avanço aparece no log. Com *A luz do clima acompanha a hora*, a luz do mapa segue o relógio (dia das 6h às 18h, entardecer no amanhecer e no fim da tarde, noite no resto), também ao trocar de cena. Vai no arquivo de sessão.
 - **Tabelas aleatórias (mestre):** painel *Tabelas* na aba *Mesa*. O mestre monta tabelas de texto (encontros, nomes, clima) ou de loot, com um peso por linha (a janela mostra o dado e a faixa de cada linha, como "d8 · 1–3"), e rola com um clique; o resultado vai para o log, por padrão só para o mestre (o olho alterna para todos, e a tabela lembra a escolha), com um botão para rolar de novo. No texto, `2d4 goblins` rola o dado e `[Nome de PNJ]` sorteia em outra tabela. Na janela do baú, *Rolar tabela de loot* sorteia uma tabela de loot de 1 a 10 vezes e acrescenta o resultado à lista (moedas somadas, itens iguais juntos); o baú só muda ao salvar. Com o painel vazio, *Adicionar exemplos* cria cinco tabelas no idioma do mestre. As tabelas vão no arquivo de sessão.
 - **Catálogo de monstros (mestre):** o painel *Bestiário* ganhou as abas *Meus modelos* e *Catálogo* (abre no catálogo enquanto o bestiário estiver vazio). O catálogo traz monstros do SRD 5.1 (CC BY 4.0, crédito na tela *Sobre*), com busca, filtro por nível de desafio e por tipo, e o resumo de cada um (vida, CA, atributos, ataques). *Adicionar ao bestiário* copia como modelo seu, no seu idioma e editável; *Pôr no mapa* também cria os mobs (se o monstro já está no seu bestiário, usa o seu modelo, com as suas edições). O modelo copiado tem a etiqueta *SRD* e um botão para restaurar os números originais. São os 323 monstros do SRD 5.1, com nome e ataques traduzidos para português e espanhol; bônus e dano vêm do texto do SRD (o dano que depende de teste de resistência e as alternativas, como "com as duas mãos", ficam de fora). *Ver habilidades* (no catálogo) e a seção *Habilidades (SRD)* na ficha do mob ou NPC mostram, só para o mestre, deslocamento, testes de resistência, perícias, resistências, sentidos, idiomas e o texto dos traços e ações (inclusive reações e ações lendárias) do SRD, traduzido; o texto não vai no estado do jogo nem no arquivo de sessão.
 - **Ver como jogador (mestre):** o olho ao lado de cada jogador no painel *Na sessão* (aba *Mesa*) mostra o mapa exatamente como esse jogador recebe (névoa, visão dos personagens, sem mobs ocultos ou fora da vista), atualizando ao vivo, sem abrir outra aba. É só para olhar: a barra do mapa vira uma faixa com o jogador (dá para trocar), enquadrar e *Sair*; os painéis continuam os do mestre.
@@ -373,7 +376,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.12.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.9.0...v2.10.0

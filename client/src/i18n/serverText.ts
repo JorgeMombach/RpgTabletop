@@ -6,6 +6,11 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "Agora é dia {day}, {time}.": ["It is now day {day}, {time}.","Ahora es el día {day}, {time}."],
+  "Ligue a hora do jogo antes de avançar.": ["Turn on the game time before advancing it.","Activa la hora del juego antes de avanzarla."],
+  "Dia": ["Day","Día"],
+  "Hora": ["Time","Hora"],
+  "Minutos": ["Minutes","Minutos"],
   "A tabela precisa de pelo menos uma linha.": ["The table needs at least one row.","La tabla necesita al menos una fila."],
   "Cada linha de uma tabela de loot é moedas, item ou arma.": ["Each row of a loot table is coins, an item or a weapon.","Cada fila de una tabla de botín es monedas, objeto o arma."],
   "Cada linha: até {n} letras.": ["Each row: up to {n} characters.","Cada fila: hasta {n} letras."],

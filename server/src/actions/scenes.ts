@@ -6,6 +6,7 @@ import { fail } from "../validate";
 import { defaultWeather } from "../weather";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
+import { syncLight } from "./clock";
 
 function sceneName(raw: unknown): string {
   const name = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim().slice(0, LIMITS.sceneName) : "";
@@ -93,5 +94,7 @@ export const sceneHandlers: HandlerMap = {
     for (const a of game.allies) a.pos = allyPos[a.id] ?? null;
     // O "Desfazer" de remoção é da cena que saiu.
     store.removedMobs.clear();
+    // Hora do jogo com a luz acompanhando (Passo 15): a cena que abre fica com a luz da hora.
+    syncLight(store);
   },
 };
