@@ -1,4 +1,5 @@
-import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, type Combatant, type GridPos, type TableStyle, type WallStyle } from "@rpg/shared";
+import { randomUUID } from "node:crypto";
+import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import { currentSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
@@ -6,7 +7,9 @@ import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
 import { moveFollowers } from "./effects";
 import { requireTurnFor } from "./rules";
+import { parseMapTorch } from "./mapTorches";
 import type { HandlerMap } from "./types";
+import { parseWall } from "./walls";
 
 /** Casas que um corpo de lado `span` ocupa a partir de `pos`. */
 function cellsOf(pos: GridPos, span: number): GridPos[] {
@@ -45,9 +48,12 @@ export function gridColorOf(raw: unknown): string | undefined {
   return raw.toLowerCase() === "#000000" ? undefined : raw.toLowerCase();
 }
 
-/** Estilo das paredes da cena (L5); pedra lavrada é o padrão e fica sem campo. */
+/**
+ * Estilo das paredes da cena (L5); pedra lavrada é o padrão e fica sem campo. Só os que bloqueiam a visão: a
+ * parede sem desenho próprio sempre bloqueia (a visão olha só a parede).
+ */
 export function wallStyleOf(raw: unknown): WallStyle | undefined {
-  if (!WALL_STYLES.includes(raw as WallStyle)) fail("Estilo de parede inválido.");
+  if (!WALL_STYLES.includes(raw as WallStyle) || seeThrough(raw as WallStyle)) fail("Estilo de parede inválido.");
   return raw === "stone" ? undefined : (raw as WallStyle);
 }
 
@@ -60,6 +66,33 @@ export const mapHandlers: HandlerMap = {
     Object.assign(map, { rotation: 0, imageScale: 1 });
     // A versão faz o servidor reenviar a imagem (evento `map:image`) só quando muda.
     map.imageVersion++;
+  },
+
+  // Mapa do Dungeondraft e similares (Passo 9): o cliente lê o arquivo (parseUvtt) e manda tudo de uma vez.
+  // Imagem nova começa sem deslocamento, rotação nem escala; o grid é o do arquivo. Tudo validado antes de mexer.
+  "map:importUvtt": (store, player, payload) => {
+    requireGm(player);
+    const image = requireImage(payload?.image, "Mapa", LIMITS.mapImageChars);
+    const cellPx = Math.round(requireNumber(payload?.cellPx, "Tamanho do quadrado", LIMITS.cellPx.min, LIMITS.cellPx.max) * 100) / 100;
+    const { battle } = store.game;
+    let walls: Wall[] | undefined;
+    if (payload.walls !== undefined) {
+      if (!Array.isArray(payload.walls)) fail("Paredes inválidas.");
+      if (payload.walls.length > LIMITS.walls) fail("Limite de {n} paredes por cena.", { n: LIMITS.walls });
+      walls = payload.walls.map((w) => ({ id: randomUUID(), ...parseWall(w) }));
+    }
+    let torches: MapTorch[] = [];
+    if (payload.torches !== undefined) {
+      if (!Array.isArray(payload.torches)) fail("Tochas inválidas.");
+      if (battle.torches.length + payload.torches.length > LIMITS.mapTorches) fail("Limite de {n} tochas no mapa: apague algumas.", { n: LIMITS.mapTorches });
+      torches = payload.torches.map((t) => ({ id: randomUUID(), ...parseMapTorch({ ...t, style: "iron" }) }));
+    }
+    const map = battle.map;
+    map.image = image;
+    Object.assign(map, { cellPx, offsetX: 0, offsetY: 0, rotation: 0, imageScale: 1 });
+    map.imageVersion++;
+    if (walls) battle.walls = walls;
+    battle.torches.push(...torches);
   },
 
   "battle:grid": (store, player, input) => {
@@ -108,6 +141,7 @@ export const mapHandlers: HandlerMap = {
     battle.walls = [];
     battle.torches = [];
     battle.chests = [];
+    battle.props = [];
     // A disputa de loot era da batalha que acabou.
     store.lootCount = null;
     store.lootResults = null;
@@ -144,10 +178,36 @@ export const mapHandlers: HandlerMap = {
     }
   },
 
+  // Pausa (Passo 7): aviso na tela de todos; fica fora do arquivo de sessão.
+  "pause:set": (store, player, payload) => {
+    requireGm(player);
+    if (payload?.paused !== true) {
+      store.pause = null;
+      return;
+    }
+    const message = typeof payload.message === "string" ? payload.message.replace(/\s+/g, " ").trim().slice(0, LIMITS.pauseMessage) : "";
+    store.pause = { message };
+  },
+
+  // Altura e direção (Passo 10): só visual, como mover (quem move o token, muda; pausado, o jogador espera).
+  "token:pose": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    if (store.pause && player.role !== "gm") fail("O jogo está pausado: espere o mestre retomar.");
+    const elevation = payload.elevation == null ? payload.elevation : requireInt(payload.elevation, "Altura", LIMITS.elevation.min, LIMITS.elevation.max);
+    const facing = payload.facing == null ? payload.facing : (((requireInt(payload.facing, "Direção", -3600, 3600) % 360) + 360) % 360);
+    // Validado tudo: aplica. 0 de altura = no chão (sem campo).
+    if (elevation === null || elevation === 0) delete c.elevation;
+    else if (elevation !== undefined) c.elevation = elevation;
+    if (facing === null) delete c.facing;
+    else if (facing !== undefined) c.facing = facing;
+  },
+
   "token:move": (store, player, payload) => {
     // Movimento livre: sem limite de deslocamento (ADR-06); só a permissão importa e, com a regra
     // da mesa ligada, a vez em combate.
     const c = editable(store, player, payload?.id);
+    // Jogo pausado (Passo 7): os jogadores esperam; o mestre continua ajeitando a cena.
+    if (store.pause && player.role !== "gm") fail("O jogo está pausado: espere o mestre retomar.");
     requireTurnFor(store, player, "moveOnTurn", "Em combate, cada um move na sua vez.");
     const pos = gridPosOf(payload.pos);
     // Dois corpos não ocupam o mesmo espaço; criaturas grandes ocupam várias casas e miúdas dividem a casa.

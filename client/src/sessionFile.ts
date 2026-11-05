@@ -50,6 +50,13 @@ function download(name: string, content: string) {
   URL.revokeObjectURL(url);
 }
 
+/** Grava um JSON: no app do mestre, pelo "Salvar como" do sistema; no navegador, como download. `false` se cancelou. */
+export async function saveJson(name: string, json: string): Promise<boolean> {
+  if (desktop) return (await desktop.saveSession(json, name)).ok;
+  download(name, json);
+  return true;
+}
+
 /**
  * Pede o arquivo ao servidor e grava: no app do mestre, pelo "Salvar como" do sistema; no navegador, como download.
  * Devolve `false` se o mestre cancelar. Lança `Error` com mensagem pronta se o servidor recusar ou não responder.

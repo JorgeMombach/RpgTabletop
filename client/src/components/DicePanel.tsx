@@ -3,8 +3,10 @@ import {
   Alert,
   Button,
   Checkbox,
+  Code,
   Divider,
   Group,
+  Menu,
   MultiSelect,
   NumberInput,
   SegmentedControl,
@@ -16,7 +18,7 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { IconSparkles, IconSword, IconWindowMaximize } from "@tabler/icons-react";
+import { IconDice5, IconHelpCircle, IconSparkles, IconSword, IconWindowMaximize } from "@tabler/icons-react";
 import { DICE, LIMITS, type ActionPayloads, type ClientState, type CombatantView, type OutsideRolls, type RollMode, type SavedAttack } from "@rpg/shared";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { act } from "../actions";
@@ -29,6 +31,7 @@ import { Panel } from "./Panel";
 import { rollLock } from "../rollLock";
 import { attacksOf } from "../weapons";
 import { naturalD20, RollLog } from "./RollLog";
+import { ChatBar } from "./ChatBar";
 
 const MODES: { value: RollMode; label: MessageKey }[] = [
   { value: "normal", label: "dice.normal" },
@@ -79,7 +82,7 @@ type QuickItem = Pick<SavedAttack, "id" | "name" | "bonus" | "damage">;
  * Escolher na lista (com busca) um ataque ou uma magia de quem rola. Funciona como botão: a escolha rola (ou
  * prepara o dano) e o campo volta vazio. Com as rolagens travadas, o que tem d20 fica apagado na lista.
  */
-function QuickPick({ label, placeholder, icon, items, blocked, onPick }: { label: string; placeholder: string; icon: ReactNode; items: QuickItem[]; blocked: boolean; onPick: (item: QuickItem) => void }) {
+function QuickPick({ label, placeholder, icon, items, blocked, onPick, allRoll = false }: { label: string; placeholder: string; icon: ReactNode; items: QuickItem[]; blocked: boolean; onPick: (item: QuickItem) => void; /** Tudo na lista rola (rolagens salvas): travado, tudo fica apagado. */ allRoll?: boolean }) {
   const t = useT();
   const [search, setSearch] = useState("");
   const stats = (i: QuickItem) => [i.bonus !== undefined ? fmtMod(i.bonus) : null, i.damage].filter(Boolean).join(" · ");
@@ -95,7 +98,7 @@ function QuickPick({ label, placeholder, icon, items, blocked, onPick }: { label
       searchValue={search}
       onSearchChange={setSearch}
       nothingFoundMessage={t("dice.pickNone")}
-      data={items.map((i) => ({ value: i.id, label: i.name, disabled: blocked && i.bonus !== undefined }))}
+      data={items.map((i) => ({ value: i.id, label: i.name, disabled: blocked && (allRoll || i.bonus !== undefined) }))}
       renderOption={({ option }) => {
         const item = items.find((i) => i.id === option.value)!;
         return (
@@ -128,6 +131,39 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 /** `inline` = tela de celular (E23): o log fica sempre no painel, sem janela flutuante. */
+/** Fórmulas de outros sistemas (Passo 5): exemplos prontos; clicar põe no campo. */
+const FORMULAS: { expr: string; key: MessageKey }[] = [
+  { expr: "2d20kh1", key: "dice.formulaKh" },
+  { expr: "3d20kh1", key: "dice.formulaOp" },
+  { expr: "4d6kh3", key: "dice.formulaStats" },
+  { expr: "2d20kl1", key: "dice.formulaKl" },
+  { expr: "3d6!", key: "dice.formulaExplode" },
+  { expr: "4dF", key: "dice.formulaFate" },
+];
+
+function FormulaHelp({ onPick }: { onPick: (expr: string) => void }) {
+  const t = useT();
+  return (
+    <Menu position="bottom-end" withinPortal width={280}>
+      <Menu.Target>
+        <Tooltip label={t("dice.formulas")}>
+          <ActionIcon variant="subtle" color="gray" aria-label={t("dice.formulas")}>
+            <IconHelpCircle size={16} />
+          </ActionIcon>
+        </Tooltip>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t("dice.formulas")}</Menu.Label>
+        {FORMULAS.map(({ expr, key }) => (
+          <Menu.Item key={expr} onClick={() => onPick(expr)} leftSection={<Code>{expr}</Code>}>
+            <Text size="xs">{t(key)}</Text>
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
 export function DicePanel({ state, inline = false }: { state: ClientState; inline?: boolean }) {
   const t = useT();
   const logDetached = useApp((s) => s.logDetached) && !inline;
@@ -144,6 +180,8 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   const [crit, setCrit] = useState(false);
   // Mestre rola atrás do escudo por padrão (SPEC E16); desmarca para mostrar.
   const [hidden, setHidden] = useState(gm);
+  // Jogador: rolagem às cegas, só o mestre vê o resultado (Passo 6).
+  const [secret, setSecret] = useState(false);
   const selectedId = useApp((s) => s.selectedId);
   const rolling = useApp((s) => s.rolling);
   // Ataque salvo escolhido: o dano dele sai com o nome no log, enquanto o campo de dano não mudar.
@@ -173,6 +211,16 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   // Magias com algo a rolar (acerto e/ou dano), na ordem da ficha (por círculo).
   const spells: QuickItem[] = who && "spells" in who ? (who.spells ?? []).filter((s) => s.bonus !== undefined || s.damage) : [];
 
+  // Rolagens salvas (Passo 8): a fórmula aparece no lugar do dano, na lista.
+  const savedRolls: QuickItem[] = who && "rolls" in who ? (who.rolls ?? []).map((r) => ({ id: r.id, name: r.name, damage: r.expr })) : [];
+
+  /** Rolagem salva escolhida: rola a fórmula; vantagem/desvantagem só se ela tem um 1d20 simples. */
+  function quickSaved(r: QuickItem) {
+    const expr = r.damage ?? "";
+    const plainD20 = /(^|[+-])1d20(?![\d!kf])/i.test(expr.replace(/\s+/g, ""));
+    void roll({ expr, mode: plainD20 ? mode : "normal", name: r.name });
+  }
+
   /** Ataque ou magia escolhidos: preenche bônus e dano; com bônus, já rola o d20 (o dano fica pronto embaixo). */
   async function quickAttack(a: QuickItem) {
     setAttackMod(a.bonus ?? 0);
@@ -188,7 +236,7 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
   }
 
   async function roll(payload: ActionPayloads["dice:roll"]) {
-    return act("dice:roll", { ...payload, hidden: gm && hidden, asId: gm && asId !== AS_MASTER ? asId : undefined });
+    return act("dice:roll", { ...payload, hidden: gm && hidden, secret: !gm && secret, asId: gm && asId !== AS_MASTER ? asId : undefined });
   }
 
   function rollDie(faces: number) {
@@ -277,6 +325,18 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
         />
       )}
 
+      {who && savedRolls.length > 0 && (
+        <QuickPick
+          label={t("dice.quickRolls", { name: who.name })}
+          placeholder={t("dice.pickRoll")}
+          icon={<IconDice5 size={14} />}
+          items={savedRolls}
+          blocked={blocked}
+          allRoll
+          onPick={quickSaved}
+        />
+      )}
+
       <SectionTitle>{t("dice.attack")}</SectionTitle>
       <Group component="form" gap="xs" wrap="nowrap" align="flex-end" onSubmit={rollAttack}>
         <Tooltip label={t("dice.attackBonusTip")}>
@@ -349,13 +409,20 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
           onChange={(e) => setExpr(e.currentTarget.value)}
           placeholder={t("dice.exprPlaceholder")}
           aria-label={t("dice.expr")}
+          rightSection={<FormulaHelp onPick={setExpr} />}
         />
         <Button type="submit" disabled={blocked || !expr.trim()}>
           {t("dice.roll")}
         </Button>
       </Group>
 
-      {gm && <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label={t("dice.hidden")} />}
+      {gm ? (
+        <Checkbox checked={hidden} onChange={(e) => setHidden(e.currentTarget.checked)} label={t("dice.hidden")} />
+      ) : (
+        <Tooltip label={t("dice.secretTip")} multiline w={260}>
+          <Checkbox checked={secret} onChange={(e) => setSecret(e.currentTarget.checked)} label={t("dice.secret")} w="fit-content" />
+        </Tooltip>
+      )}
 
       <Divider />
       <LogHeader canDetach={!inline} />
@@ -373,7 +440,10 @@ export function DicePanel({ state, inline = false }: { state: ClientState; inlin
           {t("dice.logFloating")}
         </Text>
       ) : (
-        <RollLog log={state.log} selfId={state.self.id} />
+        <>
+          <ChatBar />
+          <RollLog log={state.log} selfId={state.self.id} />
+        </>
       )}
     </Panel>
   );

@@ -1,5 +1,7 @@
-import { Button, Divider, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
-import { IconPencil } from "@tabler/icons-react";
+import { ActionIcon, Button, Divider, Group, Modal, Stack, Text, Tooltip } from "@mantine/core";
+import { IconDownload, IconPencil } from "@tabler/icons-react";
+import { downloadCharacters, downloadMonsters } from "../sheetFiles";
+import { CatalogDetailsView } from "./CatalogDetails";
 import type { ClientState, Combatant } from "@rpg/shared";
 import { useEffect, useState } from "react";
 import { fmtMod } from "../format";
@@ -43,6 +45,7 @@ function SheetBody({ state, c, onClose }: { state: ClientState; c: Combatant; on
   const canEdit = gm || c.ownerId === state.self.id;
   const [mode, setMode] = useState<"view" | "edit" | "summon">("view");
   const kind = kindText(state, c, t);
+  const source = c.type !== "ally" ? state.templates.find((x) => x.id === c.templateId)?.source : undefined;
 
   return (
     <Stack gap="md" p="lg">
@@ -56,6 +59,18 @@ function SheetBody({ state, c, onClose }: { state: ClientState; c: Combatant; on
             {kind} · <Abbr title={t("selected.initTip")}>{t("selected.init")}</Abbr> {fmtMod(c.dexMod)}
           </Text>
         </div>
+        {canEdit && mode === "view" && (
+          <Tooltip label={t("sheetFile.downloadTip")}>
+            <ActionIcon
+              variant="default"
+              size="lg"
+              aria-label={t("sheetFile.download")}
+              onClick={() => void (c.type === "ally" ? downloadCharacters([c], c.name, gm) : downloadMonsters([c], c.name))}
+            >
+              <IconDownload size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         {canEdit && mode === "view" && (
           <Tooltip label={t("selected.editTip")}>
             <Button variant="default" leftSection={<IconPencil size={14} />} onClick={() => setMode("edit")}>
@@ -80,6 +95,13 @@ function SheetBody({ state, c, onClose }: { state: ClientState; c: Combatant; on
             <StatsSection c={c} canRoll={canEdit} gm={gm} />
             <ConditionsSection c={c} editable={canEdit} />
             <DescriptionSection c={c} gm={gm} />
+            {/* Mob ou NPC do catálogo (Passo 12): as habilidades do SRD, só para o mestre. */}
+            {gm && source && (
+              <Stack gap={6}>
+                <Divider label={t("catalog.detailsTitle")} labelPosition="left" />
+                <CatalogDetailsView id={source} />
+              </Stack>
+            )}
           </Stack>
           <div style={{ minWidth: 0 }}>
             <SheetTabs c={c} editable={canEdit} gm={gm} wide />

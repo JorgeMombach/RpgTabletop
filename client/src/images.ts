@@ -37,11 +37,18 @@ function assertImage(file: File) {
  */
 export async function mapImageFromFile(file: File): Promise<string> {
   assertImage(file);
-  const original = await readAsDataUrl(file);
+  return (await mapImageFromDataUrl(await readAsDataUrl(file))).image;
+}
+
+/**
+ * O mesmo, a partir de uma imagem já em dataURL (a que vem dentro do mapa do Dungeondraft, Passo 9).
+ * Devolve também a largura final, para o grid casar com a imagem reduzida.
+ */
+export async function mapImageFromDataUrl(original: string): Promise<{ image: string; width: number }> {
   const img = await loadImage(original);
   const side = LIMITS.mapImageSide;
   const fits = img.width <= side && img.height <= side;
-  if (fits && original.length <= LIMITS.mapImageChars * 0.6) return original;
+  if (fits && original.length <= LIMITS.mapImageChars * 0.6) return { image: original, width: img.width };
 
   const scale = Math.min(1, side / Math.max(img.width, img.height));
   const canvas = document.createElement("canvas");
@@ -51,7 +58,7 @@ export async function mapImageFromFile(file: File): Promise<string> {
 
   for (const quality of [0.85, 0.7, 0.55]) {
     const out = canvasToDataUrl(canvas, quality);
-    if (out.length <= LIMITS.mapImageChars) return out;
+    if (out.length <= LIMITS.mapImageChars) return { image: out, width: canvas.width };
   }
   throw new Error(t("image.tooBig"));
 }

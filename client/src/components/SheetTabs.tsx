@@ -2,6 +2,7 @@ import {
   ActionIcon,
   Badge,
   Button,
+  Divider,
   Group,
   NumberInput,
   Paper,
@@ -14,7 +15,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconBackpack, IconFlask, IconMinus, IconPencil, IconPlus, IconSword, IconX } from "@tabler/icons-react";
-import { COINS, LIMITS, type ActionPayloads, type Coin, type Combatant, type InventoryItem, type Recharge } from "@rpg/shared";
+import { COINS, LIMITS, type ActionPayloads, type Coin, type Combatant, type InventoryItem, type Recharge, type SavedRoll } from "@rpg/shared";
 import { useState, type FormEvent } from "react";
 import { act } from "../actions";
 import { fmtMod } from "../format";
@@ -360,7 +361,109 @@ function AttacksSection({ c, editable, gm }: { c: Combatant; editable: boolean; 
           {t("sheet.attacks.add")}
         </Button>
       )}
+      <SavedRolls c={c} editable={editable} roll={roll} tip={tip} blocked={lock.blocked} />
     </Stack>
+  );
+}
+
+/* ---------- rolagens salvas (Passo 8) ---------- */
+
+/**
+ * Rolagens salvas: botões com o nome e a fórmula ("Furtividade · 1d20+7"); um clique rola com o nome no log.
+ * Editar mostra o × de cada uma e deixa trocar nome e fórmula. Ficam embaixo dos ataques (uma 5ª aba não cabe).
+ */
+function SavedRolls({ c, editable, roll, tip, blocked }: { c: Combatant; editable: boolean; roll: (p: ActionPayloads["dice:roll"]) => () => void; tip: (label: string) => string; blocked: boolean }) {
+  const t = useT();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<SavedRoll | "new" | null>(null);
+  const rolls = c.rolls ?? [];
+  if (!editable && rolls.length === 0) return null;
+  return (
+    <Stack gap="xs">
+      <Divider label={t("sheet.rolls.title")} labelPosition="left" />
+      {rolls.length === 0 && !form && (
+        <Text size="xs" c="dimmed">
+          {t("sheet.rolls.empty")}
+        </Text>
+      )}
+      {rolls.length > 0 && (
+        <SimpleGrid cols={2} spacing={6} verticalSpacing={6}>
+          {rolls.map((r) => (
+            <Group key={r.id} gap={2} wrap="nowrap">
+              <Tooltip label={editing ? t("sheet.rolls.editOne") : tip(t("sheet.rolls.roll", { expr: r.expr }))}>
+                <Button
+                  variant="default"
+                  h="auto"
+                  py={4}
+                  px={8}
+                  style={{ flex: 1, minWidth: 0 }}
+                  disabled={!editable}
+                  data-disabled={(!editing && blocked) || undefined}
+                  onClick={editing ? () => setForm(r) : roll({ expr: r.expr, name: r.name })}
+                  styles={{ inner: { justifyContent: "flex-start" }, label: { flexDirection: "column", alignItems: "flex-start", gap: 0, minWidth: 0, width: "100%" } }}
+                >
+                  <Text size="xs" fw={700} truncate maw="100%" title={r.name}>
+                    {r.name}
+                  </Text>
+                  <Text size="xs" c="dimmed" ff="monospace" truncate maw="100%" title={r.expr}>
+                    {r.expr}
+                  </Text>
+                </Button>
+              </Tooltip>
+              {editing && (
+                <Tooltip label={t("common.remove")}>
+                  <ActionIcon variant="subtle" color="red" size="sm" onClick={() => act("savedRoll:remove", { id: c.id, rollId: r.id })} aria-label={t("common.remove")}>
+                    <IconX size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
+          ))}
+        </SimpleGrid>
+      )}
+      {form && <SavedRollForm c={c} roll={form === "new" ? undefined : form} onDone={() => setForm(null)} />}
+      {editable && !form && (
+        <Group justify="space-between" gap="xs">
+          <Button variant="default" onClick={() => setForm("new")}>
+            {t("sheet.rolls.add")}
+          </Button>
+          {rolls.length > 0 && (
+            <Button variant="subtle" color="gray" onClick={() => setEditing((e) => !e)}>
+              {t(editing ? "sheet.rolls.done" : "sheet.rolls.edit")}
+            </Button>
+          )}
+        </Group>
+      )}
+    </Stack>
+  );
+}
+
+function SavedRollForm({ c, roll, onDone }: { c: Combatant; roll?: SavedRoll; onDone: () => void }) {
+  const t = useT();
+  const [name, setName] = useState(roll?.name ?? "");
+  const [expr, setExpr] = useState(roll?.expr ?? "");
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const res = await act("savedRoll:upsert", { id: c.id, ...(roll && { rollId: roll.id }), name, expr });
+    if (res.ok) onDone();
+  }
+
+  return (
+    <Paper component="form" onSubmit={submit} p="sm" bg="dark.7">
+      <Stack gap="xs">
+        <Group grow gap="xs" align="flex-start">
+          <TextInput label={t("sheet.rolls.name")} placeholder={t("sheet.rolls.namePlaceholder")} autoFocus required maxLength={LIMITS.spellName} value={name} onChange={(e) => setName(e.currentTarget.value)} />
+          <TextInput label={t("sheet.rolls.expr")} placeholder="1d20+7" required maxLength={LIMITS.dice.exprLength} value={expr} onChange={(e) => setExpr(e.currentTarget.value)} />
+        </Group>
+        <Group justify="flex-end" gap="xs">
+          <Button variant="default" onClick={onDone}>
+            {t("common.cancel")}
+          </Button>
+          <Button type="submit">{t(roll ? "common.save" : "common.add")}</Button>
+        </Group>
+      </Stack>
+    </Paper>
   );
 }
 

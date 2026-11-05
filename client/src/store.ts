@@ -2,13 +2,14 @@ import { create } from "zustand";
 import { useMemo } from "react";
 import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
+import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type Role, type Ruler } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -22,14 +23,14 @@ export interface Rect {
 
 /** Preferências deste navegador: animação dos dados e log destacado (E22); efeitos reduzidos (E26, L6); câmera seguindo a vez (L6). */
 const PREFS_KEY = "rpg.dicePrefs";
-type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean; followTurn: boolean };
+type DicePrefs = { diceAnim: boolean; logDetached: boolean; reduceFx: boolean; followTurn: boolean; pingLook: boolean };
 
 function readPrefs(): DicePrefs {
   try {
     const p = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}");
-    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true, followTurn: p.followTurn === true };
+    return { diceAnim: p.diceAnim !== false, logDetached: p.logDetached === true, reduceFx: p.reduceFx === true, followTurn: p.followTurn === true, pingLook: p.pingLook === true };
   } catch {
-    return { diceAnim: true, logDetached: false, reduceFx: false, followTurn: false };
+    return { diceAnim: true, logDetached: false, reduceFx: false, followTurn: false, pingLook: false };
   }
 }
 
@@ -47,6 +48,11 @@ interface AppStore extends DicePrefs {
   rulers: Record<string, { name: string; ruler: Ruler }>;
   /** Pings no mapa dos últimos segundos (de todos, inclusive os meus). */
   pings: { id: number; playerId: string; name: string; at: MapPoint }[];
+  /** Mestre vendo como um jogador (Passo 11): o jogador escolhido e o estado que ele recebe. */
+  viewAsId: string | null;
+  preview: ClientState | null;
+  /** "Olhem aqui" do mestre (Passo 7): o mapa desliza até o ponto; `seq` muda a cada pedido. */
+  lookAt: { at: MapPoint; seq: number } | null;
   /** Áreas de magia que outras pessoas estão mostrando agora. */
   areas: Record<string, { name: string; area: Area }>;
   /** Forma e tamanho escolhidos na ferramenta de área. */
@@ -63,6 +69,8 @@ interface AppStore extends DicePrefs {
   wallSnap: boolean;
   /** Espessura das próximas paredes e portas, em casas (L5). */
   wallThick: number;
+  /** Desenho das próximas paredes (e do "Trocar desenho"); `null` = o da cena. */
+  wallDrawStyle: WallStyle | null;
   selectedDoorId: string | null;
   /** Ferramenta Névoa do mestre: revelar ou cobrir, pincel ou retângulo, lado do pincel em casas. */
   fogReveal: boolean;
@@ -98,6 +106,8 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Baús: desenho do próximo baú; baú aberto no editor (mestre). */
   chestStyle: ChestStyle;
   editingChestId: string | null;
+  /** Baú que acabou de ser posto e ainda não foi salvo: fechar a janela sem salvar tira ele do mapa. */
+  newChestId: string | null;
   /** Baú com a janela de loot aberta nesta tela (abre sozinha quando alguém abre um baú). */
   lootChestId: string | null;
   /** Ferramenta Pincel (mestre): tipo e cor do efeito, apagar em vez de pintar, lado do pincel em casas. */
@@ -105,6 +115,14 @@ interface AppStore extends DicePrefs {
   paintColor: string;
   paintErase: boolean;
   paintSize: number;
+  /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
+  propKind: PropKind;
+  selectedPropId: string | null;
+  /** Pôr um objeto, espalhar um conjunto (pincel) ou apagar com o pincel; conjunto, lado do pincel e densidade. */
+  propMode: "place" | "scatter" | "erase";
+  scatterSet: ScatterSet;
+  scatterSize: number;
+  scatterDensity: number;
   /** Ficha completa aberta no modal (duplo clique no token ou botão Ficha; só no computador). */
   sheetId: string | null;
   /** O log de rolagens está numa janela fora da mesa (outro monitor): a mesa não mostra o log. */
@@ -125,6 +143,9 @@ export const useApp = create<AppStore>(() => ({
   mapImage: { version: 0, image: null },
   rulers: {},
   pings: [],
+  lookAt: null,
+  viewAsId: null,
+  preview: null,
   areas: {},
   areaKind: "cone",
   areaFeet: AREA_DEFAULT_FEET.cone,
@@ -135,6 +156,7 @@ export const useApp = create<AppStore>(() => ({
   wallMode: "wall",
   wallSnap: true,
   wallThick: WALL_THICKNESS.default,
+  wallDrawStyle: null,
   selectedDoorId: null,
   fogReveal: true,
   fogShape: "brush",
@@ -153,11 +175,18 @@ export const useApp = create<AppStore>(() => ({
   torchErase: false,
   chestStyle: "wood",
   editingChestId: null,
+  newChestId: null,
   lootChestId: null,
   paintPreset: "fire",
   paintColor: "#d4a24c",
   paintErase: false,
   paintSize: 3,
+  propKind: "tree",
+  selectedPropId: null,
+  propMode: "place",
+  scatterSet: "forest",
+  scatterSize: 5,
+  scatterDensity: 0.6,
   sheetId: null,
   hoverId: null,
   logOut: false,
@@ -191,9 +220,9 @@ export function setVolume(patch: Partial<{ volume: number; muted: boolean }>) {
 
 export function setDicePrefs(patch: Partial<DicePrefs>) {
   useApp.setState(patch);
-  const { diceAnim, logDetached, reduceFx, followTurn } = useApp.getState();
+  const { diceAnim, logDetached, reduceFx, followTurn, pingLook } = useApp.getState();
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx, followTurn }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ diceAnim, logDetached, reduceFx, followTurn, pingLook }));
   } catch {
     // sem armazenamento (aba anônima…): vale só nesta aba
   }
@@ -218,7 +247,7 @@ export function openSheet(id: string) {
 }
 
 export function setTool(tool: MapTool) {
-  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null });
+  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null });
 }
 
 /** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */

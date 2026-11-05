@@ -1,4 +1,4 @@
-import { cellsToRects, inRows, isRevealed, paintRows, sizeSpan, sightCells, TORCH_FEET, visionFeet, type Combatant, type GridPos } from "@rpg/shared";
+import { cellsToRects, inRows, isRevealed, paintRows, propOccluders, sizeSpan, sightCells, TORCH_FEET, visionFeet, type Combatant, type GridPos } from "@rpg/shared";
 import { allCombatants } from "./combat";
 import type { Store } from "./store";
 
@@ -6,7 +6,7 @@ type Rows = Record<string, number[]>;
 
 const cache = new WeakMap<Store, { key: string; rows: Rows }>();
 
-/** O que muda a visão: aliados (lugar, tamanho, visão no escuro), paredes e portas, luz e escala, cena. */
+/** O que muda a visão: aliados (lugar, tamanho, visão no escuro), paredes e portas (e o desenho), objetos que bloqueiam, luz e escala, cena. */
 function keyOf(store: Store): string {
   const { game } = store;
   const { battle } = game;
@@ -18,7 +18,8 @@ function keyOf(store: Store): string {
     game.allies.map((a) => (a.pos ? [a.pos.col, a.pos.row, a.size ?? "", a.darkvision ? 1 : 0] : 0)),
     lightsOf(store).map((c) => [c.pos!.col, c.pos!.row, c.size ?? ""]),
     battle.torches.map((t) => [t.col, t.row]),
-    battle.walls.map((w) => [w.from.col, w.from.row, w.to.col, w.to.row, w.door ? (w.door.open ? 1 : 2) : 0]),
+    battle.walls.map((w) => [w.from.col, w.from.row, w.to.col, w.to.row, w.door ? (w.door.open ? 1 : 2) : 0, w.style ?? ""]),
+    battle.props.filter((p) => p.blocks).map((p) => [p.kind, p.col, p.row, p.size]),
   ]);
 }
 
@@ -54,7 +55,7 @@ export function updateSight(store: Store): Rows {
           ...battle.torches.map((t) => ({ pos: { col: t.col - 0.5, row: t.row - 0.5 }, span: 1, feet: TORCH_FEET })),
         ];
   const rows: Rows = {};
-  for (const r of cellsToRects(sightCells(viewers, battle.walls, battle.map.feetPerCell, lights))) {
+  for (const r of cellsToRects(sightCells(viewers, [...battle.walls, ...propOccluders(battle.props)], battle.map.feetPerCell, lights))) {
     paintRows(rows, r, true);
     paintRows(fog.explored, r, true);
   }

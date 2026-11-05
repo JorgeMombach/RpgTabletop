@@ -1,23 +1,14 @@
 import type { WallStyle } from "@rpg/shared";
-import { grain, METALS, rivet, shade } from "./tokenArt";
+import { METALS, rivet, shade } from "./tokenArt";
+import { barbedWall, brickWall, fenceGate, fenceWall, gatePost, hedgeWall, ironFenceWall, ironGate, lowStoneWall, palisadeWall, rampartWall } from "./wallArtMore";
+import { rng, textured, WOODS } from "./wallKit";
 
 /**
  * Paredes e portas desenhadas no canvas (L5), no mesmo kit dos tokens. Cada parede é desenhada no próprio
- * eixo: do ponto (0, 0) até (L, 0), com espessura `t`. Três estilos por cena: pedra lavrada (blocos em duas
- * fiadas), rocha bruta (contorno irregular) e madeira (tábuas e esteios). Parede comum vira imagem guardada;
- * porta é desenhada ao vivo (são poucas e mudam de estado).
+ * eixo: do ponto (0, 0) até (L, 0), com espessura `t`. Aqui os três desenhos de sempre: pedra lavrada (blocos em
+ * duas fiadas), rocha bruta (contorno irregular) e madeira (tábuas e esteios); os do cenário estão em
+ * `wallArtMore.ts`. Parede comum vira imagem guardada; porta é desenhada ao vivo (são poucas e mudam de estado).
  */
-
-/** Aleatório estável por semente: a parede não "treme" a cada redesenho. */
-function rng(seed: number) {
-  let s = seed >>> 0 || 1;
-  return () => {
-    s ^= s << 13;
-    s ^= s >>> 17;
-    s ^= s << 5;
-    return ((s >>> 0) % 10000) / 10000;
-  };
-}
 
 /** Semente a partir das pontas da parede (a mesma parede sai sempre igual, em qualquer tela). */
 export function wallSeed(ax: number, ay: number, bx: number, by: number): number {
@@ -27,18 +18,6 @@ export function wallSeed(ax: number, ay: number, bx: number, by: number): number
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
-}
-
-function textured(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, scale: number, alpha: number) {
-  const pattern = ctx.createPattern(grain(), "repeat");
-  if (!pattern) return;
-  pattern.setTransform(new DOMMatrix().scale(scale));
-  ctx.save();
-  ctx.globalCompositeOperation = "multiply";
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = pattern;
-  ctx.fillRect(x, y, w, h);
-  ctx.restore();
 }
 
 function dropShadow(ctx: CanvasRenderingContext2D, path: Path2D, t: number, color: string) {
@@ -147,8 +126,6 @@ function rockWall(ctx: CanvasRenderingContext2D, L: number, t: number, seed: num
   ctx.stroke(p);
 }
 
-const WOODS = ["#8b5a2b", "#7a4e24", "#94632f", "#6e4520"];
-
 /** Madeira: três tábuas no comprimento com veios e emendas, e esteios (tocos quadrados) a cada trecho, pregados. */
 function woodWall(ctx: CanvasRenderingContext2D, L: number, t: number, seed: number) {
   const r = rng(seed);
@@ -206,10 +183,19 @@ function woodWall(ctx: CanvasRenderingContext2D, L: number, t: number, seed: num
   }
 }
 
-const WALL_DRAW: Record<WallStyle, (ctx: CanvasRenderingContext2D, L: number, t: number, seed: number) => void> = {
+/** `cell` (lado da casa, nas mesmas unidades) dá o passo dos esteios da cerca, da grade e do arame. */
+const WALL_DRAW: Record<WallStyle, (ctx: CanvasRenderingContext2D, L: number, t: number, seed: number, cell: number) => void> = {
   stone: stoneWall,
   rock: rockWall,
   wood: woodWall,
+  brick: brickWall,
+  palisade: palisadeWall,
+  rampart: rampartWall,
+  fence: fenceWall,
+  iron: ironFenceWall,
+  barbed: barbedWall,
+  hedge: hedgeWall,
+  lowstone: lowStoneWall,
 };
 
 /** Parede pronta (imagem guardada) e quanto ela passa das pontas e da linha, em unidades do mapa. */
@@ -224,10 +210,11 @@ const CACHE_MAX = 700;
 /**
  * Parede de comprimento `L` e espessura `t` pronta para `drawImage` no eixo dela (de -pad a L + pad no
  * comprimento, de -pad a +pad na espessura), na resolução de `pxPerUnit` (em degraus de 2^¼, como os tokens).
+ * `cell` é o lado da casa (esteios a cada casa na cerca, na grade e no arame).
  */
-export function wallArt(style: WallStyle, L: number, t: number, seed: number, pxPerUnit: number): WallArt {
+export function wallArt(style: WallStyle, L: number, t: number, seed: number, pxPerUnit: number, cell: number): WallArt {
   const step = Math.pow(2, Math.ceil(Math.log2(Math.max(0.25, pxPerUnit)) * 4) / 4);
-  const key = [style, L.toFixed(1), t.toFixed(2), seed, step].join("|");
+  const key = [style, L.toFixed(1), t.toFixed(2), seed, step, cell.toFixed(1)].join("|");
   const hit = cache.get(key);
   if (hit) {
     cache.delete(key);
@@ -242,7 +229,7 @@ export function wallArt(style: WallStyle, L: number, t: number, seed: number, px
   const ctx = canvas.getContext("2d")!;
   ctx.scale(k, k);
   ctx.translate(pad, pad);
-  WALL_DRAW[style](ctx, L, t, seed);
+  WALL_DRAW[style](ctx, L, t, seed, cell);
   const art = { canvas, pad };
   cache.set(key, art);
   if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
@@ -283,6 +270,9 @@ export interface DoorLook {
   style: WallStyle;
 }
 
+/** Que portão a porta vira em cada desenho; os outros usam a porta de madeira de sempre. */
+const GATE: Partial<Record<WallStyle, "fence" | "iron">> = { fence: "fence", hedge: "fence", barbed: "fence", lowstone: "fence", iron: "iron", rampart: "iron" };
+
 /** Cadeado do Tabler (IconLock, MIT), 24 × 24. */
 const LOCK = [
   "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z",
@@ -298,6 +288,8 @@ const LOCK = [
 export function drawDoor(ctx: CanvasRenderingContext2D, L: number, t: number, seed: number, look: DoorLook) {
   const leafT = t * 1.15;
   const turn = (look.swing * 80 * Math.PI) / 180;
+  const gate = GATE[look.style];
+  if (gate) return drawGate(ctx, L, t, seed, look, gate, turn);
   if (look.open) {
     ctx.save();
     ctx.setLineDash([t * 0.25, t * 0.2]);
@@ -364,23 +356,61 @@ export function drawDoor(ctx: CanvasRenderingContext2D, L: number, t: number, se
   if (look.secret) ctx.setLineDash([t * 0.3, t * 0.2]);
   ctx.stroke(leaf);
   ctx.restore();
-  jamb(ctx, 0, t, look.style === "wood");
-  jamb(ctx, L, t, look.style === "wood");
-  if (look.locked) {
+  // Paliçada: esteio de madeira, como a madeira.
+  const wood = look.style === "wood" || look.style === "palisade";
+  jamb(ctx, 0, t, wood);
+  jamb(ctx, L, t, wood);
+  if (look.locked) lockMark(ctx, L, t);
+}
+
+/** Cadeado vermelho no meio do vão (porta trancada, só o mestre vê). */
+function lockMark(ctx: CanvasRenderingContext2D, L: number, t: number) {
+  ctx.save();
+  ctx.translate(L / 2, 0);
+  const s = (t * 0.9) / 24;
+  ctx.scale(s, s);
+  ctx.translate(-12, -12);
+  ctx.fillStyle = "rgba(20,8,8,.85)";
+  ctx.beginPath();
+  ctx.arc(12, 13, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#ff8a80";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const d of LOCK) ctx.stroke(new Path2D(d));
+  ctx.restore();
+}
+
+/**
+ * Portão (cerca, sebe, arame, muro baixo: de tábuas; grade e muralha: de ferro), com os esteios nas pontas.
+ * Abre como a porta (gira na dobradiça, com o arco). Mestre: escolhido, trancado ou secreto com o contorno.
+ */
+function drawGate(ctx: CanvasRenderingContext2D, L: number, t: number, seed: number, look: DoorLook, gate: "fence" | "iron", turn: number) {
+  if (look.open) {
     ctx.save();
-    ctx.translate(L / 2, 0);
-    const s = (t * 0.9) / 24;
-    ctx.scale(s, s);
-    ctx.translate(-12, -12);
-    ctx.fillStyle = "rgba(20,8,8,.85)";
+    ctx.setLineDash([t * 0.25, t * 0.2]);
+    ctx.strokeStyle = "rgba(236,228,212,.35)";
+    ctx.lineWidth = t * 0.06;
     ctx.beginPath();
-    ctx.arc(12, 13, 13, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#ff8a80";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const d of LOCK) ctx.stroke(new Path2D(d));
+    ctx.arc(0, 0, L - t * 0.3, Math.min(0, turn), Math.max(0, turn));
+    ctx.stroke();
     ctx.restore();
   }
+  ctx.save();
+  if (look.secret) ctx.globalAlpha = 0.55;
+  if (look.open) ctx.rotate(turn);
+  if (gate === "fence") fenceGate(ctx, L, t, seed);
+  else ironGate(ctx, L, t);
+  if (look.selected || look.locked || look.secret) {
+    ctx.strokeStyle = look.selected ? "#ffffff" : look.locked ? "#c94a52" : "#a58fd6";
+    ctx.lineWidth = t * 0.09;
+    if (look.secret) ctx.setLineDash([t * 0.3, t * 0.2]);
+    ctx.strokeRect(t * 0.35, -t * 0.45, L - t * 0.7, t * 0.9);
+  }
+  ctx.restore();
+  const post = gate === "fence" ? "wood" : "iron";
+  gatePost(ctx, 0, t, post);
+  gatePost(ctx, L, t, post);
+  if (look.locked) lockMark(ctx, L, t);
 }

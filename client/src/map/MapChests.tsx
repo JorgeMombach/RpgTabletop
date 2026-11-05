@@ -1,14 +1,16 @@
-import { ActionIcon, Button, Checkbox, Group as MGroup, Modal, NumberInput, Paper, SegmentedControl, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { IconArrowBackUp, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
+import { ActionIcon, Box, Button, Checkbox, Group as MGroup, Modal, NumberInput, Paper, SegmentedControl, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { IconArrowBackUp, IconDice5, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { Layer, Shape } from "react-konva";
 import { CHEST_STYLES, COINS, LIMITS, type ChestStyle, type Coin, type LootInput, type MapChest, type MapConfig } from "@rpg/shared";
 import { act } from "../actions";
-import { useT, type MessageKey } from "../i18n";
+import { localizeError, useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
+import { socket } from "../socket";
+import { toast } from "../notify";
 import { drawChest, type ChestState } from "./chestArt";
 import { cellAt } from "./geometry";
-import { moveChest, removeChest, undo, useMapUndo } from "./mapHistory";
+import { discardNewChest, moveChest, removeChest, undo, useMapUndo } from "./mapHistory";
 
 export const CHEST_LABEL: Record<ChestStyle, MessageKey> = { wood: "chests.wood", iron: "chests.iron", ornate: "chests.ornate" };
 
@@ -113,7 +115,7 @@ export function MapChestOptions() {
   const chestStyle = useApp((s) => s.chestStyle);
   const undoCount = useMapUndo((s) => s.chests);
   return (
-    <Paper className="map-options" p="xs" shadow="md" radius="md">
+    <Box>
       <MGroup gap="xs" wrap="wrap" align="center" justify="space-between">
         <MGroup gap={4} wrap="nowrap" role="radiogroup" aria-label={t("chests.pick")}>
           {CHEST_STYLES.map((style) => (
@@ -141,7 +143,7 @@ export function MapChestOptions() {
       <Text size="xs" c="dimmed" mt={4}>
         {t("chests.hint")}
       </Text>
-    </Paper>
+    </Box>
   );
 }
 
@@ -152,6 +154,37 @@ type Row =
 
 const toRows = (c: MapChest): Row[] =>
   c.loot.map((e): Row => (e.kind === "coins" ? { kind: "coins", coins: { ...e.coins } } : { kind: e.kind, name: e.name, qty: e.qty, note: e.note ?? "", bonus: e.kind === "weapon" ? (e.bonus ?? "") : "", damage: e.kind === "weapon" ? (e.damage ?? "") : "" }));
+
+/**
+ * Acrescenta o loot sorteado numa tabela (Passo 13) às linhas do formulário: moedas somam na linha de moedas,
+ * item igual (nome, nota e números) soma a quantidade. Devolve as linhas e quantas coisas não couberam.
+ */
+export function mergeLoot(rows: Row[], loot: LootInput[]): { rows: Row[]; left: number } {
+  const out = rows.map((r) => (r.kind === "coins" ? { ...r, coins: { ...r.coins } } : { ...r }));
+  let left = 0;
+  for (const e of loot) {
+    if (e.kind === "coins") {
+      let row = out.find((r) => r.kind === "coins");
+      if (!row) {
+        if (out.length >= LIMITS.loot) {
+          left++;
+          continue;
+        }
+        row = { kind: "coins", coins: {} };
+        out.unshift(row);
+      }
+      if (row.kind === "coins") for (const [k, n] of Object.entries(e.coins) as [Coin, number][]) row.coins[k] = Math.min((Number(row.coins[k]) || 0) + n, LIMITS.coins);
+      continue;
+    }
+    const bonus = e.kind === "weapon" ? (e.bonus ?? "") : "";
+    const damage = e.kind === "weapon" ? (e.damage ?? "") : "";
+    const same = out.find((r) => r.kind === e.kind && r.name.trim() === e.name && r.note.trim() === (e.note ?? "") && String(r.bonus) === String(bonus) && r.damage.trim() === damage);
+    if (same && same.kind !== "coins") same.qty = Math.min((Number(same.qty) || 0) + e.qty, LIMITS.itemQty);
+    else if (out.length >= LIMITS.loot) left++;
+    else out.push({ kind: e.kind, name: e.name, qty: e.qty, note: e.note ?? "", bonus, damage });
+  }
+  return { rows: out, left };
+}
 
 /** O que vai para o servidor (ele valida e recusa com aviso). */
 const fromRows = (rows: Row[]): LootInput[] =>
@@ -170,15 +203,20 @@ export function ChestEditor({ chests }: { chests: MapChest[] }) {
   const t = useT();
   const id = useApp((s) => s.editingChestId);
   const chest = chests.find((c) => c.id === id);
-  const close = () => useApp.setState({ editingChestId: null });
+  // Fechar sem salvar um baú que acabou de ser posto (Cancelar, X, Esc) tira ele do mapa, junto com o passo do Desfazer.
+  const close = (saved = false) => {
+    const { newChestId } = useApp.getState();
+    useApp.setState({ editingChestId: null, newChestId: null });
+    if (!saved && chest && newChestId === chest.id) void discardNewChest(chest.id);
+  };
   return (
-    <Modal opened={!!chest} onClose={close} title={t("chests.editTitle")} size="lg">
+    <Modal opened={!!chest} onClose={() => close()} title={t("chests.editTitle")} size="lg">
       {chest && <ChestForm key={chest.id} chest={chest} onDone={close} />}
     </Modal>
   );
 }
 
-function ChestForm({ chest, onDone }: { chest: MapChest; onDone: () => void }) {
+function ChestForm({ chest, onDone }: { chest: MapChest; onDone: (saved?: boolean) => void }) {
   const t = useT();
   const [name, setName] = useState(chest.name);
   const [style, setStyle] = useState<ChestStyle>(chest.style);
@@ -193,7 +231,7 @@ function ChestForm({ chest, onDone }: { chest: MapChest; onDone: () => void }) {
     setBusy(true);
     const res = await act("chest:update", { id: chest.id, name, style, locked, hidden, loot: fromRows(rows) });
     setBusy(false);
-    if (res.ok) onDone();
+    if (res.ok) onDone(true);
   }
 
   return (
@@ -277,12 +315,18 @@ function ChestForm({ chest, onDone }: { chest: MapChest; onDone: () => void }) {
         </Paper>
       ))}
 
+      <RollTableBox onLoot={(loot) => {
+        const merged = mergeLoot(rows, loot);
+        setRows(merged.rows);
+        if (merged.left) toast({ kind: "info", text: t("chests.rollFull", { n: LIMITS.loot }) });
+      }} />
+
       <MGroup justify="space-between" gap="xs" mt="xs">
-        <Button variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => void removeChest(chest).then((r) => r.ok && onDone())}>
+        <Button variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={() => void removeChest(chest).then((r) => r.ok && onDone(true))}>
           {t("chests.remove")}
         </Button>
         <MGroup gap="xs">
-          <Button variant="default" onClick={onDone}>
+          <Button variant="default" onClick={() => onDone()}>
             {t("common.cancel")}
           </Button>
           <Button loading={busy} onClick={() => void save()}>
@@ -291,5 +335,50 @@ function ChestForm({ chest, onDone }: { chest: MapChest; onDone: () => void }) {
         </MGroup>
       </MGroup>
     </Stack>
+  );
+}
+
+/** Rolar uma tabela de loot (Passo 13) para dentro do baú que está aberto: o resultado entra no formulário. */
+function RollTableBox({ onLoot }: { onLoot: (loot: LootInput[]) => void }) {
+  const t = useT();
+  const tables = useApp((s) => s.state?.tables) ?? [];
+  const lootTables = tables.filter((tb) => tb.kind === "loot");
+  const [picked, setPicked] = useState<string | null>(null);
+  const tableId = picked && lootTables.some((tb) => tb.id === picked) ? picked : (lootTables[0]?.id ?? null);
+  const [times, setTimes] = useState<number | string>(1);
+  const [busy, setBusy] = useState(false);
+
+  async function roll() {
+    if (!tableId) return;
+    setBusy(true);
+    const res = await socket.timeout(10_000).emitWithAck("table:rollLoot", { tableId, times: Number(times) || 1 }).catch(() => null);
+    setBusy(false);
+    if (!res) return toast({ kind: "error", text: t("common.noServer") });
+    if (!res.ok) return toast({ kind: "error", text: localizeError(res) });
+    onLoot(res.loot);
+  }
+
+  return (
+    <Paper p="xs" withBorder>
+      <MGroup gap="xs" align="flex-end" wrap="nowrap">
+        <Select
+          style={{ flex: 1, minWidth: 0 }}
+          label={t("chests.rollTable")}
+          data={lootTables.map((tb) => ({ value: tb.id, label: tb.name }))}
+          value={tableId}
+          onChange={setPicked}
+          allowDeselect={false}
+          placeholder={lootTables.length ? undefined : t("chests.rollNone")}
+          disabled={lootTables.length === 0}
+        />
+        <NumberInput w={72} label={t("chests.rollTimes")} min={1} max={LIMITS.tableTimes} allowDecimal={false} allowNegative={false} value={times} onChange={setTimes} />
+        <Button variant="default" leftSection={<IconDice5 size={14} />} disabled={!tableId} loading={busy} onClick={() => void roll()}>
+          {t("chests.rollButton")}
+        </Button>
+      </MGroup>
+      <Text size="xs" c="dimmed" mt={4}>
+        {t(lootTables.length ? "chests.rollHint" : "chests.rollNoneHint")}
+      </Text>
+    </Paper>
   );
 }

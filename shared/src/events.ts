@@ -1,6 +1,8 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow } from "./types";
 import type { FogRect } from "./fog";
+import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
+import type { CatalogCollection, CatalogDetails, CatalogLang } from "./catalog";
 
 export interface JoinPayload {
   name: string;
@@ -76,6 +78,8 @@ export interface PingBroadcast {
   playerId: string;
   name: string;
   at: MapPoint;
+  /** "Olhem aqui" (Passo 7, só o mestre): o mapa de cada um desliza até o ping. */
+  look?: boolean;
 }
 
 export interface RulerBroadcast {
@@ -120,7 +124,18 @@ export interface TemplateInput extends CombatantInput {
 
 /** Payload de cada ação que altera o estado. Toda ação responde com `ActionResult`. */
 export interface ActionPayloads {
+  /** Importa um arquivo de fichas (Fase 4); `choices`: o que fazer com cada ficha diferente da mesa, pelo id do arquivo. */
+  "sheets:import": { file: unknown; choices?: Record<string, SheetImportChoice> };
+  /** Mestre: volta a ficha que um jogador substituiu pela do arquivo. */
+  "sheet:undo": { id: string };
   "template:upsert": TemplateInput;
+  /**
+   * Mestre: copia um monstro do catálogo para o bestiário (Passo 12), com o nome no idioma dele. `place`: quantos
+   * mobs já pôr em campo. Se o monstro já está no bestiário, `place` usa o modelo de lá e `copy` cria outra cópia.
+   */
+  "catalog:add": { entryId: string; lang: CatalogLang; place?: number; copy?: boolean };
+  /** Mestre: volta os números de um modelo copiado do catálogo aos originais (nome, cor e imagem ficam). */
+  "template:restore": { id: string; lang: CatalogLang };
   "template:remove": { id: string };
   "mob:addFromTemplate": { templateId: string; qty: number; hidden?: boolean };
   "mob:add": CombatantInput;
@@ -164,18 +179,29 @@ export interface ActionPayloads {
    * Com combate ativo, jogador só rola na própria vez, num pedido do mestre ou na reação (E16).
    */
   /** `name`: o que rolou (arma, magia, habilidade), na frente do rótulo no log: "Bola de fogo · Dano". */
-  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean; name?: string };
+  "dice:roll": { expr: string; mode?: RollMode; hidden?: boolean; /** Jogador: rolagem às cegas, só o mestre vê o resultado. */ secret?: boolean; asId?: string | null; kind?: RollKind; crit?: boolean; check?: Ability; death?: boolean; name?: string };
   /** Mestre: pede uma rolagem fora da vez; `playerIds` vazio = todos os jogadores. */
   "roll:request": { label: string; playerIds: string[] };
+  /** Mensagem no log; `to`: sussurro (jogador → "gm"; mestre → id do jogador). */
+  "chat:send": { text: string; to?: string };
+  /** Mestre: pausa o jogo para todos (com um aviso opcional) ou retoma (Passo 7). */
+  "pause:set": { paused: boolean; message?: string };
   "roll:cancel": Record<string, never>;
   /** Mestre: rolagens dos jogadores fora de combate (livres, só com pedido ou travadas). */
   "roll:outside": { mode: OutsideRolls };
   /** Jogador: usa a reação do round (libera rolar até o turno mudar). */
   "reaction:use": Record<string, never>;
   "battle:setMap": { image: string | null };
+  /**
+   * Mapa do Dungeondraft e similares (Passo 9): imagem e grid de uma vez; `walls` (se vier) substitui as paredes
+   * e portas da cena; `torches` (se vier) entra junto com as tochas que já estão. Tudo ou nada.
+   */
+  "map:importUvtt": { image: string; cellPx: number; walls?: { from: GridPos; to: GridPos; door?: { open: boolean } }[]; torches?: { col: number; row: number }[] };
   "battle:grid": GridInput;
   /** `pos: null` tira o token do mapa. */
   "token:move": { id: string; pos: GridPos | null };
+  /** Altura e direção do token (Passo 10); `null` volta ao chão / tira a direção. */
+  "token:pose": { id: string; elevation?: number | null; facing?: number | null };
   /** Mestre: o grupo todo (personagens e conjurados) chega junto em volta desta casa (ao abrir uma cena). */
   "allies:gather": { at: GridPos };
   /** Rola d20 + mod. DES para um combatente. */
@@ -219,6 +245,9 @@ export interface ActionPayloads {
   "rest:all": { kind: "short" | "long" };
   "attack:upsert": AttackInput & { id: string; attackId?: string };
   "attack:remove": { id: string; attackId: string };
+  /** Rolagem salva na ficha (Passo 8); com `rollId`, edita. */
+  "savedRoll:upsert": { id: string; rollId?: string; name: string; expr: string };
+  "savedRoll:remove": { id: string; rollId: string };
   /** Com `bonus` e/ou `damage`, o item é uma arma (pode ser empunhada); sem eles, item comum. */
   "item:upsert": { id: string; itemId?: string; name: string; qty: number; note?: string; bonus?: number | null; damage?: string };
   /** Empunhar ou guardar uma arma do inventário: empunhada, entra nos ataques. */
@@ -322,7 +351,18 @@ export interface ActionPayloads {
   "loot:end": Record<string, never>;
   /** Mestre: segundos para escolher o loot (0 = sem contagem). */
   "loot:seconds": { seconds: number };
-  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number };
+  /** Mestre: cria (sem `id`) ou edita uma tabela aleatória (Passo 13). */
+  "table:upsert": { id?: string; name: string; kind: "text" | "loot"; rows: TableRow[] };
+  "table:remove": { id: string };
+  /** Mestre: rola a tabela; `public` = todos veem (a tabela lembra a escolha). */
+  "table:roll": { id: string; public: boolean };
+  /** Mestre: liga, acerta ou desliga (`null`) a hora do jogo (Passo 15). */
+  "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
+  /** Mestre: avança a hora do jogo (descanso, viagem). */
+  "clock:advance": { minutes: number };
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number; style?: WallStyle };
+  /** Mestre: troca o desenho das paredes (e portas); `null` volta ao desenho da cena. */
+  "wall:style": { ids: string[]; style: WallStyle | null };
   "wall:remove": { id: string };
   /** Mestre: borracha nas paredes (`points` = col, row em casas). Parede é cortada; porta tocada some inteira. */
   "wall:erase": { points: number[]; radius: number };
@@ -351,6 +391,13 @@ export interface ActionPayloads {
   "scene:switch": { id: string };
   /** Mestre: apaga uma cena guardada (a ativa não). */
   "scene:remove": { id: string };
+  /** Mestre: objeto no mapa (cenário). Sem semente, o servidor sorteia; camada e bloqueio vêm do tipo se não vierem. */
+  "prop:add": { kind: PropKind; col: number; row: number; size?: number; rotation?: number; seed?: number; above?: boolean; blocks?: boolean };
+  /** Mestre: muda só o que vier. */
+  "prop:update": { id: string; col?: number; row?: number; size?: number; rotation?: number; seed?: number; above?: boolean; blocks?: boolean };
+  "prop:remove": { ids: string[] };
+  /** Mestre: pincel de espalhar, a pincelada inteira num envio só (tudo ou nada). */
+  "prop:addMany": { items: { kind: PropKind; col: number; row: number; size?: number; rotation?: number; seed?: number }[] };
   /** Mestre: apaga todas as paredes e portas. */
   "wall:clear": Record<string, never>;
   /** Abrir/fechar: qualquer um, se não estiver trancada (nem for secreta). Trancar e secreta: só o mestre. */
@@ -386,6 +433,9 @@ export type ActionFailure = { ok: false; error: string; errorKey?: string; error
 
 export type SessionExportResult = { ok: true; file: SessionFile } | ActionFailure;
 
+/** Conferência de um arquivo de fichas antes de importar: o que é novo, igual ou diferente da mesa. */
+export type SheetCheckResult = { ok: true; kind: SheetKind; items: SheetCheckItem[] } | ActionFailure;
+
 export type ActionName = keyof ActionPayloads;
 
 export type ActionResult = { ok: true; ids?: string[] } | ActionFailure;
@@ -405,13 +455,23 @@ export type ClientToServerEvents = ActionEvents & {
   /** Efêmero, como a régua. */
   "area:update": (area: Area | null) => void;
   /** Efêmero: "olhem aqui" no mapa, para todos (inclusive quem pingou). */
-  "map:ping": (at: MapPoint) => void;
+  "map:ping": (at: MapPoint & { look?: boolean }) => void;
   /** Sai da sessão (fica offline). A identidade continua: voltar com o mesmo token recupera o personagem. */
   "session:leave": () => void;
   /** Mestre: estado atual em formato de arquivo (E18). */
   "session:export": (ack: (res: SessionExportResult) => void) => void;
   /** Mestre: substitui o estado atual pelo do arquivo (validado inteiro antes). */
   "session:import": (file: unknown, ack: (res: ActionResult) => void) => void;
+  /** Mestre: ver o mapa como um jogador (Passo 11); `null` volta à visão do mestre. Chega em `view:preview`. */
+  "view:as": (playerId: string | null) => void;
+  /** Mestre: as coleções do catálogo de monstros (Passo 12). */
+  "catalog:list": (ack: (res: { ok: true; collections: CatalogCollection[] } | ActionFailure) => void) => void;
+  /** Mestre: as habilidades de um monstro do catálogo (só quando ele abre; `null` = ainda sem texto). */
+  "catalog:details": (id: string, ack: (res: { ok: true; details: CatalogDetails | null } | ActionFailure) => void) => void;
+  /** Mestre: rola uma tabela de loot `times` vezes e recebe o loot (Passo 13), para pôr num baú que está editando. */
+  "table:rollLoot": (req: { tableId: string; times: number }, ack: (res: { ok: true; loot: LootInput[] } | ActionFailure) => void) => void;
+  /** Confere um arquivo de fichas (valida e compara com a mesa), sem alterar nada. */
+  "sheets:check": (file: unknown, ack: (res: SheetCheckResult) => void) => void;
   /** Mestre: efeito sonoro para todos, uma vez (E25). Não fica no estado. */
   "sound:sfx": (source: SoundSource, ack: (res: ActionResult) => void) => void;
   /** Mestre: adiciona um arquivo de áudio à pasta de sons (E25). */
@@ -419,6 +479,8 @@ export type ClientToServerEvents = ActionEvents & {
 };
 
 export interface ServerToClientEvents {
+  /** Mestre vendo como um jogador (Passo 11): o estado que esse jogador recebe; `null` = acabou. */
+  "view:preview": (state: ClientState | null) => void;
   "state:full": (state: ClientState) => void;
   /** A imagem do mapa vai separada do estado e só quando muda. */
   "map:image": (payload: MapImagePayload) => void;
@@ -457,6 +519,8 @@ export const LIMITS = {
   resources: 20,
   resourceMax: 99,
   attacks: 30,
+  /** Rolagens salvas por ficha (Passo 8). */
+  savedRolls: 30,
   items: 100,
   itemQty: 9999,
   coins: 9_999_999,
@@ -505,12 +569,26 @@ export const LIMITS = {
   /** Tochas fixas no mapa, por cena. */
   mapTorches: 60,
   chests: 40,
+  /** Objetos por cena e tamanho (escala do desenho). */
+  props: 800,
+  propSize: { min: 0.25, max: 4 },
   /** Casas de uma pintura (pincel de efeitos) e números (col e row) por pincelada. */
   paintCells: 5000,
   paintNumbers: 10_000,
   /** Coisas diferentes num baú. */
   loot: 20,
   chestName: 40,
+  /** Tabelas aleatórias (Passo 13): quantas, linhas por tabela, nome, texto da linha, peso, vezes no baú e tabelas dentro de tabelas. */
+  tables: 50,
+  tableRows: 100,
+  tableName: 40,
+  tableText: 200,
+  tableWeight: 99,
+  tableTimes: 10,
+  tableDepth: 5,
+  /** Hora do jogo (Passo 15): maior dia e maior avanço de uma vez (30 dias, em minutos). */
+  clockDay: 99_999,
+  clockAdvance: 43_200,
   lootSeconds: { min: 0, max: 120 },
   /** Retângulos por pincelada da névoa e lado máximo de cada um (casas). */
   fogRects: 500,
@@ -532,6 +610,12 @@ export const LIMITS = {
     faces: { min: 2, max: 1000 },
     constant: 10000,
   },
+  /** Altura do token em pés (Passo 10). */
+  elevation: { min: -1000, max: 10000 },
+  /** Aviso da pausa (caracteres). */
+  pauseMessage: 120,
+  /** Tamanho de uma mensagem do chat (caracteres). */
+  chatLength: 500,
   /** Entradas mantidas no log compartilhado. */
   logSize: 200,
   /** Tamanho máximo do dataURL (caracteres). */

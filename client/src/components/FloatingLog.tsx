@@ -5,6 +5,7 @@ import { CAN_POP_OUT, popOutLog } from "../logWindow";
 import { setDicePrefs, useApp } from "../store";
 import { useT } from "../i18n";
 import { RollLog } from "./RollLog";
+import { ChatBar } from "./ChatBar";
 
 const RECT_KEY = "rpg.logWindow";
 const MIN = { w: 260, h: 160 };
@@ -141,6 +142,9 @@ export function FloatingLog() {
           </Tooltip>
         </Group>
       </Group>
+      <div className="log-chat">
+        <ChatBar />
+      </div>
       <div className="floating-log-body">
         <RollLog log={state.log} selfId={state.self.id} />
       </div>

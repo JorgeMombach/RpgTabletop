@@ -20,6 +20,9 @@ import { handlers } from "./actions";
 import type { Handler } from "./actions/types";
 import { hostInfo, roleOf, type RoleRules } from "./net";
 import { exportSession, importSession } from "./session-file";
+import { checkSheets } from "./actions/sheetFiles";
+import { rollLootFor } from "./actions/tables";
+import { CATALOG, catalogDetails } from "./catalog/srd51";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
 import { ActionError, cleanName } from "./validate";
@@ -140,6 +143,20 @@ export function createApp(opts: AppOptions) {
     return { version: imageVersion, image };
   }
 
+  /** Mestre vendo como um jogador (Passo 11): conexão do mestre → id do jogador. */
+  const viewAs = new Map<string, string>();
+
+  /** O estado que o jogador recebe, para a conexão do mestre que pediu (ou `null`, se ele saiu). */
+  function sendPreview(sid: string) {
+    const target = store.players.get(viewAs.get(sid) ?? "");
+    if (!target || target.role !== "player") {
+      viewAs.delete(sid);
+      io.to(sid).emit("view:preview", null);
+      return;
+    }
+    io.to(sid).emit("view:preview", viewFor(store, target, host));
+  }
+
   function broadcast() {
     // Visão dos personagens (névoa): recalcula se alguém andou ou uma porta mexeu, e guarda o explorado.
     updateSight(store);
@@ -167,6 +184,7 @@ export function createApp(opts: AppOptions) {
       for (const sid of player.sockets) {
         io.to(sid).emit("state:full", view);
         if (mine.length) io.to(sid).emit("fx:hp", mine);
+        if (viewAs.has(sid)) sendPreview(sid);
       }
     }
   }
@@ -269,7 +287,9 @@ export function createApp(opts: AppOptions) {
       const now = Date.now();
       if (!player || !at || now - (socket.data.lastPing ?? 0) < PING_GAP_MS) return;
       socket.data.lastPing = now;
-      io.to(SESSION_ROOM).emit("ping", { playerId: player.id, name: whoIs(store, player), at });
+      // "Olhem aqui": só o mestre leva a visão de todos.
+      const look = player.role === "gm" && (raw as { look?: unknown } | null)?.look === true;
+      io.to(SESSION_ROOM).emit("ping", { playerId: player.id, name: whoIs(store, player), at, ...(look && { look }) });
     });
 
     socket.on("area:update", (area) => {
@@ -299,6 +319,65 @@ export function createApp(opts: AppOptions) {
       }
       broadcast();
       ack({ ok: true });
+    });
+
+    // Catálogo de monstros (Passo 12): só o mestre; o cliente pede ao abrir a aba.
+    socket.on("catalog:list", (ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Sem permissão para essa ação." });
+      ack({ ok: true, collections: CATALOG });
+    });
+
+    socket.on("catalog:details", (id, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return ack({ ok: false, error: "Sem permissão para essa ação." });
+      ack({ ok: true, details: typeof id === "string" ? catalogDetails(id) : null });
+    });
+
+    // Loot de uma tabela para o baú que o mestre está editando (Passo 13): devolve o loot; o log muda.
+    socket.on("table:rollLoot", (req, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (!player) return ack({ ok: false, error: "Sem permissão para essa ação." });
+      try {
+        const loot = rollLootFor(store, player, req);
+        broadcast();
+        ack({ ok: true, loot });
+      } catch (err) {
+        if (err instanceof ActionError) return ack(failure(err));
+        console.error("[table:rollLoot]", err);
+        ack({ ok: false, error: "Não deu para rolar a tabela." });
+      }
+    });
+
+    // Ver como jogador (Passo 11): só o mestre; null volta à visão dele.
+    socket.on("view:as", (playerId) => {
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (player?.role !== "gm") return;
+      if (typeof playerId !== "string") {
+        viewAs.delete(socket.id);
+        socket.emit("view:preview", null);
+        return;
+      }
+      viewAs.set(socket.id, playerId);
+      sendPreview(socket.id);
+    });
+    socket.on("disconnect", () => viewAs.delete(socket.id));
+
+    // Fichas em arquivo (Fase 4): confere o arquivo antes de importar (a importação é a ação `sheets:import`).
+    socket.on("sheets:check", (file, ack) => {
+      if (typeof ack !== "function") return;
+      const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
+      if (!player) return ack({ ok: false, error: "Entre na sessão primeiro." });
+      try {
+        ack({ ok: true, ...checkSheets(store, player, file) });
+      } catch (err) {
+        if (err instanceof ActionError) return ack(failure(err));
+        console.error("[sheets:check]", err);
+        ack({ ok: false, error: "Arquivo inválido." });
+      }
     });
 
     // Som (E25): efeito de uma vez para todos e upload de arquivo para a pasta. Só o mestre.

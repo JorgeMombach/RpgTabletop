@@ -20,6 +20,6 @@ export async function removeMob(m: Pick<Combatant, "id" | "name">) {
 /** Remove do jogo: mob ou NPC na hora (com "Desfazer"); aliado só depois de confirmar. */
 export async function removeCombatant(c: Pick<Combatant, "id" | "name" | "type">) {
   if (c.type !== "ally") return void removeMob(c);
-  const ok = await confirmAction({ title: t("selected.removeTitle", { name: c.name }), message: t("selected.removeMessage"), confirmLabel: t("common.remove"), danger: true });
+  const ok = await confirmAction({ title: t("selected.removeTitle", { name: c.name }), message: t("selected.removeMessage"), confirmLabel: t("selected.removeConfirm"), danger: true });
   if (ok) void act("ally:remove", { id: c.id }).then((r) => r.ok && select(null));
 }

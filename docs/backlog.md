@@ -156,11 +156,92 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Pincel de efeitos, só do mestre (ferramenta *Pincel*, E): pinta casa a casa (1, 3×3, 5×5), apagar e desfazer; o mesmo tipo vira um efeito só (`MapEffect.cells`), que liga, transforma e remove. Protótipo aprovado em 2026-11-03.
 - [x] Baús no mapa, podem ser invisíveis e ter loot que o mestre adiciona, com protótipo. Desenho aprovado em 2026-11-03: [docs/design/baus.md](design/baus.md) (abre para todos, contagem para escolher, d20 automático na disputa, mestre dá a qualquer momento, armas viram itens que se empunham).
 
-### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03)
-- [ ] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
-- [ ] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
+## Cenário (2.13.0, branch `feat/cenario`, combinado em 2026-11-03)
+Antes das fases 4 e 7. Desenho em [docs/design/cenario.md](design/cenario.md): tudo desenhado por código, com protótipo de cada peça.
 
-### Fase 7. Instalador e hospedagem (por último, talvez numa subida à parte)
+### Passo 1. Paredes novas
+- [x] Desenho por parede (`Wall.style`; sem ele vale o da cena). Escolha no painel da ferramenta Paredes (*Desenho*, com amostra); o modo *Trocar desenho* muda as paredes arrastadas por cima e *Todas* muda a cena (em vez de "clicar numa parede": clicar já traça outra).
+- [x] Desenhos novos: tijolo, paliçada, muralha (bloqueiam a visão); cerca de madeira, grade de ferro, arame farpado, sebe, muro baixo de pedra (deixam ver). Protótipo aprovado em 2026-11-03.
+- [x] Portões: porta numa cerca (ou sebe) vira portão de cerca; numa grade ou muralha, portão de ferro. Portão de desenho que deixa ver continua deixando ver fechado.
+- [x] Visão, luz das tochas e *Cômodo* da névoa ignoram as paredes que deixam ver.
+
+### Passo 2. Objetos (ferramenta Objetos, tecla O)
+- [x] Objeto no mapa (`MapProp`): tipo, posição livre, tamanho, giro, semente (variação), acima ou abaixo dos tokens, bloqueia a visão.
+- [x] Primeira leva: árvore, arbusto, pedregulho, pedras, tronco caído, toco, entulho, barril, caixote (e pilha), tábuas, mesa, pilar. Protótipo aprovado em 2026-11-03 (árvore e arbusto refeitos no estilo da referência da Deepnight).
+- [x] Editar: arrastar, alças de tamanho e giro, *Variar*, camada, bloqueia a visão, Ctrl+Z, Ctrl+C/V, Delete; Shift encaixa no grid.
+- [x] Objeto que bloqueia entra na visão dos personagens; coberto pela névoa não vai para os jogadores; copa fica meio transparente com token embaixo.
+
+### Passo 3. Pincel de espalhar
+- [x] Modo *Espalhar* na ferramenta Objetos: conjuntos *Floresta*, *Bosque ralo*, *Pedregal*, *Entulho*; tamanho do pincel e densidade; apagar com o pincel. Protótipo aprovado em 2026-11-03 (espalha do maior para o menor: árvores primeiro, arbustos nos vãos).
+- [x] Desempenho: até 800 objetos por cena. Medido com 500: o WASD custa o mesmo que com o mapa vazio (a camada dos objetos só redesenha quando eles mudam) e o canvas redesenha em ~2 ms. O estado vai inteiro a cada ação: 500 objetos pesam ~62 KB (id curto e semente curta; a compressão do Socket.IO foi testada e descartada, porque muda a ordem entre o estado e a resposta da ação, e o app depende dela).
+
+### Depois (segunda leva de objetos)
+- [x] Estátua (cavaleiro, manto ou anjo, com a sombra comprida), ossos, altar, barraca, carroça, poço, estante, cama, sacos, cogumelos, flores, ponte de tábuas. Estátua, barraca e estante atrapalham a visão. Cogumelos e flores entram como miudeza na *Floresta* e no *Bosque ralo*. Protótipo aprovado em 2026-11-03 (a estátua refeita duas vezes).
+- [ ] Portão de troncos para a paliçada, se pedirem.
+
+### Passo 4. Ferramentas de construção na aba Mapa (aprovado em 2026-11-03, feito em 2026-11-04)
+- [x] Barra do mapa só com as ferramentas de jogo: Mover, Régua, Área, Ping, Desenho/Setas e **Névoa** (fica na barra: é usada durante o jogo), mais zoom e enquadrar.
+- [x] Painel **Construir** na aba *Mapa* do mestre (ordem: Cenas, Construir, Mapa), com Paredes, Tochas, Baús, Objetos e Pincel de efeitos (ícone e nome). As opções da ferramenta escolhida aparecem dentro do painel, não mais flutuando em cima do mapa.
+- [x] Atalhos G, L, J, O, E continuam; com outra aba aberta, a coluna troca sozinha para *Mapa*. Clicar de novo na ferramenta escolhida volta para Mover.
+- [x] Conferir tudo na coluna com a largura mínima (260 px). Protótipo aprovado.
+
+### Fase 4. Salvar e importar (depois da 6, pedido em 2026-11-03, feito em 2026-11-04)
+- [x] Exportar em JSON: mobs e NPCs (mestre), personagens (o jogador baixa o dele; o mestre, todos), invocações e pets (jogador e mestre).
+- [x] Importar esses JSON, com a mesma validação do arquivo de sessão. Mobs vão para o bestiário. Decisão: o importado fica com quem importou; mobs são do mestre.
+- [x] Só a ficha vai no arquivo, sem estado de batalha (vida atual, posição, condições, gastos). Desenho em [docs/design/salvar-importar.md](design/salvar-importar.md).
+- [x] Versões diferentes (adendo de 2026-11-04): comparação pelo id; igual não muda nada; diferente abre a janela de diferenças (campo a campo, mesa × arquivo) com Substituir, Importar como cópia ou Cancelar. Vários conflitos numa lista só, com "aplicar a todos". Id de personagem de outro jogador entra como cópia.
+- [x] Jogador substituindo a ficha: linha no log e aviso ao mestre com Desfazer (ficha anterior só em memória).
+- [x] Protótipo da janela de diferenças aprovado antes de codar.
+
+## Mesa completa (brainstorm aprovado em 2026-11-04; passos 1 a 13 e 15 saíram na 2.13.0, o 14 e o 16 ficam para a próxima)
+Tudo entra na 2.13, um passo por vez, com teste do Jorge entre eles. Ordem: o que dá mais retorno pelo esforço primeiro; o grid hexagonal por último. Peça visual nova passa por protótipo antes. Continua valendo o ADR-06: o app registra, não aplica regra.
+
+### Passo 5. Dados de outros sistemas (P–M, feito em 2026-11-04)
+- [x] Fórmulas novas: `kh`/`kl` (fica com os maiores/menores: `2d20kh1`, `4d6kh3`), dado que explode (`d6!`) e dados Fate (`4dF`). Log mostra os dados descartados riscados.
+- [x] Abre o app para Ordem Paranormal (vários d20, fica com o maior) e Tormenta20, além de outros sistemas.
+
+### Passo 6. Chat e sussurro (M, feito em 2026-11-04: sussurro só mestre ↔ jogador; rolagem secreta às cegas)
+- [x] Mensagem de texto no log, junto com as rolagens.
+- [x] Sussurro: mestre ↔ jogador, só os dois veem (validado no servidor e filtrado em `view.ts`).
+- [x] Rolagem secreta do jogador para o mestre (só o mestre vê o resultado; o jogador vê que rolou).
+
+### Passo 7. "Olhem aqui" e pausa (P, feito em 2026-11-04)
+- [x] Mestre leva a câmera de todos até um ponto (o ping completo).
+- [x] Pausar o jogo: aviso na tela de todos (com texto opcional, "Pausa: 10 min") e tokens travados até voltar.
+
+### Passo 8. Rolagens salvas do jogador (P, feito em 2026-11-04: seção na aba Ataques e escolha rápida no painel Dados)
+- [x] Botões pessoais na ficha ("Furtividade +7", "Ataque furtivo 3d6"), com nome e fórmula; vão no arquivo de sessão e na ficha em arquivo.
+
+### Passo 9. Importar mapa do Dungeondraft e similares (M, feito em 2026-11-04; luzes viram tochas só se o mestre marcar)
+- [x] Formato Universal VTT (`.dd2vtt`, `.uvtt`): imagem, grid, paredes, portas e luzes viram mapa, paredes, portas e tochas do app de uma vez.
+
+### Passo 10. Altura e direção do token (P, feito em 2026-11-04)
+- [x] Altura/voo: número no token ("30 ft") e sombra embaixo. Só visual.
+- [x] Direção: setinha para onde o token olha.
+
+### Passo 11. Ver como jogador (P–M, feito em 2026-11-04)
+- [x] O mestre escolhe "ver como {jogador}" e enxerga o mapa como ele (névoa, visão, o que está oculto), sem abrir outra aba.
+
+### Passo 12. Catálogo de monstros SRD 5.1 (M–G, feito em 2026-11-04; desenho em [docs/design/catalogo-srd.md](design/catalogo-srd.md))
+Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não importar arquivo); "Adicionar ao bestiário" copia como modelo editável; traduzido em pt-BR/en/es; SRD 5.1 (2014). O 5.2 (2024) fica para depois, como outra coleção.
+- [x] Fase A (feita em 2026-11-04). Estrutura: abas *Meus modelos* / *Catálogo* no Bestiário, busca e filtros (ND, tipo, tamanho), resumo, *Adicionar ao bestiário* e *Pôr no mapa*, origem (`srd:…`) com etiqueta e *Restaurar original*, cor do token por tipo, crédito CC BY 4.0 na tela *Sobre*. Com poucos monstros de teste. Protótipo aprovado antes.
+- [x] Fase B (feita em 2026-11-04: 323 monstros, fonte Open5e, gerados por `scripts/srd51/build.mjs`; nomes revisados em 2026-11-04). Dados essenciais do SRD 5.1 traduzidos (nome, tipo, tamanho, ND, vida, CA, iniciativa, atributos, ataques). Conferir a licença da fonte do JSON. Revisão de amostra dos nomes antes do lote.
+- [x] Fase C (feita em 2026-11-04: 323 monstros em 10 lotes; seção *Habilidades (SRD)* só para o mestre, fora das notas; gerado por `scripts/srd51/details.mjs` a partir de `scripts/srd51/texts/`, e os dragões por `scripts/srd51/dragons.mjs`, que encaixa os textos em modelos). Textos das habilidades (traços, ações especiais e lendárias, resistências, sentidos), traduzidos em pt-BR/es.
+
+### Passo 13. Tabelas aleatórias (M, feito em 2026-11-05; desenho em [docs/design/tabelas.md](design/tabelas.md))
+- [x] O mestre cria tabelas (encontros, nomes, loot) e rola com um clique; resultado no log (só para ele, se quiser). Peso por linha, dados e outra tabela dentro do texto, cinco exemplos nos três idiomas.
+- [x] Rolar loot direto para dentro de um baú (entra na janela de edição; o baú muda ao salvar).
+
+### Passo 14. Diário da campanha (M)
+- [ ] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão.
+
+### Passo 15. Calendário e hora do jogo (P, feito em 2026-11-05)
+- [x] "Dia 3, 14h", avançando por descanso ou viagem; opcional: a luz do clima acompanha a hora. Painel *Hora do jogo* (aba *Ambiente*), hora no topo para todos, aviso no log.
+
+### Passo 16. Grid hexagonal (G, por último)
+- [ ] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar.
+
+### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
 - [ ] Hospedagem (era a Fase 1; adiada em 2026-11-03: a VPN incomoda, mas dá para jogar). Decisão: servidor sob demanda, ligado só durante a sessão (umas 5 horas), sem previsão de comercializar. O mestre salva o arquivo no fim e carrega na próxima, como hoje; a imagem Docker e a chave de mestre já existem. Comparar e testar: máquina paga por hora, planos gratuitos com conexão em tempo real e túnel a partir do PC do mestre, sem instalar nada nos jogadores. Medir envio dos mapas e estabilidade contra a VPN. Pesquisar preços na hora.
 - [ ] Permissão de mestre e jogadores, escolhida ao criar a sala (junto com a hospedagem).
@@ -171,3 +252,4 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 
 ## Ideias novas
 (entram aqui conforme surgirem e sobem para a seção certa quando decididas)
+- Editar a ficha (botão *Editar*) para um tamanho maior também levar o token para a casa livre mais próxima, como já faz a ficha importada (hoje a mesa ajeita na mão).

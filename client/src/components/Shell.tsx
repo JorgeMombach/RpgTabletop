@@ -18,6 +18,7 @@ import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
 import { GmTabs } from "./GmTabs";
 import { HandoutButton, HandoutModal } from "./Handout";
+import { SheetImportModal } from "./SheetImportModal";
 import { InitiativePanel } from "./InitiativePanel";
 import { Shortcuts, ShortcutsButton } from "./Shortcuts";
 import { AboutLink, AboutModal } from "./About";
@@ -28,12 +29,19 @@ import { SettingsButton } from "./Settings";
 import { JoinFightBanner } from "./JoinFightBanner";
 import { SelectedPanel } from "./SelectedPanel";
 import { SheetModal } from "./SheetModal";
+import { clockTime } from "./ClockPanel";
 
 /** "Round 2 · vez de Thorin", visível para todos na barra do topo. */
 export function TurnStatus({ state }: { state: ClientState }) {
   const t = useT();
   const { combat } = state.battle;
-  if (!combat.active) return null;
+  // Fora de combate, a hora do jogo (Passo 15), se o mestre ligou.
+  if (!combat.active)
+    return state.clock ? (
+      <Text size="sm" c="dimmed" className="turn-status" truncate>
+        {t("clock.now", { day: state.clock.day, time: clockTime(state.clock.minutes) })}
+      </Text>
+    ) : null;
   const group = currentGroup(state);
   const who = group.length > 0 ? { name: groupName(group.map((c) => c.name)) } : undefined;
   return (
@@ -78,6 +86,8 @@ function DesktopShell({ state }: { state: ClientState }) {
   const t = useT();
   const small = useSmallScreen();
   const connected = useApp((s) => s.connected);
+  // Ver como jogador (Passo 11): o mapa mostra o estado dele; os painéis continuam os do mestre.
+  const preview = useApp((s) => (s.state?.self.role === "gm" ? s.preview : null));
   // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
   const logDetached = useApp((s) => s.logDetached && !s.logOut);
   const [about, setAbout] = useState(false);
@@ -160,7 +170,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       />
 
       <main className="map-area">
-        <BattleMap state={state} />
+        <BattleMap state={preview ?? state} readOnly={!!preview} />
         <DiceOverlay />
       </main>
 
@@ -187,6 +197,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       <AboutModal opened={about} onClose={() => setAbout(false)} />
       <HandoutModal />
       <Memo.SheetModal state={state} />
+      <SheetImportModal gm={state.self.role === "gm"} />
     </div>
   );
 }

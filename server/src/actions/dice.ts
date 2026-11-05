@@ -36,7 +36,7 @@ export function logRoll(
   store: Store,
   player: ServerPlayer,
   result: RollResult,
-  opts: Pick<LogEntry, "hidden" | "as" | "kind" | "crit" | "color" | "subjectId"> & { label?: LogPart[] } = {},
+  opts: Pick<LogEntry, "hidden" | "as" | "kind" | "crit" | "color" | "subjectId" | "secret"> & { label?: LogPart[] } = {},
 ): string {
   const parts = opts.label?.length ? opts.label : undefined;
   const label = parts?.map((p) => fillMessage(p.key, p.params)).join(" · ");
@@ -55,6 +55,19 @@ export function logRoll(
     crit: opts.crit || undefined,
     roll: result,
     ...(opts.subjectId && { subjectId: opts.subjectId }),
+    ...(opts.secret && { secret: true }),
+  });
+}
+
+/** Rolagem numa tabela aleatória (Passo 13): o texto da linha sorteada, com o dado e o valor em `table`. */
+export function pushTableLog(store: Store, player: ServerPlayer, entry: Required<Pick<LogEntry, "table" | "text">> & { hidden: boolean }): string {
+  return pushLog(store, {
+    authorId: player.id,
+    author: "Mestre",
+    gm: true,
+    text: entry.text,
+    table: entry.table,
+    hidden: entry.hidden || undefined,
   });
 }
 
@@ -170,7 +183,40 @@ export const diceHandlers: HandlerMap = {
       ...[kindLabel, check && `Teste de ${CHECK_LABEL[check]}`, death, secret].filter((s): s is string => !!s).map((key) => ({ key })),
     ];
     if (!gm) player.lastRollAt = now;
-    return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, label, as, kind, crit, color })];
+    // Jogador rolando às cegas (Passo 6): só o mestre vê o resultado (view.ts tira os dados de quem rolou).
+    const blind = !gm && payload.secret === true;
+    return [logRoll(store, player, result, { hidden: gm && payload.hidden === true, secret: blind || undefined, label, as, kind, crit, color })];
+  },
+
+  // Mensagem no log (Passo 6). Sussurro só entre mestre e jogador: o jogador manda para "gm"; o mestre, para um jogador.
+  "chat:send": (store, player, payload) => {
+    const text = typeof payload?.text === "string" ? payload.text.replace(/\s+/g, " ").trim().slice(0, LIMITS.chatLength) : "";
+    if (!text) fail("Escreva a mensagem.");
+    const gm = player.role === "gm";
+    let whisper: LogEntry["whisper"];
+    if (payload.to !== undefined && payload.to !== null && payload.to !== "") {
+      if (!gm) {
+        if (payload.to !== "gm") fail("Sussurro é só com o mestre.");
+        whisper = { to: "gm", toName: "Mestre" };
+      } else {
+        const target = typeof payload.to === "string" ? store.players.get(payload.to) : undefined;
+        if (!target || target.role !== "player") fail("Jogador não encontrado.");
+        whisper = { to: target.id, toName: target.name };
+      }
+    }
+    const by = gm ? undefined : playerCharacter(store, player);
+    return [
+      pushLog(store, {
+        authorId: player.id,
+        author: gm ? "Mestre" : player.name,
+        ...(gm && { gm: true }),
+        ...(by && by.name !== player.name && { as: by.name }),
+        color: by?.color,
+        text,
+        chat: true,
+        ...(whisper && { whisper }),
+      }),
+    ];
   },
 
   "roll:request": (store, player, payload) => {

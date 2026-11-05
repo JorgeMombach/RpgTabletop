@@ -1,4 +1,4 @@
-import type { ActionResult, ChestStyle, Drawing, EffectPreset, GridPos, LootEntry, LootInput, MapChest, MapTorch, MapTorchStyle, Wall } from "@rpg/shared";
+import { PROP_DEFAULTS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -10,12 +10,13 @@ import { useApp } from "../store";
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
   | { scope: "walls"; kind: "removed"; wall: Wall }
   | { scope: "walls"; kind: "erased"; removed: Wall[]; added: string[] }
+  | { scope: "walls"; kind: "restyled"; before: { id: string; style?: WallStyle }[] }
   | { scope: "drawings"; kind: "added"; id: string }
   | { scope: "drawings"; kind: "erased"; removed: Drawing[]; added: string[] }
   | { scope: "torches"; kind: "added"; id: string }
@@ -24,6 +25,10 @@ type Step =
   | { scope: "chests"; kind: "added"; id: string }
   | { scope: "chests"; kind: "moved"; id: string; col: number; row: number }
   | { scope: "chests"; kind: "removed"; chest: MapChest }
+  | { scope: "props"; kind: "added"; id: string }
+  | { scope: "props"; kind: "addedMany"; ids: string[] }
+  | { scope: "props"; kind: "changed"; id: string; before: Partial<MapProp> }
+  | { scope: "props"; kind: "removed"; props: MapProp[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] };
 
@@ -38,7 +43,7 @@ const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0 }));
 
 function sync() {
   useMapUndo.setState({
@@ -47,6 +52,7 @@ function sync() {
     torches: steps.filter((s) => s.scope === "torches").length,
     chests: steps.filter((s) => s.scope === "chests").length,
     paint: steps.filter((s) => s.scope === "paint").length,
+    props: steps.filter((s) => s.scope === "props").length,
   });
 }
 
@@ -68,7 +74,7 @@ useApp.subscribe((s) => {
 
 /** Algo voltou com id novo: os passos anteriores que apontavam para o antigo passam a apontar para o novo. */
 function renamed(scope: UndoScope, from: string, to: string) {
-  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved") && s.id === from) s.id = to;
+  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved" || s.kind === "changed") && s.id === from) s.id = to;
 }
 
 /** Compara a lista de antes e a de depois de uma passada da borracha: o que sumiu e o que nasceu (pedaços). */
@@ -80,8 +86,8 @@ function diff<T extends { id: string }>(before: T[], after: T[]) {
 
 // ---------- Paredes ----------
 
-export async function addWall(from: GridPos, to: GridPos, door: boolean, thickness: number): Promise<ActionResult> {
-  const res = await act("wall:add", { from, to, door, thickness });
+export async function addWall(from: GridPos, to: GridPos, door: boolean, thickness: number, style?: WallStyle): Promise<ActionResult> {
+  const res = await act("wall:add", { from, to, door, thickness, ...(style && { style }) });
   if (res.ok && res.ids?.[0]) push({ scope: "walls", kind: "added", id: res.ids[0] });
   return res;
 }
@@ -105,8 +111,8 @@ export function recordWallErase(before: Wall[], after: Wall[]) {
 
 /** Põe de volta uma parede apagada (com o estado da porta). */
 async function restoreWall(wall: Wall) {
-  const { from, to, door, thickness } = wall;
-  const res = await act("wall:add", { from, to, door: !!door, thickness });
+  const { from, to, door, thickness, style } = wall;
+  const res = await act("wall:add", { from, to, door: !!door, thickness, ...(style && { style }) });
   const id = res.ok ? res.ids?.[0] : undefined;
   if (!id) return;
   renamed("walls", wall.id, id);
@@ -169,6 +175,16 @@ export async function addChest(col: number, row: number, style: ChestStyle): Pro
   return res;
 }
 
+/** Baú posto e cancelado sem salvar: sai do mapa e o passo "posto" sai da pilha (não há o que desfazer). */
+export async function discardNewChest(id: string): Promise<void> {
+  const i = steps.map((s) => s.scope === "chests" && s.kind === "added" && s.id === id).lastIndexOf(true);
+  if (i >= 0) {
+    steps.splice(i, 1);
+    sync();
+  }
+  await act("chest:remove", { id });
+}
+
 /** Baú arrastado para outra casa: desfazer volta para onde estava. */
 export async function moveChest(c: MapChest, col: number, row: number): Promise<ActionResult> {
   const res = await act("chest:move", { id: c.id, col, row });
@@ -194,6 +210,58 @@ async function restoreChest(c: MapChest) {
   if (!id) return;
   renamed("chests", c.id, id);
   await act("chest:update", { id, name: c.name, style: c.style, locked: !!c.locked, hidden: !!c.hidden, loot: c.loot.map(lootInput) });
+}
+
+/** Troca o desenho das paredes (`null` = o da cena). Desfazer devolve o desenho de antes de cada uma. */
+export async function restyleWalls(ids: string[], style: WallStyle | null): Promise<ActionResult> {
+  const walls = useApp.getState().state?.battle.walls ?? [];
+  const before = walls.filter((w) => ids.includes(w.id)).map((w) => ({ id: w.id, ...(w.style && { style: w.style }) }));
+  const res = await act("wall:style", { ids, style });
+  if (res.ok && before.length > 0) push({ scope: "walls", kind: "restyled", before });
+  return res;
+}
+
+// ---------- Objetos ----------
+
+export async function addProp(input: Omit<MapProp, "id" | "seed" | "above" | "blocks"> & Partial<Pick<MapProp, "seed" | "above" | "blocks">>): Promise<ActionResult> {
+  const res = await act("prop:add", input);
+  if (res.ok && res.ids?.[0]) push({ scope: "props", kind: "added", id: res.ids[0] });
+  return res;
+}
+
+/** Muda um objeto (lugar, tamanho, giro, variação, camada, bloqueio): desfazer volta só o que mudou. */
+export async function updateProp(p: MapProp, changes: Partial<Omit<MapProp, "id" | "kind">>): Promise<ActionResult> {
+  const before = Object.fromEntries(Object.keys(changes).map((k) => [k, p[k as keyof MapProp]])) as Partial<MapProp>;
+  const res = await act("prop:update", { id: p.id, ...changes });
+  if (res.ok) push({ scope: "props", kind: "changed", id: p.id, before });
+  return res;
+}
+
+/** Pincelada do "Espalhar": todos num envio só; desfazer tira a pincelada inteira. */
+export async function addProps(items: Omit<MapProp, "id" | "above" | "blocks">[]): Promise<ActionResult> {
+  const res = await act("prop:addMany", { items });
+  if (res.ok && res.ids?.length) push({ scope: "props", kind: "addedMany", ids: res.ids });
+  return res;
+}
+
+export async function removeProps(list: MapProp[]): Promise<ActionResult> {
+  const res = await act("prop:remove", { ids: list.map((p) => p.id) });
+  if (res.ok) push({ scope: "props", kind: "removed", props: structuredClone(list) });
+  return res;
+}
+
+/** Põe de volta os apagados (num envio só), com camada e bloqueio de antes; os passos antigos passam aos ids novos. */
+async function restoreProps(list: MapProp[]) {
+  if (list.length === 0) return;
+  const res = await act("prop:addMany", { items: list.map(({ id: _, above: _a, blocks: _b, ...rest }) => rest) });
+  if (!res.ok || !res.ids) return;
+  for (let i = 0; i < list.length; i++) {
+    const id = res.ids[i];
+    renamed("props", list[i].id, id);
+    for (const s of steps) if (s.scope === "props" && s.kind === "addedMany") s.ids = s.ids.map((x) => (x === list[i].id ? id : x));
+    const { above, blocks } = list[i];
+    if (above !== PROP_DEFAULTS[list[i].kind].above || blocks !== PROP_DEFAULTS[list[i].kind].blocks) await act("prop:update", { id, above, blocks });
+  }
 }
 
 // ---------- Pincel de efeitos ----------
@@ -248,6 +316,11 @@ export async function undo(scope?: UndoScope) {
       if (has(battle?.walls, step.id)) await act("wall:remove", { id: step.id });
     } else if (step.kind === "removed") {
       await restoreWall(step.wall);
+    } else if (step.kind === "restyled") {
+      // Agrupa por desenho de antes (um envio por desenho), só as paredes que ainda existem.
+      const groups = new Map<WallStyle | null, string[]>();
+      for (const b of step.before) if (has(battle?.walls, b.id)) groups.set(b.style ?? null, [...(groups.get(b.style ?? null) ?? []), b.id]);
+      for (const [style, ids] of groups) await act("wall:style", { ids, style });
     } else {
       for (const id of step.added) if (has(battle?.walls, id)) await act("wall:remove", { id });
       for (const w of step.removed) await restoreWall(w);
@@ -259,6 +332,15 @@ export async function undo(scope?: UndoScope) {
       for (const id of step.added) if (has(battle?.drawings, id)) await act("draw:remove", { id });
       for (const d of step.removed) await restoreDrawing(d);
     }
+  } else if (step.scope === "props") {
+    if (step.kind === "added") {
+      if (has(battle?.props, step.id)) await act("prop:remove", { ids: [step.id] });
+    } else if (step.kind === "addedMany") {
+      const ids = step.ids.filter((id) => has(battle?.props, id));
+      if (ids.length) await act("prop:remove", { ids });
+    } else if (step.kind === "changed") {
+      if (has(battle?.props, step.id)) await act("prop:update", { id: step.id, ...step.before });
+    } else await restoreProps(step.props);
   } else if (step.scope === "paint") {
     if (step.kind === "painted") await act("effect:paint", { erase: true, preset: step.preset, color: step.color, cells: step.cells });
     else for (const g of step.groups) await act("effect:paint", { preset: g.preset, color: g.color, cells: g.cells });

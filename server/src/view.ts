@@ -1,9 +1,9 @@
-import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type MapConfig, type MapEffect, type MapChest, type MapTorch, type Wall } from "@rpg/shared";
+import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type LogEntry, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
-/** Ficha pessoal (magias, recursos, ataques, inventário, moedas): só o dono e o mestre veem (SPEC E6). */
-function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resources: _r, attacks: _a, inventory: _i, coins: _c, ...rest }: T) {
+/** Ficha pessoal (magias, recursos, ataques, inventário, moedas, rolagens salvas): só o dono e o mestre veem (SPEC E6). */
+function withoutSheet<T extends Combatant | CombatantView>({ spells: _s, resources: _r, attacks: _a, inventory: _i, coins: _c, rolls: _o, ...rest }: T) {
   return rest;
 }
 
@@ -68,6 +68,7 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
     },
     torch: (t: MapTorch) => anyEver([{ col: Math.floor(t.col), row: Math.floor(t.row) }]),
     chest: (c: MapChest) => anyEver([{ col: c.col, row: c.row }]),
+    prop: (p: MapProp) => anyEver(cellsAroundPoint(p.col, p.row)),
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
       // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
@@ -132,6 +133,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       torches: gm ? game.battle.torches : game.battle.torches.filter(sight.torch),
       // Baú invisível ou coberto nem chega; o conteúdo só depois da primeira abertura (surpresa).
       chests,
+      // Objeto do cenário coberto pela névoa nem chega.
+      props: gm ? game.battle.props : game.battle.props.filter(sight.prop),
       // A disputa do loot vai para todos (o baú abre na tela de cada um).
       // ...mas só de baú que a pessoa recebe (coberto pela névoa, nem a disputa nem o resultado chegam).
       lootCount: store.lootCount && seesChest(store.lootCount.chestId) ? { chestId: store.lootCount.chestId, remainingMs: Math.max(0, store.lootCount.endsAt - Date.now()), wants: store.lootCount.wants } : null,
@@ -140,10 +143,13 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       fog,
       sight: visible,
     },
-    log: game.log.filter((e) => !e.hidden || gm || e.authorId === player.id),
+    log: gm ? game.log : game.log.filter((e) => visibleEntry(e, player.id)).map((e) => (e.secret && e.roll ? blindEntry(e) : e)),
     sceneId: game.sceneId,
     rules: game.rules,
     lootSeconds: game.lootSeconds,
+    // Tabelas aleatórias (Passo 13): só o mestre (o conteúdo é surpresa).
+    tables: gm ? game.tables : [],
+    clock: game.clock,
     // Cenas preparadas são do mestre: os jogadores só veem a que está no mapa.
     scenes: gm
       ? game.scenes.map((s) => {
@@ -152,8 +158,24 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
         })
       : undefined,
     sound: store.sound,
+    pause: store.pause,
     // A lista de arquivos é do mestre; os jogadores só recebem o que estiver tocando.
     soundLibrary: gm ? store.soundLibrary : undefined,
     host: gm ? host : undefined,
   };
+}
+
+/**
+ * Entrada do log que um jogador recebe: rolagem oculta do mestre e rolagem secreta só para quem rolou;
+ * sussurro (Passo 6) só para quem escreveu e quem recebe (o mestre recebe tudo, nem passa por aqui).
+ */
+function visibleEntry(e: LogEntry, playerId: string): boolean {
+  if (e.whisper) return e.authorId === playerId || e.whisper.to === playerId;
+  if (e.hidden || e.secret) return e.authorId === playerId;
+  return true;
+}
+
+/** Rolagem secreta na tela de quem rolou: às cegas, sem os dados nem o total (nem no texto). */
+function blindEntry(e: LogEntry): LogEntry {
+  return { ...e, text: e.label ?? "", roll: { expr: e.roll!.expr, mode: e.roll!.mode, terms: [], total: 0 } };
 }

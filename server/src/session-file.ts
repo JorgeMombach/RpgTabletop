@@ -8,6 +8,11 @@ import {
   LIMITS,
   SESSION_FILE_APP,
   SESSION_FILE_FORMAT,
+  SHEET_FILE_FORMAT,
+  characterSheet,
+  templateSheet,
+  type CharacterSheet,
+  type SheetKind,
   SIZES,
   SPELL_LEVELS,
   TURN_ACTIONS,
@@ -42,11 +47,16 @@ import {
   type FogState,
   type BossPhase,
   type TableRules,
+  type RollTable,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
+import { normalizeExpression } from "./dice";
 import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseChest } from "./actions/chests";
+import { parseProp } from "./actions/props";
 import { parseWall } from "./actions/walls";
+import { parseTable } from "./tables";
+import { parseClock } from "./actions/clock";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
@@ -216,6 +226,9 @@ function combatant(raw: unknown, type: Combatant["type"]): Combatant {
   if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
   if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
   if (c.torch !== undefined && bool(c.torch, "tocha")) out.torch = true;
+  // Altura e direção (2.13): arquivos antigos não têm.
+  if (c.elevation !== undefined) out.elevation = int(c.elevation, "altura", LIMITS.elevation.min, LIMITS.elevation.max);
+  if (c.facing !== undefined) out.facing = int(c.facing, "direção", 0, 359);
   if (c.boss !== undefined && bool(c.boss, "chefe")) out.boss = true;
   if (c.phases !== undefined) out.phases = bossPhases(c.phases);
   if (c.phase !== undefined) out.phase = int(c.phase, "fase do chefe", 1, LIMITS.phases + 1);
@@ -271,6 +284,17 @@ function sheet(out: Combatant, c: Obj) {
       return out;
     });
   }
+  // Rolagens salvas (2.13): arquivos antigos não têm.
+  if (c.rolls !== undefined) {
+    out.rolls = list(c.rolls, "rolagens salvas", LIMITS.savedRolls).map((raw) => {
+      const r = obj(raw, "rolagem salva");
+      return {
+        id: requireString(r.id, "Rolagem"),
+        name: text(r.name, "rolagem salva", LIMITS.spellName) || fail("Arquivo inválido: rolagem salva sem nome."),
+        expr: normalizeExpression(text(r.expr, "rolagem salva", LIMITS.dice.exprLength)),
+      };
+    });
+  }
   if (c.coins !== undefined) {
     const raw = obj(c.coins, "moedas");
     const coins: Coins = {};
@@ -313,7 +337,59 @@ function template(raw: unknown): MobTemplate {
   if (t.phases !== undefined) out.phases = bossPhases(t.phases);
   // Arquivos anteriores à 2.12 não têm.
   if (t.attacks !== undefined) out.attacks = list(t.attacks, "ataques do template", LIMITS.attacks).map(savedAttack);
+  // Origem no catálogo (2.13); arquivos antigos não têm.
+  const source = optText(t.source, "origem do template", 64);
+  if (source) out.source = source;
   return out;
+}
+
+/** Ficha de personagem de um arquivo de fichas (Fase 4): os campos de ficha, validados como os do combatente. */
+function characterOf(raw: unknown): CharacterSheet {
+  const c = obj(raw, "ficha");
+  const hpMax = int(c.hpMax, "vida máxima", LIMITS.hpMax.min, LIMITS.hpMax.max);
+  const out: Combatant = {
+    id: requireString(c.id, "Ficha"),
+    name: requireName(c.name),
+    type: "ally",
+    hp: hpMax,
+    hpMax,
+    dexMod: int(c.dexMod, "mod. DES", LIMITS.dexMod.min, LIMITS.dexMod.max),
+    color: isColor(c.color) ? c.color : fail("Arquivo inválido: cor."),
+    pos: null,
+    initiative: null,
+    initRoll: null,
+    conditions: [],
+  };
+  stats(out, c);
+  sheet(out, c);
+  if (c.aura !== undefined) out.aura = int(c.aura, "alcance", LIMITS.aura.min, LIMITS.aura.max);
+  if (c.auraColor !== undefined) out.auraColor = isColor(c.auraColor) ? c.auraColor : fail("Arquivo inválido: cor do alcance.");
+  if (c.avatar !== undefined) out.avatar = requireImage(c.avatar, "Avatar", LIMITS.avatarChars);
+  if (c.spellSlots !== undefined) out.spellSlots = spellSlots(c.spellSlots);
+  if (c.spells !== undefined) out.spells = list(c.spells, "magias", LIMITS.spells).map(spell);
+  if (c.animal !== undefined && bool(c.animal, "animal")) out.animal = true;
+  if (c.darkvision !== undefined && bool(c.darkvision, "visão no escuro")) out.darkvision = true;
+  const description = optText(c.description, "descrição", LIMITS.description);
+  if (description) out.description = description;
+  const gmNotes = optText(c.gmNotes, "notas do mestre", LIMITS.notes);
+  if (gmNotes) out.gmNotes = gmNotes;
+  const s = characterSheet(out);
+  if (c.summon !== undefined && bool(c.summon, "invocação")) s.summon = true;
+  return s;
+}
+
+/** Lê e valida um arquivo de fichas inteiro (personagens ou monstros). Lança `ActionError` se algo não bater. */
+export function parseSheetFile(raw: unknown): { kind: SheetKind; items: CharacterSheet[] | MobTemplate[] } {
+  const f = obj(raw, "não é um objeto JSON");
+  if (f.app !== SESSION_FILE_APP || (f.kind !== "characters" && f.kind !== "monsters")) fail("Este arquivo não é uma ficha do Jamal's Tabletop.");
+  if (typeof f.format !== "number" || !Number.isInteger(f.format) || f.format < 1) fail("Arquivo inválido: versão do formato.");
+  if (f.format > SHEET_FILE_FORMAT) {
+    fail("Este arquivo foi salvo por uma versão mais nova do app (formato {format}). Atualize o Jamal's Tabletop para abrir.", { format: String(f.format) });
+  }
+  const items = f.kind === "characters" ? list(f.items, "fichas", 200).map(characterOf) : list(f.items, "monstros", 500).map((t) => templateSheet(template(t)));
+  if (items.length === 0) fail("O arquivo não tem nenhuma ficha.");
+  if (new Set(items.map((i) => i.id)).size !== items.length) fail("Arquivo inválido: fichas repetidas.");
+  return f.kind === "characters" ? { kind: "characters", items: items as CharacterSheet[] } : { kind: "monsters", items: items as MobTemplate[] };
 }
 
 /** Fases de chefe (as próximas): vida, e nome e CA se tiverem. */
@@ -372,9 +448,18 @@ function rollTerm(raw: unknown): RollTerm {
   if (t.kind === "const") return { kind: "const", sign, value: int(t.value, "rolagem", 0, LIMITS.dice.constant) };
   if (t.kind !== "dice") fail("Arquivo inválido: rolagem.");
   const faces = int(t.faces, "rolagem", 1, LIMITS.dice.faces.max);
-  const rolls = list(t.rolls, "rolagem", LIMITS.dice.count).map((v) => int(v, "rolagem", 1, faces));
+  // Fate (2.13): −1, 0 ou +1.
+  const fate = t.fate !== undefined && bool(t.fate, "rolagem");
+  const rolls = list(t.rolls, "rolagem", LIMITS.dice.count).map((v) => (fate ? int(v, "rolagem", -1, 1) : int(v, "rolagem", 1, faces)));
   const term: RollTerm = { kind: "dice", sign, count: int(t.count, "rolagem", 1, LIMITS.dice.count), faces, rolls };
   if (t.keptIndex !== undefined) term.keptIndex = int(t.keptIndex, "rolagem", 0, rolls.length - 1);
+  if (fate) term.fate = true;
+  if (t.explode !== undefined && bool(t.explode, "rolagem")) term.explode = true;
+  if (t.keep !== undefined) {
+    const k = obj(t.keep, "rolagem");
+    term.keep = { high: bool(k.high, "rolagem"), n: int(k.n, "rolagem", 1, term.count) };
+    term.dropped = list(t.dropped ?? [], "rolagem", LIMITS.dice.count).map((v) => int(v, "rolagem", 0, rolls.length - 1));
+  }
   return term;
 }
 
@@ -423,6 +508,28 @@ function logEntry(raw: unknown): LogEntry {
   }
   if (e.gm === true) out.gm = true;
   if (typeof e.subjectId === "string" && e.subjectId.length <= 64) out.subjectId = e.subjectId;
+  // Chat, sussurro e rolagem secreta (2.13); arquivos antigos não têm.
+  if (e.chat === true) out.chat = true;
+  if (e.secret === true) out.secret = true;
+  if (e.whisper !== undefined) {
+    const w = obj(e.whisper, "log");
+    out.whisper = { to: requireString(w.to, "Log"), toName: text(w.toName, "log", 64) };
+  }
+  // Rolagem numa tabela aleatória (Passo 13).
+  if (e.table !== undefined) {
+    const t = obj(e.table, "log");
+    out.table = { id: requireString(t.id, "Log"), name: text(t.name, "log", LIMITS.tableName), die: text(t.die, "log", 12), value: int(t.value, "log", 0, 1e6) };
+  }
+  return out;
+}
+
+/** Tabelas aleatórias (Passo 13), conferidas como se o mestre as criasse; nomes não se repetem. */
+function rollTables(raw: unknown): RollTable[] {
+  const out = list(raw, "tabelas", LIMITS.tables).map((r): RollTable => {
+    const t = obj(r, "tabela");
+    return { id: requireString(t.id, "Tabela"), ...parseTable(t), ...(t.public === true && { public: true }) };
+  });
+  if (new Set(out.map((t) => t.id)).size !== out.length || new Set(out.map((t) => t.name.toLowerCase())).size !== out.length) fail("Arquivo inválido: {what}.", { what: "tabelas" });
   return out;
 }
 
@@ -514,6 +621,10 @@ export function parseSession(raw: unknown): ParsedSession {
     rules: tableRules(g.rules ?? {}),
     // Arquivos anteriores aos baús: 20 segundos.
     lootSeconds: g.lootSeconds === undefined ? 20 : int(g.lootSeconds, "tempo do loot", LIMITS.lootSeconds.min, LIMITS.lootSeconds.max),
+    // Arquivos anteriores às tabelas aleatórias (Passo 13): nenhuma.
+    tables: rollTables(g.tables ?? []),
+    // Hora do jogo (Passo 15); arquivos antigos: desligada.
+    clock: parseClock(g.clock),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
@@ -569,6 +680,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     torches: list(b.torches ?? [], "tochas", LIMITS.mapTorches).map((t) => ({ id: requireString(obj(t, "tocha").id, "Tocha"), ...parseMapTorch(t) })),
     // Arquivos de antes dos baús (2.12): nenhum.
     chests: list(b.chests ?? [], "baús", LIMITS.chests).map(parseChest),
+    // Objetos do cenário (2.13); arquivos anteriores não têm.
+    props: list(b.props ?? [], "objetos", LIMITS.props).map((p) => ({ id: requireString(obj(p, "objeto").id, "Objeto"), ...parseProp(p) })),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
@@ -661,7 +774,11 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
     // O estado de antes de Transformar também tem dono: ao voltar a ele, continua com quem controlava.
     if (e.revertTo) e.revertTo.ownerId = owner(e.revertTo.ownerId);
   }
-  for (const e of game.log) e.authorId = owner(e.authorId);
+  for (const e of game.log) {
+    e.authorId = owner(e.authorId);
+    // Sussurro para um jogador: religa como o autor ("gm" é sempre o mestre de agora).
+    if (e.whisper && e.whisper.to !== "gm") e.whisper.to = owner(e.whisper.to);
+  }
   for (const d of [...game.battle.drawings, ...game.scenes.flatMap((sc) => sc.stored?.drawings ?? [])]) if (d.authorId) d.authorId = owner(d.authorId);
 
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
@@ -672,4 +789,5 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   store.lootResults = null;
   store.mobCounters = parsed.mobCounters;
   store.removedMobs.clear();
+  store.sheetUndo.clear();
 }

@@ -1,9 +1,10 @@
-import { Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Code, Group, Loader, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import type { LogEntry, RollTerm } from "@rpg/shared";
 import { rollerName } from "../format";
 import { logLabel, logText, t as tr, useLang, useT } from "../i18n";
 import { EmptyState } from "./EmptyState";
-import { IconDice5 } from "@tabler/icons-react";
+import { IconDice5, IconEyeOff, IconLock, IconRefresh } from "@tabler/icons-react";
+import { act } from "../actions";
 import { useApp } from "../store";
 
 /** Ouro do 20 natural (L6), o mesmo do resultado no mapa. */
@@ -66,12 +67,14 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
   const shine = tone === "crit" && !reduceFx && Date.now() - e.ts < SHINE_MS;
   // "Personagem (jogador)"; do lado do mestre, "Goblin 2 (Mestre)" (E26).
   const author = rollerName(e);
+  // Rolagem secreta na tela de quem rolou: só a expressão, às cegas (Passo 6).
+  const blind = !!e.secret && !!e.roll && e.roll.terms.length === 0;
   return (
     <Paper
       p="xs"
       bg="dark.7"
-      className={tone ? `roll-entry roll-${tone}${shine ? " shine" : ""}` : undefined}
-      style={e.hidden ? { borderStyle: "dashed" } : undefined}
+      className={tone ? `roll-entry roll-${tone}${shine ? " shine" : ""}` : e.whisper ? "log-whisper" : undefined}
+      style={e.hidden || e.secret ? { borderStyle: "dashed" } : undefined}
     >
       <Group gap={6} wrap="nowrap" mb={4}>
         <Text size="xs" fw={600} c={e.system ? "dimmed" : e.authorId === selfId ? "bronze.4" : undefined} truncate title={author}>
@@ -80,6 +83,16 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
         {e.hidden && (
           <Badge size="xs" variant="default">
             {tr("log.hidden")}
+          </Badge>
+        )}
+        {e.secret && (
+          <Badge size="xs" variant="default" leftSection={<IconEyeOff size={10} />} tt="none" style={{ flex: "none" }}>
+            {tr("log.secret")}
+          </Badge>
+        )}
+        {e.whisper && (
+          <Badge size="xs" variant="light" color="player" leftSection={<IconLock size={10} />} tt="none" style={{ minWidth: 0 }}>
+            {whisperLabel(e, selfId)}
           </Badge>
         )}
         <Text size="xs" c="dimmed" ml="auto" style={{ flex: "none" }}>
@@ -94,12 +107,59 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
             {e.label ? tr("log.rollingLabel", { label: logLabel(e) ?? "" }) : tr("log.rolling")}
           </Text>
         </Group>
+      ) : blind ? (
+        <Group gap="sm" wrap="nowrap">
+          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+            {e.label && (
+              <Text size="xs" fw={600} truncate title={logLabel(e)}>
+                {logLabel(e)}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed">
+              {tr("log.blindBefore")} <Code>{e.roll!.expr}</Code> {tr("log.blindAfter")}
+            </Text>
+          </Stack>
+          <Text fz={22} fw={700} c="dimmed">
+            ?
+          </Text>
+        </Group>
       ) : e.roll ? (
         <RollBody entry={e} />
+      ) : e.table ? (
+        <TableBody e={e} mine={e.authorId === selfId} />
       ) : (
         <Text size="sm">{logText(e)}</Text>
       )}
     </Paper>
+  );
+}
+
+/** Rolagem numa tabela aleatória (Passo 13): "Tabela · Encontro", "d8: 5 → 6 goblins (2d4)"; o mestre rola de novo dali. */
+function TableBody({ e, mine }: { e: LogEntry; mine: boolean }) {
+  const tb = e.table!;
+  // Rolar de novo só serve na rolagem da própria tabela (o loot que foi para um baú não se repete daqui).
+  const again = mine && !tb.die.startsWith("×");
+  return (
+    <Group gap="xs" wrap="nowrap" align="flex-start">
+      <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+        <Text size="xs" fw={600} truncate title={tb.name}>
+          {tr("tables.logLabel", { name: tb.name })}
+        </Text>
+        <Text size="sm">
+          <Text span size="xs" c="dimmed">
+            {tb.die.startsWith("×") ? tb.die : `${tb.die}: ${tb.value}`} →{" "}
+          </Text>
+          {e.text}
+        </Text>
+      </Stack>
+      {again && (
+        <Tooltip label={tr("tables.rollAgain")}>
+          <ActionIcon size="sm" variant="subtle" color="gray" aria-label={tr("tables.rollAgain")} onClick={() => void act("table:roll", { id: tb.id, public: !e.hidden })}>
+            <IconRefresh size={14} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </Group>
   );
 }
 
@@ -108,9 +168,24 @@ const SHINE_MS = 8000;
 
 /** Valor natural do d20 que valeu, para destacar 20 e 1. */
 export function naturalD20(terms: RollTerm[]): number | null {
-  const d = terms.find((t) => t.kind === "dice" && t.faces === 20 && (t.count === 1 || t.keptIndex !== undefined));
+  // Um d20 só que valeu: 1d20, vantagem/desvantagem ou "fica com um" (2d20kh1, Ordem Paranormal). Explodindo, não.
+  const d = terms.find((t) => t.kind === "dice" && t.faces === 20 && !t.explode && (t.keptIndex !== undefined || (t.keep ? t.keep.n === 1 : t.count === 1)));
   if (!d || d.kind !== "dice") return null;
-  return d.rolls[d.keptIndex ?? 0];
+  if (d.keptIndex !== undefined) return d.rolls[d.keptIndex];
+  return d.rolls.find((_, j) => !d.dropped?.includes(j)) ?? null;
+}
+
+/** Etiqueta do sussurro, do ponto de vista de quem lê ("sussurro para Ana", "sussurro do mestre"…). */
+function whisperLabel(e: LogEntry, selfId: string): string {
+  const w = e.whisper!;
+  if (e.authorId === selfId) return w.to === "gm" ? tr("log.whisperToGm") : tr("log.whisperTo", { name: w.toName });
+  return w.to === "gm" ? tr("log.whisperToYou") : tr("log.whisperFromGm");
+}
+
+/** Como o dado aparece no log: Fate vira +, − ou espaço em branco (0). */
+function faceText(t: Extract<RollTerm, { kind: "dice" }>, v: number): string {
+  if (!t.fate) return String(v);
+  return v > 0 ? "+" : v < 0 ? "−" : "0";
 }
 
 /** Tom do d20 natural (L6): 20 = crítico (ouro), 1 = falha (sangue). */
@@ -146,21 +221,25 @@ function RollBody({ entry }: { entry: LogEntry }) {
               <Group key={i} gap={3} wrap="nowrap">
                 {t.sign < 0 && <Text size="xs">−</Text>}
                 {t.rolls.map((v, j) => {
-                  const dropped = t.keptIndex !== undefined && t.keptIndex !== j;
+                  const dropped = (t.keptIndex !== undefined && t.keptIndex !== j) || !!t.dropped?.includes(j);
+                  // Dado que explodiu (tirou o máximo e rolou de novo): borda em bronze e "!" na dica.
+                  const exploded = !!t.explode && v === t.faces;
                   // O d20 que valeu, pintado (L6); o descartado fica apagado.
-                  const color = dropped || t.faces !== 20 ? "gray" : v === 20 ? GOLD : v === 1 ? "red.6" : "gray";
+                  const color = dropped || t.faces !== 20 || t.fate ? "gray" : v === 20 ? GOLD : v === 1 ? "red.6" : "gray";
+                  const name = t.fate ? "dF" : `d${t.faces}`;
                   return (
-                    <Tooltip key={j} label={`d${t.faces}${dropped ? ` ${tr("log.dropped")}` : ""}`}>
+                    <Tooltip key={j} label={`${name}${exploded ? ` ${tr("log.exploded")}` : ""}${dropped ? ` ${tr("log.dropped")}` : ""}`}>
                       <Badge
                         size="sm"
                         radius="sm"
-                        variant={color === "gray" ? "default" : "filled"}
-                        color={color}
+                        variant={color === "gray" ? (exploded ? "outline" : "default") : "filled"}
+                        color={exploded && color === "gray" ? "bronze" : color}
                         autoContrast
                         miw={24}
                         style={dropped ? { opacity: 0.4, textDecoration: "line-through" } : undefined}
                       >
-                        {v}
+                        {faceText(t, v)}
+                        {exploded && "!"}
                       </Badge>
                     </Tooltip>
                   );

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -49,6 +49,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     attacks: [{ id: "a1", name: "Machado grande", bonus: 5, damage: "1d12+3" }],
     inventory: [{ id: "i1", name: "Corda (15 m)", qty: 1, note: "de seda" }, { id: "i2", name: "Adaga", qty: 2, note: "de prata", bonus: 4, damage: "1d4+2", wielded: true } satisfies Required<InventoryItem>],
     coins: { pp: 1, gp: 25, ep: 0, sp: 7, cp: 30 },
+    rolls: [{ id: "r1", name: "Furtividade", expr: "2d20kh1+7" }],
     conditions: [
       { id: "c1", name: "Concentração", rounds: null },
       { id: "c2", name: "Abençoado", rounds: 3 },
@@ -56,6 +57,8 @@ function fullGame(playerId: string, gmId: string): GameState {
     animal: true,
     darkvision: true,
     torch: true,
+    elevation: 30,
+    facing: 45,
     boss: true,
     // Fases de chefe valem para qualquer tipo no arquivo (a interface só oferece em mob e NPC).
     phases: [{ hpMax: 40 }],
@@ -68,7 +71,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   const lich: Combatant = { id: "lich", name: "Lich", type: "mob", templateId: "t1", hp: 90, hpMax: 135, dexMod: 3, color: "#7a5ba3", pos: { col: 8, row: 8 }, initiative: 20, initRoll: 17, conditions: [] };
   const sombra: Required<Combatant> = { ...thorin, id: "sombra", name: "Sombra", type: "mob", ownerId: gmId, hidden: true, summonerId: "lich", size: "huge", pos: { col: 10, row: 8 }, initiative: null, initRoll: null };
   const guarda: Combatant = { id: "guarda", name: "Guarda", type: "npc", hp: 11, hpMax: 11, dexMod: 0, color: "#4fae8c", pos: { col: 1, row: 1 }, initiative: 5, initRoll: 5, conditions: [], hidden: true };
-  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>], attacks: [{ id: "ta1", name: "Toque gélido", bonus: 12, damage: "3d6" } satisfies Required<SavedAttack>] };
+  const template: Required<MobTemplate> = { id: "t1", name: "Lich", hpMax: 135, dexMod: 3, ac: 17, abilities: { int: 20, wis: 14 }, size: "large", color: "#7a5ba3", avatar: PNG, description: "Mago morto-vivo de manto puído.", notes: "Filactéria escondida", animal: true, boss: true, phases: [{ hpMax: 80, name: "Lich desesperado", ac: 15 } satisfies Required<BossPhase>], attacks: [{ id: "ta1", name: "Toque gélido", bonus: 12, damage: "3d6" } satisfies Required<SavedAttack>], source: "srd:lich" };
   const effect: Required<MapEffect> = {
     id: "e1",
     name: "Graxa em chamas",
@@ -98,6 +101,8 @@ function fullGame(playerId: string, gmId: string): GameState {
       mode: "adv",
       terms: [
         { kind: "dice", sign: 1, count: 2, faces: 20, rolls: [17, 4], keptIndex: 0 },
+        { kind: "dice", sign: 1, count: 2, faces: 6, rolls: [6, 3, 2], explode: true, keep: { high: true, n: 1 }, dropped: [1, 2] },
+        { kind: "dice", sign: 1, count: 2, faces: 3, rolls: [-1, 1], fate: true },
         { kind: "const", sign: 1, value: 5 },
       ],
       total: 22,
@@ -112,6 +117,10 @@ function fullGame(playerId: string, gmId: string): GameState {
     labelParts: [{ key: "Recarga de {name} ({n}–6)", params: { name: "Sopro", n: 5 } }, { key: "Secreto" }],
     subjectId: "thorin",
     gm: true,
+    chat: true,
+    whisper: { to: playerId, toName: "Ana" },
+    secret: true,
+    table: { id: "tab-encontro", name: "Encontro", die: "d8", value: 5 },
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
@@ -143,8 +152,9 @@ function fullGame(playerId: string, gmId: string): GameState {
     ],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
-      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door> } satisfies Required<Wall>,
+      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door>, style: "iron" } satisfies Required<Wall>,
     ],
+    props: [{ id: "pr1", kind: "tree", col: 6.25, row: 3.5, size: 1.4, rotation: 30, seed: 1234, above: true, blocks: false } satisfies Required<MapProp>],
     weather,
     fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60, foundNpcs: ["guarda"] } satisfies Required<FogState>,
   };
@@ -158,6 +168,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     drawings: [],
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     torches: [],
+    props: [{ id: "pr2", kind: "crates", col: 1, row: 1, size: 1, rotation: 0, seed: 5, above: false, blocks: true }],
     chests: [],
     weather,
     fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] },
@@ -172,6 +183,20 @@ function fullGame(playerId: string, gmId: string): GameState {
     scenes: [{ id: "cena-salao", name: "Salão" }, ...scenes],
     sceneId: "cena-salao",
     lootSeconds: 45,
+    tables: [
+      { id: "tab-encontro", name: "Encontro", kind: "text", rows: [{ weight: 3, text: "2d4 goblins e [Nomes]" }], public: true } satisfies Required<RollTable>,
+      {
+        id: "tab-loot",
+        name: "Loot",
+        kind: "loot",
+        rows: [
+          { weight: 1, loot: { kind: "coins", coin: "gp", amount: "3d6" } },
+          { weight: 2, loot: { kind: "item", name: "Poção", qty: "1d2", note: "cura 2d4+2" } },
+          { weight: 1, loot: { kind: "weapon", name: "Machado", qty: "1", bonus: 5, damage: "1d8+3", note: "pesado" } satisfies Required<Extract<TableLoot, { kind: "weapon" }>> },
+        ],
+      },
+    ],
+    clock: { day: 12, minutes: 14 * 60 + 30, lightFollows: true } satisfies Required<GameClock>,
     rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, hideFoeHits: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);

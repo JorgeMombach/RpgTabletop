@@ -113,6 +113,13 @@ export interface SavedAttack {
   damage?: string;
 }
 
+/** Rolagem salva na ficha (Passo 8): um nome e uma fórmula ("Furtividade", "1d20+7"). */
+export interface SavedRoll {
+  id: string;
+  name: string;
+  expr: string;
+}
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -181,6 +188,8 @@ export interface Combatant {
   attacks?: SavedAttack[];
   inventory?: InventoryItem[];
   coins?: Coins;
+  /** Rolagens salvas (Passo 8): ficha pessoal, como os ataques. */
+  rolls?: SavedRoll[];
   conditions: Condition[];
   /** Marca de animal (ícone de pata); o formato continua dizendo o lado (E21). */
   animal?: boolean;
@@ -188,6 +197,10 @@ export interface Combatant {
   darkvision?: boolean;
   /** Tocha acesa: ilumina em volta (20 ft de luz forte e 20 de meia-luz). */
   torch?: boolean;
+  /** Altura em pés (Passo 10): positiva voando, negativa escavando. Só visual (ADR-06). Ausente = no chão. */
+  elevation?: number;
+  /** Para onde o token olha, em graus (0 = para cima, sentido horário). Só visual. Ausente = sem direção. */
+  facing?: number;
   /** Chefe (mob/NPC): moldura de ouro e fita com o nome no mapa. Todos veem (as fases, não). */
   boss?: boolean;
   /** Chefe (mob/NPC): fases que ainda vão começar, em ordem. Só o mestre recebe (têm vida). */
@@ -241,6 +254,8 @@ export interface MobTemplate {
   phases?: BossPhase[];
   /** Ataques que os mobs e NPCs criados com o template já trazem (cada um com cópia própria). */
   attacks?: SavedAttack[];
+  /** Copiado do catálogo (Passo 12): a origem ("srd:goblin"), para a etiqueta e o Restaurar original. */
+  source?: string;
 }
 
 export interface MapConfig {
@@ -269,8 +284,19 @@ export type TableStyle = (typeof TABLE_STYLES)[number];
 export const WALL_THICKNESS = { default: 0.18, min: 0.1, max: 1 };
 
 /** Estilos de parede: pedra lavrada (masmorra, castelo), rocha bruta (caverna, ruína) e madeira (casa, paliçada). */
-export const WALL_STYLES = ["stone", "rock", "wood"] as const;
+/**
+ * Desenhos de parede. Os três primeiros são os de sempre; os outros vieram com o cenário (docs/design/cenario.md).
+ * Cada parede pode ter o seu; sem ele, vale o da cena (`MapConfig.wallStyle`, só os que bloqueiam a visão).
+ */
+export const WALL_STYLES = ["stone", "rock", "wood", "brick", "palisade", "rampart", "fence", "iron", "barbed", "hedge", "lowstone"] as const;
 export type WallStyle = (typeof WALL_STYLES)[number];
+
+/** Desenhos que só marcam o limite e deixam ver através (cerca, grade, arame, sebe, muro baixo), mesmo com o portão fechado. */
+export const SEE_THROUGH_WALLS: readonly WallStyle[] = ["fence", "iron", "barbed", "hedge", "lowstone"];
+
+export function seeThrough(style: WallStyle | undefined): boolean {
+  return !!style && SEE_THROUGH_WALLS.includes(style);
+}
 
 export interface CombatState {
   active: boolean;
@@ -329,6 +355,14 @@ export type RollTerm =
       rolls: number[];
       /** Com vantagem/desvantagem: índice do dado que valeu (o outro é descartado). */
       keptIndex?: number;
+      /** `kh`/`kl`: fica com os `n` maiores (`high`) ou menores; os outros dados não somam. */
+      keep?: { high: boolean; n: number };
+      /** Índices dos dados descartados pelo `keep` (aparecem riscados no log). */
+      dropped?: number[];
+      /** `!`: dado que tira o máximo rola de novo; as rolagens extras vêm depois, em `rolls`. */
+      explode?: true;
+      /** `dF`: dados Fate, valem −1, 0 ou +1 (`faces` = 3). */
+      fate?: true;
     }
   | { kind: "const"; sign: 1 | -1; value: number };
 
@@ -376,6 +410,20 @@ export interface LogEntry {
   gm?: boolean;
   /** Combatente da rolagem de iniciativa: o valor dele só aparece quando os dados param. */
   subjectId?: string;
+  /** Mensagem de texto de alguém (Passo 6), não rolagem nem aviso da mesa. */
+  chat?: true;
+  /** Sussurro (mestre ↔ jogador): só o autor, `to` e o mestre veem. `toName` é o nome de quem recebe. */
+  whisper?: { to: string; toName: string };
+  /**
+   * Rolagem secreta do jogador (às cegas): só o mestre vê o resultado. Quem rolou recebe `roll` só com a
+   * expressão (`terms` vazio, `total` 0) e o texto sem o total; os outros jogadores nem recebem.
+   */
+  secret?: true;
+  /**
+   * Rolagem numa tabela aleatória (Passo 13): qual tabela, o dado ("d8", ou "1–7" quando os pesos não fecham
+   * num dado) e o valor sorteado. O texto da linha sorteada, já com os dados resolvidos, vai em `text`.
+   */
+  table?: { id: string; name: string; die: string; value: number };
 }
 
 /** Pedaço de texto do log: modelo em português e valores. */
@@ -508,6 +556,8 @@ export interface Wall {
   /** Espessura do desenho, em casas (0,1 a 1; L5). Ausente = a de sempre (`WALL_THICKNESS`). Bloqueia pela linha do meio. */
   thickness?: number;
   door?: Door;
+  /** Desenho desta parede; sem ele, o da cena. */
+  style?: WallStyle;
 }
 
 /** Desenhos de tocha fixa que o mestre escolhe: fincada, de ferro ou braseiro. */
@@ -532,6 +582,28 @@ export type LootEntry =
   | { id: string; kind: "item"; name: string; qty: number; note?: string }
   | { id: string; kind: "weapon"; name: string; qty: number; bonus?: number; damage?: string; note?: string };
 
+/**
+ * Tabela aleatória do mestre (Passo 13, docs/design/tabelas.md). Linha de texto aceita dados ("2d4 goblins") e
+ * outra tabela entre colchetes ("[Nomes de goblin]"); linha de loot é como no baú, com dado no lugar dos números.
+ */
+export interface RollTable {
+  id: string;
+  name: string;
+  kind: "text" | "loot";
+  rows: TableRow[];
+  /** Última escolha de quem vê a rolagem: todos (`true`) ou só o mestre (ausente). */
+  public?: true;
+}
+
+/** Linha da tabela: peso (chance relativa) e o texto ou o loot. */
+export type TableRow = { weight: number; text: string } | { weight: number; loot: TableLoot };
+
+/** Loot de uma linha de tabela: quantidades são dados ("3d6") ou números ("2"). */
+export type TableLoot =
+  | { kind: "coins"; coin: Coin; amount: string }
+  | { kind: "item"; name: string; qty: string; note?: string }
+  | { kind: "weapon"; name: string; qty: string; bonus?: number; damage?: string; note?: string };
+
 /** Entrada de loot como o mestre manda (sem o id). */
 export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<E, "id"> : never) : never;
 
@@ -539,6 +611,86 @@ export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<
  * Baú no mapa (Fase 6, docs/design/baus.md): uma casa, com nome e desenho. Trancado, só o mestre abre;
  * invisível, só o mestre vê. O jogador recebe `loot` vazio até a primeira abertura.
  */
+/** Objetos do cenário (passo 2, docs/design/cenario.md), desenhados por código no cliente; da estátua em diante, a segunda leva. */
+export const PROP_KINDS = [
+  "tree",
+  "bush",
+  "boulder",
+  "stones",
+  "log",
+  "stump",
+  "rubble",
+  "barrel",
+  "crate",
+  "crates",
+  "planks",
+  "table",
+  "pillar",
+  "statue",
+  "bones",
+  "altar",
+  "tent",
+  "cart",
+  "well",
+  "shelf",
+  "bed",
+  "sacks",
+  "mushrooms",
+  "flowers",
+  "bridge",
+] as const;
+export type PropKind = (typeof PROP_KINDS)[number];
+
+/**
+ * O que cada tipo traz de saída: camada (`above` = por cima dos tokens, como a copa da árvore), se bloqueia a
+ * visão e o raio do "pé" em casas (o contorno que tapa a visão, no tamanho 1).
+ */
+export const PROP_DEFAULTS: Record<PropKind, { above: boolean; blocks: boolean; foot: number }> = {
+  tree: { above: true, blocks: true, foot: 0.3 },
+  bush: { above: false, blocks: false, foot: 0.35 },
+  boulder: { above: false, blocks: true, foot: 0.5 },
+  stones: { above: false, blocks: false, foot: 0.3 },
+  log: { above: false, blocks: false, foot: 0.3 },
+  stump: { above: false, blocks: false, foot: 0.25 },
+  rubble: { above: false, blocks: false, foot: 0.4 },
+  barrel: { above: false, blocks: false, foot: 0.3 },
+  crate: { above: false, blocks: false, foot: 0.35 },
+  crates: { above: false, blocks: true, foot: 0.6 },
+  planks: { above: false, blocks: false, foot: 0.4 },
+  table: { above: false, blocks: false, foot: 0.5 },
+  pillar: { above: false, blocks: true, foot: 0.45 },
+  statue: { above: false, blocks: true, foot: 0.4 },
+  bones: { above: false, blocks: false, foot: 0.3 },
+  altar: { above: false, blocks: false, foot: 0.6 },
+  tent: { above: false, blocks: true, foot: 0.8 },
+  cart: { above: false, blocks: false, foot: 0.6 },
+  well: { above: false, blocks: false, foot: 0.5 },
+  shelf: { above: false, blocks: true, foot: 0.6 },
+  bed: { above: false, blocks: false, foot: 0.5 },
+  sacks: { above: false, blocks: false, foot: 0.4 },
+  mushrooms: { above: false, blocks: false, foot: 0.25 },
+  flowers: { above: false, blocks: false, foot: 0.3 },
+  bridge: { above: false, blocks: false, foot: 0.6 },
+};
+
+/**
+ * Objeto no mapa (mestre): centro em casas (centésimos), tamanho (escala do desenho), giro em graus (0–359) e a
+ * semente da variação (a mesma árvore sai sempre igual). Coberto pela névoa, o jogador não recebe.
+ */
+export interface MapProp {
+  id: string;
+  kind: PropKind;
+  col: number;
+  row: number;
+  size: number;
+  rotation: number;
+  seed: number;
+  /** Por cima dos tokens (copa): o token passa por baixo. */
+  above: boolean;
+  /** Atrapalha a visão dos personagens, pelo pé (`PROP_DEFAULTS.foot` × tamanho). */
+  blocks: boolean;
+}
+
 export interface MapChest {
   id: string;
   col: number;
@@ -575,6 +727,7 @@ export interface SceneContent {
   walls: Wall[];
   torches: MapTorch[];
   chests: MapChest[];
+  props: MapProp[];
   weather: WeatherState;
   /** Névoa de guerra da cena (G). */
   fog: FogState;
@@ -642,6 +795,7 @@ export interface GameState {
     walls: Wall[];
     torches: MapTorch[];
     chests: MapChest[];
+    props: MapProp[];
     weather: WeatherState;
     fog: FogState;
   };
@@ -653,6 +807,18 @@ export interface GameState {
   rules: TableRules;
   /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
   lootSeconds: number;
+  /** Tabelas aleatórias do mestre (Passo 13): da campanha, não da cena. */
+  tables: RollTable[];
+  /** Calendário e hora do jogo (Passo 15); `null` = desligado. */
+  clock: GameClock | null;
+}
+
+/** Hora do jogo (Passo 15): "Dia 3, 14:00". Com `lightFollows`, a luz do clima segue a hora (dia, entardecer, noite). */
+export interface GameClock {
+  day: number;
+  /** Minutos desde a meia-noite (0 a 1439). */
+  minutes: number;
+  lightFollows?: true;
 }
 
 export interface HostInfo {
@@ -781,6 +947,7 @@ export interface ClientState {
     walls: Wall[];
     torches: MapTorch[];
     chests: MapChest[];
+    props: MapProp[];
     lootCount: LootCountView | null;
     lootResults: LootResults | null;
     weather: WeatherState;
@@ -795,8 +962,14 @@ export interface ClientState {
   rules: TableRules;
   /** Segundos para escolher o loot ao abrir um baú (0 = sem contagem). */
   lootSeconds: number;
+  /** Tabelas aleatórias (Passo 13): só o mestre recebe; jogador recebe lista vazia. */
+  tables: RollTable[];
+  /** Hora do jogo (Passo 15): todos veem. */
+  clock: GameClock | null;
   /** Som da mesa (E25): o mesmo para todos. */
   sound: SoundState;
+  /** Jogo pausado pelo mestre (Passo 7): aviso na tela de todos e tokens dos jogadores parados. Não vai no arquivo de sessão. */
+  pause: { message: string } | null;
   /** Só para o mestre: arquivos da pasta de sons (E25); `null` = pasta não configurada. */
   soundLibrary?: string[] | null;
   /** Só para o mestre: endereços para passar aos jogadores. */

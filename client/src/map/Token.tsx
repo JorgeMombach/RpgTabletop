@@ -12,6 +12,7 @@ import { dropHit, useHits, type FloatHit } from "./hits";
 import { drawConditionMedal, drawHpBar, drawNamePlate, drawNumberShield, drawSelection, drawTurnHalo, drawTurnRing, tokenArt, tokenOutline, type FrameKind, type HpBarState, type PlateStyle } from "./tokenArt";
 import { useImage } from "./useImage";
 import { endTokenDrag, useTokenDrag } from "./dragFollow";
+import { drawFacing, drawGroundShadow, drawHeightPill, edgeAt } from "./tokenPose";
 
 /** Quanto da casa o token ocupa: sobra folga para a moldura, a barra de vida e os selos caberem na própria casa. */
 const TOKEN_FILL = 0.76;
@@ -480,6 +481,9 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
     >
       {active && <TokenFx kind={fxKind} boss={boss} r={r} active selected={false} over={false} />}
 
+      {/* Voando (Passo 10): a sombra fica no chão, embaixo do token. */}
+      {(c.elevation ?? 0) > 0 && <KShape listening={false} sceneFunc={(kctx) => drawGroundShadow(kctx._context, r, c.elevation!)} />}
+
       <Group ref={body}>
       <KShape
         sceneFunc={(kctx) => {
@@ -497,6 +501,12 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
       </Group>
 
       {(active || selected) && <TokenFx kind={fxKind} boss={boss} r={r} active={!!active} selected={selected} over />}
+
+      {/* Direção e altura (Passo 10): setinha na borda e plaquinha em cima. */}
+      {c.facing !== undefined && (
+        <KShape listening={false} sceneFunc={(kctx) => drawFacing(kctx._context, edgeAt(fxKind, boss ? r * 1.1 : r, c.facing!), ref, c.facing!, c.color)} />
+      )}
+      {!!c.elevation && <KShape listening={false} sceneFunc={(kctx) => drawHeightPill(kctx._context, boss ? r * 1.12 : r, ref, c.elevation!)} />}
 
       {hidden && RingShape(ring * 0.9, { stroke: "#ece4d4", strokeWidth: ring * 0.6, dash: [ring * 1.5, ring * 1.5], listening: false })}
 

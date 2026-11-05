@@ -6,6 +6,7 @@ import { fail, requireInt, requireString } from "../validate";
 import { editable, requireGm } from "./combatants";
 import { logRoll, logSystem } from "./dice";
 import type { HandlerMap } from "./types";
+import { normalizeExpression } from "../dice";
 
 /*
  * Ficha pessoal: recursos com usos, ataques salvos, inventário e moedas. Só registro (ADR-06):
@@ -32,7 +33,7 @@ function findIn<T extends { id: string }>(list: T[] | undefined, raw: unknown, w
 }
 
 /** Tira um item de uma das listas; a lista vazia some do combatente. */
-function removeFrom(c: Combatant, key: "resources" | "attacks" | "inventory", raw: unknown, what: string) {
+function removeFrom(c: Combatant, key: "resources" | "attacks" | "inventory" | "rolls", raw: unknown, what: string) {
   const list: { id: string }[] | undefined = c[key];
   const target = findIn(list, raw, what);
   const rest = list!.filter((x) => x !== target);
@@ -181,6 +182,27 @@ export const sheetHandlers: HandlerMap = {
 
   "attack:remove": (store, player, payload) => {
     removeFrom(editable(store, player, payload?.id), "attacks", payload.attackId, "Ataque");
+  },
+
+  // Rolagens salvas (Passo 8): nome e fórmula, validada como a rolagem livre.
+  "savedRoll:upsert": (store, player, payload) => {
+    const c = editable(store, player, payload?.id);
+    const name = line(payload.name, LIMITS.spellName, "Informe o nome da rolagem.");
+    const expr = normalizeExpression(payload.expr);
+    if (payload.rollId !== undefined) {
+      const r = findIn(c.rolls, payload.rollId, "Rolagem");
+      Object.assign(r, { name, expr });
+      return [r.id];
+    }
+    const rolls = (c.rolls ??= []);
+    if (rolls.length >= LIMITS.savedRolls) fail("Limite de {n} rolagens salvas.", { n: LIMITS.savedRolls });
+    const r = { id: randomUUID(), name, expr };
+    rolls.push(r);
+    return [r.id];
+  },
+
+  "savedRoll:remove": (store, player, payload) => {
+    removeFrom(editable(store, player, payload?.id), "rolls", payload.rollId, "Rolagem");
   },
 
   "item:upsert": (store, player, payload) => {

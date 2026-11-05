@@ -1,6 +1,8 @@
 import { shareEqual } from "@rpg/shared";
 import { socket } from "./socket";
-import { logText } from "./i18n";
+import { act } from "./actions";
+import { rollerName } from "./format";
+import { logText, t } from "./i18n";
 import { pushHits } from "./map/hits";
 import { toast } from "./notify";
 import { IS_LOG_WINDOW } from "./logWindow";
@@ -118,6 +120,9 @@ export function askMapImage(version: number) {
   socket.emit("map:imageRequest");
 }
 
+/** Aviso do log quando um jogador substitui a ficha pelo arquivo (modelo do servidor, `sheetFiles.ts`). */
+const SHEET_REPLACED = "{who} substituiu {name} pela ficha do arquivo.";
+
 socket.on("state:full", (incoming) => {
   const previous = useApp.getState().state;
   // O que não mudou continua o mesmo objeto: a interface só redesenha o que mudou de verdade.
@@ -129,10 +134,34 @@ socket.on("state:full", (incoming) => {
   // Na janela do log, não: a janela principal já avisa.
   if (!previous || IS_LOG_WINDOW) return;
   const seen = new Set(previous.log.map((e) => e.id));
-  for (const e of state.log) if (e.system && !seen.has(e.id)) toast({ kind: "info", text: logText(e) });
+  const gm = state.self.role === "gm";
+  for (const e of state.log) {
+    if (seen.has(e.id)) continue;
+    // Sussurro que chegou (Passo 6): avisa, o log pode estar fechado.
+    if (e.whisper && e.authorId !== state.self.id) {
+      toast({ kind: "info", text: t("chat.whisperToast", { name: rollerName(e), text: e.text }) }, 10_000);
+      continue;
+    }
+    if (!e.system) continue;
+    // Jogador substituiu a ficha pelo arquivo (Fase 4): o mestre pode voltar a anterior.
+    const id = e.textParams?.id;
+    if (gm && e.textKey === SHEET_REPLACED && typeof id === "string") {
+      toast({ kind: "info", text: logText(e), action: { label: t("common.undo"), run: () => void act("sheet:undo", { id }) } }, 20_000);
+    } else toast({ kind: "info", text: logText(e) });
+  }
 });
 
 socket.on("toast", (t) => toast(t));
+
+// Ver como jogador (Passo 11): o estado que ele recebe, mantendo os objetos que não mudaram (como o state:full).
+socket.on("view:preview", (incoming) => {
+  useApp.setState((s) => {
+    if (!incoming || !s.viewAsId) return { preview: null, viewAsId: null };
+    return { preview: s.preview ? shareEqual(s.preview, incoming) : incoming };
+  });
+});
+// Reconectou: o servidor esqueceu o pedido (conexão nova). Volta à visão do mestre.
+socket.on("connect", () => useApp.setState({ preview: null, viewAsId: null }));
 
 // Golpes e curas (L6): viram o número que sobe do token (com "Reduzir efeitos", nada).
 socket.on("fx:hp", (hits) => {
@@ -156,8 +185,10 @@ let pingSeq = 0;
 // O que o mestre mostra para a mesa: abre de novo para todos quando é algo novo.
 socket.on("handout", (handout) => useApp.setState({ handout }));
 
-socket.on("ping", ({ playerId, name, at }) => {
+socket.on("ping", ({ playerId, name, at, look }) => {
   const id = ++pingSeq;
+  // "Olhem aqui" do mestre: o mapa de cada um desliza até o ping (o do mestre já está lá).
+  if (look && playerId !== useApp.getState().state?.self.id) useApp.setState({ lookAt: { at, seq: id } });
   useApp.setState((s) => ({ pings: [...s.pings, { id, playerId, name, at }].slice(-12) }));
   setTimeout(() => useApp.setState((s) => ({ pings: s.pings.filter((p) => p.id !== id) })), PING_MS);
 });

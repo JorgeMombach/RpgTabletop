@@ -819,6 +819,40 @@ abbr.abbr {
   bottom: auto;
 }
 
+/* Ver como jogador (Passo 11): a faixa fica no lugar da barra, com a borda na cor dos aliados. */
+.view-as-banner {
+  border: 1px solid var(--mantine-color-player-7);
+}
+
+/* Jogo pausado (Passo 7): jogadores veem o mapa escurecido e acinzentado com a placa no meio; o mestre, uma faixa. */
+.pause-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(10 8 14 / 0.62);
+  backdrop-filter: grayscale(0.6);
+}
+
+.pause-plaque {
+  text-align: center;
+  min-width: min(260px, 100%);
+  max-width: 420px;
+}
+
+.pause-banner {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  z-index: 5;
+  background: rgb(31 27 37 / 0.94) !important;
+  border: 1px solid var(--mantine-color-red-8);
+}
+
 /* Opções da ferramenta Área, logo abaixo da barra do mapa. */
 .map-options {
   position: absolute;
@@ -965,6 +999,12 @@ abbr.abbr {
   touch-action: none;
   border-bottom: 1px solid var(--mantine-color-dark-4);
   flex: none;
+}
+
+/* Barra de mensagem em cima do log flutuante e da janela do log (Passo 6). */
+.log-chat {
+  flex: none;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm) 0;
 }
 
 .floating-log-body {
@@ -1564,6 +1604,12 @@ button[data-disabled] > .ability-cell {
     transform: translate(var(--dx), 60px) rotate(var(--r));
     opacity: 0;
   }
+}
+
+/* Sussurro no log (Passo 6): filete na cor dos aliados e fundo levemente azulado, para ler de relance que é privado. */
+.log-whisper {
+  box-shadow: inset 3px 0 0 var(--mantine-color-player-5);
+  background-color: color-mix(in srgb, var(--mantine-color-player-9) 22%, var(--mantine-color-dark-7)) !important;
 }
 
 /* No log: filete na cor do d20 natural; o crítico recém-rolado ganha um reflexo que passa uma vez. */
@@ -2369,6 +2415,12 @@ button[data-disabled] > .ability-cell {
   padding: 8px;
 }
 
+/* Altura e direção do token (Passo 10), ao lado do menu como as condições. */
+.token-menu-pose {
+  width: 236px;
+  padding: 8px;
+}
+
 .token-menu-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -2788,4 +2840,11 @@ button[data-disabled] > .ability-cell {
   grid-template-columns: 280px minmax(0, 1fr);
   gap: var(--mantine-spacing-xl);
   align-items: start;
+}
+
+/* Catálogo de monstros (Passo 12): os seis atributos do resumo, em caixinhas. */
+.catalog-ability {
+  background: var(--mantine-color-dark-6);
+  border-radius: 4px;
+  padding: 2px 0;
 }

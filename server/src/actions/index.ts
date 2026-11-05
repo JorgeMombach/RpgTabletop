@@ -8,6 +8,8 @@ import { initiativeHandlers } from "./initiative";
 import { magicHandlers } from "./magic";
 import { mapHandlers } from "./map";
 import { sheetHandlers } from "./sheet";
+import { sheetFileHandlers } from "./sheetFiles";
+import { catalogHandlers } from "./catalog";
 import { soundHandlers } from "./sound";
 import { fogHandlers } from "./fog";
 import { handoutHandlers } from "./handout";
@@ -16,7 +18,10 @@ import { sceneHandlers } from "./scenes";
 import { wallHandlers } from "./walls";
 import { mapTorchHandlers } from "./mapTorches";
 import { chestHandlers } from "./chests";
+import { propHandlers } from "./props";
 import { weatherHandlers } from "./weather";
+import { tableHandlers } from "./tables";
+import { clockHandlers } from "./clock";
 
 export const handlers: HandlerMap = {
   ...combatantHandlers,
@@ -33,8 +38,13 @@ export const handlers: HandlerMap = {
   ...fogHandlers,
   ...mapTorchHandlers,
   ...chestHandlers,
+  ...propHandlers,
   ...ruleHandlers,
   ...soundHandlers,
   ...sheetHandlers,
+  ...sheetFileHandlers,
+  ...catalogHandlers,
   ...weatherHandlers,
+  ...tableHandlers,
+  ...clockHandlers,
 };
