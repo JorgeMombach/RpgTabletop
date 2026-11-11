@@ -1,7 +1,7 @@
 import { Indicator, Stack, Tabs, Text } from "@mantine/core";
 import { IconCloud, IconMap2, IconSwords, IconUsers } from "@tabler/icons-react";
 import type { ClientState, Combatant } from "@rpg/shared";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 import { SetupCard } from "./SetupCard";
 import { useT, type MessageKey } from "../i18n";
@@ -74,6 +74,38 @@ export function openGmTab(tab: GmTab, anchor?: string) {
   }, 60);
 }
 
+/**
+ * Painel que recebe o estado inteiro mas lê só alguns campos: redesenha só quando eles mudam. O `shareEqual`
+ * mantém o que não mudou como o mesmo objeto, então comparar por identidade basta.
+ */
+function readsOnly(pick: (s: ClientState) => unknown[]) {
+  return (a: { state: ClientState }, b: { state: ClientState }) => {
+    const before = pick(a.state);
+    const after = pick(b.state);
+    return before.length === after.length && before.every((v, i) => v === after[i]);
+  };
+}
+
+/**
+ * As abas ficam montadas mesmo escondidas (Mantine): sem isto, mover um token redesenhava as quatro, inclusive o
+ * catálogo SRD inteiro e o diário (medido em 2026-11-11: ~100 ms no mestre a cada movimento, no build de produção).
+ */
+const Panels = {
+  MapPanel: memo(MapPanel),
+  BuildPanel: memo(BuildPanel),
+  ClockPanel: memo(ClockPanel),
+  WeatherPanel: memo(WeatherPanel, readsOnly((s) => [s.battle.weather, s.sound.ambient, s.rules, s.allies])),
+  SoundPanel: memo(SoundPanel, readsOnly((s) => [s.sound, s.soundLibrary])),
+  ScenesPanel: memo(ScenesPanel, readsOnly((s) => [s.scenes, s.sceneId, s.allies.length, s.battle.combat.active, s.battle.combat.order.length])),
+  HandoutPanel: memo(HandoutPanel),
+  BestiaryPanel: memo(BestiaryPanel),
+  TablesPanel: memo(TablesPanel),
+  JournalPanel: memo(JournalPanel),
+  PlayersPanel: memo(PlayersPanel, readsOnly((s) => [s.players, s.maxPlayers, s.self])),
+  SessionPanel: memo(SessionPanel),
+  InvitePanel: memo(InvitePanel),
+};
+
 export function GmTabs({ state }: { state: ClientState }) {
   const t = useT();
   const tab = useGmTab((s) => s.tab);
@@ -134,23 +166,23 @@ export function GmTabs({ state }: { state: ClientState }) {
         <EffectsPanel state={state} />
       </Tabs.Panel>
       <Tabs.Panel value="map" className="gm-tabs-panel">
-        <ScenesPanel state={state} />
-        <BuildPanel />
-        <MapPanel map={state.battle.map} />
+        <Panels.ScenesPanel state={state} />
+        <Panels.BuildPanel />
+        <Panels.MapPanel map={state.battle.map} />
       </Tabs.Panel>
       <Tabs.Panel value="ambience" className="gm-tabs-panel">
-        <ClockPanel clock={state.clock} />
-        <WeatherPanel state={state} />
-        <SoundPanel state={state} />
+        <Panels.ClockPanel clock={state.clock} />
+        <Panels.WeatherPanel state={state} />
+        <Panels.SoundPanel state={state} />
       </Tabs.Panel>
       <Tabs.Panel value="table" className="gm-tabs-panel">
-        <HandoutPanel />
-        <BestiaryPanel templates={state.templates} />
-        <TablesPanel tables={state.tables} />
-        <JournalPanel />
-        <PlayersPanel state={state} />
-        <SessionPanel />
-        {state.host && <InvitePanel host={state.host} />}
+        <Panels.HandoutPanel />
+        <Panels.BestiaryPanel templates={state.templates} />
+        <Panels.TablesPanel tables={state.tables} />
+        <Panels.JournalPanel />
+        <Panels.PlayersPanel state={state} />
+        <Panels.SessionPanel />
+        {state.host && <Panels.InvitePanel host={state.host} />}
       </Tabs.Panel>
     </Tabs>
   );

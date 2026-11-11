@@ -122,7 +122,7 @@ Decisões e novidades:
 - [x] Engasgos nos outros aparelhos ao liberar névoa e abrir portas.
 - [x] Dados 3D presos à espera dos sons.
 - [x] Coluna da esquerda empurrando o mapa.
-- [ ] Engasgo ao mover token: os painéis ainda redesenham (ficou para depois).
+- [x] Engasgo ao mover token: os painéis ainda redesenham. *(feito em 2026-11-11, branch `feat/campanha`: medido com 10 mobs, 200 objetos e névoa; as abas escondidas do mestre e o log redesenhavam a cada envio; com `memo` nos painéis das abas e em cada entrada do log, de ~11.500 para ~950 componentes por movimento)*
 
 ## Plano depois da 2.11.0 (aprovado em 2026-11-02, revisto em 2026-11-03; fases 0, 2, 3, 5 e 6 saíram na 2.12.0)
 Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na branch `fix/correcoes-rolagem-efeitos`, como foi com a 2.10 e a 2.11. Primeiro o que mexe na jogatina; ordem por importância (2026-11-03): 0, 2, 3, 5, 6 e depois a 4; **hospedagem e instalador ficam por último**, talvez numa subida à parte. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
@@ -137,7 +137,7 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Cor do grid, por cena (painel Mapa, abaixo de *Mostrar grid*; preto fica sem campo).
 - [x] Tooltips mais bonitos, com protótipo. Escolhido o 5, pergaminho com título (`TipTitle` nas ferramentas do mapa).
 - [x] Ctrl+Z em desenho livre, setas, círculos e tochas (hoje só paredes). Histórico único em `client/src/map/mapHistory.ts` (era `wallHistory.ts`); cada ferramenta desfaz o dela; ação nova `maptorch:remove`.
-- [ ] Engasgo ao mover token, se incomodar na mesa (pendente da 2.11.0, no bloco N).
+- [x] Engasgo ao mover token (pendente da 2.11.0, no bloco N). *(feito em 2026-11-11, branch `feat/campanha`: medido com 10 mobs, 200 objetos e névoa; as abas escondidas do mestre e o log redesenhavam a cada envio; com `memo` nos painéis das abas e em cada entrada do log, de ~11.500 para ~950 componentes por movimento)*
 
 ### Fase 3. Dano na ficha
 - [x] Armas no template, com dano ("Martelo de pedra" 1d6+2): o mob criado já vem com elas e o mestre escolhe qual usar ao rolar (ficha ou ataques rápidos do painel Dados).
