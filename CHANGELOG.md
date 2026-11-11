@@ -11,6 +11,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ### Corrigido
 - **Engasgo ao mover token (mestre):** mover um token, rolar um dado ou qualquer outro envio redesenhava as quatro abas do mestre (inclusive as escondidas: o catálogo de monstros inteiro, o diário, clima e som) e todas as rolagens do log. Agora só redesenha o que mudou: numa mesa com 10 mobs, 200 objetos e névoa, o mestre passou de ~11.500 para ~950 componentes redesenhados por movimento, e o tranco ao soltar o token caiu de ~105 para ~78 ms (o resto é o mapa e a névoa).
+- **"Não salvo" esquecia parte da mesa:** criar ou mudar tabelas aleatórias, a hora do jogo, as regras da mesa, o tempo do loot ou as cenas não acendia o aviso *Não salvo* (nem o pedido de confirmação ao fechar o app do mestre). Agora acende, e uma mesa só com tabelas já conta como algo a salvar.
 
 ## [2.13.0] - 2026-11-05
 
