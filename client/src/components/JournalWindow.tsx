@@ -1,6 +1,6 @@
 // Diário da campanha (Passo 14, docs/design/diario.md): janela única — o mestre edita, o jogador lê o que foi liberado.
-import { ActionIcon, Badge, Box, Button, Checkbox, Group, Indicator, Modal, NumberInput, Paper, SegmentedControl, Select, Stack, Text, Textarea, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
-import { IconBook, IconEye, IconEyeOff, IconFlag, IconLock, IconMapPin, IconNotes, IconPlus, IconCalendar, IconSearch, IconTrash, IconUser, type Icon } from "@tabler/icons-react";
+import { ActionIcon, Badge, Box, Button, Checkbox, Group, Indicator, Modal, NumberInput, Paper, SegmentedControl, Select, Stack, Text, Textarea, TextInput, Title, Tooltip, UnstyledButton } from "@mantine/core";
+import { IconBook, IconChevronLeft, IconCircleCheck, IconEye, IconEyeOff, IconFlag, IconLock, IconMapPin, IconNotes, IconPlus, IconCalendar, IconSearch, IconTrash, IconUser, type Icon } from "@tabler/icons-react";
 import { JOURNAL_TAGS, LIMITS, type JournalEntry, type JournalTag } from "@rpg/shared";
 import { useEffect, useMemo, useState } from "react";
 import { create } from "zustand";
@@ -76,20 +76,29 @@ export function JournalWindow({ fullScreen = false }: { fullScreen?: boolean }) 
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<JournalTag | "all">("all");
   const [dirty, setDirty] = useState(false);
+  // Até onde o jogador tinha lido quando abriu: as bolinhas da lista continuam até ele fechar.
+  const [seenAtOpen, setSeenAtOpen] = useState(0);
 
-  // Abrir conta como ler (bolinha some); o que chegar com a janela aberta também.
+  // Abrir conta como ler (a bolinha do botão some); o que chegar com a janela aberta também.
   useEffect(() => {
-    if (open && !gm) markJournalRead(journal);
+    if (!open || gm) return;
+    setSeenAtOpen((was) => was || useJournalSeen.getState().seenAt || 1);
+    markJournalRead(journal);
   }, [open, gm, journal]);
 
   const groups = useMemo(() => groupEntries(journal, query, tag), [journal, query, tag]);
   const selected = entryId === "new" ? null : (journal.find((e) => e.id === entryId) ?? null);
 
-  // Mestre abrindo sem escolher: a mais recente (ou uma nova, com o diário vazio).
+  // Abrindo sem escolher: a mais recente (o mestre, com o diário vazio, já numa nova). No celular, o jogador começa pela lista.
   useEffect(() => {
-    if (!open || !gm || entryId !== null) return;
+    if (!open || entryId !== null || (!gm && fullScreen)) return;
     const first = [...journal].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-    choose(first ? first.id : "new");
+    if (first || gm) choose(first ? first.id : "new");
+  }, [open, gm, fullScreen, entryId, journal]);
+
+  // Jogador com uma entrada aberta que foi recolhida ou apagada: volta para a lista (ou para a mais recente).
+  useEffect(() => {
+    if (open && !gm && entryId !== null && !journal.some((e) => e.id === entryId)) choose(null);
   }, [open, gm, entryId, journal]);
 
   async function leaveDraft(): Promise<boolean> {
@@ -105,7 +114,10 @@ export function JournalWindow({ fullScreen = false }: { fullScreen?: boolean }) 
   async function close() {
     if (!(await leaveDraft())) return;
     useJournalWindow.setState({ open: false, entryId: null });
+    setSeenAtOpen(0);
   }
+  // Celular: lista ou entrada, uma de cada vez.
+  const showing = fullScreen && entryId !== null ? "entry" : "list";
 
   return (
     <Modal
@@ -124,7 +136,7 @@ export function JournalWindow({ fullScreen = false }: { fullScreen?: boolean }) 
       }
       classNames={{ header: "journal-head", body: "journal-body" }}
     >
-      <div className="journal-split">
+      <div className={`journal-split${fullScreen ? ` single ${showing}` : ""}`}>
         <aside className="journal-list">
           <Stack gap={8} p="sm" className="journal-tools">
             {gm && (
@@ -135,11 +147,18 @@ export function JournalWindow({ fullScreen = false }: { fullScreen?: boolean }) 
             <TextInput leftSection={<IconSearch size={14} />} placeholder={t("journal.search")} aria-label={t("journal.search")} value={query} onChange={(e) => setQuery(e.currentTarget.value)} />
             <TagFilter value={tag} onChange={setTag} />
           </Stack>
-          <JournalList groups={groups} selectedId={selected?.id ?? null} gm={gm} onPick={(id) => void pick(id)} />
+          <JournalList groups={groups} selectedId={selected?.id ?? null} gm={gm} seenAt={seenAtOpen} onPick={(id) => void pick(id)} />
         </aside>
         <section className="journal-main">
+          {fullScreen && (
+            <Button variant="subtle" color="gray" leftSection={<IconChevronLeft size={16} />} m="xs" onClick={() => choose(null)}>
+              {t("journal.back")}
+            </Button>
+          )}
           {gm ? (
             <EntryEditor key={seq} entryId={entryId} onDirty={setDirty} />
+          ) : selected ? (
+            <EntryReader entry={selected} />
           ) : (
             <Text c="dimmed" p="lg">
               {t("journal.pick")}
@@ -181,9 +200,8 @@ function TagFilter({ value, onChange }: { value: JournalTag | "all"; onChange: (
 }
 
 /** Lista agrupada por etiqueta; o mestre libera/recolhe pelo olho, o jogador vê a bolinha no que é novo. */
-export function JournalList({ groups, selectedId, gm, onPick }: { groups: { tag: JournalTag; entries: JournalEntry[] }[]; selectedId: string | null; gm: boolean; onPick: (id: string) => void }) {
+export function JournalList({ groups, selectedId, gm, seenAt = Infinity, onPick }: { groups: { tag: JournalTag; entries: JournalEntry[] }[]; selectedId: string | null; gm: boolean; seenAt?: number; onPick: (id: string) => void }) {
   const t = useT();
-  const seenAt = useJournalSeen((s) => s.seenAt);
   if (groups.length === 0)
     return (
       <Text size="sm" c="dimmed" p="sm">
@@ -236,6 +254,33 @@ export function ShareToggle({ entry }: { entry: JournalEntry }) {
         {entry.shared ? <IconEye size={16} /> : <IconEyeOff size={16} />}
       </ActionIcon>
     </Tooltip>
+  );
+}
+
+/** Leitura do jogador: etiqueta, dia, título e o texto liberado (nunca a nota, que nem chega). */
+function EntryReader({ entry }: { entry: JournalEntry }) {
+  const t = useT();
+  const TagIcon = TAG_ICON[entry.tag];
+  return (
+    <Stack gap={10} p="lg">
+      <Group gap={6}>
+        <Badge variant="default" leftSection={<TagIcon size={12} />}>
+          {t(TAG_LABEL[entry.tag])}
+        </Badge>
+        {entry.done && (
+          <Badge variant="light" color="copper" leftSection={<IconCircleCheck size={12} />}>
+            {t("journal.done")}
+          </Badge>
+        )}
+        {entry.day !== undefined && <Badge variant="default">{t("journal.day", { n: entry.day })}</Badge>}
+      </Group>
+      <Title order={3} c="bronze.4" fz={20} style={{ overflowWrap: "anywhere" }}>
+        {entry.title}
+      </Title>
+      <Text className="journal-read-text" fz={16} lh={1.6}>
+        {entry.text}
+      </Text>
+    </Stack>
   );
 }
 

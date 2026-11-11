@@ -2953,3 +2953,17 @@ button[data-disabled] > .ability-cell {
 .col .journal-rows .journal-group:first-child {
   padding-top: 2px;
 }
+.journal-split.single {
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100dvh - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+.journal-split.single .journal-list {
+  border-right: 0;
+}
+.journal-split.single.list .journal-main,
+.journal-split.single.entry .journal-list {
+  display: none;
+}
+.journal-split.single .journal-row-main {
+  padding: 10px 8px;
+}
