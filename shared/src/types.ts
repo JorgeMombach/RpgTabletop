@@ -811,6 +811,33 @@ export interface GameState {
   tables: RollTable[];
   /** Calendário e hora do jogo (Passo 15); `null` = desligado. */
   clock: GameClock | null;
+  /** Diário da campanha (Passo 14): não vai no `state:full`, segue em evento próprio (`journal`), filtrado por jogador. */
+  journal: JournalEntry[];
+}
+
+/** Etiquetas das entradas do diário (Passo 14). */
+export const JOURNAL_TAGS = ["session", "quest", "npc", "place", "other"] as const;
+export type JournalTag = (typeof JOURNAL_TAGS)[number];
+
+/**
+ * Entrada do diário da campanha (Passo 14, docs/design/diario.md). O jogador recebe só as liberadas (`shared`),
+ * sempre sem `note`. Campos opcionais ficam ausentes quando vazios ou falsos.
+ */
+export interface JournalEntry {
+  id: string;
+  title: string;
+  tag: JournalTag;
+  /** O que os jogadores leem quando a entrada é liberada. */
+  text: string;
+  /** Nota só do mestre: nunca vai para os jogadores. */
+  note?: string;
+  shared?: true;
+  /** Só em missão (`quest`): concluída. */
+  done?: true;
+  /** Dia do jogo (como o da Hora do jogo). */
+  day?: number;
+  /** Hora da última mudança (ms): ordena e marca novidade. */
+  updatedAt: number;
 }
 
 /** Hora do jogo (Passo 15): "Dia 3, 14:00". Com `lightFollows`, a luz do clima segue a hora (dia, entardecer, noite). */

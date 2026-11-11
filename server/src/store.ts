@@ -63,6 +63,7 @@ export function createGame(): GameState {
     sceneId,
     lootSeconds: 20,
     tables: [],
+    journal: [],
     clock: null,
     rules: { moveOnTurn: false, summonOnTurn: false, effectOnTurn: false, hideFoeHits: false, darkReminder: false },
   };
@@ -82,6 +83,8 @@ export class Store {
   /** O que o mestre está mostrando para a mesa; a versão sobe a cada mudança (o servidor reenvia a todos). */
   handout: Handout | null = null;
   handoutVersion = 0;
+  /** Diário da campanha (Passo 14): a versão sobe a cada mudança (o servidor reenvia a cada um o que ele pode ler). */
+  journalVersion = 0;
   /** Arquivos de áudio da pasta (lista lida no começo e quando o mestre atualiza). */
   soundLibrary: string[] | null = null;
   /** Antispam dos jogadores (E26); os testes zeram para rolar em sequência. */

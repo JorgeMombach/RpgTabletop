@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock, JournalEntry } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -197,6 +197,10 @@ function fullGame(playerId: string, gmId: string): GameState {
       },
     ],
     clock: { day: 12, minutes: 14 * 60 + 30, lightFollows: true } satisfies Required<GameClock>,
+    journal: [
+      { id: "dia-1", title: "Amuleto do barão", tag: "quest", text: "O barão paga 200 po.\n\nPista: capas verdes.", note: "O cocheiro é espião.", shared: true, done: true, day: 3, updatedAt: 1730000000000 } satisfies Required<JournalEntry>,
+      { id: "dia-2", title: "Torre de Kesh", tag: "place", text: "", updatedAt: 1730000000001 },
+    ],
     rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, hideFoeHits: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);

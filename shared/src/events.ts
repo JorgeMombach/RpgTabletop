@@ -1,5 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
 import type { CatalogCollection, CatalogDetails, CatalogLang } from "./catalog";
@@ -356,6 +356,11 @@ export interface ActionPayloads {
   "table:remove": { id: string };
   /** Mestre: rola a tabela; `public` = todos veem (a tabela lembra a escolha). */
   "table:roll": { id: string; public: boolean };
+  /** Mestre: cria (sem `id`) ou edita uma entrada do diário (Passo 14). */
+  "journal:upsert": { id?: string; title: string; tag: JournalTag; text: string; note?: string; shared?: boolean; done?: boolean; day?: number | null };
+  /** Mestre: libera ou recolhe uma entrada para os jogadores. */
+  "journal:share": { id: string; shared: boolean };
+  "journal:remove": { id: string };
   /** Mestre: liga, acerta ou desliga (`null`) a hora do jogo (Passo 15). */
   "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
   /** Mestre: avança a hora do jogo (descanso, viagem). */
@@ -489,6 +494,8 @@ export interface ServerToClientEvents {
   ping: (payload: PingBroadcast) => void;
   /** O que o mestre está mostrando para a mesa (`null` = nada); vem ao mudar e ao entrar. */
   handout: (handout: Handout | null) => void;
+  /** Diário da campanha (Passo 14): vai à parte do estado, só quando muda e ao entrar; o jogador recebe só as liberadas, sem nota. */
+  journal: (entries: JournalEntry[]) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
@@ -586,6 +593,11 @@ export const LIMITS = {
   tableWeight: 99,
   tableTimes: 10,
   tableDepth: 5,
+  /** Diário da campanha (Passo 14): entradas, título, texto e nota (letras). */
+  journal: 200,
+  journalTitle: 80,
+  journalText: 4000,
+  journalNote: 2000,
   /** Hora do jogo (Passo 15): maior dia e maior avanço de uma vez (30 dias, em minutos). */
   clockDay: 99_999,
   clockAdvance: 43_200,

@@ -232,7 +232,7 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 - [x] O mestre cria tabelas (encontros, nomes, loot) e rola com um clique; resultado no log (só para ele, se quiser). Peso por linha, dados e outra tabela dentro do texto, cinco exemplos nos três idiomas.
 - [x] Rolar loot direto para dentro de um baú (entra na janela de edição; o baú muda ao salvar).
 
-### Passo 14. Diário da campanha (M)
+### Passo 14. Diário da campanha (M; desenho em [docs/design/diario.md](design/diario.md), aprovado em 2026-11-11, branch `feat/campanha`)
 - [ ] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão.
 
 ### Passo 15. Calendário e hora do jogo (P, feito em 2026-11-05)

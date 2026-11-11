@@ -48,6 +48,7 @@ import {
   type BossPhase,
   type TableRules,
   type RollTable,
+  type JournalEntry,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
 import { normalizeExpression } from "./dice";
@@ -57,6 +58,7 @@ import { parseProp } from "./actions/props";
 import { parseWall } from "./actions/walls";
 import { parseTable } from "./tables";
 import { parseClock } from "./actions/clock";
+import { parseJournalEntry } from "./actions/journal";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
@@ -533,6 +535,16 @@ function rollTables(raw: unknown): RollTable[] {
   return out;
 }
 
+/** Diário da campanha (Passo 14), conferido como se o mestre o escrevesse; ids não se repetem. */
+function journalEntries(raw: unknown): JournalEntry[] {
+  const out = list(raw, "diário", LIMITS.journal).map((r): JournalEntry => {
+    const e = obj(r, "diário");
+    return { id: requireString(e.id, "Diário"), ...parseJournalEntry(e), updatedAt: int(e.updatedAt, "diário", 0, Number.MAX_SAFE_INTEGER) };
+  });
+  if (new Set(out.map((e) => e.id)).size !== out.length) fail("Arquivo inválido: {what}.", { what: "diário" });
+  return out;
+}
+
 /** Valores de um modelo do log: textos curtos ou números. */
 function logParams(raw: unknown): Record<string, string | number> {
   const out: Record<string, string | number> = {};
@@ -625,6 +637,8 @@ export function parseSession(raw: unknown): ParsedSession {
     tables: rollTables(g.tables ?? []),
     // Hora do jogo (Passo 15); arquivos antigos: desligada.
     clock: parseClock(g.clock),
+    // Diário da campanha (Passo 14); arquivos antigos: vazio.
+    journal: journalEntries(g.journal ?? []),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");

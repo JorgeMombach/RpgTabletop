@@ -6,6 +6,16 @@
  * em português. O teste `server/test/server-text.test.ts` falha se um texto novo do servidor ficar sem tradução.
  */
 export const SERVER_TEXT: Record<string, [string, string]> = {
+  "Dê um título à entrada.": ["Give the entry a title.","Ponle un título a la entrada."],
+  "Título: até {n} letras.": ["Title: up to {n} characters.","Título: hasta {n} letras."],
+  "Etiqueta inválida.": ["Invalid tag.","Etiqueta no válida."],
+  "Texto: até {n} letras.": ["Text: up to {n} characters.","Texto: hasta {n} letras."],
+  "Nota: até {n} letras.": ["Note: up to {n} characters.","Nota: hasta {n} letras."],
+  "Só uma missão pode ser concluída.": ["Only a quest can be completed.","Solo una misión puede completarse."],
+  "Essa entrada do diário não existe mais.": ["That journal entry no longer exists.","Esa entrada del diario ya no existe."],
+  "Limite de {n} entradas no diário.": ["Limit of {n} journal entries.","Límite de {n} entradas en el diario."],
+  "Diário": ["Journal","Diario"],
+  "diário": ["journal","diario"],
   "Agora é dia {day}, {time}.": ["It is now day {day}, {time}.","Ahora es el día {day}, {time}."],
   "Ligue a hora do jogo antes de avançar.": ["Turn on the game time before advancing it.","Activa la hora del juego antes de avanzarla."],
   "Dia": ["Day","Día"],
