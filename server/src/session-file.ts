@@ -798,6 +798,8 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
   game.battle.map.imageVersion = store.game.battle.map.imageVersion + 1;
   store.game = game;
+  // O diário (Passo 14) também vai à parte: a versão nova faz cada um receber o do arquivo.
+  store.journalVersion++;
   // Disputa de loot não vai no arquivo: o baú volta aberto, no modo Pegar.
   store.lootCount = null;
   store.lootResults = null;

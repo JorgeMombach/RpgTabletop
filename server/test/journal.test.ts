@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ActionResult, ActionPayloads, JournalEntry } from "@rpg/shared";
+import type { ActionResult, ActionPayloads, JournalEntry, SessionFile } from "@rpg/shared";
 import { act, join, nextState, useServer, type Client } from "./helpers";
 
 // Passo 14 (docs/design/diario.md): diário da campanha, caderno do mestre que ele libera aos poucos.
@@ -231,5 +231,53 @@ describe("diário: quem recebe", () => {
     assert.ok((await act(g, "dice:roll", { expr: "1d20" })).ok);
     await after;
     assert.equal(sent, 0);
+  });
+});
+
+describe("diário: arquivo de sessão", () => {
+  async function exportFile(s: Client): Promise<SessionFile> {
+    const res = await s.timeout(2000).emitWithAck("session:export");
+    assert.ok(res.ok, res.ok ? "" : res.error);
+    return res.file;
+  }
+  const importFile = (s: Client, file: unknown): Promise<ActionResult> => s.timeout(2000).emitWithAck("session:import", file);
+
+  it("arquivo sem diário abre com o diário vazio", async () => {
+    const g = await gm();
+    const file = await exportFile(g);
+    idOf(await act(g, "journal:upsert", entry()));
+    delete (file.game as Partial<typeof file.game>).journal;
+    assert.ok((await importFile(g, file)).ok);
+    assert.deepEqual(journal(), []);
+  });
+
+  it("ids repetidos ou entrada inválida recusam o arquivo sem mexer no diário", async () => {
+    const g = await gm();
+    idOf(await act(g, "journal:upsert", entry({ title: "Fica" })));
+    const file = await exportFile(g);
+    const before = structuredClone(journal());
+    const twice = structuredClone(file);
+    twice.game.journal = [file.game.journal[0], file.game.journal[0]];
+    assert.match(errorOf(await importFile(g, twice)), /diário/);
+    const badTag = structuredClone(file);
+    badTag.game.journal[0] = { ...badTag.game.journal[0], tag: "boss" as never };
+    errorOf(await importFile(g, badTag));
+    assert.deepEqual(journal(), before);
+  });
+
+  it("carregar arquivo reenvia o diário a quem já estava conectado", async () => {
+    const g = await gm();
+    const ana = await player();
+    idOf(await act(g, "journal:upsert", entry({ title: "Do arquivo", shared: true, note: "segredo" })));
+    const file = await exportFile(g);
+    const hidden = nextJournal(ana);
+    assert.ok((await act(g, "journal:share", { id: journal()[0].id, shared: false })).ok);
+    assert.deepEqual(await hidden, []);
+
+    const arrived = nextJournal(ana);
+    assert.ok((await importFile(g, file)).ok);
+    const list = await arrived;
+    assert.deepEqual(list.map((e) => e.title), ["Do arquivo"]);
+    assert.equal("note" in list[0], false);
   });
 });
