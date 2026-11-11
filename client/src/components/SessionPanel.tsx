@@ -32,8 +32,8 @@ export function SessionPanel() {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const { state, savedSnapshot, savedAt } = useApp();
-  const unsaved = isUnsaved(state, savedSnapshot);
+  const { state, journal, savedSnapshot, savedAt } = useApp();
+  const unsaved = isUnsaved(state, journal, savedSnapshot);
 
   // Navegador: fechar a aba com alterações não salvas mostra o aviso padrão dele (o texto não é personalizável).
   // No app do mestre quem cuida disso é o CloseGuard, com o modal "Salvar e sair".

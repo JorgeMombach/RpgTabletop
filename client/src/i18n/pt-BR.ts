@@ -1478,6 +1478,8 @@ export const ptBR = {
   "turn.delayTip": "Agir mais tarde nesta rodada, depois de alguém que ainda vai agir",
   "turn.delayNone": "Ninguém mais vai agir nesta rodada",
   "turn.delayLabel": "Agir depois de…",
+  "journal.news": "Novo no diário: {title}",
+  "journal.newsMany": "{n} novidades no diário",
 } as const;
 
 export type MessageKey = keyof typeof ptBR;

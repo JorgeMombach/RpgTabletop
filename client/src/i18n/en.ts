@@ -1463,4 +1463,6 @@ export const en: Partial<Messages> = {
   "turn.delayTip": "Act later this round, after someone who still has to act",
   "turn.delayNone": "Nobody else acts this round",
   "turn.delayLabel": "Act after…",
+  "journal.news": "New in the journal: {title}",
+  "journal.newsMany": "{n} new journal entries",
 };

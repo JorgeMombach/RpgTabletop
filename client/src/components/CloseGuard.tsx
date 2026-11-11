@@ -17,8 +17,8 @@ export function CloseGuard() {
 
   useEffect(() => {
     desktop?.guardClose(() => {
-      const { state, savedSnapshot } = useApp.getState();
-      if (isUnsaved(state, savedSnapshot)) setAsking(true);
+      const { state, journal, savedSnapshot } = useApp.getState();
+      if (isUnsaved(state, journal, savedSnapshot)) setAsking(true);
       else desktop?.confirmClose();
     });
   }, []);
