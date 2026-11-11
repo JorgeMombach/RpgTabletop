@@ -6,6 +6,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Adicionado
+- **Diário da campanha:** caderno do mestre no painel *Diário* (aba *Mesa*) e no livro do topo. Cada entrada tem título, etiqueta (sessão, missão, NPC, lugar ou outra), dia do jogo (já preenchido com o da *Hora do jogo*), texto e uma **nota secreta** que nunca vai para os jogadores; missão pode ser marcada como concluída. A janela tem busca, filtro por etiqueta e a lista agrupada. O mestre libera ou recolhe cada entrada pelo olho; os jogadores leem as liberadas pelo livro no topo (no celular, em tela cheia), com uma bolinha e um aviso quando algo novo chega. O diário vai no arquivo de sessão e marca o *Não salvo*; *Limpar campo* não mexe nele.
+
 ## [2.13.0] - 2026-11-05
 
 ### Adicionado

@@ -233,7 +233,7 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 - [x] Rolar loot direto para dentro de um baú (entra na janela de edição; o baú muda ao salvar).
 
 ### Passo 14. Diário da campanha (M; desenho em [docs/design/diario.md](design/diario.md), aprovado em 2026-11-11, branch `feat/campanha`)
-- [ ] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão.
+- [x] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão. *(feito em 2026-11-11: entradas livres com etiqueta, nota secreta só do mestre, liberar uma a uma; o diário viaja em evento próprio, fora do estado)*
 
 ### Passo 15. Calendário e hora do jogo (P, feito em 2026-11-05)
 - [x] "Dia 3, 14h", avançando por descanso ou viagem; opcional: a luz do clima acompanha a hora. Painel *Hora do jogo* (aba *Ambiente*), hora no topo para todos, aviso no log.
