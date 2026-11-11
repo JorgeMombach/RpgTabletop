@@ -4,11 +4,6 @@ import {
   CHARACTER_SHEET_KEYS,
   NAME_MAX_LENGTH,
   SPELL_LEVELS,
-  blockedCells,
-  footprint,
-  nearestFreeSpot,
-  sharesCell,
-  sizeSpan,
   characterSheet,
   sameSheet,
   templateSheet,
@@ -20,11 +15,10 @@ import {
   type SheetImportChoice,
   type SheetKind,
 } from "@rpg/shared";
-import { allCombatants } from "../combat";
 import { parseSheetFile } from "../session-file";
 import type { ServerPlayer, Store } from "../store";
 import { fail } from "../validate";
-import { requireGm } from "./combatants";
+import { moveOutIfGrown, requireGm } from "./combatants";
 import { logSystem, whoIs } from "./dice";
 import type { HandlerMap } from "./types";
 
@@ -125,13 +119,7 @@ function replaceSheet(store: Store, target: Combatant, sheet: CharacterSheet, ke
     for (const level of SPELL_LEVELS) target.spellSlots[level].used = Math.min(oldSlots[level]?.used ?? 0, target.spellSlots[level].max);
   }
   for (const r of target.resources ?? []) r.used = Math.min(oldResources?.find((o) => o.id === r.id)?.used ?? 0, r.max);
-  // Cresceu no mapa e passaria a encostar em alguém: só ele vai para a casa livre mais próxima (ninguém é empurrado).
-  if (target.pos && sizeSpan(target.size) > sizeSpan(oldSize) && !sharesCell(target.size)) {
-    const others = blockedCells(allCombatants(store).filter((c) => c !== target));
-    const taken = new Set(others.map((p) => `${p.col},${p.row}`));
-    const span = sizeSpan(target.size);
-    if (footprint(target.pos, span).some((c) => taken.has(`${c.col},${c.row}`))) target.pos = nearestFreeSpot(target.pos, others, span);
-  }
+  moveOutIfGrown(store, target, oldSize);
 }
 
 export const sheetFileHandlers: HandlerMap = {

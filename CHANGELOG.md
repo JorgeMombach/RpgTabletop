@@ -9,6 +9,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ### Adicionado
 - **Diário da campanha:** caderno do mestre no painel *Diário* (aba *Mesa*) e no livro do topo. Cada entrada tem título, etiqueta (sessão, missão, NPC, lugar ou outra), dia do jogo (já preenchido com o da *Hora do jogo*), texto e uma **nota secreta** que nunca vai para os jogadores; missão pode ser marcada como concluída. A janela tem busca, filtro por etiqueta e a lista agrupada. O mestre libera ou recolhe cada entrada pelo olho; os jogadores leem as liberadas pelo livro no topo (no celular, em tela cheia), com uma bolinha e um aviso quando algo novo chega. O diário vai no arquivo de sessão e marca o *Não salvo*; *Limpar campo* não mexe nele.
 
+### Alterado
+- **Ficha editada para um tamanho maior:** se o token passaria a encostar em alguém no mapa, ele vai para a casa livre mais próxima (como já fazia a ficha importada); ninguém é empurrado. Antes ficava encavalado e a mesa ajeitava na mão.
+
 ### Corrigido
 - **Engasgo ao mover token (mestre):** mover um token, rolar um dado ou qualquer outro envio redesenhava as quatro abas do mestre (inclusive as escondidas: o catálogo de monstros inteiro, o diário, clima e som) e todas as rolagens do log. Agora só redesenha o que mudou: numa mesa com 10 mobs, 200 objetos e névoa, o mestre passou de ~11.500 para ~950 componentes redesenhados por movimento, e o tranco ao soltar o token caiu de ~105 para ~78 ms (o resto é o mapa e a névoa).
 - **"Não salvo" esquecia parte da mesa:** criar ou mudar tabelas aleatórias, a hora do jogo, as regras da mesa, o tempo do loot ou as cenas não acendia o aviso *Não salvo* (nem o pedido de confirmação ao fechar o app do mestre). Agora acende, e uma mesa só com tabelas já conta como algo a salvar.

@@ -252,4 +252,4 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 
 ## Ideias novas
 (entram aqui conforme surgirem e sobem para a seção certa quando decididas)
-- Editar a ficha (botão *Editar*) para um tamanho maior também levar o token para a casa livre mais próxima, como já faz a ficha importada (hoje a mesa ajeita na mão).
+- [x] Editar a ficha (botão *Editar*) para um tamanho maior também levar o token para a casa livre mais próxima, como já faz a ficha importada. *(feito em 2026-11-11, branch `feat/campanha`: a regra virou `moveOutIfGrown`, usada pela edição e pela importação)*
