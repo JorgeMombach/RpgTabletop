@@ -18,6 +18,7 @@ import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
 import { GmTabs } from "./GmTabs";
 import { HandoutButton, HandoutModal } from "./Handout";
+import { JournalButton, JournalWindow } from "./JournalWindow";
 import { SheetImportModal } from "./SheetImportModal";
 import { InitiativePanel } from "./InitiativePanel";
 import { Shortcuts, ShortcutsButton } from "./Shortcuts";
@@ -128,6 +129,7 @@ function DesktopShell({ state }: { state: ClientState }) {
             </Tooltip>
           )}
           <HandoutButton />
+          <JournalButton />
           <ShortcutsButton />
           <SettingsButton state={state} />
           <Group gap={6} wrap="nowrap">
@@ -196,6 +198,7 @@ function DesktopShell({ state }: { state: ClientState }) {
       <SoundSync sound={state.sound} />
       <AboutModal opened={about} onClose={() => setAbout(false)} />
       <HandoutModal />
+      <JournalWindow />
       <Memo.SheetModal state={state} />
       <SheetImportModal gm={state.self.role === "gm"} />
     </div>

@@ -20,6 +20,7 @@ import { ScenesPanel } from "./ScenesPanel";
 import { SessionPanel } from "./SessionPanel";
 import { SoundPanel } from "./SoundPanel";
 import { TablesPanel } from "./TablesPanel";
+import { JournalPanel } from "./JournalPanel";
 import { ClockPanel } from "./ClockPanel";
 import { WeatherPanel } from "./WeatherPanel";
 
@@ -146,6 +147,7 @@ export function GmTabs({ state }: { state: ClientState }) {
         <HandoutPanel />
         <BestiaryPanel templates={state.templates} />
         <TablesPanel tables={state.tables} />
+        <JournalPanel />
         <PlayersPanel state={state} />
         <SessionPanel />
         {state.host && <InvitePanel host={state.host} />}
