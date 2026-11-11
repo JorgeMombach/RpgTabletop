@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ActionResult, ActionPayloads, JournalEntry } from "@rpg/shared";
-import { act, join, useServer, type Client } from "./helpers";
+import { act, join, nextState, useServer, type Client } from "./helpers";
 
 // Passo 14 (docs/design/diario.md): diário da campanha, caderno do mestre que ele libera aos poucos.
 const { ctx, client } = useServer();
@@ -126,7 +126,7 @@ describe("diário: ações", () => {
     assert.equal(q.shared, true);
   });
 
-  it("limpar campo mantém o diário", async () => {
+  it("limpar campo mantém o diário (ações)", async () => {
     const g = await gm();
     idOf(await act(g, "journal:upsert", entry()));
     const before = structuredClone(journal());
@@ -134,5 +134,102 @@ describe("diário: ações", () => {
     assert.deepEqual(journal(), before);
     assert.ok((await act(g, "battle:clear", { keepTemplates: false })).ok);
     assert.deepEqual(journal(), before);
+  });
+});
+
+/** Próximo diário que chega a esse socket. */
+function nextJournal(s: Client): Promise<JournalEntry[]> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("o diário não chegou")), 2000);
+    s.once("journal", (entries) => {
+      clearTimeout(timer);
+      resolve(entries);
+    });
+  });
+}
+
+describe("diário: quem recebe", () => {
+  it("jogador recebe só as liberadas e nunca a nota", async () => {
+    const g = await gm();
+    const ana = await player();
+    const forGm = nextJournal(g);
+    const forAna = nextJournal(ana);
+    idOf(await act(g, "journal:upsert", entry({ title: "A", note: "segredo", shared: true })));
+    assert.equal((await forGm).length, 1);
+    assert.equal((await forAna).length, 1);
+
+    const gmGets = nextJournal(g);
+    const anaGets = nextJournal(ana);
+    idOf(await act(g, "journal:upsert", entry({ title: "B", note: "outro segredo" })));
+    const gmList = await gmGets;
+    const anaList = await anaGets;
+    assert.deepEqual(gmList.map((e) => [e.title, e.note]), [["A", "segredo"], ["B", "outro segredo"]]);
+    assert.deepEqual(anaList.map((e) => e.title), ["A"]);
+    assert.equal("note" in anaList[0], false, "a nota nunca vai para o jogador");
+  });
+
+  it("recolher some no próximo envio; liberar de novo continua sem nota", async () => {
+    const g = await gm();
+    const ana = await player();
+    // O envio da criação pode chegar depois da resposta da ação: espera ele passar antes de medir o próximo.
+    const created = nextJournal(ana);
+    const id = idOf(await act(g, "journal:upsert", entry({ note: "segredo", shared: true })));
+    await created;
+    let arrived = nextJournal(ana);
+    assert.ok((await act(g, "journal:share", { id, shared: false })).ok);
+    assert.deepEqual(await arrived, []);
+    arrived = nextJournal(ana);
+    assert.ok((await act(g, "journal:share", { id, shared: true })).ok);
+    const back = await arrived;
+    assert.equal(back.length, 1);
+    assert.equal("note" in back[0], false);
+  });
+
+  it("entrar e reconectar recebem o diário", async () => {
+    const g = await gm();
+    idOf(await act(g, "journal:upsert", entry({ title: "Liberada", shared: true })));
+    idOf(await act(g, "journal:upsert", entry({ title: "Escondida" })));
+    const bia: Client = await client("10.47.0.2");
+    const first = nextJournal(bia);
+    const res = await join(bia, "Bia");
+    assert.ok(res.ok);
+    assert.deepEqual((await first).map((e) => e.title), ["Liberada"]);
+
+    bia.disconnect();
+    const again: Client = await client("10.47.0.2");
+    const second = nextJournal(again);
+    assert.ok((await join(again, "Bia", res.ok ? res.sessionToken : undefined)).ok);
+    assert.deepEqual((await second).map((e) => e.title), ["Liberada"]);
+
+    // Mesa sem nada liberado: chega a lista vazia (o botão do topo some).
+    const caio: Client = await client("10.47.0.3");
+    const empty = nextJournal(caio);
+    await act(g, "journal:share", { id: ctx.server.store.game.journal[0].id, shared: false });
+    await join(caio, "Caio");
+    assert.deepEqual(await empty, []);
+  });
+
+  it("o diário não vai no state:full", async () => {
+    const g = await gm();
+    const ana = await player();
+    const gmState = nextState(g);
+    const anaState = nextState(ana);
+    idOf(await act(g, "journal:upsert", entry({ shared: true })));
+    assert.equal("journal" in (await gmState), false);
+    assert.equal("journal" in (await anaState), false);
+  });
+
+  it("ação que não mexe no diário não reenvia", async () => {
+    const g = await gm();
+    const ana = await player();
+    const created = nextJournal(ana);
+    idOf(await act(g, "journal:upsert", entry({ shared: true })));
+    await created;
+    let sent = 0;
+    ana.on("journal", () => sent++);
+    const after = nextState(ana);
+    assert.ok((await act(g, "dice:roll", { expr: "1d20" })).ok);
+    await after;
+    assert.equal(sent, 0);
   });
 });

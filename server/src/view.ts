@@ -1,4 +1,4 @@
-import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type LogEntry, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
+import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type JournalEntry, type LogEntry, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
@@ -178,4 +178,15 @@ function visibleEntry(e: LogEntry, playerId: string): boolean {
 /** Rolagem secreta na tela de quem rolou: às cegas, sem os dados nem o total (nem no texto). */
 function blindEntry(e: LogEntry): LogEntry {
   return { ...e, text: e.label ?? "", roll: { expr: e.roll!.expr, mode: e.roll!.mode, terms: [], total: 0 } };
+}
+
+/**
+ * Diário da campanha (Passo 14) para quem vai receber: o mestre lê tudo; o jogador só as entradas liberadas,
+ * montadas de novo sem a nota do mestre (não basta esconder o campo).
+ */
+export function journalFor(store: Store, player: ServerPlayer): JournalEntry[] {
+  if (player.role === "gm") return store.game.journal;
+  return store.game.journal
+    .filter((e) => e.shared)
+    .map(({ id, title, tag, text, shared, done, day, updatedAt }) => ({ id, title, tag, text, shared, updatedAt, ...(done && { done }), ...(day !== undefined && { day }) }));
 }

@@ -35,7 +35,7 @@ import { serveClient } from "./static";
 import { refreshLibrary, soundSource } from "./actions/sound";
 import { whoIs } from "./actions/dice";
 import { audioType, saveSound, soundPath } from "./sounds";
-import { viewFor } from "./view";
+import { journalFor, viewFor } from "./view";
 import { trackLastSeen, updateSight } from "./sight";
 import { collectHits, type HpMemory } from "./hits";
 
@@ -136,6 +136,7 @@ export function createApp(opts: AppOptions) {
   const SESSION_ROOM = "session";
   let sentImageVersion = 0;
   let sentHandoutVersion = 0;
+  let sentJournalVersion = 0;
   const hpMemory: HpMemory = new Map();
 
   function mapImage() {
@@ -171,6 +172,9 @@ export function createApp(opts: AppOptions) {
       sentHandoutVersion = store.handoutVersion;
       io.to(SESSION_ROOM).emit("handout", store.handout);
     }
+    // Diário da campanha (Passo 14): fora do estado, só quando muda; cada um recebe o que pode ler.
+    const journalChanged = store.journalVersion !== sentJournalVersion;
+    sentJournalVersion = store.journalVersion;
     // Golpes e curas (L6): cada um recebe só os dos tokens que enxerga (oculto e coberto pela névoa ficam de fora).
     // Com a regra "Esconder dano e cura dos inimigos", o jogador recebe só os dos aliados.
     const hits = collectHits(store, hpMemory);
@@ -183,6 +187,7 @@ export function createApp(opts: AppOptions) {
       const mine = hits.filter((h) => seen.has(h.id));
       for (const sid of player.sockets) {
         io.to(sid).emit("state:full", view);
+        if (journalChanged) io.to(sid).emit("journal", journalFor(store, player));
         if (mine.length) io.to(sid).emit("fx:hp", mine);
         if (viewAs.has(sid)) sendPreview(sid);
       }
@@ -226,6 +231,7 @@ export function createApp(opts: AppOptions) {
     void socket.join(SESSION_ROOM);
     if (store.game.battle.map.image) socket.emit("map:image", mapImage());
     if (store.handout) socket.emit("handout", store.handout);
+    socket.emit("journal", journalFor(store, player));
     return { ok: true, self: toPublic(player), sessionToken: player.token };
   }
 
