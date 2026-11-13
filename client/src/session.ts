@@ -1,4 +1,4 @@
-import { shareEqual } from "@rpg/shared";
+import { isHex, shareEqual } from "@rpg/shared";
 import { socket } from "./socket";
 import { act } from "./actions";
 import { rollerName } from "./format";
@@ -6,7 +6,7 @@ import { logText, t } from "./i18n";
 import { pushHits } from "./map/hits";
 import { toast } from "./notify";
 import { IS_LOG_WINDOW } from "./logWindow";
-import { PING_MS, useApp } from "./store";
+import { offOnHex, PING_MS, useApp } from "./store";
 import { receiveJournal } from "./journal";
 
 const TOKEN_KEY = "rpg.sessionToken";
@@ -130,6 +130,12 @@ socket.on("state:full", (incoming) => {
   const state = previous ? shareEqual(previous, incoming) : incoming;
   useApp.setState({ state, joinError: null });
   const { map } = state.battle;
+  // A cena passou a ser hex (troca de grid ou de cena) com uma ferramenta que ainda não existe nela: volta a Mover.
+  if (isHex(map)) {
+    const { tool, propMode } = useApp.getState();
+    if (offOnHex(tool)) useApp.setState({ tool: "move", calibRect: null });
+    if (propMode !== "place") useApp.setState({ propMode: "place" });
+  }
   if (map.hasImage && useApp.getState().mapImage.version !== map.imageVersion) askMapImage(map.imageVersion);
   // Avisos da mesa (ex.: condição que acabou) viram toast, mas só os novos: ao entrar, o log antigo não se repete.
   // Na janela do log, não: a janela principal já avisa.

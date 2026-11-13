@@ -499,6 +499,7 @@ export const en: Partial<Messages> = {
   "map.calibrateHint": "Drag a rectangle over one or more squares of the map.",
   "map.squares": "{n} square(s)",
   "map.hexes": "{n} hex(es)",
+  "map.hexSoon": "Not available on the hex grid yet",
   "map.fullFx": "Full effects (this browser only)",
   "map.reduceFx": "Reduce effects",
   "map.reduceFxTip": "Reduce effects: fewer particles, no flashes and no animations (this browser only)",

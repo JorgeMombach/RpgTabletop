@@ -506,6 +506,7 @@ export const ptBR = {
   "map.calibrateHint": "Arraste um retângulo sobre um ou mais quadrados do mapa.",
   "map.squares": "{n} quadrado(s)",
   "map.hexes": "{n} hex(es)",
+  "map.hexSoon": "Ainda não disponível no grid hexagonal",
   "map.fullFx": "Efeitos completos (só neste navegador)",
   "map.reduceFx": "Reduzir efeitos",
   "map.reduceFxTip": "Reduzir efeitos: menos partículas, sem clarão e sem animações (só neste navegador)",

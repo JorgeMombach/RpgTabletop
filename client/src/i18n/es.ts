@@ -499,6 +499,7 @@ export const es: Partial<Messages> = {
   "map.calibrateHint": "Arrastra un rectángulo sobre una o más casillas del mapa.",
   "map.squares": "{n} casilla(s)",
   "map.hexes": "{n} hex(es)",
+  "map.hexSoon": "Todavía no disponible en la cuadrícula hexagonal",
   "map.fullFx": "Efectos completos (solo en este navegador)",
   "map.reduceFx": "Reducir efectos",
   "map.reduceFxTip": "Reducir efectos: menos partículas, sin destellos y sin animaciones (solo en este navegador)",

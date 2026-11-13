@@ -8,7 +8,7 @@ import { geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
-import { AREA_DEFAULT_FEET, openSheet, select, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
+import { AREA_DEFAULT_FEET, openSheet, select, isSquareOnly, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
 import { InitiativeTrack } from "./InitiativeTrack";
 import { TokenMenu, type MenuFocus } from "./TokenMenu";
@@ -1227,6 +1227,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
         paused={!!state.pause}
+        hex={isHex(grid)}
       />}
       <PauseOverlay pause={state.pause} gm={gm} />
       {gm && tool === "ping" && <PingOptions />}
@@ -1520,8 +1521,11 @@ function MapToolbar({
   onZoom,
   onFit,
   paused,
+  hex,
 }: {
   tool: string;
+  /** Cena hex (Passo 16): as ferramentas que ainda são só do quadrado ficam apagadas. */
+  hex: boolean;
   gm: boolean;
   /** Jogo pausado (Passo 7): o botão de pausa do mestre vira Retomar. */
   paused: boolean;
@@ -1576,20 +1580,24 @@ function MapToolbar({
     return (
       <Paper className="map-toolbar" p={4} shadow="md" radius="md">
         <MGroup gap={4} wrap="nowrap">
-          {tools.map(({ id, label, icon: Icon }) => (
-            <Tooltip key={id} label={label}>
+          {tools.map(({ id, label, icon: Icon }) => {
+            const off = hex && isSquareOnly(id);
+            return (
+            <Tooltip key={id} label={off ? t("map.hexSoon") : label}>
               <ActionIcon
                 size="lg"
                 variant={tool === id ? "filled" : "subtle"}
                 color={tool === id ? undefined : "gray"}
-                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                data-disabled={off || undefined}
+                onClick={() => !off && setTool(tool === id && id !== "move" ? "move" : id)}
                 aria-label={label}
                 aria-pressed={tool === id}
               >
                 <Icon size={18} />
               </ActionIcon>
             </Tooltip>
-          ))}
+            );
+          })}
           <Divider orientation="vertical" mx={2} />
           <Tooltip label={t("map.fit")}>
             <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label={t("map.fit")}>
@@ -1621,14 +1629,17 @@ function MapToolbar({
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
-        {tools.map(({ id, text, label, icon: Icon }) => (
-          <Tooltip key={id} label={<TipTitle title={text} shortcut={TOOL_KEYS[id]}>{label}</TipTitle>}>
+        {tools.map(({ id, text, label, icon: Icon }) => {
+          const off = hex && isSquareOnly(id);
+          return (
+          <Tooltip key={id} label={off ? t("map.hexSoon") : <TipTitle title={text} shortcut={TOOL_KEYS[id]}>{label}</TipTitle>}>
             {narrow ? (
               <ActionIcon
                 size="lg"
                 variant={tool === id ? "filled" : "subtle"}
                 color={tool === id ? undefined : "gray"}
-                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                data-disabled={off || undefined}
+                onClick={() => !off && setTool(tool === id && id !== "move" ? "move" : id)}
                 aria-label={text}
                 aria-pressed={tool === id}
               >
@@ -1638,14 +1649,16 @@ function MapToolbar({
               <Button
                 variant={tool === id ? "filled" : "subtle"}
                 color={tool === id ? undefined : "gray"}
-                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
+                data-disabled={off || undefined}
+                onClick={() => !off && setTool(tool === id && id !== "move" ? "move" : id)}
                 leftSection={<Icon size={14} />}
               >
                 {text}
               </Button>
             )}
           </Tooltip>
-        ))}
+          );
+        })}
         {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>{t("map.cancelCalibration")}</Button>}
         <Divider orientation="vertical" mx={2} />
         <Tooltip label={t("map.zoomOut")}>
