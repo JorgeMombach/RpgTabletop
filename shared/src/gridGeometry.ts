@@ -290,3 +290,62 @@ export function shapesOverlap(
   const cellsOfA = new Set(geometry.footprint(a, aSize).map((cell) => `${cell.col},${cell.row}`));
   return geometry.footprint(b, bSize).some((cell) => cellsOfA.has(`${cell.col},${cell.row}`));
 }
+
+/** Hex de pontas para cima de referência para as contas em anéis (o de lado em cima troca col↔row). */
+function toRowsLayout(kind: GridKind): (pos: GridPos) => GridPos {
+  return kind === "hexCols" ? swapPos : (pos: GridPos) => pos;
+}
+
+/**
+ * Casas de uma pincelada (pincel de efeitos, de objetos). Quadrado: `size` × `size` centrado na casa (o de sempre);
+ * hex: as casas a até `floor(size / 2)` hexes do centro (1, 7, 19… hexes).
+ */
+export function brushCells(center: GridPos, size: number, kind: GridKind | undefined): GridPos[] {
+  const half = Math.floor(size / 2);
+  if (!kind || kind === "square") {
+    const cells: GridPos[] = [];
+    for (let col = center.col - half; col < center.col - half + size; col++)
+      for (let row = center.row - half; row < center.row - half + size; row++) cells.push({ col, row });
+    return cells;
+  }
+  const toRows = toRowsLayout(kind);
+  const origin = toAxial(toRows(center));
+  const cells: GridPos[] = [];
+  for (let radius = 0; radius <= half; radius++) for (const axial of axialRing(origin, radius)) cells.push(toRows(toOffset(axial)));
+  return cells;
+}
+
+/**
+ * Onde a origem de uma área de magia encaixa. Quadrado: na meia casa mais perto (centro, canto ou meio do lado);
+ * hex: no centro ou no vértice mais perto do hex em que o ponto cai (em centésimos de casa).
+ */
+export function areaAnchor(point: CellPoint, kind: GridKind | undefined): CellPoint {
+  if (!kind || kind === "square") return { x: Math.round(point.x * 2) / 2, y: Math.round(point.y * 2) / 2 };
+  const geometry = geometryOf(kind);
+  const cell = geometry.cellAt(point);
+  let best = geometry.center(cell);
+  for (const corner of geometry.polygon(cell)) {
+    if (Math.hypot(corner.x - point.x, corner.y - point.y) < Math.hypot(best.x - point.x, best.y - point.y)) best = corner;
+  }
+  return { x: Math.round(best.x * 100) / 100, y: Math.round(best.y * 100) / 100 };
+}
+
+/** Ponto sorteado dentro da casa (pincel de espalhar objetos). No hex, sorteia na caixa e confere a casa. */
+export function randomPointIn(cell: GridPos, kind: GridKind | undefined, random: () => number): CellPoint {
+  if (!kind || kind === "square") {
+    const x = cell.col + random();
+    return { x, y: cell.row + random() };
+  }
+  const geometry = geometryOf(kind);
+  const corners = geometry.polygon(cell);
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const [left, top] = [Math.min(...xs), Math.min(...ys)];
+  const [width, height] = [Math.max(...xs) - left, Math.max(...ys) - top];
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const point = { x: left + random() * width, y: top + random() * height };
+    const landed = geometry.cellAt(point);
+    if (landed.col === cell.col && landed.row === cell.row) return point;
+  }
+  return geometry.center(cell);
+}

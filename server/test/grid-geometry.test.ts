@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  areaAnchor,
   blockedCells,
+  brushCells,
   cellDistance,
   centeredOn,
   footprint,
@@ -10,6 +12,7 @@ import {
   nearestCellOf,
   nearestFreeSpot,
   occupiedCells,
+  randomPointIn,
   sharesCell,
   sizeSpan,
   SIZES,
@@ -158,6 +161,61 @@ describe("geometria do grid", () => {
         assert.ok(geo.distance(start, spot) <= 2, "perto de onde estava");
         assert.notDeepEqual(spot, start);
       });
+
+      it("hex: pincel", () => {
+        for (const pos of parityPositions) {
+          assert.deepEqual(brushCells(pos, 1, kind), [pos]);
+          const seven = brushCells(pos, 3, kind);
+          assert.deepEqual(new Set(seven.map(keyOf)), new Set([pos, ...geo.neighbors(pos)].map(keyOf)));
+          const nineteen = brushCells(pos, 5, kind);
+          assert.equal(new Set(nineteen.map(keyOf)).size, 19);
+          assert.ok(nineteen.every((cell) => geo.distance(pos, cell) <= 2));
+          assert.equal(new Set(brushCells(pos, 9, kind).map(keyOf)).size, 61);
+        }
+      });
+
+      it("hex: encaixe da área", () => {
+        const random = sequence(0.13, 0.71, 0.42, 0.95, 0.06, 0.58, 0.33, 0.87);
+        for (const pos of [{ col: 1, row: 1 }, { col: 4, row: 3 }]) {
+          const center = geo.center(pos);
+          const allowed = [center, ...geo.polygon(pos)];
+          for (let i = 0; i < 4; i++) {
+            const point = { x: center.x + (random() - 0.5) * 0.8, y: center.y + (random() - 0.5) * 0.8 };
+            const anchor = areaAnchor(point, kind);
+            assert.ok(
+              allowed.some((option) => Math.abs(option.x - anchor.x) <= 0.006 && Math.abs(option.y - anchor.y) <= 0.006),
+              `centro ou vértice: ${JSON.stringify(anchor)}`,
+            );
+            assert.ok(Math.hypot(anchor.x - point.x, anchor.y - point.y) <= 1 / ROOT3 + 0.01);
+          }
+          const vertex = geo.polygon(pos)[2];
+          const onVertex = areaAnchor(vertex, kind);
+          close(onVertex.x, Math.round(vertex.x * 100) / 100);
+          close(onVertex.y, Math.round(vertex.y * 100) / 100);
+        }
+      });
+
+      it("hex: ponto dentro da casa", () => {
+        const random = sequence(...Array.from({ length: 97 }, (_, i) => ((i * 37) % 97) / 97));
+        for (const pos of parityPositions) {
+          for (let i = 0; i < 200; i++) assert.deepEqual(geo.cellAt(randomPointIn(pos, kind, random)), pos);
+        }
+      });
     });
   }
+
+  it("quadrado: pincel, encaixe da área e ponto na casa (o de sempre)", () => {
+    const square = brushCells({ col: 5, row: 5 }, 3, "square");
+    assert.deepEqual(new Set(square.map(keyOf)), new Set(["4,4", "5,4", "6,4", "4,5", "5,5", "6,5", "4,6", "5,6", "6,6"]));
+    assert.equal(square.length, 9);
+    assert.deepEqual(areaAnchor({ x: 2.3, y: 0.74 }, "square"), { x: 2.5, y: 0.5 });
+    assert.deepEqual(areaAnchor({ x: 2.3, y: 0.74 }, undefined), { x: 2.5, y: 0.5 });
+    assert.deepEqual(randomPointIn({ col: 2, row: 3 }, "square", sequence(0.25, 0.75)), { x: 2.25, y: 3.75 });
+  });
 });
+
+/** Gerador repetível: devolve os valores dados em ciclo. */
+function sequence(...values: number[]): () => number {
+  let index = 0;
+  return () => values[index++ % values.length];
+}
