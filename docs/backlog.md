@@ -238,7 +238,7 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 ### Passo 15. Calendário e hora do jogo (P, feito em 2026-11-05)
 - [x] "Dia 3, 14h", avançando por descanso ou viagem; opcional: a luz do clima acompanha a hora. Painel *Hora do jogo* (aba *Ambiente*), hora no topo para todos, aviso no log.
 
-### Passo 16. Grid hexagonal (G, por último)
+### Passo 16. Grid hexagonal (G, por último; desenho em [docs/design/grid-hex.md](design/grid-hex.md), aprovado em 2026-11-12, em três fases)
 - [ ] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar.
 
 ### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)
