@@ -15,6 +15,7 @@ import {
   type Ruler,
   type ServerToClientEvents,
   APP_VERSION,
+  isHex,
 } from "@rpg/shared";
 import { handlers } from "./actions";
 import type { Handler } from "./actions/types";
@@ -301,6 +302,8 @@ export function createApp(opts: AppOptions) {
     socket.on("area:update", (area) => {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (!player) return;
+      // Áreas de magia ainda não existem no grid hexagonal (Passo 16, Fase 2).
+      if (isHex(store.game.battle.map)) return;
       socket.to(SESSION_ROOM).emit("area", { playerId: player.id, name: whoIs(store, player), area: validArea(area) });
     });
 

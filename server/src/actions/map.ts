@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { blockedCells, centeredOn, emptyFog, geometryOf, GRID_KINDS, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
+import { emptyFog, freeSpotNear, geometryOf, GRID_KINDS, inRows, isColor, isHex, isRevealed, LIMITS, occupiedCells, shapesOverlap, sharesCell, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import type { Store } from "../store";
 import { currentSight, forgetSight } from "../sight";
@@ -12,11 +12,12 @@ import { parseMapTorch } from "./mapTorches";
 import type { HandlerMap } from "./types";
 import { parseWall } from "./walls";
 
-/** Casas que um corpo de lado `span` ocupa a partir de `pos`. */
-function cellsOf(pos: GridPos, span: number): GridPos[] {
-  const out: GridPos[] = [];
-  for (let dc = 0; dc < span; dc++) for (let dr = 0; dr < span; dr++) out.push({ col: pos.col + dc, row: pos.row + dr });
-  return out;
+/**
+ * O que ainda só existe no grid quadrado (Passo 16, Fase 1): paredes, névoa, visão, pincéis e áreas de magia.
+ * Recusado no servidor, não só apagado na tela.
+ */
+export function requireSquareGrid(store: Store) {
+  if (isHex(store.game.battle.map)) fail("Ainda não disponível no grid hexagonal.");
 }
 
 function gridPosOf(raw: unknown): GridPos | null {
@@ -200,9 +201,10 @@ export const mapHandlers: HandlerMap = {
     // Personagens primeiro, perto do ponto; conjurados depois, por fora. Ninguém em cima de mob, NPC ou outro aliado.
     const order = [...allies.filter((a) => !a.summonerId), ...allies.filter((a) => a.summonerId)];
     const placed: Combatant[] = allCombatants(store).filter((c) => c.type !== "ally" && c.pos);
+    const { grid } = store.game.battle.map;
+    const geometry = geometryOf(grid);
     for (const a of order) {
-      const span = sizeSpan(a.size);
-      const pos = nearestFreeSpot(centeredOn(at, span), blockedCells(placed), span, sharesCell(a.size));
+      const pos = freeSpotNear(geometry.centeredOn(at, a.size), occupiedCells(placed, grid), a.size, grid);
       moveFollowers(store, a, a.pos, pos);
       a.pos = pos;
       placed.push(a);
@@ -243,11 +245,11 @@ export const mapHandlers: HandlerMap = {
     const pos = gridPosOf(payload.pos);
     // Dois corpos não ocupam o mesmo espaço; criaturas grandes ocupam várias casas e miúdas dividem a casa.
     // Para o jogador, um oculto não conta: a recusa entregaria que há alguém ali (E21). O mestre separa os dois quando revelar.
-    const span = sizeSpan(c.size);
-    const { fog } = store.game.battle;
+    const { fog, map } = store.game.battle;
+    const geometry = geometryOf(map.grid);
     const sight = currentSight(store);
     const seen = (o: Combatant) =>
-      o.type === "ally" || !o.pos || !fog.enabled || cellsOf(o.pos, sizeSpan(o.size)).some((p) => isRevealed(fog, p.col, p.row) || inRows(sight, p.col, p.row));
+      o.type === "ally" || !o.pos || !fog.enabled || geometry.footprint(o.pos, o.size).some((p) => isRevealed(fog, p.col, p.row) || inRows(sight, p.col, p.row));
     const other =
       pos &&
       !sharesCell(c.size) &&
@@ -256,10 +258,10 @@ export const mapHandlers: HandlerMap = {
           o.id !== c.id &&
           o.pos &&
           !sharesCell(o.size) &&
-          overlaps(pos, span, o.pos, sizeSpan(o.size)) &&
+          shapesOverlap(pos, c.size, o.pos, o.size, map.grid) &&
           (player.role === "gm" || (!o.hidden && seen(o))),
       );
-    if (other) fail(span > 1 ? "Não cabe aí: {name} está no caminho." : "Essa casa já está ocupada por {name}.", { name: other.name });
+    if (other) fail(geometry.drawSpan(c.size) > 1 ? "Não cabe aí: {name} está no caminho." : "Essa casa já está ocupada por {name}.", { name: other.name });
     moveFollowers(store, c, c.pos, pos);
     c.pos = pos;
   },

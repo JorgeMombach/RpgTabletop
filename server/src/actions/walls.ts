@@ -4,6 +4,7 @@ import { eraseWall, pathOf } from "../erase";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
+import { requireSquareGrid } from "./map";
 
 /**
  * Ponta da parede, em casas do grid: inteira no canto (traço "nos cantos") ou fracionada (traço livre, L5),
@@ -56,6 +57,7 @@ function findWall(walls: Wall[], id: unknown): Wall {
 export const wallHandlers: HandlerMap = {
   "wall:add": (store, player, payload) => {
     requireGm(player);
+    requireSquareGrid(store);
     const { battle } = store.game;
     const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to, thickness: payload?.thickness, style: payload?.style }) };
     if (payload.door === true) wall.door = { open: false };
@@ -73,6 +75,7 @@ export const wallHandlers: HandlerMap = {
 
   "wall:erase": (store, player, payload) => {
     requireGm(player);
+    requireSquareGrid(store);
     const raw = payload?.points;
     const coord = (n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord;
     if (!Array.isArray(raw) || raw.length < 2 || raw.length % 2 !== 0 || raw.length > LIMITS.eraserNumbers || !raw.every(coord)) fail("Caminho da borracha inválido.");

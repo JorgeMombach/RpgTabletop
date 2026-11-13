@@ -1,9 +1,10 @@
-import { cellsToRects, footprint, LIMITS, paintFog, roomCells, sizeSpan, type FogRect, type FogState } from "@rpg/shared";
+import { cellsToRects, geometryOf, LIMITS, paintFog, roomCells, type FogRect, type FogState } from "@rpg/shared";
 import { forgetSight } from "../sight";
 import { fail, requireInt } from "../validate";
 import type { Store } from "../store";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
+import { requireSquareGrid } from "./map";
 
 function fogRect(raw: unknown): FogRect {
   if (typeof raw !== "object" || raw === null) fail("Área da névoa inválida.");
@@ -30,7 +31,7 @@ function covered(store: Store, fog: FogState, rects: FogRect[]) {
   fog.foundNpcs = fog.foundNpcs.filter((id) => {
     const pos = npcs.find((c) => c.id === id)?.pos;
     if (!pos) return true;
-    return !footprint(pos, sizeSpan(npcs.find((c) => c.id === id)?.size)).some((p) => inside(p.col, p.row));
+    return !geometryOf(store.game.battle.map.grid).footprint(pos, npcs.find((c) => c.id === id)?.size).some((p) => inside(p.col, p.row));
   });
   forgetSight(store);
 }
@@ -39,12 +40,14 @@ function covered(store: Store, fog: FogState, rects: FogRect[]) {
 export const fogHandlers: HandlerMap = {
   "fog:set": (store, player, payload) => {
     requireGm(player);
+    requireSquareGrid(store);
     if (typeof payload?.enabled !== "boolean") fail("Informe se a névoa fica ligada.");
     store.game.battle.fog.enabled = payload.enabled;
   },
 
   "fog:paint": (store, player, payload) => {
     requireGm(player);
+    requireSquareGrid(store);
     if (typeof payload?.reveal !== "boolean") fail("Informe se é para revelar ou cobrir.");
     if (!Array.isArray(payload.rects) || payload.rects.length === 0) fail("Nada para pintar.");
     if (payload.rects.length > LIMITS.fogRects) fail("Pincelada grande demais: pinte em partes.");
@@ -56,6 +59,7 @@ export const fogHandlers: HandlerMap = {
 
   "fog:room": (store, player, payload) => {
     requireGm(player);
+    requireSquareGrid(store);
     if (typeof payload?.reveal !== "boolean") fail("Informe se é para revelar ou cobrir.");
     const raw = (payload.cell ?? {}) as unknown as Record<string, unknown>;
     const lim = LIMITS.gridCoord;
@@ -70,6 +74,7 @@ export const fogHandlers: HandlerMap = {
 
   "fog:vision": (store, player, payload) => {
     requireGm(player);
+    requireSquareGrid(store);
     if (typeof payload?.enabled !== "boolean") fail("Informe se a visão dos personagens fica ligada.");
     store.game.battle.fog.vision = payload.enabled;
   },

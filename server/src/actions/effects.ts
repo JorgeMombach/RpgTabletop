@@ -6,6 +6,7 @@ import { fail, requireInt, requireString, validArea } from "../validate";
 import { logSystem, whoIs } from "./dice";
 import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
+import { requireSquareGrid } from "./map";
 
 export const CONCENTRATION = "Concentração";
 
@@ -181,6 +182,7 @@ function ownEffect(store: Store, player: ServerPlayer, rawId: unknown): MapEffec
 
 export const effectHandlers: HandlerMap = {
   "effect:add": (store, player, payload) => {
+    requireSquareGrid(store);
     requireTurnFor(store, player, "effectOnTurn", "Em combate, só dá para pôr efeitos na sua vez.");
     const { battle } = store.game;
     if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
@@ -206,6 +208,7 @@ export const effectHandlers: HandlerMap = {
 
   "effect:paint": (store, player, payload) => {
     if (player.role !== "gm") fail("Só o mestre pinta efeitos.");
+    requireSquareGrid(store);
     const cells = paintCells(payload?.cells);
     const { battle } = store.game;
     const preset = payload.preset === undefined && payload.erase === true ? undefined : effectFields(store, player, { preset: payload.preset }).preset;

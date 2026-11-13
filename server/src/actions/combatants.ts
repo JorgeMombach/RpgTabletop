@@ -9,9 +9,9 @@ import {
   NPC_COLORS,
   isColor,
   SIZES,
-  blockedCells,
-  footprint,
-  nearestFreeSpot,
+  freeSpotNear,
+  geometryOf,
+  occupiedCells,
   sharesCell,
   sizeSpan,
   type Abilities,
@@ -78,10 +78,11 @@ function sizeOf(raw: unknown): Size | undefined {
  */
 export function moveOutIfGrown(store: Store, target: Combatant, oldSize: Size | undefined) {
   if (!target.pos || sizeSpan(target.size) <= sizeSpan(oldSize) || sharesCell(target.size)) return;
-  const others = blockedCells(allCombatants(store).filter((c) => c !== target));
+  const { grid } = store.game.battle.map;
+  const others = occupiedCells(allCombatants(store).filter((c) => c !== target), grid);
   const taken = new Set(others.map((p) => `${p.col},${p.row}`));
-  const span = sizeSpan(target.size);
-  if (footprint(target.pos, span).some((cell) => taken.has(`${cell.col},${cell.row}`))) target.pos = nearestFreeSpot(target.pos, others, span);
+  const covered = geometryOf(grid).footprint(target.pos, target.size);
+  if (covered.some((cell) => taken.has(`${cell.col},${cell.row}`))) target.pos = freeSpotNear(target.pos, others, target.size, grid);
 }
 
 function applySize(target: { size?: Size }, size: Size | undefined) {
@@ -445,7 +446,8 @@ export const combatantHandlers: HandlerMap = {
     const color = colorOf(payload.color, palette, list.length);
     newCombatant(summoner.type, { ...payload, name: base }, color, player.role === "gm");
 
-    const occupied = () => blockedCells(allCombatants(store));
+    const { grid } = store.game.battle.map;
+    const occupied = () => occupiedCells(allCombatants(store), grid);
     const ids: string[] = [];
     // Vários iguais: "Esqueleto 1", "Esqueleto 2"…, continuando do maior número em uso ("Zumbi 4" se já há
     // Zumbi 1 a 3, vindos do bestiário ou de outra conjuração). Um só e sem ninguém com o nome: sem número.
@@ -459,7 +461,7 @@ export const combatantHandlers: HandlerMap = {
       if (payload.concentration === true) s.summonConcentration = true;
       if (rounds !== null) s.summonRounds = rounds;
       // Aparece do lado de quem conjurou (ou fora do mapa, para escolher onde).
-      if (summoner.pos && payload.near !== false) s.pos = nearestFreeSpot(summoner.pos, occupied(), sizeSpan(s.size), sharesCell(s.size));
+      if (summoner.pos && payload.near !== false) s.pos = freeSpotNear(summoner.pos, occupied(), s.size, grid);
       list.push(s);
       ids.push(s.id);
     }
