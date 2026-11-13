@@ -1,4 +1,4 @@
-import type { MapProp, PropKind } from "@rpg/shared";
+import { randomPointIn, type GridKind, type MapProp, type PropKind } from "@rpg/shared";
 
 /**
  * Pincel de espalhar (cenário, passo 3): distribui objetos nas casas pintadas, sem encavalar. Cada conjunto diz o
@@ -92,7 +92,15 @@ export type ScatterProp = Omit<MapProp, "id" | "above" | "blocks">;
  * Espalha objetos do conjunto nas casas (`cells` = "col,row"), evitando os que já estão no mapa (`taken`).
  * `density` vai de 0,2 (ralo) a 1 (fechado). Devolve no máximo `max` objetos.
  */
-export function scatter(set: ScatterSet, cells: Set<string>, density: number, taken: Pick<MapProp, "kind" | "col" | "row" | "size">[], random: () => number, max = 300): ScatterProp[] {
+export function scatter(
+  set: ScatterSet,
+  cells: Set<string>,
+  density: number,
+  taken: Pick<MapProp, "kind" | "col" | "row" | "size">[],
+  random: () => number,
+  kind: GridKind | undefined,
+  max = 300,
+): ScatterProp[] {
   const picks = SETS[set];
   const total = picks.reduce((s, p) => s + p.weight, 0);
   const list = [...cells].map((k) => k.split(",").map(Number) as [number, number]);
@@ -110,8 +118,10 @@ export function scatter(set: ScatterSet, cells: Set<string>, density: number, ta
     const mine = Math.round((tries * pick.weight) / total);
     for (let t = 0; t < mine && out.length < max; t++) {
       const [c, r] = list[Math.floor(random() * list.length)];
-      const col = c + random();
-      const row = r + random();
+      // Um ponto dentro da casa pincelada (no hex, dentro do hexágono).
+      const point = randomPointIn({ col: c, row: r }, kind, random);
+      const col = point.x;
+      const row = point.y;
       const size = Math.round((pick.size[0] + random() * (pick.size[1] - pick.size[0])) * 100) / 100;
       const room = ROOM[pick.kind] * size;
       if (placed.some((p) => Math.hypot(p.col - col, p.row - row) < (p.r + room) * squeeze)) continue;

@@ -131,11 +131,7 @@ socket.on("state:full", (incoming) => {
   useApp.setState({ state, joinError: null });
   const { map } = state.battle;
   // A cena passou a ser hex (troca de grid ou de cena) com uma ferramenta que ainda não existe nela: volta a Mover.
-  if (isHex(map)) {
-    const { tool, propMode } = useApp.getState();
-    if (offOnHex(tool)) useApp.setState({ tool: "move", calibRect: null });
-    if (propMode !== "place") useApp.setState({ propMode: "place" });
-  }
+  if (isHex(map) && offOnHex(useApp.getState().tool)) useApp.setState({ tool: "move", calibRect: null });
   if (map.hasImage && useApp.getState().mapImage.version !== map.imageVersion) askMapImage(map.imageVersion);
   // Avisos da mesa (ex.: condição que acabou) viram toast, mas só os novos: ao entrar, o log antigo não se repete.
   // Na janela do log, não: a janela principal já avisa.

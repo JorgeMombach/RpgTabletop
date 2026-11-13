@@ -3,7 +3,7 @@ import { IconArrowBackUp, IconDice5, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { memo, useEffect, useRef } from "react";
 import { Image as KImage, Layer, Transformer } from "react-konva";
-import { isHex, LIMITS, PROP_KINDS, type CombatantView, type MapConfig, type MapProp, type PropKind } from "@rpg/shared";
+import { brushCells, LIMITS, PROP_KINDS, type CombatantView, type MapConfig, type MapProp, type PropKind } from "@rpg/shared";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { cellCenter } from "./geometry";
@@ -229,8 +229,9 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
   const scatterDensity = useApp((s) => s.scatterDensity);
   const undoCount = useMapUndo((s) => s.props);
   const brush = mode !== "place";
-  // Cena hex (Passo 16): o pincel (espalhar e apagar) ainda é só do quadrado; pôr um objeto avulso vale.
-  const hex = useApp((s) => (s.state ? isHex(s.state.battle.map) : false));
+  // Cena hex (Passo 16): o tamanho do pincel aparece em hexes.
+  const grid = useApp((s) => s.state?.battle.map.grid);
+  const hex = grid === "hexRows" || grid === "hexCols";
   return (
     <Box>
       <Group gap="xs" wrap="wrap" mb={6}>
@@ -238,8 +239,8 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
           size="xs"
           data={[
             { value: "place", label: t("props.modePlace") },
-            { value: "scatter", label: hex ? <Tooltip label={t("map.hexSoon")}><span>{t("props.modeScatter")}</span></Tooltip> : t("props.modeScatter"), disabled: hex },
-            { value: "erase", label: hex ? <Tooltip label={t("map.hexSoon")}><span>{t("props.modeErase")}</span></Tooltip> : t("props.modeErase"), disabled: hex },
+            { value: "scatter", label: t("props.modeScatter") },
+            { value: "erase", label: t("props.modeErase") },
           ]}
           value={mode}
           onChange={(v) => useApp.setState({ propMode: v as "place" | "scatter" | "erase", selectedPropId: null })}
@@ -260,7 +261,7 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
         {brush && (
           <SegmentedControl
             size="xs"
-            data={["3", "5", "9"].map((n) => ({ value: n, label: t("fog.brushSize", { n }) }))}
+            data={["3", "5", "9"].map((n) => ({ value: n, label: hex ? t("map.hexes", { n: brushCells({ col: 0, row: 0 }, Number(n), grid).length }) : t("fog.brushSize", { n }) }))}
             value={String(scatterSize)}
             onChange={(v) => useApp.setState({ scatterSize: Number(v) })}
             aria-label={t("fog.brushSizeLabel")}

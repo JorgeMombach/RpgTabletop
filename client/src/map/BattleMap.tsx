@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
+import { brushCells, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -452,15 +452,14 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   function paintAt(cell: GridPos) {
     const seen = paintRef.current;
     if (!seen) return;
-    const r = brushRect(cell, paintSize);
     let grew = false;
-    for (let c = r.col; c < r.col + r.w; c++)
-      for (let row = r.row; row < r.row + r.h; row++) {
-        const k = `${c},${row}`;
-        if (seen.has(k) || seen.size * 2 >= LIMITS.paintNumbers) continue;
-        seen.add(k);
-        grew = true;
-      }
+    // Quadrado: o retângulo do pincel; hex (Passo 16): os hexes em volta (1, 7 ou 19).
+    for (const brushed of brushCells(cell, paintSize, grid.grid)) {
+      const k = `${brushed.col},${brushed.row}`;
+      if (seen.has(k) || seen.size * 2 >= LIMITS.paintNumbers) continue;
+      seen.add(k);
+      grew = true;
+    }
     if (grew) setPaintDraft([...seen].map((k) => ({ col: Number(k.split(",")[0]), row: Number(k.split(",")[1]) })));
   }
   function finishPaint() {
@@ -481,15 +480,13 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   function propBrushAt(cell: GridPos) {
     const seen = propBrushRef.current;
     if (!seen) return;
-    const r = brushRect(cell, useApp.getState().scatterSize);
     let grew = false;
-    for (let c = r.col; c < r.col + r.w; c++)
-      for (let row = r.row; row < r.row + r.h; row++) {
-        const k = `${c},${row}`;
-        if (seen.has(k) || seen.size >= 4000) continue;
-        seen.add(k);
-        grew = true;
-      }
+    for (const brushed of brushCells(cell, useApp.getState().scatterSize, grid.grid)) {
+      const k = `${brushed.col},${brushed.row}`;
+      if (seen.has(k) || seen.size >= 4000) continue;
+      seen.add(k);
+      grew = true;
+    }
     if (grew) setPropDraft([...seen].map((k) => ({ col: Number(k.split(",")[0]), row: Number(k.split(",")[1]) })));
   }
   function finishPropBrush() {
@@ -500,12 +497,17 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const all = state.battle.props;
     let sent: Promise<unknown>;
     if (propMode === "erase") {
-      const hit = all.filter((p) => seen.has(`${Math.floor(p.col)},${Math.floor(p.row)}`));
+      // O objeto está no hex (ou quadrado) em que cai o ponto dele.
+      const geometry = geometryOf(grid.grid);
+      const hit = all.filter((p) => {
+        const cell = geometry.cellAt({ x: p.col, y: p.row });
+        return seen.has(`${cell.col},${cell.row}`);
+      });
       sent = hit.length ? removeProps(hit) : Promise.resolve();
     } else {
       // Até o limite da cena; passou, avisa.
       const room = LIMITS.props - all.length;
-      const items = scatter(scatterSet, seen, scatterDensity, all, Math.random).slice(0, Math.max(0, room));
+      const items = scatter(scatterSet, seen, scatterDensity, all, Math.random, grid.grid).slice(0, Math.max(0, room));
       if (room <= 0) toast({ kind: "error", text: t("props.limit", { n: LIMITS.props }) });
       sent = items.length ? addProps(items) : Promise.resolve();
     }
@@ -1025,7 +1027,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           {/* Pincel de espalhar objetos: a área da passada (de leve) e o quadrado do pincel. */}
           {gm && tool === "props" && useApp.getState().propMode !== "place" && (
             <Layer listening={false}>
-              {propDraft?.map((c) => (
+              {propDraft && isHex(grid) && (
+                <CellMarks cells={propDraft} grid={grid} fill={useApp.getState().propMode === "erase" ? "#000000" : "#d8b47a"} opacity={useApp.getState().propMode === "erase" ? 0.3 : 0.16} />
+              )}
+              {!isHex(grid) && propDraft?.map((c) => (
                 <Rect
                   key={`${c.col},${c.row}`}
                   x={grid.offsetX + c.col * grid.cellPx}
@@ -1036,7 +1041,17 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                   opacity={useApp.getState().propMode === "erase" ? 0.3 : 0.16}
                 />
               ))}
+              {paintHover && isHex(grid) && (
+                <CellMarks
+                  cells={brushCells(paintHover, useApp.getState().scatterSize, grid.grid)}
+                  grid={grid}
+                  stroke={useApp.getState().propMode === "erase" ? "#e05a5a" : "#d8b47a"}
+                  strokeWidth={1.5 / view.scale}
+                  dash={[6 / view.scale, 4 / view.scale]}
+                />
+              )}
               {paintHover &&
+                !isHex(grid) &&
                 (() => {
                   const r = brushRect(paintHover, useApp.getState().scatterSize);
                   return (
@@ -1057,7 +1072,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           {/* Pincel de efeitos: a pincelada antes de ir ao servidor e o quadrado do pincel sob o mouse. */}
           {gm && tool === "paint" && (
             <Layer listening={false}>
-              {paintDraft?.map((c) => (
+              {paintDraft && isHex(grid) && (
+                <CellMarks cells={paintDraft} grid={grid} fill={paintErase ? "#000000" : paintColorOf(paintPreset, paintColor)} opacity={paintErase ? 0.35 : 0.45} />
+              )}
+              {!isHex(grid) && paintDraft?.map((c) => (
                 <Rect
                   key={`${c.col},${c.row}`}
                   x={grid.offsetX + c.col * grid.cellPx}
@@ -1068,7 +1086,17 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                   opacity={paintErase ? 0.35 : 0.45}
                 />
               ))}
+              {paintHover && isHex(grid) && (
+                <CellMarks
+                  cells={brushCells(paintHover, paintSize, grid.grid)}
+                  grid={grid}
+                  stroke={paintErase ? "#e05a5a" : "#d8b47a"}
+                  strokeWidth={1.5 / view.scale}
+                  dash={[6 / view.scale, 4 / view.scale]}
+                />
+              )}
               {paintHover &&
+                !isHex(grid) &&
                 (() => {
                   const r = brushRect(paintHover, paintSize);
                   return (
@@ -1367,6 +1395,42 @@ function MapEdgeShape({ bounds, grid }: { bounds: { width: number; height: numbe
         side(0, H - e, W, e, 0, H, 0, H - e);
         side(0, 0, e, H, 0, 0, e, 0);
         side(W - e, 0, e, H, W, 0, W - e, 0);
+      }}
+    />
+  );
+}
+
+/**
+ * Hexes de uma pincelada (Passo 16): a prévia da passada (preenchida) ou o pincel sob o mouse (contorno).
+ * No quadrado, o mapa continua desenhando retângulos.
+ */
+function CellMarks({
+  cells,
+  grid,
+  ...style
+}: {
+  cells: GridPos[];
+  grid: MapConfig;
+  fill?: string;
+  opacity?: number;
+  stroke?: string;
+  strokeWidth?: number;
+  dash?: number[];
+}) {
+  return (
+    <Shape
+      listening={false}
+      {...style}
+      sceneFunc={(kctx, shape) => {
+        const geometry = geometryOf(grid.grid);
+        kctx.beginPath();
+        for (const cell of cells) {
+          const corners = geometry.polygon(cell).map((corner) => toWorld(corner, grid));
+          kctx.moveTo(corners[0].x, corners[0].y);
+          for (const corner of corners.slice(1)) kctx.lineTo(corner.x, corner.y);
+          kctx.closePath();
+        }
+        kctx.fillStrokeShape(shape);
       }}
     />
   );

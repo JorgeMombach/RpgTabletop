@@ -241,7 +241,7 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 ### Passo 16. Grid hexagonal (G, por último; desenho em [docs/design/grid-hex.md](design/grid-hex.md), aprovado em 2026-11-12, em três fases)
 - [ ] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar.
   - [x] Fase 1: dá para jogar combate em hex (grid, tokens e formas, régua, baús; o resto apagado no hex). *(feito em 2026-11-13)*
-  - [ ] Fase 2: áreas, fixar efeito, pincel de efeitos e pincel dos objetos em hex.
+  - [x] Fase 2: áreas, fixar efeito, pincel de efeitos e pincel dos objetos em hex. *(feito em 2026-11-13)*
   - [ ] Fase 3: paredes, névoa e visão em hex.
 
 ### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)

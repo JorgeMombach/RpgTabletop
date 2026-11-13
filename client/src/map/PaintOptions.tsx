@@ -1,6 +1,6 @@
 import { Button, ColorInput, Box, Group, SegmentedControl, Select, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp } from "@tabler/icons-react";
-import { EFFECT_PRESETS, type EffectPreset } from "@rpg/shared";
+import { brushCells, EFFECT_PRESETS, type EffectPreset } from "@rpg/shared";
 import { memo } from "react";
 import { PRESETS, Swatch } from "../components/FixEffectModal";
 import { useT } from "../i18n";
@@ -25,6 +25,9 @@ export const PaintOptions = memo(function PaintOptions() {
   const paintColor = useApp((s) => s.paintColor);
   const paintErase = useApp((s) => s.paintErase);
   const paintSize = useApp((s) => s.paintSize);
+  // Cena hex (Passo 16): o tamanho do pincel aparece em hexes (1, 7, 19).
+  const grid = useApp((s) => s.state?.battle.map.grid);
+  const hex = grid === "hexRows" || grid === "hexCols";
   const undoCount = useMapUndo((s) => s.paint);
   const color = paintColorOf(paintPreset, paintColor);
 
@@ -63,7 +66,7 @@ export const PaintOptions = memo(function PaintOptions() {
         />
         <SegmentedControl
           size="xs"
-          data={["1", "3", "5"].map((n) => ({ value: n, label: t("fog.brushSize", { n }) }))}
+          data={["1", "3", "5"].map((n) => ({ value: n, label: hex ? t("map.hexes", { n: brushCells({ col: 0, row: 0 }, Number(n), grid).length }) : t("fog.brushSize", { n }) }))}
           value={String(paintSize)}
           onChange={(v) => useApp.setState({ paintSize: Number(v) })}
           aria-label={t("fog.brushSizeLabel")}
