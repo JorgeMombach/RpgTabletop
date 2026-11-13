@@ -4,9 +4,9 @@ import type { MapConfig, MapEffect } from "@rpg/shared";
 import { useT } from "../i18n";
 import { effectLabel } from "../labels";
 import { areaPolygon } from "./AreaShape";
-import type { Point } from "./geometry";
+import { cellAt, type Point } from "./geometry";
 
-type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell">;
+type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell" | "grid">;
 
 /** Ponto dentro do polígono (pontos achatados x0, y0, x1, y1…). */
 function inPolygon(pts: number[], x: number, y: number): boolean {
@@ -21,8 +21,7 @@ function inPolygon(pts: number[], x: number, y: number): boolean {
 /** O ponto do mapa está dentro do efeito? Pintura: numa casa pintada; esfera e cilindro: no círculo; o resto: no polígono. */
 export function effectContains(e: MapEffect, grid: Grid, p: Point): boolean {
   if (e.cells) {
-    const col = Math.floor((p.x - grid.offsetX) / grid.cellPx);
-    const row = Math.floor((p.y - grid.offsetY) / grid.cellPx);
+    const { col, row } = cellAt(p, grid);
     for (let i = 0; i + 1 < e.cells.length; i += 2) if (e.cells[i] === col && e.cells[i + 1] === row) return true;
     return false;
   }

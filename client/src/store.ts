@@ -256,7 +256,7 @@ export function openSheet(id: string) {
  * Ferramentas que ainda só existem no grid quadrado (Passo 16, Fase 1): na cena hex ficam apagadas, os atalhos
  * não ativam e o servidor recusa. O pincel dos objetos (*Espalhar* e *Apagar*) também; pôr um objeto avulso vale.
  */
-export const SQUARE_ONLY_TOOLS = ["walls", "fog", "paint", "area"] as const satisfies readonly MapTool[];
+export const SQUARE_ONLY_TOOLS = ["walls", "fog", "paint"] as const satisfies readonly MapTool[];
 
 /** Ferramenta que ainda só existe no grid quadrado? */
 export function isSquareOnly(tool: string): boolean {
