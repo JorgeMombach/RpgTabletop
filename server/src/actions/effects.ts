@@ -114,15 +114,18 @@ export function moveFollowers(store: Store, c: Combatant, from: GridPos | null, 
   const geometry = geometryOf(store.game.battle.map.grid);
   const before = geometry.center(from);
   const after = geometry.center(to);
-  const dx = after.x - before.x;
-  const dy = after.y - before.y;
-  if (dx === 0 && dy === 0) return;
+  if (after.x === before.x && after.y === before.y) return;
   const lim = LIMITS.gridCoord;
   // Centésimos: no quadrado a meia casa continua exata; no hex a origem não cai na meia casa.
   const place = (n: number) => Math.round(Math.max(-lim, Math.min(lim, n)) * 100) / 100;
+  const hundredth = (n: number) => Math.round(n * 100) / 100;
   for (const e of store.game.battle.effects) {
     if (e.followId !== c.id) continue;
-    e.area = { ...e.area, origin: { col: place(e.area.origin.col + dx), row: place(e.area.origin.row + dy) } };
+    // Parte do centro novo, exato, com a mesma distância (em centésimos) que a área tinha do centro antigo:
+    // somar o passo à origem já arredondada acumularia o erro a cada movimento.
+    const offsetX = hundredth(e.area.origin.col - before.x);
+    const offsetY = hundredth(e.area.origin.row - before.y);
+    e.area = { ...e.area, origin: { col: place(after.x + offsetX), row: place(after.y + offsetY) } };
   }
 }
 

@@ -282,6 +282,32 @@ describe("grid hexagonal: o servidor confere a ocupação pela geometria", () =>
     await backToSquare(g);
   });
 
+  it("área fixada no hex volta à meia casa ao trocar para quadrado e o arquivo continua carregando", async () => {
+    const g = await hexScene();
+    const [teia] = idsOf(await act(g, "effect:add", { name: "Teia", preset: "web", area: { ...AREA, kind: "sphere", origin: { col: 2.5, row: 2.31 } } }));
+    await backToSquare(g);
+    assert.deepEqual(battle().effects.find((effect) => effect.id === teia)?.area.origin, { col: 2.5, row: 2.5 }, "encaixa na meia casa mais perto");
+    const exported = await g.timeout(2000).emitWithAck("session:export");
+    assert.ok(exported.ok, exported.ok ? "" : exported.error);
+    const imported = await g.timeout(2000).emitWithAck("session:import", exported.file);
+    assert.ok(imported.ok, imported.ok ? "" : imported.error);
+  });
+
+  it("efeito preso ao token não escorrega depois de muitos passos no hex", async () => {
+    const g = await hexScene();
+    const [ogro] = idsOf(await act(g, "mob:add", { name: "Ogro", hpMax: 59, dexMod: -1, size: "large" }));
+    await act(g, "token:move", { id: ogro, pos: { col: 3, row: 2 } });
+    const start = hex.shapeCenter({ col: 3, row: 2 }, "large");
+    const origin = { col: Math.round(start.x * 100) / 100, row: Math.round(start.y * 100) / 100 };
+    const [aura] = idsOf(await act(g, "effect:add", { name: "Aura", preset: "custom", area: { ...AREA, kind: "sphere", origin }, casterId: ogro, follow: true }));
+    // Sempre para baixo: o arredondamento a cada passo não pode se acumular.
+    for (let row = 3; row <= 42; row++) assert.ok((await act(g, "token:move", { id: ogro, pos: { col: 3, row } })).ok);
+    const moved = battle().effects.find((effect) => effect.id === aura)!.area.origin;
+    const goal = hex.shapeCenter({ col: 3, row: 42 }, "large");
+    assert.ok(Math.abs(moved.col - goal.x) <= 0.011 && Math.abs(moved.row - goal.y) <= 0.011, `origem ${JSON.stringify(moved)} longe de ${JSON.stringify(goal)}`);
+    await backToSquare(g);
+  });
+
   it("efeito fixado no hex vai e volta no arquivo de sessão", async () => {
     const g = await hexScene();
     const origin = { col: 2.5, row: 2.31 };

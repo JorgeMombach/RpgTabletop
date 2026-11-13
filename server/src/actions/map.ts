@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { emptyFog, freeSpotNear, geometryOf, GRID_KINDS, inRows, isColor, isHex, isRevealed, LIMITS, occupiedCells, shapesOverlap, sharesCell, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
+import { areaAnchor, emptyFog, freeSpotNear, geometryOf, GRID_KINDS, inRows, isColor, isHex, isRevealed, LIMITS, occupiedCells, shapesOverlap, sharesCell, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import type { Store } from "../store";
 import { currentSight, forgetSight } from "../sight";
@@ -78,6 +78,14 @@ function changeGrid(store: Store, grid: GridKind | undefined) {
   battle.effects = battle.effects.filter((effect) => !effect.cells);
   // Área que andava com o token fica parada: o passo de quem segue é contado em casas do quadrado (Fase 2).
   for (const effect of battle.effects) delete effect.followId;
+  // Área fixada no hex tem a origem no centro ou vértice do hex (centésimos); no quadrado ela vai para a meia casa
+  // mais perto, que é o que o quadrado aceita (inclusive ao carregar o arquivo de sessão).
+  if (!grid) {
+    for (const effect of battle.effects) {
+      const anchor = areaAnchor({ x: effect.area.origin.col, y: effect.area.origin.row }, undefined);
+      effect.area = { ...effect.area, origin: { col: anchor.x, row: anchor.y } };
+    }
+  }
   // Alcance e NPCs encontrados não dependem da grade.
   battle.fog = { ...emptyFog(), range: battle.fog.range, foundNpcs: battle.fog.foundNpcs };
   forgetSight(store);
