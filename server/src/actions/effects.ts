@@ -1,12 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
+import { EFFECT_PRESETS, geometryOf, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
 import { logSystem, whoIs } from "./dice";
 import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
-import { requireSquareGrid } from "./map";
 
 export const CONCENTRATION = "Concentração";
 
@@ -110,14 +109,20 @@ export function tickCasterEffects(store: Store, casterId: string) {
  */
 export function moveFollowers(store: Store, c: Combatant, from: GridPos | null, to: GridPos | null) {
   if (!from || !to) return;
-  const dc = to.col - from.col;
-  const dr = to.row - from.row;
-  if (dc === 0 && dr === 0) return;
+  // O quanto o token andou, em casas, pela geometria da cena: no quadrado é a diferença de colunas e linhas; no
+  // hex (Passo 16) a linha não mede uma casa e as linhas ímpares são deslocadas, então vale a distância entre centros.
+  const geometry = geometryOf(store.game.battle.map.grid);
+  const before = geometry.center(from);
+  const after = geometry.center(to);
+  const dx = after.x - before.x;
+  const dy = after.y - before.y;
+  if (dx === 0 && dy === 0) return;
   const lim = LIMITS.gridCoord;
-  const clamp = (n: number) => Math.max(-lim, Math.min(lim, n));
+  // Centésimos: no quadrado a meia casa continua exata; no hex a origem não cai na meia casa.
+  const place = (n: number) => Math.round(Math.max(-lim, Math.min(lim, n)) * 100) / 100;
   for (const e of store.game.battle.effects) {
     if (e.followId !== c.id) continue;
-    e.area = { ...e.area, origin: { col: clamp(e.area.origin.col + dc), row: clamp(e.area.origin.row + dr) } };
+    e.area = { ...e.area, origin: { col: place(e.area.origin.col + dx), row: place(e.area.origin.row + dy) } };
   }
 }
 
@@ -182,12 +187,11 @@ function ownEffect(store: Store, player: ServerPlayer, rawId: unknown): MapEffec
 
 export const effectHandlers: HandlerMap = {
   "effect:add": (store, player, payload) => {
-    requireSquareGrid(store);
     requireTurnFor(store, player, "effectOnTurn", "Em combate, só dá para pôr efeitos na sua vez.");
     const { battle } = store.game;
     if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
     const fields = effectFields(store, player, payload);
-    const area = validArea(payload.area) ?? fail("Área inválida.");
+    const area = validArea(payload.area, store.game.battle.map.grid) ?? fail("Área inválida.");
     const { casterId, concentration } = fields;
     if (payload.follow === true && !casterId) fail("Para o efeito andar junto, escolha quem conjurou.");
 
@@ -208,7 +212,6 @@ export const effectHandlers: HandlerMap = {
 
   "effect:paint": (store, player, payload) => {
     if (player.role !== "gm") fail("Só o mestre pinta efeitos.");
-    requireSquareGrid(store);
     const cells = paintCells(payload?.cells);
     const { battle } = store.game;
     const preset = payload.preset === undefined && payload.erase === true ? undefined : effectFields(store, player, { preset: payload.preset }).preset;
@@ -297,7 +300,6 @@ export const effectHandlers: HandlerMap = {
       return;
     }
     if (e.cells) fail("Efeito pintado não anda com token.");
-    requireSquareGrid(store);
     if (!e.casterId || !byId(store, e.casterId)) fail("Para o efeito andar junto, ele precisa de quem conjurou.");
     e.followId = e.casterId;
   },

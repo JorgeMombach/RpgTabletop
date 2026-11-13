@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { geometryOf, shapesOverlap, type ActionPayloads, type ActionResult, type Area } from "@rpg/shared";
+import { geometryOf, shapesOverlap, type ActionPayloads, type ActionResult, type Area, type AreaBroadcast } from "@rpg/shared";
 import { act, join, stateWhere, useServer, type Client } from "./helpers";
 
 // Grid hexagonal (Passo 16): a cena guarda a grade; trocar apaga o que só vale na geometria antiga.
@@ -202,9 +202,6 @@ describe("grid hexagonal: o servidor confere a ocupação pela geometria", () =>
       ["fog:paint", { reveal: true, rects: [{ col: 0, row: 0, w: 2, h: 2 }] }],
       ["fog:room", { cell: { col: 0, row: 0 }, reveal: true }],
       ["fog:vision", { enabled: true }],
-      ["effect:add", { name: "Teia", preset: "web", area: AREA }],
-      ["effect:paint", { preset: "fire", cells: [1, 1] }],
-      ["prop:addMany", { items: [{ kind: "tree", col: 1, row: 1 }] }],
     ];
     for (const [action, payload] of refusals) {
       assert.match(errorOf(await act(g, action, payload as never)), /Ainda não disponível no grid hexagonal/, action);
@@ -217,7 +214,7 @@ describe("grid hexagonal: o servidor confere a ocupação pela geometria", () =>
     }
   });
 
-  it("efeito que anda com o token solta ao virar hex e não prende de novo no hex", async () => {
+  it("efeito que anda com o token solta ao trocar o grid (a posição em relação ao token não vale na outra grade)", async () => {
     const g = await gm();
     await act(g, "battle:clear", { keepTemplates: false });
     await backToSquare(g);
@@ -228,22 +225,72 @@ describe("grid hexagonal: o servidor confere a ocupação pela geometria", () =>
     assert.ok((await act(g, "battle:grid", { grid: "hexCols" })).ok);
     const kept = battle().effects.find((effect) => effect.id === aura);
     assert.ok(kept, "a área fica");
-    assert.equal(kept.followId, undefined, "mas não anda mais com o token (a conta de seguir é do quadrado)");
-    assert.match(errorOf(await act(g, "effect:follow", { id: aura, follow: true })), /Ainda não disponível no grid hexagonal/);
+    assert.equal(kept.followId, undefined, "mas não anda mais com o token");
+    assert.ok((await act(g, "effect:follow", { id: aura, follow: true })).ok, "no hex, dá para prender de novo");
     await backToSquare(g);
   });
 
-  it("área no hex não é repassada", async () => {
+  it("área no hex é repassada com a origem no hex", async () => {
     const g = await hexScene();
     const ana = await client("10.41.0.3");
     await join(ana, "Ana");
-    let received = false;
-    g.on("area", () => (received = true));
-    ana.emit("area:update", AREA);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    assert.equal(received, false);
-    g.off("area");
+    // A área chega por evento: sem ela, falha em 2 s em vez de travar o teste.
+    const next = () =>
+      new Promise<AreaBroadcast>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("a área não chegou")), 2000);
+        g.once("area", (area: AreaBroadcast) => (clearTimeout(timer), resolve(area)));
+      });
+    const origin = { col: 1.5, row: 1.44 };
+    let arrived = next();
+    ana.emit("area:update", { ...AREA, kind: "sphere", origin });
+    assert.deepEqual((await arrived).area?.origin, origin);
+    arrived = next();
+    ana.emit("area:update", { ...AREA, kind: "sphere", origin: { col: 1.234, row: 2 } });
+    assert.deepEqual((await arrived).area?.origin, { col: 1.23, row: 2 });
+    arrived = next();
+    ana.emit("area:update", { ...AREA, kind: "sphere", origin: { col: Number.NaN, row: 2 } });
+    assert.equal((await arrived).area, null);
     ana.disconnect();
+    await backToSquare(g);
+  });
+
+  it("fixar efeito, pintar e espalhar objetos no hex", async () => {
+    const g = await hexScene();
+    const center = hex.center({ col: 2, row: 2 });
+    const origin = { col: Math.round(center.x * 100) / 100, row: Math.round(center.y * 100) / 100 };
+    const [teia] = idsOf(await act(g, "effect:add", { name: "Teia", preset: "web", area: { ...AREA, kind: "sphere", origin } }));
+    assert.deepEqual(battle().effects.find((effect) => effect.id === teia)?.area.origin, origin);
+    assert.ok((await act(g, "effect:paint", { preset: "fire", cells: [1, 1, 2, 1] })).ok);
+    assert.ok((await act(g, "prop:addMany", { items: [{ kind: "tree", col: 1.37, row: 2.61 }] })).ok);
+    await backToSquare(g);
+  });
+
+  it("efeito preso ao token anda pelo centro do hex", async () => {
+    const g = await hexScene();
+    const [ogro] = idsOf(await act(g, "mob:add", { name: "Ogro", hpMax: 59, dexMod: -1, size: "large" }));
+    await act(g, "token:move", { id: ogro, pos: { col: 2, row: 2 } });
+    const middle = (pos: { col: number; row: number }) => hex.shapeCenter(pos, "large");
+    const start = middle({ col: 2, row: 2 });
+    const origin = { col: Math.round(start.x * 100) / 100, row: Math.round(start.y * 100) / 100 };
+    const [aura] = idsOf(await act(g, "effect:add", { name: "Aura", preset: "custom", area: { ...AREA, kind: "sphere", origin }, casterId: ogro, follow: true }));
+    assert.ok((await act(g, "token:move", { id: ogro, pos: { col: 3, row: 5 } })).ok);
+    const moved = battle().effects.find((effect) => effect.id === aura)!.area.origin;
+    const goal = middle({ col: 3, row: 5 });
+    assert.ok(Math.abs(moved.col - goal.x) <= 0.011 && Math.abs(moved.row - goal.y) <= 0.011, `origem ${JSON.stringify(moved)} longe de ${JSON.stringify(goal)}`);
+    assert.ok((await act(g, "effect:follow", { id: aura, follow: false })).ok);
+    assert.ok((await act(g, "effect:follow", { id: aura, follow: true })).ok);
+    await backToSquare(g);
+  });
+
+  it("efeito fixado no hex vai e volta no arquivo de sessão", async () => {
+    const g = await hexScene();
+    const origin = { col: 2.5, row: 2.31 };
+    const [teia] = idsOf(await act(g, "effect:add", { name: "Teia", preset: "web", area: { ...AREA, kind: "sphere", origin } }));
+    const exported = await g.timeout(2000).emitWithAck("session:export");
+    assert.ok(exported.ok, exported.ok ? "" : exported.error);
+    const imported = await g.timeout(2000).emitWithAck("session:import", exported.file);
+    assert.ok(imported.ok, imported.ok ? "" : imported.error);
+    assert.deepEqual(battle().effects.find((effect) => effect.id === teia)?.area.origin, origin);
     await backToSquare(g);
   });
 });

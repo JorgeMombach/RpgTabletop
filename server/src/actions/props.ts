@@ -3,7 +3,6 @@ import { LIMITS, PROP_DEFAULTS, PROP_KINDS, type MapProp, type PropKind } from "
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
-import { requireSquareGrid } from "./map";
 
 /**
  * Id curto (8 caracteres): o estado vai inteiro a cada ação, e com centenas de objetos o UUID era quase metade do
@@ -62,7 +61,6 @@ export const propHandlers: HandlerMap = {
 
   "prop:addMany": (store, player, payload) => {
     requireGm(player);
-    requireSquareGrid(store);
     const { battle } = store.game;
     const items = payload?.items;
     if (!Array.isArray(items) || items.length === 0 || items.length > LIMITS.props) fail("Objeto inválido.");

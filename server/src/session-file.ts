@@ -20,6 +20,7 @@ import {
   type Abilities,
   type Coins,
   type Combatant,
+  type GridKind,
   type CombatState,
   type InventoryItem,
   type Recharge,
@@ -405,12 +406,12 @@ function bossPhases(raw: unknown): BossPhase[] {
   });
 }
 
-function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
+function effect(raw: unknown, combatantIds: Set<string>, grid: GridKind | undefined): MapEffect {
   const e = obj(raw, "efeito");
   const out: MapEffect = {
     id: requireString(e.id, "Efeito"),
     ...effectState(e, combatantIds),
-    area: validArea(e.area) ?? fail("Arquivo inválido: área do efeito."),
+    area: validArea(e.area, grid) ?? fail("Arquivo inválido: área do efeito."),
     active: bool(e.active, "efeito ligado"),
   };
   // Efeito que anda com o token: se o combatente não existe mais, só fica parado.
@@ -662,6 +663,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     if (!by || by.type !== c.type || by.summonerId) fail("Arquivo inválido: invocado sem invocador.");
   }
   const rotation = int(m.rotation ?? 0, "rotação do mapa", 0, 270);
+  // Arquivos anteriores ao grid hex não têm (quadrado). Lido antes dos efeitos: a origem das áreas depende dele.
+  const grid = m.grid !== undefined ? gridKindOf(m.grid) : undefined;
   if (rotation % 90 !== 0) fail("Arquivo inválido: rotação do mapa.");
   return {
     map: {
@@ -679,12 +682,11 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       ...(m.tableStyle !== undefined && { tableStyle: tableStyleOf(m.tableStyle) }),
       // Arquivos anteriores à 2.12 não têm (preto).
       ...(m.gridColor !== undefined && { gridColor: gridColorOf(m.gridColor) }),
-      // Arquivos anteriores ao grid hex não têm (quadrado).
-      ...(m.grid !== undefined && { grid: gridKindOf(m.grid) }),
+      ...(grid && { grid }),
     },
     mobs,
     npcs,
-    effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
+    effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids, grid)),
     // Arquivos anteriores à 2.8 não têm desenhos nem paredes.
     drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => {
       const raw = obj(d, "desenho");

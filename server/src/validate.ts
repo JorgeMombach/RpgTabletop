@@ -1,4 +1,4 @@
-import { LIMITS, NAME_MAX_LENGTH, type Area, type AreaKind } from "@rpg/shared";
+import { LIMITS, NAME_MAX_LENGTH, type Area, type AreaKind, type GridKind } from "@rpg/shared";
 
 export type ErrorParams = Record<string, string | number>;
 
@@ -67,14 +67,21 @@ export function requireString(raw: unknown, label: string): string {
 
 const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
 
-/** Área de magia vinda do cliente: só repassa se cada campo for válido (E17). */
-export function validArea(raw: unknown): Area | null {
+/**
+ * Área de magia vinda do cliente: só repassa se cada campo for válido (E17). No quadrado a origem fica na meia
+ * casa; no hex (Passo 16) ela encaixa no centro ou num vértice do hex, que não caem na meia casa: qualquer número
+ * dentro do mapa, guardado em centésimos.
+ */
+export function validArea(raw: unknown, grid?: GridKind): Area | null {
   const a = raw as Area | null;
   if (!a || typeof a !== "object" || !AREA_KINDS.includes(a.kind)) return null;
-  const half = (n: unknown) => typeof n === "number" && Number.isInteger(n * 2) && Math.abs(n) <= LIMITS.gridCoord;
-  if (!a.origin || !half(a.origin.col) || !half(a.origin.row)) return null;
+  const inMap = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord;
+  const hex = grid === "hexRows" || grid === "hexCols";
+  const valid = (n: unknown) => inMap(n) && (hex || Number.isInteger(n * 2));
+  if (!a.origin || !valid(a.origin.col) || !valid(a.origin.row)) return null;
+  const at = (n: number) => (hex ? Math.round(n * 100) / 100 : n);
   if (typeof a.angle !== "number" || !Number.isFinite(a.angle)) return null;
   const { min, max } = LIMITS.areaFeet;
   if (!Number.isInteger(a.feet) || a.feet < min || a.feet > max) return null;
-  return { kind: a.kind, origin: { col: a.origin.col, row: a.origin.row }, angle: a.angle % (Math.PI * 2), feet: a.feet };
+  return { kind: a.kind, origin: { col: at(a.origin.col), row: at(a.origin.row) }, angle: a.angle % (Math.PI * 2), feet: a.feet };
 }
