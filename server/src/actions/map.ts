@@ -76,6 +76,8 @@ function changeGrid(store: Store, grid: GridKind | undefined) {
   else delete battle.map.grid;
   battle.walls = [];
   battle.effects = battle.effects.filter((effect) => !effect.cells);
+  // Área que andava com o token fica parada: o passo de quem segue é contado em casas do quadrado (Fase 2).
+  for (const effect of battle.effects) delete effect.followId;
   // Alcance e NPCs encontrados não dependem da grade.
   battle.fog = { ...emptyFog(), range: battle.fog.range, foundNpcs: battle.fog.foundNpcs };
   forgetSight(store);

@@ -297,6 +297,7 @@ export const effectHandlers: HandlerMap = {
       return;
     }
     if (e.cells) fail("Efeito pintado não anda com token.");
+    requireSquareGrid(store);
     if (!e.casterId || !byId(store, e.casterId)) fail("Para o efeito andar junto, ele precisa de quem conjurou.");
     e.followId = e.casterId;
   },

@@ -217,6 +217,22 @@ describe("grid hexagonal: o servidor confere a ocupação pela geometria", () =>
     }
   });
 
+  it("efeito que anda com o token solta ao virar hex e não prende de novo no hex", async () => {
+    const g = await gm();
+    await act(g, "battle:clear", { keepTemplates: false });
+    await backToSquare(g);
+    const [clerigo] = idsOf(await act(g, "mob:add", { name: "Clérigo", hpMax: 20, dexMod: 0 }));
+    await act(g, "token:move", { id: clerigo, pos: { col: 2, row: 2 } });
+    const [aura] = idsOf(await act(g, "effect:add", { name: "Espíritos", preset: "custom", area: AREA, casterId: clerigo, follow: true }));
+    assert.equal(battle().effects.find((effect) => effect.id === aura)?.followId, clerigo, "preparação");
+    assert.ok((await act(g, "battle:grid", { grid: "hexCols" })).ok);
+    const kept = battle().effects.find((effect) => effect.id === aura);
+    assert.ok(kept, "a área fica");
+    assert.equal(kept.followId, undefined, "mas não anda mais com o token (a conta de seguir é do quadrado)");
+    assert.match(errorOf(await act(g, "effect:follow", { id: aura, follow: true })), /Ainda não disponível no grid hexagonal/);
+    await backToSquare(g);
+  });
+
   it("área no hex não é repassada", async () => {
     const g = await hexScene();
     const ana = await client("10.41.0.3");

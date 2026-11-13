@@ -18,6 +18,7 @@ import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
+import { CALIBRATE_HINT } from "../components/MapPanel";
 import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toWorld, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
@@ -1291,7 +1292,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       {tool === "calibrate" && (
         <Paper className="map-hint top" px="md" py="sm" shadow="md">
           <MText size="sm" c="bronze.4" ta="center">
-            {t("map.calibrateHint")}
+            {t(isHex(grid) ? CALIBRATE_HINT[grid.grid ?? "square"] : "map.calibrateHint")}
           </MText>
         </Paper>
       )}
@@ -1371,6 +1372,9 @@ function MapEdgeShape({ bounds, grid }: { bounds: { width: number; height: numbe
   );
 }
 
+/** Hexes desenhados por quadro, no máximo (Passo 16); acima disso o grid hex não aparece. */
+const HEX_GRID_MAX_CELLS = 12_000;
+
 function GridLines({
   grid,
   view,
@@ -1399,11 +1403,17 @@ function GridLines({
           const geometry = geometryOf(grid.grid);
           const first = cellAt({ x: x0, y: y0 }, grid);
           const last = cellAt({ x: x1, y: y1 }, grid);
+          // Desenha hex a hex: com o mapa muito afastado seriam centenas de milhares por quadro (trava o arraste).
+          // Como no quadrado, a partir de um tanto o grid some (as casas já nem dão para ver).
+          if ((last.col - first.col + 3) * (last.row - first.row + 3) > HEX_GRID_MAX_CELLS) return;
+          // Os cantos do hex são os mesmos em volta de qualquer centro: calculados uma vez.
+          const origin = geometry.center({ col: 0, row: 0 });
+          const around = geometry.polygon({ col: 0, row: 0 }).map((corner) => ({ x: (corner.x - origin.x) * cellPx, y: (corner.y - origin.y) * cellPx }));
           for (let row = first.row - 1; row <= last.row + 1; row++) {
             for (let col = first.col - 1; col <= last.col + 1; col++) {
-              const corners = geometry.polygon({ col, row }).map((corner) => toWorld(corner, grid));
-              ctx.moveTo(corners[0].x, corners[0].y);
-              for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
+              const center = cellCenter({ col, row }, grid);
+              ctx.moveTo(center.x + around[0].x, center.y + around[0].y);
+              for (let corner = 1; corner < around.length; corner++) ctx.lineTo(center.x + around[corner].x, center.y + around[corner].y);
               ctx.closePath();
             }
           }

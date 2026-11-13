@@ -42,6 +42,16 @@ async function switchGrid(grid: GridKind, t: ReturnType<typeof useT>) {
   void act("battle:grid", { grid });
 }
 
+/**
+ * Dica da calibração por grade. No hex de lado em cima as colunas ímpares descem meio hex: o app não sabe qual hex
+ * a pessoa cobriu primeiro, então a dica pede para começar pelo mais alto (o topo do retângulo vira o topo dele).
+ */
+export const CALIBRATE_HINT: Record<GridKind, MessageKey> = {
+  square: "mapPanel.calibrateHint",
+  hexRows: "mapPanel.calibrateHintHex",
+  hexCols: "mapPanel.calibrateHintHexCols",
+};
+
 const TABLE_LABEL: Record<TableStyle, MessageKey> = { wood: "mapPanel.tableWood", leather: "mapPanel.tableLeather", slate: "mapPanel.tableSlate" };
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
@@ -246,7 +256,7 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
           <CalibrateForm rect={calibRect} map={map} />
         ) : (
           <Text size="xs" c="bronze.4">
-            {t(hex ? "mapPanel.calibrateHintHex" : "mapPanel.calibrateHint")}
+            {t(CALIBRATE_HINT[map.grid ?? "square"])}
           </Text>
         )
       ) : (
