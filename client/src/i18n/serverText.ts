@@ -364,6 +364,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "acerto da magia": ["spell attack", "ataque del conjuro"],
   "dano do recurso": ["resource damage", "daño del recurso"],
   "Cor do grid inválida.": ["Invalid grid color.", "Color de la cuadrícula no válido."],
+  "Grid desconhecido.": ["Unknown grid.", "Cuadrícula desconocida."],
   "Tamanho da borracha": ["Eraser size", "Tamaño de la goma"],
   Falhas: ["Failures", "Fallos"],
   Imagem: ["Image", "Imagen"],

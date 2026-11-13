@@ -239,6 +239,11 @@ export function geometryOf(kind: GridKind | undefined): GridGeometry {
   return GEOMETRIES[kind ?? "square"];
 }
 
+/** A cena usa grid hexagonal (de qualquer orientação)? */
+export function isHex(map: { grid?: GridKind }): boolean {
+  return map.grid === "hexRows" || map.grid === "hexCols";
+}
+
 /** Casas que bloqueiam: a forma inteira de cada um, menos os miúdos (que dividem a casa). */
 export function occupiedCells(list: { pos: GridPos | null; size?: Size }[], kind: GridKind | undefined): GridPos[] {
   const geometry = geometryOf(kind);

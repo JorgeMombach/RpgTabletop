@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { blockedCells, centeredOn, emptyFog, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
+import { blockedCells, centeredOn, emptyFog, geometryOf, GRID_KINDS, inRows, isColor, nearestFreeSpot, isRevealed, LIMITS, overlaps, sharesCell, sizeSpan, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
-import { currentSight } from "../sight";
+import type { Store } from "../store";
+import { currentSight, forgetSight } from "../sight";
 import { fail, requireImage, requireInt, requireNumber } from "../validate";
 import { defaultWeather } from "../weather";
 import { editable, requireGm } from "./combatants";
@@ -57,6 +58,28 @@ export function wallStyleOf(raw: unknown): WallStyle | undefined {
   return raw === "stone" ? undefined : (raw as WallStyle);
 }
 
+/** Grade da cena (Passo 16); quadrado fica sem campo (arquivos antigos abrem iguais). */
+export function gridKindOf(raw: unknown): GridKind | undefined {
+  if (!GRID_KINDS.includes(raw as GridKind)) fail("Grid desconhecido.");
+  return raw === "square" ? undefined : (raw as GridKind);
+}
+
+/**
+ * Troca a grade da cena. Tokens e baús mantêm `col`/`row` (o app não reposiciona ninguém); paredes, pinturas
+ * de efeito e névoa só valem na geometria em que foram feitas e saem. A névoa desliga (com a visão): ligada,
+ * os jogadores ficariam sem nada à vista e sem ferramenta no hex para revelar.
+ */
+function changeGrid(store: Store, grid: GridKind | undefined) {
+  const { battle } = store.game;
+  if (grid) battle.map.grid = grid;
+  else delete battle.map.grid;
+  battle.walls = [];
+  battle.effects = battle.effects.filter((effect) => !effect.cells);
+  // Alcance e NPCs encontrados não dependem da grade.
+  battle.fog = { ...emptyFog(), range: battle.fog.range, foundNpcs: battle.fog.foundNpcs };
+  forgetSight(store);
+}
+
 export const mapHandlers: HandlerMap = {
   "battle:setMap": (store, player, payload) => {
     requireGm(player);
@@ -91,6 +114,8 @@ export const mapHandlers: HandlerMap = {
     map.image = image;
     Object.assign(map, { cellPx, offsetX: 0, offsetY: 0, rotation: 0, imageScale: 1 });
     map.imageVersion++;
+    // O formato só tem grid quadrado: a cena hex volta a ser quadrada (antes das paredes do arquivo).
+    if (map.grid) changeGrid(store, undefined);
     if (walls) battle.walls = walls;
     battle.torches.push(...torches);
   },
@@ -107,24 +132,30 @@ export const mapHandlers: HandlerMap = {
     const rotation = input.rotation !== undefined ? rotationOf(input.rotation) : map.rotation;
     const { min: sMin, max: sMax } = LIMITS.imageScale;
     const imageScale = input.imageScale !== undefined ? requireNumber(input.imageScale, "Escala do mapa", sMin, sMax) : map.imageScale;
+    const grid = input.grid !== undefined ? gridKindOf(input.grid) : map.grid;
+    const wallStyle = input.wallStyle !== undefined ? wallStyleOf(input.wallStyle) : map.wallStyle;
+    const tableStyle = input.tableStyle !== undefined ? tableStyleOf(input.tableStyle) : map.tableStyle;
+    const gridColor = input.gridColor !== undefined ? gridColorOf(input.gridColor) : map.gridColor;
 
-    // Offset normalizado para [0, cellPx): mesmo grid, números mais previsíveis.
-    const norm = (v: number) => Math.round((((v % cellPx) + cellPx) % cellPx) * 100) / 100;
+    // Validado tudo: aplica. Offset normalizado para um período do desenho do grid (no quadrado, [0, cellPx);
+    // no hex o padrão só se repete a cada duas linhas ou colunas): mesmo grid, números mais previsíveis.
+    const { period } = geometryOf(grid);
+    const norm = (value: number, step: number) => Math.round((((value % step) + step) % step) * 100) / 100;
     Object.assign(map, {
       cellPx: Math.round(cellPx * 100) / 100,
-      offsetX: norm(offsetX),
-      offsetY: norm(offsetY),
+      offsetX: norm(offsetX, cellPx * period.x),
+      offsetY: norm(offsetY, cellPx * period.y),
       rotation,
       imageScale: Math.round(imageScale * 1000) / 1000,
     });
+    if (grid !== map.grid) changeGrid(store, grid);
     if (typeof input.showGrid === "boolean") map.showGrid = input.showGrid;
-    if (input.wallStyle !== undefined) map.wallStyle = wallStyleOf(input.wallStyle);
-    if (input.tableStyle !== undefined) map.tableStyle = tableStyleOf(input.tableStyle);
-    if (input.gridColor !== undefined) {
-      const color = gridColorOf(input.gridColor);
-      if (color) map.gridColor = color;
-      else delete map.gridColor;
-    }
+    if (wallStyle) map.wallStyle = wallStyle;
+    else delete map.wallStyle;
+    if (tableStyle) map.tableStyle = tableStyle;
+    else delete map.tableStyle;
+    if (gridColor) map.gridColor = gridColor;
+    else delete map.gridColor;
   },
 
   "battle:clear": (store, player, payload) => {

@@ -52,7 +52,7 @@ import {
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
 import { normalizeExpression } from "./dice";
-import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { gridColorOf, gridKindOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { parseChest } from "./actions/chests";
 import { parseProp } from "./actions/props";
 import { parseWall } from "./actions/walls";
@@ -679,6 +679,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       ...(m.tableStyle !== undefined && { tableStyle: tableStyleOf(m.tableStyle) }),
       // Arquivos anteriores à 2.12 não têm (preto).
       ...(m.gridColor !== undefined && { gridColor: gridColorOf(m.gridColor) }),
+      // Arquivos anteriores ao grid hex não têm (quadrado).
+      ...(m.grid !== undefined && { grid: gridKindOf(m.grid) }),
     },
     mobs,
     npcs,

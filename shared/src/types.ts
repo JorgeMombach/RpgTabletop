@@ -281,6 +281,8 @@ export interface MapConfig {
   tableStyle?: TableStyle;
   /** Cor das linhas do grid desta cena (#rrggbb, desenhada meio transparente). Ausente = preto. */
   gridColor?: string;
+  /** Grade da cena (Passo 16). Ausente = quadrado (arquivos antigos abrem iguais). */
+  grid?: GridKind;
 }
 
 /** Mesa em volta do mapa: madeira escura, tapete de couro (padrão de jogo novo) ou ardósia. */
