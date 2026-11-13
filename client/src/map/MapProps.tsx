@@ -6,6 +6,7 @@ import { Image as KImage, Layer, Transformer } from "react-konva";
 import { LIMITS, PROP_KINDS, type CombatantView, type MapConfig, type MapProp, type PropKind } from "@rpg/shared";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
+import { cellCenter } from "./geometry";
 import { removeProps, undo, updateProp, useMapUndo } from "./mapHistory";
 import { drawProp, PROP_EXTENT, propImage } from "./propArt";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
@@ -157,7 +158,11 @@ export const MapPropLayer = memo(function MapPropLayer({
     if (layer !== "above") return false;
     const { x, y } = centerOf(p, grid);
     const r = grid.cellPx * p.size;
-    return tokens.some((c) => c.pos && Math.hypot(grid.offsetX + (c.pos.col + 0.5) * grid.cellPx - x, grid.offsetY + (c.pos.row + 0.5) * grid.cellPx - y) < r);
+    return tokens.some((c) => {
+      if (!c.pos) return false;
+      const center = cellCenter(c.pos, grid);
+      return Math.hypot(center.x - x, center.y - y) < r;
+    });
   };
   return (
     <Layer listening={editing}>

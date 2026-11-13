@@ -1,10 +1,10 @@
 import Konva from "konva";
 import { useEffect, useRef } from "react";
 import { Circle, Group, Layer, Shape } from "react-konva";
-import { sizeSpan, TORCH_BRIGHT_FEET, TORCH_FEET, type CombatantView, type LightId, type MapConfig, type MapTorch } from "@rpg/shared";
+import { geometryOf, TORCH_BRIGHT_FEET, TORCH_FEET, type CombatantView, type LightId, type MapConfig, type MapTorch } from "@rpg/shared";
 import { useApp } from "../store";
 import { useTokenDrag } from "./dragFollow";
-import { cellCenter } from "./geometry";
+import { cellCenter, shapeCenterAt } from "./geometry";
 import { torchPoint } from "./MapTorches";
 
 /**
@@ -34,10 +34,12 @@ function flame(ctx: Konva.Context, h: number, w: number, lean: number) {
 
 /** Centro do token no mapa (como o Token calcula). */
 export function tokenCenter(c: CombatantView, grid: MapConfig) {
-  const span = sizeSpan(c.size);
-  const off = c.size === "tiny" ? grid.cellPx * 0.22 : ((span - 1) * grid.cellPx) / 2;
-  const b = cellCenter(c.pos!, grid);
-  return { x: b.x + off, y: b.y + off, span };
+  const span = geometryOf(grid.grid).drawSpan(c.size);
+  if (c.size === "tiny") {
+    const b = cellCenter(c.pos!, grid);
+    return { x: b.x + grid.cellPx * 0.22, y: b.y + grid.cellPx * 0.22, span };
+  }
+  return { ...shapeCenterAt(c.pos!, c.size, grid), span };
 }
 
 /** Selo da tocha no canto de baixo à direita do token: chama em camadas, tremulando. */

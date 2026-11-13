@@ -30,7 +30,7 @@ export function placeOnMap(state: ClientState, id: string) {
   const { viewCenter } = useApp.getState();
   const all = allCombatants(state);
   const c = all.find((o) => o.id === id);
-  if (c) void act("token:move", { id, pos: placeFor(c, cellAt(viewCenter, state.battle.map), all) });
+  if (c) void act("token:move", { id, pos: placeFor(c, cellAt(viewCenter, state.battle.map), all, state.battle.map.grid) });
 }
 
 const PALETTE = { ally: ALLY_COLORS, mob: MOB_COLORS, npc: NPC_COLORS };

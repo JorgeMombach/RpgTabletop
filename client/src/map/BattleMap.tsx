@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { cellDistance, LIMITS, nearestCellOf, sizeSpan, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
+import { geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -18,7 +18,7 @@ import { DarkReminder } from "./DarkReminder";
 import { FixEffectModal } from "../components/FixEffectModal";
 import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
-import { cellAt, cellCenter, placeFor, sameCell, type Point } from "./geometry";
+import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toWorld, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
@@ -248,8 +248,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const glide = useRef<number>(0);
   function glideTo(c: CombatantView) {
     if (!c.pos) return;
-    const span = sizeSpan(c.size);
-    glideToPoint({ x: grid.offsetX + (c.pos.col + span / 2) * grid.cellPx, y: grid.offsetY + (c.pos.row + span / 2) * grid.cellPx });
+    glideToPoint(shapeCenterAt(c.pos, c.size, grid));
   }
   /** Desliza a câmera até um ponto do mapa (em pixels do mundo), no zoom de agora. */
   function glideToPoint(target: Point) {
@@ -607,7 +606,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
         return;
       }
       const rest = placing.ids.filter((id) => id !== placingNext.id);
-      void act("token:move", { id: placingNext.id, pos: placeFor(placingNext, cell, allCombatants(state)) }).then((r) => {
+      void act("token:move", { id: placingNext.id, pos: placeFor(placingNext, cell, allCombatants(state), grid.grid) }).then((r) => {
         if (r.ok) setPlacing(rest.length ? { ...placing, ids: rest } : null);
       });
       return;
@@ -833,7 +832,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     // Soltar da lista é "colocar": se a casa estiver ocupada, vai para a livre mais perto.
     const all = allCombatants(state);
     const c = all.find((o) => o.id === id);
-    if (c) void act("token:move", { id, pos: placeFor(c, cellAt(p, grid), all) });
+    if (c) void act("token:move", { id, pos: placeFor(c, cellAt(p, grid), all, grid.grid) });
   }
 
   // Aliados por cima (desenhados por último).
@@ -927,10 +926,12 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       const openMenu = (focus?: MenuFocus) => {
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
-        const span = sizeSpan(c.size);
         const g = state.battle.map;
-        const world = c.pos
-          ? { x: g.offsetX + (c.pos.col + span) * g.cellPx, y: g.offsetY + c.pos.row * g.cellPx }
+        // Ao lado do token: a borda direita, na altura de cima dele.
+        const radius = (geometryOf(g.grid).drawSpan(c.size) * g.cellPx) / 2;
+        const middle = c.pos ? shapeCenterAt(c.pos, c.size, g) : null;
+        const world = middle
+          ? { x: middle.x + radius, y: middle.y - radius }
           : { x: (size.width / 2 - view.x) / view.scale, y: (size.height / 2 - view.y) / view.scale };
         setMenu({ id: c.id, x: rect.left + view.x + world.x * view.scale, y: rect.top + view.y + world.y * view.scale, focus });
       };
@@ -1186,7 +1187,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               // Distância até quem conjurou; sem ele no mapa, só a casa.
               // Mede da borda de quem conjurou (criatura grande ocupa várias casas).
               <RulerShape
-                ruler={{ from: placingFrom?.pos ? nearestCellOf(placingFrom.pos, sizeSpan(placingFrom.size), hoverCell) : hoverCell, to: hoverCell }}
+                ruler={{ from: placingFrom?.pos ? geometryOf(grid.grid).nearestCellOf(placingFrom.pos, placingFrom.size, hoverCell) : hoverCell, to: hoverCell }}
                 grid={grid}
                 scale={view.scale}
                 label={placingNext?.name}
@@ -1392,13 +1393,28 @@ function GridLines({
         if ((x1 - x0) / cellPx + (y1 - y0) / cellPx > 800) return;
 
         ctx.beginPath();
-        for (let x = offsetX + Math.floor((x0 - offsetX) / cellPx) * cellPx; x <= x1; x += cellPx) {
-          ctx.moveTo(x, y0);
-          ctx.lineTo(x, y1);
-        }
-        for (let y = offsetY + Math.floor((y0 - offsetY) / cellPx) * cellPx; y <= y1; y += cellPx) {
-          ctx.moveTo(x0, y);
-          ctx.lineTo(x1, y);
+        if (isHex(grid)) {
+          // Hex (Passo 16): o contorno de cada hex visível (uma casa de folga nas bordas).
+          const geometry = geometryOf(grid.grid);
+          const first = cellAt({ x: x0, y: y0 }, grid);
+          const last = cellAt({ x: x1, y: y1 }, grid);
+          for (let row = first.row - 1; row <= last.row + 1; row++) {
+            for (let col = first.col - 1; col <= last.col + 1; col++) {
+              const corners = geometry.polygon({ col, row }).map((corner) => toWorld(corner, grid));
+              ctx.moveTo(corners[0].x, corners[0].y);
+              for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
+              ctx.closePath();
+            }
+          }
+        } else {
+          for (let x = offsetX + Math.floor((x0 - offsetX) / cellPx) * cellPx; x <= x1; x += cellPx) {
+            ctx.moveTo(x, y0);
+            ctx.lineTo(x, y1);
+          }
+          for (let y = offsetY + Math.floor((y0 - offsetY) / cellPx) * cellPx; y <= y1; y += cellPx) {
+            ctx.moveTo(x0, y);
+            ctx.lineTo(x1, y);
+          }
         }
         // Linhas escuras: sobre a imagem e sobre a mesa (L5). Com cor escolhida pelo mestre, meio transparente.
         ctx.strokeStyle = !onImage ? "rgba(255,255,255,0.09)" : grid.gridColor ? `${grid.gridColor}80` : "rgba(0,0,0,0.45)";
@@ -1407,6 +1423,20 @@ function GridLines({
       }}
     />
   );
+}
+
+/** Hexes cruzados pela linha entre os centros (um ponto por hex de distância, com um empurrão para não cair na divisa). */
+function hexesAlong(from: GridPos, to: GridPos, grid: MapConfig): GridPos[] {
+  const geometry = geometryOf(grid.grid);
+  const steps = geometry.distance(from, to);
+  const a = geometry.center(from);
+  const b = geometry.center(to);
+  const cells: GridPos[] = [];
+  for (let step = 0; step <= steps; step++) {
+    const along = steps === 0 ? 0 : step / steps;
+    cells.push(geometry.cellAt({ x: a.x + (b.x - a.x) * along + 1e-6, y: a.y + (b.y - a.y) * along + 2e-6 }));
+  }
+  return cells;
 }
 
 function RulerShape({
@@ -1426,22 +1456,44 @@ function RulerShape({
   cellOnly?: boolean;
 }) {
   const t = useT();
+  const geometry = geometryOf(grid.grid);
+  const hex = isHex(grid);
   const a = cellCenter(ruler.from, grid);
   const b = cellCenter(ruler.to, grid);
-  const cells = cellDistance(ruler.from, ruler.to);
+  const cells = geometry.distance(ruler.from, ruler.to);
   const feet = cells * grid.feetPerCell;
   const fs = 14 / scale;
-  const text = cellOnly ? (label ?? "") : `${feet} ft · ${t("map.squares", { n: cells })}${label ? ` (${label})` : ""}`;
+  const counted = t(hex ? "map.hexes" : "map.squares", { n: cells });
+  const text = cellOnly ? (label ?? "") : `${feet} ft · ${counted}${label ? ` (${label})` : ""}`;
+  // Hex: realça os hexes por onde a linha passa (no quadrado, só a casa de destino, como sempre).
+  const lit = hex && !cellOnly ? hexesAlong(ruler.from, ruler.to, grid) : [ruler.to];
 
   return (
     <Group>
-      <Rect
-        x={grid.offsetX + ruler.to.col * grid.cellPx}
-        y={grid.offsetY + ruler.to.row * grid.cellPx}
-        width={grid.cellPx}
-        height={grid.cellPx}
-        fill={`${color}33`}
-      />
+      {hex ? (
+        <Shape
+          listening={false}
+          fill={`${color}33`}
+          sceneFunc={(kctx, shape) => {
+            kctx.beginPath();
+            for (const cell of lit) {
+              const corners = geometry.polygon(cell).map((corner) => toWorld(corner, grid));
+              kctx.moveTo(corners[0].x, corners[0].y);
+              for (const corner of corners.slice(1)) kctx.lineTo(corner.x, corner.y);
+              kctx.closePath();
+            }
+            kctx.fillShape(shape);
+          }}
+        />
+      ) : (
+        <Rect
+          x={grid.offsetX + ruler.to.col * grid.cellPx}
+          y={grid.offsetY + ruler.to.row * grid.cellPx}
+          width={grid.cellPx}
+          height={grid.cellPx}
+          fill={`${color}33`}
+        />
+      )}
       {!cellOnly && <Line points={[a.x, a.y, b.x, b.y]} stroke={color} strokeWidth={3 / scale} dash={[10 / scale, 6 / scale]} />}
       {!cellOnly && <Circle x={a.x} y={a.y} radius={5 / scale} fill={color} />}
       <Circle x={b.x} y={b.y} radius={5 / scale} fill={color} />

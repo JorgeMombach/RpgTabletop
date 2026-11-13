@@ -9,7 +9,7 @@ import { useApp } from "../store";
 import { socket } from "../socket";
 import { toast } from "../notify";
 import { drawChest, type ChestState } from "./chestArt";
-import { cellAt } from "./geometry";
+import { cellAt, cellCenter } from "./geometry";
 import { discardNewChest, moveChest, removeChest, undo, useMapUndo } from "./mapHistory";
 
 export const CHEST_LABEL: Record<ChestStyle, MessageKey> = { wood: "chests.wood", iron: "chests.iron", ornate: "chests.ornate" };
@@ -33,8 +33,10 @@ async function openChest(c: MapChest) {
 
 function ChestShape({ c, grid, editing, clickable }: { c: MapChest; grid: MapConfig; editing: boolean; clickable: boolean }) {
   const s = grid.cellPx;
-  const x = grid.offsetX + (c.col + 0.5) * s;
-  const y = grid.offsetY + (c.row + 0.92) * s;
+  // A base do desenho fica um pouco abaixo do centro da casa (quadrado ou hex).
+  const center = cellCenter({ col: c.col, row: c.row }, grid);
+  const x = center.x;
+  const y = center.y + s * 0.42;
   // O Konva solta um clique no fim do arrasto: esse não abre o editor.
   const dragged = useRef(false);
   const edit = () => {

@@ -1,5 +1,5 @@
 import { ActionIcon, Button, Checkbox, ColorInput, FileButton, Group, Input, NumberInput, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
-import { LIMITS, TABLE_STYLES, type GridInput, type MapConfig, type TableStyle } from "@rpg/shared";
+import { geometryOf, GRID_KINDS, isHex, LIMITS, TABLE_STYLES, type GridInput, type GridKind, type MapConfig, type TableStyle } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
@@ -14,6 +14,33 @@ import { UvttImportButton } from "./UvttImport";
 /** Mesa em volta do mapa (L5), por cena. */
 /** Cores prontas do grid: preto (padrão), branco, pergaminho, bronze, sangue e azul. */
 const GRID_SWATCHES = ["#000000", "#ffffff", "#f1e6d0", "#d8b47a", "#b3261e", "#5ba3e6"];
+
+const GRID_LABEL: Record<GridKind, { label: MessageKey; title?: MessageKey }> = {
+  square: { label: "mapPanel.gridSquare" },
+  hexRows: { label: "mapPanel.gridHexRows", title: "mapPanel.gridHexRowsTitle" },
+  hexCols: { label: "mapPanel.gridHexCols", title: "mapPanel.gridHexColsTitle" },
+};
+
+/**
+ * Troca o grid da cena (Passo 16). Paredes, névoa e pinturas só valem na geometria em que foram feitas: o
+ * servidor apaga, então com alguma delas na cena pede confirmação antes.
+ */
+async function switchGrid(grid: GridKind, t: ReturnType<typeof useT>) {
+  const battle = useApp.getState().state?.battle;
+  const fog = battle?.fog;
+  const loses =
+    !!battle &&
+    (battle.walls.length > 0 ||
+      battle.effects.some((effect) => effect.cells) ||
+      !!fog?.enabled ||
+      Object.keys(fog?.revealed ?? {}).length > 0 ||
+      Object.keys(fog?.explored ?? {}).length > 0);
+  if (loses) {
+    const ok = await confirmAction({ title: t("mapPanel.gridSwitchTitle"), message: t("mapPanel.gridSwitchMessage"), confirmLabel: t("mapPanel.gridSwitch"), danger: true });
+    if (!ok) return;
+  }
+  void act("battle:grid", { grid });
+}
 
 const TABLE_LABEL: Record<TableStyle, MessageKey> = { wood: "mapPanel.tableWood", leather: "mapPanel.tableLeather", slate: "mapPanel.tableSlate" };
 
@@ -60,9 +87,13 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
     [map.cellPx, map.offsetX, map.offsetY, map.imageScale],
   );
 
-  // Deslocamento = tamanho do quadrado é o mesmo grid que deslocamento 0 (o servidor normaliza),
-  // então o slider para um passo antes para o grid não "pular" de volta ao início.
-  const offsetMax = Math.max(0, local.cellPx - 0.5);
+  // Deslocamento = um período do desenho do grid é o mesmo grid que deslocamento 0 (o servidor normaliza),
+  // então o slider para um passo antes para o grid não "pular" de volta ao início. No hex o período é
+  // de duas linhas (ou colunas).
+  const hex = isHex(map);
+  const { period } = geometryOf(map.grid);
+  const offsetMaxX = Math.max(0, local.cellPx * period.x - 0.5);
+  const offsetMaxY = Math.max(0, local.cellPx * period.y - 0.5);
 
   function change(patch: Partial<typeof local>) {
     setLocal((l) => ({ ...l, ...patch }));
@@ -161,12 +192,25 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
         />
       </Input.Wrapper>
 
+      <Input.Wrapper label={t("mapPanel.grid")}>
+        <SegmentedControl
+          mt={4}
+          fullWidth
+          data={GRID_KINDS.map((kind) => {
+            const { label, title } = GRID_LABEL[kind];
+            return { value: kind, label: title ? <Abbr title={t(title)}>{t(label)}</Abbr> : t(label) };
+          })}
+          value={map.grid ?? "square"}
+          onChange={(value) => void switchGrid(value as GridKind, t)}
+        />
+      </Input.Wrapper>
+
       <Checkbox
         checked={map.showGrid}
         onChange={(e) => void act("battle:grid", { showGrid: e.currentTarget.checked })}
         label={
           <>
-            {t("mapPanel.showGrid", { n: map.feetPerCell })} <Abbr title={t("mapPanel.ftTitle")}>ft</Abbr>)
+            {t(hex ? "mapPanel.showGridHex" : "mapPanel.showGrid", { n: map.feetPerCell })} <Abbr title={t("mapPanel.ftTitle")}>ft</Abbr>)
           </>
         }
       />
@@ -185,24 +229,24 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
         />
       )}
 
-      <Input.Wrapper label={t("mapPanel.cell", { px: local.cellPx.toFixed(1) })}>
+      <Input.Wrapper label={t(hex ? "mapPanel.cellHex" : "mapPanel.cell", { px: local.cellPx.toFixed(1) })}>
         <Slider mt={6} min={0} max={CELL_STEPS} step={1} label={null} value={cellToSlider(local.cellPx)} onChange={(v) => change({ cellPx: sliderToCell(v) })} />
       </Input.Wrapper>
       <Group grow gap="md">
         <Input.Wrapper label={<Abbr title={t("mapPanel.offsetXTitle")}>{t("mapPanel.offsetX")}</Abbr>}>
-          <Slider mt={6} min={0} max={offsetMax} step={0.5} value={Math.min(local.offsetX, offsetMax)} onChange={(v) => change({ offsetX: v })} />
+          <Slider mt={6} min={0} max={offsetMaxX} step={0.5} value={Math.min(local.offsetX, offsetMaxX)} onChange={(v) => change({ offsetX: v })} />
         </Input.Wrapper>
         <Input.Wrapper label={<Abbr title={t("mapPanel.offsetYTitle")}>{t("mapPanel.offsetY")}</Abbr>}>
-          <Slider mt={6} min={0} max={offsetMax} step={0.5} value={Math.min(local.offsetY, offsetMax)} onChange={(v) => change({ offsetY: v })} />
+          <Slider mt={6} min={0} max={offsetMaxY} step={0.5} value={Math.min(local.offsetY, offsetMaxY)} onChange={(v) => change({ offsetY: v })} />
         </Input.Wrapper>
       </Group>
 
       {tool === "calibrate" ? (
         calibRect && calibRect.width > 4 ? (
-          <CalibrateForm rect={calibRect} cellPx={map.cellPx} />
+          <CalibrateForm rect={calibRect} map={map} />
         ) : (
           <Text size="xs" c="bronze.4">
-            {t("mapPanel.calibrateHint")}
+            {t(hex ? "mapPanel.calibrateHintHex" : "mapPanel.calibrateHint")}
           </Text>
         )
       ) : (
@@ -214,11 +258,27 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   );
 }
 
-function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: number }; cellPx: number }) {
+/**
+ * Largura, em casas, de `n` casas lado a lado: no quadrado e no hex de pontas para cima, `n`; no hex de lado em
+ * cima as colunas se encaixam (passo menor que a largura do hex).
+ */
+function widthInCells(n: number, grid: MapConfig["grid"]): number {
+  const geometry = geometryOf(grid);
+  const xs = geometry.polygon({ col: 0, row: 0 }).map((corner) => corner.x);
+  return (n - 1) * geometry.columnStep + (Math.max(...xs) - Math.min(...xs));
+}
+
+function CalibrateForm({ rect, map }: { rect: { x: number; y: number; width: number }; map: MapConfig }) {
   const t = useT();
-  const [cells, setCells] = useState<string | number>(Math.max(1, Math.round(rect.width / cellPx)));
+  const hex = isHex(map);
+  const [cells, setCells] = useState<string | number>(() => {
+    // Palpite: quantas casas do tamanho de agora cabem na seleção.
+    let guess = 1;
+    while (widthInCells(guess + 1, map.grid) * map.cellPx <= rect.width + map.cellPx / 2) guess++;
+    return guess;
+  });
   const n = Math.max(1, Math.trunc(Number(cells)) || 1);
-  const size = rect.width / n;
+  const size = rect.width / widthInCells(n, map.grid);
 
   async function apply() {
     // O canto do retângulo marca uma linha do grid.
@@ -230,7 +290,7 @@ function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: 
     <Paper p="sm" bg="dark.7" style={{ borderColor: "var(--mantine-primary-color-filled)" }}>
       <Stack gap="xs">
         <NumberInput
-          label={t("mapPanel.howMany")}
+          label={t(hex ? "mapPanel.howManyHex" : "mapPanel.howMany")}
           min={1}
           allowDecimal={false}
           allowNegative={false}
@@ -238,7 +298,7 @@ function CalibrateForm({ rect, cellPx }: { rect: { x: number; y: number; width: 
           onChange={setCells}
         />
         <Text size="xs" c="dimmed">
-          {t("mapPanel.perCell", { w: Math.round(rect.width), n, px: size.toFixed(1) })}
+          {t(hex ? "mapPanel.perHex" : "mapPanel.perCell", { w: Math.round(rect.width), n, px: size.toFixed(1) })}
         </Text>
         <Group justify="flex-end" gap="xs">
           <Button variant="default" onClick={() => setTool("move")}>
