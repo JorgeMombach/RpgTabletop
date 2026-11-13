@@ -258,6 +258,13 @@ export interface MobTemplate {
   source?: string;
 }
 
+/**
+ * Grade da cena (Passo 16): quadrado; hex de pontas para cima, com linhas ímpares meio hex à direita
+ * ("odd-r"); ou hex de lado reto em cima, com colunas ímpares meio hex para baixo ("odd-q").
+ */
+export const GRID_KINDS = ["square", "hexRows", "hexCols"] as const;
+export type GridKind = (typeof GRID_KINDS)[number];
+
 export interface MapConfig {
   showGrid: boolean;
   cellPx: number;
