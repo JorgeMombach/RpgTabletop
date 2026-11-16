@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { geometryOf, isRevealed, shapesOverlap, type ActionPayloads, type GridPos, type ActionResult, type Area, type AreaBroadcast } from "@rpg/shared";
+import { geometryOf, isRevealed, paintFog, shapesOverlap, type ActionPayloads, type GridPos, type ActionResult, type Area, type AreaBroadcast } from "@rpg/shared";
+import { hostInfo } from "../src/net";
+import { viewFor } from "../src/view";
 import { act, join, stateWhere, useServer, type Client } from "./helpers";
 
 // Grid hexagonal (Passo 16): a cena guarda a grade; trocar apaga o que só vale na geometria antiga.
@@ -263,6 +265,34 @@ describe("grid hexagonal: o servidor confere a ocupação pela geometria", () =>
     ana.disconnect();
     await act(g, "fog:set", { enabled: false });
     await act(g, "fog:vision", { enabled: false });
+    await backToSquare(g);
+  });
+
+  it("parede comprida no hex chega ao jogador por qualquer hex que ela cruza", async () => {
+    const g = await hexScene();
+    const ana = await client("10.41.0.6");
+    await join(ana, "Ana");
+    await act(g, "fog:set", { enabled: true });
+    const from = { col: 0.13, row: 0.41 };
+    const to = { col: 9.87, row: 4.66 };
+    await act(g, "wall:add", { from, to });
+    // Os hexes que a parede cruza, amostrando o caminho bem de perto.
+    const crossed = new Map<string, GridPos>();
+    for (let i = 0; i <= 1000; i++) {
+      const cell = hex.cellAt({ x: from.col + ((to.col - from.col) * i) / 1000, y: from.row + ((to.row - from.row) * i) / 1000 });
+      crossed.set(keyOf(cell), cell);
+    }
+    const anaPlayer = [...ctx.server.store.players.values()].find((player) => player.name === "Ana")!;
+    const host = hostInfo(0, "chave", ["http://mesa.test"]);
+    const missing: string[] = [];
+    for (const cell of crossed.values()) {
+      battle().fog.revealed = {};
+      paintFog(battle().fog, { col: cell.col, row: cell.row, w: 1, h: 1 }, true);
+      if (viewFor(ctx.server.store, anaPlayer, host).battle.walls.length === 0) missing.push(keyOf(cell));
+    }
+    assert.deepEqual(missing, [], "a parede aparece com qualquer hex dela à vista");
+    ana.disconnect();
+    await act(g, "fog:set", { enabled: false });
     await backToSquare(g);
   });
 

@@ -71,14 +71,29 @@ function inSight(fog: FogState, sight: Record<string, number[]>, kind: GridKind 
     prop: (p: MapProp) => anyEver(cellsAroundPointIn({ x: p.col, y: p.row }, kind)),
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
-      // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
-      const steps = Math.max(1, Math.ceil(Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row))));
       const pts: GridPos[] = [];
+      if (square) {
+        // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um; o canto mais perto de cada passo.
+        const steps = Math.max(1, Math.ceil(Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row))));
+        for (let i = 0; i <= steps; i++) {
+          const col = Math.round(w.from.col + ((w.to.col - w.from.col) * i) / steps);
+          const row = Math.round(w.from.row + ((w.to.row - w.from.row) * i) / steps);
+          pts.push(...cellsAroundPoint(col, row));
+        }
+        return anyEver(pts);
+      }
+      // Hex (Passo 16): um ponto a cada meia casa do caminho e os hexes com o centro perto dele (o raio do hex mais
+      // meio passo). Assim todo hex que a parede cruza entra, mesmo cortado só na ponta.
+      const length = Math.hypot(w.to.col - w.from.col, w.to.row - w.from.row);
+      const steps = Math.max(1, Math.ceil(length / 0.5));
+      const reach = 1 / Math.sqrt(3) + 0.26;
       for (let i = 0; i <= steps; i++) {
-        const x = w.from.col + ((w.to.col - w.from.col) * i) / steps;
-        const y = w.from.row + ((w.to.row - w.from.row) * i) / steps;
-        // Quadrado: o canto mais perto do passo (o de sempre); hex: as casas em volta do ponto do caminho.
-        pts.push(...(square ? cellsAroundPoint(Math.round(x), Math.round(y)) : cellsAroundPointIn({ x, y }, kind)));
+        const point = { x: w.from.col + ((w.to.col - w.from.col) * i) / steps, y: w.from.row + ((w.to.row - w.from.row) * i) / steps };
+        const cell = geometry.cellAt(point);
+        for (const near of [cell, ...geometry.neighbors(cell)]) {
+          const center = geometry.center(near);
+          if (Math.hypot(center.x - point.x, center.y - point.y) <= reach) pts.push(near);
+        }
       }
       return anyEver(pts);
     },
