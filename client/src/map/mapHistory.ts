@@ -66,12 +66,24 @@ function push(step: Step) {
 
 // Outra cena, outros ids: o que estava na pilha não vale mais.
 let scene = useApp.getState().state?.sceneId;
+// Terreno inteiro novo (apagar tudo, Limpar campo, carregar arquivo): os passos de terreno não valem mais (senão o
+// desfazer de uma borracha que esvaziou um pedaço traria o pedaço de volta num campo limpo).
+let terrainEpoch = useApp.getState().terrainEpoch;
 useApp.subscribe((s) => {
   const now = s.state?.sceneId;
-  if (now === scene) return;
-  scene = now;
-  steps.length = 0;
-  sync();
+  if (now !== scene) {
+    scene = now;
+    steps.length = 0;
+    sync();
+  }
+  if (s.terrainEpoch !== terrainEpoch) {
+    terrainEpoch = s.terrainEpoch;
+    const kept = steps.filter((step) => step.scope !== "terrain");
+    if (kept.length !== steps.length) {
+      steps.splice(0, steps.length, ...kept);
+      sync();
+    }
+  }
 });
 
 /** Algo voltou com id novo: os passos anteriores que apontavam para o antigo passam a apontar para o novo. */

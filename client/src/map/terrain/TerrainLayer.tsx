@@ -28,12 +28,12 @@ function around(key: string): string[] {
  * com metade dos pixels, para a prévia acompanhar o mouse; ao soltar, os mesmos pedaços chegam do servidor e são
  * refeitos inteiros.
  */
-export function TerrainLayer({ chunks, grid, pixelsPerCell, draft = false }: { chunks: TerrainChunks; grid: Grid; pixelsPerCell: number; draft?: boolean }) {
+export function TerrainLayer({ chunks, grid, pixelsPerCell, epoch, draft = false }: { chunks: TerrainChunks; grid: Grid; pixelsPerCell: number; epoch: number; draft?: boolean }) {
   const [images, setImages] = useState<Record<string, HTMLImageElement> | null>(null);
   const [, setDrawn] = useState(0);
   const cache = useRef(new Map<string, HTMLCanvasElement>());
   const queue = useRef(new Set<string>());
-  const previous = useRef<{ chunks: TerrainChunks; pixelsPerCell: number } | null>(null);
+  const previous = useRef<{ chunks: TerrainChunks; pixelsPerCell: number; epoch: number } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -47,10 +47,11 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell, draft = false }: { c
     };
   }, []);
 
-  // O que mudou desde a última vez entra na fila (com os vizinhos); o que sumiu sai do cache.
+  // O que mudou desde a última vez entra na fila (com os vizinhos); o que sumiu sai do cache. Terreno inteiro novo
+  // (`epoch`: outra cena, arquivo carregado) começa do zero: o pedaço velho não fica à mostra enquanto a fila anda.
   useEffect(() => {
     const before = previous.current;
-    const everything = !before || before.pixelsPerCell !== pixelsPerCell;
+    const everything = !before || before.pixelsPerCell !== pixelsPerCell || before.epoch !== epoch;
     if (everything) cache.current.clear();
     const changed = new Set<string>();
     for (const key of Object.keys(chunks)) if (everything || before.chunks[key] !== chunks[key]) changed.add(key);
@@ -61,9 +62,9 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell, draft = false }: { c
         else cache.current.delete(near);
       }
     }
-    previous.current = { chunks, pixelsPerCell };
+    previous.current = { chunks, pixelsPerCell, epoch };
     setDrawn((n) => n + 1);
-  }, [chunks, pixelsPerCell]);
+  }, [chunks, pixelsPerCell, epoch]);
 
   // A fila: alguns pedaços por quadro, os mais perto do centro da tela primeiro.
   useEffect(() => {

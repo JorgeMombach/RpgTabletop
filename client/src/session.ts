@@ -196,7 +196,7 @@ socket.on("terrain", ({ reset, chunks }) => {
       if (chunk) terrain[key] = chunk;
       else delete terrain[key];
     }
-    return { terrain };
+    return reset ? { terrain, terrainEpoch: s.terrainEpoch + 1 } : { terrain };
   });
 });
 

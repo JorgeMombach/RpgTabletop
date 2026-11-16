@@ -107,7 +107,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
-  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch } = useApp();
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
   const smallScreen = useSmallScreen();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
@@ -1071,7 +1071,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
             )}
             {/* Terreno pintado (criação de mapa): acima da imagem, abaixo do grid. */}
-            <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} draft={terrainPreview !== null} />
+            <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} epoch={terrainEpoch} draft={terrainPreview !== null} />
             {layout && !reduceFx && <MemoEdge bounds={layout.bounds} grid={grid} />}
             {grid.showGrid && <MemoGrid grid={grid} view={stageView} size={stageSize} onImage />}
           </Layer>

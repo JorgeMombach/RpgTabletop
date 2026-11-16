@@ -138,6 +138,8 @@ interface AppStore extends DicePrefs {
   journalLoaded: boolean;
   /** Terreno pintado da cena (criação de mapa): chega à parte, pedaço a pedaço. */
   terrain: TerrainChunks;
+  /** Sobe a cada terreno inteiro recebido (entrar, trocar de cena, carregar arquivo, apagar tudo, Limpar campo). */
+  terrainEpoch: number;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -204,6 +206,7 @@ export const useApp = create<AppStore>(() => ({
   journal: [],
   journalLoaded: false,
   terrain: {},
+  terrainEpoch: 0,
   ...readPrefs(),
 }));
 
