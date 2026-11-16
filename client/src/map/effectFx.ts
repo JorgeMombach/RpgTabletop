@@ -205,12 +205,29 @@ interface Particle {
   path?: number[];
 }
 
+/** Uma raiz (ou galho de raiz): pontos relativos ao canto da área, espessura na base e semente do balanço da ponta. */
+interface RootPath {
+  points: number[];
+  width: number;
+  seed: number;
+}
+
+/** Raízes desenhadas para a área: o corpo parado vai pronto num canvas; só as pontas se mexem. */
+interface RootsDrawing {
+  w: number;
+  h: number;
+  color: string;
+  paths: RootPath[];
+  image: HTMLCanvasElement;
+}
+
 /** Estado de cada efeito na tela (partículas vivas, último quadro). */
 export interface FxState {
   a: Particle[];
   b: Particle[];
   c: Particle[];
   last: number;
+  roots?: RootsDrawing;
 }
 
 export function newFxState(): FxState {
@@ -679,14 +696,132 @@ const plants: Painter = (ctx, _st, t, _dt, area, cell, color) => {
   drawTiled(ctx, dapple, box, cell * 4, t * cell * 0.15, 0, 0.12, "lighter");
 };
 
-const roots: Painter = (ctx, _st, t, _dt, area, cell, color) => {
+/** A cor do efeito (`#rrggbb`) clareada (`factor` > 1) ou escurecida (< 1). */
+function shade(color: string, factor: number, alpha = 1): string {
+  const value = parseInt(color.slice(1), 16);
+  const channel = (shift: number) => Math.min(255, Math.round(((value >> shift) & 255) * factor));
+  return `rgba(${channel(16)}, ${channel(8)}, ${channel(0)}, ${alpha})`;
+}
+
+/** Quantos pontos do fim de cada raiz ficam de fora do desenho parado: a ponta que rasteja. */
+const ROOT_TIP = 3;
+
+/**
+ * Raízes para a área: cada uma nasce num ponto de dentro, serpenteia e se divide em galhos mais finos, até sair da
+ * área ou acabar o comprimento. Pontos relativos ao canto do `box` (a área pode andar junto com um token).
+ */
+function growRoots(area: FxArea, cell: number): RootPath[] {
   const { box } = area;
-  // Terra revolvida por baixo; raízes "respiram" (se apertam e soltam).
+  const paths: RootPath[] = [];
+  const segment = cell * 0.14;
+  const grow = (x: number, y: number, angle: number, length: number, width: number, depth: number) => {
+    const points = [x - box.x, y - box.y];
+    let heading = angle;
+    const branchAt = new Set(depth > 0 ? [0.35 + Math.random() * 0.15, 0.6 + Math.random() * 0.15] : []);
+    const steps = Math.max(2, Math.round(length / segment));
+    for (let i = 1; i <= steps; i++) {
+      heading += (Math.random() - 0.5) * 0.6;
+      const nx = x + Math.cos(heading) * segment;
+      const ny = y + Math.sin(heading) * segment;
+      if (!area.inside(nx, ny)) break;
+      x = nx;
+      y = ny;
+      points.push(x - box.x, y - box.y);
+      for (const at of branchAt) {
+        if (i !== Math.round(steps * at)) continue;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        grow(x, y, heading + side * (0.6 + Math.random() * 0.5), length * (0.4 + Math.random() * 0.2), width * 0.55, depth - 1);
+      }
+    }
+    // Curta demais para ter corpo e ponta: fica de fora.
+    if (points.length >= (ROOT_TIP + 2) * 2) paths.push({ points, width, seed: Math.random() * 10 });
+  };
+  const count = budget(area, cell, 1.7, 48);
+  // Começos espalhados: de quatro pontos sorteados, fica o mais longe dos que já existem (sem bolos nem buracos).
+  const starts: { x: number; y: number }[] = [];
+  const distance = (point: { x: number; y: number }) => Math.min(Infinity, ...starts.map((other) => Math.hypot(point.x - other.x, point.y - other.y)));
+  for (let i = 0; i < count; i++) {
+    const candidates = Array.from({ length: 4 }, () => spawnPoint(area));
+    const start = candidates.reduce((best, candidate) => (distance(candidate) > distance(best) ? candidate : best));
+    starts.push(start);
+    grow(start.x, start.y, Math.random() * Math.PI * 2, cell * (0.8 + Math.random() * 0.7), cell * (0.07 + Math.random() * 0.06), 2);
+  }
+  return paths;
+}
+
+/** Traço que afina da base à ponta (segmento a segmento), de `from` a `to` (índices de ponto). */
+function taperedStroke(ctx: Ctx, path: RootPath, from: number, to: number, offset: number, scale: number) {
+  const total = path.points.length / 2 - 1;
+  for (let i = from; i < to; i++) {
+    ctx.lineWidth = Math.max(1, path.width * scale * (1 - (i / total) * 0.8));
+    ctx.beginPath();
+    ctx.moveTo(path.points[i * 2] + offset, path.points[i * 2 + 1] + offset);
+    ctx.lineTo(path.points[i * 2 + 2] + offset, path.points[i * 2 + 3] + offset);
+    ctx.stroke();
+  }
+}
+
+/** O corpo parado das raízes (sem as pontas), com sombra, cor do efeito e um risco de luz. Em dobro de resolução. */
+function paintRoots(paths: RootPath[], w: number, h: number, color: string, cell: number): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  const scale = 2;
+  canvas.width = Math.max(1, Math.ceil(w * scale));
+  canvas.height = Math.max(1, Math.ceil(h * scale));
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(scale, scale);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const passes: [string, number, number][] = [
+    ["rgba(15, 8, 2, 0.55)", cell * 0.05, 1.25],
+    [shade(color, 0.75), 0, 1],
+    [shade(color, 1.35, 0.7), -cell * 0.015, 0.35],
+  ];
+  for (const [style, offset, widthScale] of passes) {
+    ctx.strokeStyle = style;
+    for (const path of paths) taperedStroke(ctx, path, 0, path.points.length / 2 - 1 - ROOT_TIP, offset, widthScale);
+  }
+  return canvas;
+}
+
+const roots: Painter = (ctx, st, t, _dt, area, cell, color) => {
+  const { box } = area;
+  // Terra revolvida por baixo, parada.
   const soil = noiseTexture("soil", 127, [4, 8, 16], (v) => [40, 26, 12, smooth(0.3, 0.75, v) * 230]);
   drawTiled(ctx, soil, box, cell * 3, 0, 0, 0.7);
-  // Duas camadas de raízes (uma maior, deslocada) para cobrir o chão.
-  base(ctx, "roots", color, box, cell * (1.2 + Math.sin(t * 0.9) * 0.02), Math.sin(t * 0.5) * cell * 0.03, 0);
-  base(ctx, "roots", color, box, cell * 1.9, cell * 0.9, cell * 0.6 + Math.sin(t * 0.4) * cell * 0.03, 0.8);
+  // Raízes novas só quando a área muda de tamanho (ou de cor); andando com um token, as mesmas vão junto.
+  let drawing = st.roots;
+  if (!drawing || drawing.w !== box.w || drawing.h !== box.h || drawing.color !== color) {
+    const paths = drawing && drawing.w === box.w && drawing.h === box.h ? drawing.paths : growRoots(area, cell);
+    drawing = { w: box.w, h: box.h, color, paths, image: paintRoots(paths, box.w, box.h, color, cell) };
+    st.roots = drawing;
+  }
+  ctx.drawImage(drawing.image, box.x, box.y, box.w, box.h);
+  // Pontas que rastejam: os últimos pontos de cada raiz balançam de lado, mais quanto mais perto da ponta.
+  ctx.save();
+  ctx.translate(box.x, box.y);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const path of drawing.paths) {
+    const count = path.points.length / 2;
+    const first = count - 1 - ROOT_TIP;
+    const tip: RootPath = { ...path, points: path.points.slice(first * 2) };
+    for (let j = 1; j <= ROOT_TIP; j++) {
+      const k = first + j;
+      const dx = path.points[k * 2] - path.points[k * 2 - 2];
+      const dy = path.points[k * 2 + 1] - path.points[k * 2 - 1];
+      const length = Math.hypot(dx, dy) || 1;
+      const sway = Math.sin(t * 0.8 + path.seed + j * 0.7) * cell * 0.03 * j;
+      tip.points[j * 2] += (-dy / length) * sway;
+      tip.points[j * 2 + 1] += (dx / length) * sway;
+    }
+    // As pontas leem a espessura da raiz inteira: o traço continua afinando de onde o corpo parou.
+    const tipPath: RootPath = { ...tip, points: [...path.points.slice(0, first * 2), ...tip.points] };
+    ctx.strokeStyle = "rgba(15, 8, 2, 0.55)";
+    taperedStroke(ctx, tipPath, first, count - 1, cell * 0.05, 1.25);
+    ctx.strokeStyle = shade(color, 0.75);
+    taperedStroke(ctx, tipPath, first, count - 1, 0, 1);
+  }
+  ctx.restore();
 };
 
 const ice: Painter = (ctx, st, t, dt, area, cell, color) => {
