@@ -1,4 +1,5 @@
-import { PROP_DEFAULTS, seeThrough, type GridPos, type LightId, type MapProp, type Wall } from "./types";
+import { geometryOf, type CellPoint, type GridGeometry } from "./gridGeometry";
+import { PROP_DEFAULTS, seeThrough, type GridKind, type GridPos, type LightId, type MapProp, type Size, type Wall } from "./types";
 
 /**
  * Névoa de guerra (G): casas reveladas, por linha, em intervalos de colunas `[início, fim)` ordenados
@@ -130,6 +131,49 @@ export function cellsAroundPoint(col: number, row: number): GridPos[] {
   ];
 }
 
+/**
+ * Casas em volta de um ponto (origem de área, objeto): no quadrado, as de `cellsAroundPoint`; no hex (Passo 16),
+ * a casa do ponto e as vizinhas cujo centro fica a até um raio de hex dele (num vértice, os 3 hexes).
+ */
+export function cellsAroundPointIn(point: CellPoint, kind: GridKind | undefined): GridPos[] {
+  if (!kind || kind === "square") return cellsAroundPoint(point.x, point.y);
+  const geometry = geometryOf(kind);
+  const cell = geometry.cellAt(point);
+  const reach = 1 / Math.sqrt(3) + 0.01;
+  const near = geometry.neighbors(cell).filter((neighbor) => {
+    const center = geometry.center(neighbor);
+    return Math.hypot(center.x - point.x, center.y - point.y) <= reach;
+  });
+  return [cell, ...near];
+}
+
+/** Casas da caixa entre dois pontos (com uma de folga), para varrer uma região em qualquer grade. */
+function cellsInBox(geometry: GridGeometry, minX: number, minY: number, maxX: number, maxY: number): GridPos[] {
+  const corners = [
+    geometry.cellAt({ x: minX, y: minY }),
+    geometry.cellAt({ x: maxX, y: minY }),
+    geometry.cellAt({ x: minX, y: maxY }),
+    geometry.cellAt({ x: maxX, y: maxY }),
+  ];
+  const cols = corners.map((cell) => cell.col);
+  const rows = corners.map((cell) => cell.row);
+  const out: GridPos[] = [];
+  for (let col = Math.min(...cols) - 1; col <= Math.max(...cols) + 1; col++)
+    for (let row = Math.min(...rows) - 1; row <= Math.max(...rows) + 1; row++) out.push({ col, row });
+  return out;
+}
+
+/** Casas cujo centro cai no retângulo entre os dois pontos (retângulo da névoa e *Revelar o mapa* no hex). */
+export function cellsWithCenterIn(a: CellPoint, b: CellPoint, kind: GridKind): GridPos[] {
+  const geometry = geometryOf(kind);
+  const [minX, maxX] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+  const [minY, maxY] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+  return cellsInBox(geometry, minX, minY, maxX, maxY).filter((cell) => {
+    const center = geometry.center(cell);
+    return center.x >= minX && center.x <= maxX && center.y >= minY && center.y <= maxY;
+  });
+}
+
 /** Parede ou porta que bloqueia a passagem: toda parede e porta fechada (inclusive a secreta). */
 export function blocks(w: Wall): boolean {
   // Cerca, grade, arame, sebe e muro baixo deixam ver, mesmo com o portão fechado.
@@ -166,10 +210,21 @@ function crosses(a: P, b: P, c: P, d: P): boolean {
  */
 const NUDGE = { x: 0.5013, y: 0.5071 };
 
+/** No hex (Passo 16), o mesmo empurrãozinho em volta do centro; o alvo da visão leva outro, para a linha nunca passar exata por um vértice. */
+const NUDGE_HEX = { x: 0.0013, y: 0.0071 };
+const TARGET_NUDGE_HEX = { x: 0.0031, y: -0.0023 };
+
+/** Ponto de referência da casa: no quadrado, o centro com `NUDGE`; no hex, o centro da geometria com o empurrão dado. */
+function referencePoint(cell: GridPos, kind: GridKind | undefined, nudge = NUDGE_HEX): P {
+  if (!kind || kind === "square") return { x: cell.col + NUDGE.x, y: cell.row + NUDGE.y };
+  const center = geometryOf(kind).center(cell);
+  return { x: center.x + nudge.x, y: center.y + nudge.y };
+}
+
 /** Dá para passar da casa `a` para a vizinha `b` sem atravessar nenhuma parede (`walls` já filtradas). */
-export function canPass(a: GridPos, b: GridPos, walls: Wall[]): boolean {
-  const pa = { x: a.col + NUDGE.x, y: a.row + NUDGE.y };
-  const pb = { x: b.col + NUDGE.x, y: b.row + NUDGE.y };
+export function canPass(a: GridPos, b: GridPos, walls: Wall[], kind?: GridKind): boolean {
+  const pa = referencePoint(a, kind);
+  const pb = referencePoint(b, kind);
   const minX = Math.min(pa.x, pb.x);
   const maxX = Math.max(pa.x, pb.x);
   const minY = Math.min(pa.y, pb.y);
@@ -187,17 +242,17 @@ export function canPass(a: GridPos, b: GridPos, walls: Wall[]): boolean {
  * O cômodo de uma casa: todas as casas alcançáveis dela sem atravessar parede ou porta fechada
  * (andando para os lados, não na diagonal). `null` se passar de `max` casas: a área não fecha.
  */
-export function roomCells(start: GridPos, walls: Wall[], max: number): GridPos[] | null {
+export function roomCells(start: GridPos, walls: Wall[], max: number, kind?: GridKind): GridPos[] | null {
   const solid = walls.filter(blocks);
   const key = (c: GridPos) => `${c.col},${c.row}`;
   const seen = new Set([key(start)]);
   const out: GridPos[] = [start];
   for (let i = 0; i < out.length; i++) {
     const c = out[i];
-    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const n = { col: c.col + dc, row: c.row + dr };
+    const around = !kind || kind === "square" ? [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dc, dr]) => ({ col: c.col + dc, row: c.row + dr })) : geometryOf(kind).neighbors(c);
+    for (const n of around) {
       const k = key(n);
-      if (seen.has(k) || !canPass(c, n, solid)) continue;
+      if (seen.has(k) || !canPass(c, n, solid, kind)) continue;
       seen.add(k);
       out.push(n);
       if (out.length > max) return null;
@@ -249,6 +304,10 @@ export interface Viewer {
   pos: GridPos;
   span: number;
   feet: number;
+  /** Só no hex (Passo 16): o tamanho, para a forma e o meio dela. */
+  size?: Size;
+  /** Só no hex: de onde a luz sai, quando não é o meio de uma casa (tocha fixa). */
+  point?: CellPoint;
 }
 
 /**
@@ -256,7 +315,8 @@ export interface Viewer {
  * entre o centro dele e o centro da casa. Os pontos levam um deslocamento mínimo (como no cômodo) para
  * a linha nunca passar exatamente pela ponta de uma parede.
  */
-export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, lights: Viewer[] = [], lightReachFeet = VISION_FEET.day): GridPos[] {
+export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, lights: Viewer[] = [], lightReachFeet = VISION_FEET.day, kind?: GridKind): GridPos[] {
+  if (kind && kind !== "square") return hexSightCells(viewers, walls, feetPerCell, lights, lightReachFeet, kind);
   const solid = walls.filter(blocks);
   const seen = new Set<string>();
   const out: GridPos[] = [];
@@ -301,6 +361,67 @@ export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number
         return !solid.some((w) => crosses(o, t, { x: w.from.col, y: w.from.row }, { x: w.to.col, y: w.to.row }));
       });
       if (visible) add(c.col, c.row);
+    }
+  }
+  return out;
+}
+
+/** Paredes que chegam perto do círculo de visão (as outras nem entram na conta). */
+function wallsNear(solid: Wall[], origin: P, reach: number): Wall[] {
+  return solid.filter(
+    (w) =>
+      Math.max(w.from.col, w.to.col) >= origin.x - reach - 1 &&
+      Math.min(w.from.col, w.to.col) <= origin.x + reach + 1 &&
+      Math.max(w.from.row, w.to.row) >= origin.y - reach - 1 &&
+      Math.min(w.from.row, w.to.row) <= origin.y + reach + 1,
+  );
+}
+
+/**
+ * Visão no grid hex (Passo 16): a mesma conta do quadrado, com os centros da geometria. Quem vê olha do meio da
+ * forma (ou do ponto exato da tocha fixa); cada casa conta pelo centro, com um empurrãozinho diferente do de quem vê.
+ */
+function hexSightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, lights: Viewer[], lightReachFeet: number, kind: GridKind): GridPos[] {
+  const geometry = geometryOf(kind);
+  const solid = walls.filter(blocks);
+  const seen = new Set<string>();
+  const out: GridPos[] = [];
+  const add = (cell: GridPos) => {
+    const k = `${cell.col},${cell.row}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(cell);
+  };
+  const originOf = (v: Viewer): P => {
+    const middle = v.point ?? geometry.shapeCenter(v.pos, v.size);
+    return { x: middle.x + NUDGE_HEX.x, y: middle.y + NUDGE_HEX.y };
+  };
+  const target = (cell: GridPos) => referencePoint(cell, kind, TARGET_NUDGE_HEX);
+  const blocked = (from: P, to: P, list: Wall[]) => list.some((w) => crosses(from, to, { x: w.from.col, y: w.from.row }, { x: w.to.col, y: w.to.row }));
+  for (const v of viewers) {
+    const origin = originOf(v);
+    const reach = v.feet / feetPerCell + (v.point ? 0.5 : geometry.drawSpan(v.size) / 2);
+    const near = wallsNear(solid, origin, reach);
+    // As casas de quem vê (a da tocha fixa: onde ela cai) contam sempre.
+    for (const own of v.point ? [geometry.cellAt(v.point)] : geometry.footprint(v.pos, v.size)) add(own);
+    for (const cell of cellsInBox(geometry, origin.x - reach, origin.y - reach, origin.x + reach, origin.y + reach)) {
+      const point = target(cell);
+      if (Math.hypot(point.x - origin.x, point.y - origin.y) > reach) continue;
+      if (blocked(origin, point, near)) continue;
+      add(cell);
+    }
+  }
+  // Luz de tochas: a área iluminada aparece para quem tem linha de visão até ela (como no quadrado).
+  if (lights.length > 0 && viewers.length > 0) {
+    const reach = lightReachFeet / feetPerCell;
+    for (const cell of hexSightCells(lights, walls, feetPerCell, [], lightReachFeet, kind)) {
+      if (seen.has(`${cell.col},${cell.row}`)) continue;
+      const point = target(cell);
+      const visible = viewers.some((v) => {
+        const origin = originOf(v);
+        return Math.hypot(point.x - origin.x, point.y - origin.y) <= reach && !blocked(origin, point, solid);
+      });
+      if (visible) add(cell);
     }
   }
   return out;

@@ -349,3 +349,29 @@ export function randomPointIn(cell: GridPos, kind: GridKind | undefined, random:
   }
   return geometry.center(cell);
 }
+
+/**
+ * Onde a ponta de uma parede encaixa. Quadrado: no canto mais perto (o de sempre); hex: no vértice ou no meio
+ * de lado mais perto da casa do ponto (em centésimos de casa).
+ */
+export function wallAnchor(point: CellPoint, kind: GridKind | undefined): CellPoint {
+  if (!kind || kind === "square") return { x: Math.round(point.x), y: Math.round(point.y) };
+  const corners = geometryOf(kind).polygon(geometryOf(kind).cellAt(point));
+  const sides = corners.map((corner, i) => {
+    const next = corners[(i + 1) % corners.length];
+    return { x: (corner.x + next.x) / 2, y: (corner.y + next.y) / 2 };
+  });
+  let best = corners[0];
+  for (const option of [...corners, ...sides]) {
+    if (Math.hypot(option.x - point.x, option.y - point.y) < Math.hypot(best.x - point.x, best.y - point.y)) best = option;
+  }
+  return { x: Math.round(best.x * 100) / 100, y: Math.round(best.y * 100) / 100 };
+}
+
+/** Tamanho pelo lado no quadrado (a marca de "visto por último" guarda só o lado): 1 = médio. */
+export function sizeOfSpan(span: number): Size | undefined {
+  if (span >= 4) return "gargantuan";
+  if (span === 3) return "huge";
+  if (span === 2) return "large";
+  return undefined;
+}
