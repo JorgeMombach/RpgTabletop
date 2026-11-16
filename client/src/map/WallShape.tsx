@@ -2,13 +2,13 @@ import { Button, Checkbox, Box, Group, SegmentedControl, Select, Slider, Stack, 
 import { IconArrowBackUp, IconBrush, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Shape as KShape } from "react-konva";
-import { seeThrough, WALL_STYLES, WALL_THICKNESS, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
+import { seeThrough, wallAnchor, WALL_STYLES, WALL_THICKNESS, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
 import { useEffect, useRef } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
-import type { Point } from "./geometry";
+import { toCellUnits, type Point } from "./geometry";
 import { drawDoor, wallArt, wallSeed } from "./wallArt";
 import { removeWall, restyleWalls, undo, useMapUndo } from "./mapHistory";
 
@@ -31,9 +31,10 @@ export const STYLE_LABEL: Record<WallStyle, MessageKey> = {
 };
 const SCENE = "__cena";
 
-/** Canto do grid mais perto do ponto (em pixels do mapa). */
+/** Onde a ponta encaixa (em pixels do mapa): o canto do quadrado ou, no hex (Passo 16), o vértice ou o meio do lado. */
 export function cornerAt(p: Point, g: MapConfig): GridPos {
-  return { col: Math.round((p.x - g.offsetX) / g.cellPx), row: Math.round((p.y - g.offsetY) / g.cellPx) };
+  const anchor = wallAnchor(toCellUnits(p, g), g.grid);
+  return { col: anchor.x, row: anchor.y };
 }
 
 /** Ponta da parede no ponto: o canto mais perto ou, no traço livre, o próprio ponto (em centésimos de casa). */

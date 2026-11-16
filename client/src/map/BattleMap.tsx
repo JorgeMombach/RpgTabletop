@@ -4,11 +4,11 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
+import { brushCells, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
-import { AREA_DEFAULT_FEET, openSheet, select, isSquareOnly, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
+import { AREA_DEFAULT_FEET, openSheet, select, setDicePrefs, setPlacing, setTool, useApp, type MapTool } from "../store";
 import { allCombatants, currentGroup, turnLocked } from "../format";
 import { InitiativeTrack } from "./InitiativeTrack";
 import { TokenMenu, type MenuFocus } from "./TokenMenu";
@@ -19,7 +19,7 @@ import { FixEffectModal } from "../components/FixEffectModal";
 import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
 import { CALIBRATE_HINT } from "../components/MapPanel";
-import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toWorld, type Point } from "./geometry";
+import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toCellUnits, toWorld, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
@@ -429,12 +429,16 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   function fogAt(cell: GridPos) {
     const f = fogRef.current;
     if (!f) return;
-    if (fogShape === "rect") f.draft = { ...f.draft, rects: [rectBetween(f.start, cell)] };
-    else {
+    const geometry = geometryOf(grid.grid);
+    if (fogShape === "rect") {
+      // Hex (Passo 16): os hexes com o centro entre os dois cantos; no quadrado, o retângulo de sempre.
+      f.draft = { ...f.draft, rects: isHex(grid) && grid.grid ? cellsToRects(cellsWithCenterIn(geometry.center(f.start), geometry.center(cell), grid.grid)) : [rectBetween(f.start, cell)] };
+    } else {
       const key = `${cell.col},${cell.row}`;
       if (f.seen.has(key)) return;
       f.seen.add(key);
-      f.draft = { ...f.draft, rects: [...f.draft.rects, brushRect(cell, fogBrush)] };
+      const brushed = isHex(grid) ? cellsToRects(brushCells(cell, fogBrush, grid.grid)) : [brushRect(cell, fogBrush)];
+      f.draft = { ...f.draft, rects: [...f.draft.rects, ...brushed] };
     }
     setFogDraft(f.draft);
   }
@@ -519,6 +523,13 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const revealMap =
     image && layout
       ? () => {
+          if (isHex(grid) && grid.grid) {
+            // Hex: os hexes com o centro na imagem, mais uma casa em volta (as bordas cortadas também aparecem).
+            const start = toCellUnits({ x: 0, y: 0 }, grid);
+            const end = toCellUnits({ x: layout.bounds.width, y: layout.bounds.height }, grid);
+            const cells = cellsWithCenterIn({ x: start.x - 1, y: start.y - 1 }, { x: end.x + 1, y: end.y + 1 }, grid.grid);
+            return void sendFog({ reveal: true, rects: cellsToRects(cells) });
+          }
           const a = cellAt({ x: 0, y: 0 }, grid);
           const b = cellAt({ x: layout.bounds.width - 0.01, y: layout.bounds.height - 0.01 }, grid);
           void sendFog({ reveal: true, rects: [rectBetween(a, b)] });
@@ -1256,7 +1267,6 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
         onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
         onFit={fit}
         paused={!!state.pause}
-        hex={isHex(grid)}
       />}
       <PauseOverlay pause={state.pause} gm={gm} />
       {gm && tool === "ping" && <PingOptions />}
@@ -1595,11 +1605,8 @@ function MapToolbar({
   onZoom,
   onFit,
   paused,
-  hex,
 }: {
   tool: string;
-  /** Cena hex (Passo 16): as ferramentas que ainda são só do quadrado ficam apagadas. */
-  hex: boolean;
   gm: boolean;
   /** Jogo pausado (Passo 7): o botão de pausa do mestre vira Retomar. */
   paused: boolean;
@@ -1654,24 +1661,20 @@ function MapToolbar({
     return (
       <Paper className="map-toolbar" p={4} shadow="md" radius="md">
         <MGroup gap={4} wrap="nowrap">
-          {tools.map(({ id, label, icon: Icon }) => {
-            const off = hex && isSquareOnly(id);
-            return (
-            <Tooltip key={id} label={off ? t("map.hexSoon") : label}>
+          {tools.map(({ id, label, icon: Icon }) => (
+            <Tooltip key={id} label={label}>
               <ActionIcon
                 size="lg"
                 variant={tool === id ? "filled" : "subtle"}
                 color={tool === id ? undefined : "gray"}
-                data-disabled={off || undefined}
-                onClick={() => !off && setTool(tool === id && id !== "move" ? "move" : id)}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
                 aria-label={label}
                 aria-pressed={tool === id}
               >
                 <Icon size={18} />
               </ActionIcon>
             </Tooltip>
-            );
-          })}
+          ))}
           <Divider orientation="vertical" mx={2} />
           <Tooltip label={t("map.fit")}>
             <ActionIcon size="lg" variant="subtle" color="gray" onClick={onFit} aria-label={t("map.fit")}>
@@ -1703,17 +1706,14 @@ function MapToolbar({
   return (
     <Paper className="map-toolbar" p={4} shadow="md" radius="md">
       <MGroup gap={4} wrap="nowrap">
-        {tools.map(({ id, text, label, icon: Icon }) => {
-          const off = hex && isSquareOnly(id);
-          return (
-          <Tooltip key={id} label={off ? t("map.hexSoon") : <TipTitle title={text} shortcut={TOOL_KEYS[id]}>{label}</TipTitle>}>
+        {tools.map(({ id, text, label, icon: Icon }) => (
+          <Tooltip key={id} label={<TipTitle title={text} shortcut={TOOL_KEYS[id]}>{label}</TipTitle>}>
             {narrow ? (
               <ActionIcon
                 size="lg"
                 variant={tool === id ? "filled" : "subtle"}
                 color={tool === id ? undefined : "gray"}
-                data-disabled={off || undefined}
-                onClick={() => !off && setTool(tool === id && id !== "move" ? "move" : id)}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
                 aria-label={text}
                 aria-pressed={tool === id}
               >
@@ -1723,16 +1723,14 @@ function MapToolbar({
               <Button
                 variant={tool === id ? "filled" : "subtle"}
                 color={tool === id ? undefined : "gray"}
-                data-disabled={off || undefined}
-                onClick={() => !off && setTool(tool === id && id !== "move" ? "move" : id)}
+                onClick={() => setTool(tool === id && id !== "move" ? "move" : id)}
                 leftSection={<Icon size={14} />}
               >
                 {text}
               </Button>
             )}
           </Tooltip>
-          );
-        })}
+        ))}
         {gm && tool === "calibrate" && <Button onClick={() => setTool("move")}>{t("map.cancelCalibration")}</Button>}
         <Divider orientation="vertical" mx={2} />
         <Tooltip label={t("map.zoomOut")}>

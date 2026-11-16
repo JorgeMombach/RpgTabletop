@@ -3,7 +3,7 @@ import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import Konva from "konva";
 import { useEffect, useMemo, useRef } from "react";
 import { Layer, Shape } from "react-konva";
-import { LIMITS, type FogRect, type FogState, type GridPos, type MapConfig } from "@rpg/shared";
+import { brushCells, LIMITS, type FogRect, type FogState, type GridPos, type MapConfig } from "@rpg/shared";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT } from "../i18n";
@@ -65,7 +65,7 @@ export async function sendFog(draft: FogDraft) {
   }
 }
 
-type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY">;
+type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "grid">;
 
 /** Intervalos por linha viram retângulos de uma linha. */
 function rowsToRects(rows: Record<string, number[]>): FogRect[] {
@@ -98,7 +98,7 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
     for (const rect of rowsToRects(fog.revealed)) areas.push({ rect, amount: 1 });
     if (fog.vision) for (const rect of rowsToRects(sight)) areas.push({ rect, amount: 1 });
     if (draft?.reveal) for (const rect of draft.rects) areas.push({ rect, amount: 1 });
-    return buildMask(areas, draft && !draft.reveal ? draft.rects : []);
+    return buildMask(areas, draft && !draft.reveal ? draft.rects : [], grid.grid);
   }, [maskKey, draft]);
 
   // Fumaça andando devagar (sem animação com "Reduzir efeitos").
@@ -163,6 +163,9 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
 export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (() => void) | null }) {
   const t = useT();
   const { fogReveal, fogShape, fogBrush } = useApp();
+  // Cena hex (Passo 16): o tamanho do pincel aparece em hexes (1, 7, 19).
+  const kind = useApp((s) => s.state?.battle.map.grid);
+  const hex = kind === "hexRows" || kind === "hexCols";
 
   async function coverAll() {
     const ok = await confirmAction({ title: t("fog.coverAllTitle"), message: t("fog.coverAllMessage"), confirmLabel: t("fog.coverAll") });
@@ -228,7 +231,7 @@ export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (
           <SegmentedControl
             size="xs"
             disabled={!fog.enabled}
-            data={["1", "3", "5"].map((n) => ({ value: n, label: t("fog.brushSize", { n }) }))}
+            data={["1", "3", "5"].map((n) => ({ value: n, label: hex ? t("map.hexes", { n: brushCells({ col: 0, row: 0 }, Number(n), kind).length }) : t("fog.brushSize", { n }) }))}
             value={String(fogBrush)}
             onChange={(v) => useApp.setState({ fogBrush: Number(v) })}
             aria-label={t("fog.brushSizeLabel")}

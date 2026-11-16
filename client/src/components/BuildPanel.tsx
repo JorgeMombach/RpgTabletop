@@ -1,6 +1,5 @@
 import { Button, SimpleGrid, Text, Tooltip } from "@mantine/core";
 import { IconBox, IconBrush, IconFlame, IconTree, IconWall } from "@tabler/icons-react";
-import { isHex } from "@rpg/shared";
 import { useT, type MessageKey } from "../i18n";
 import { TOOL_KEYS } from "../map/BattleMap";
 import { MapChestOptions } from "../map/MapChests";
@@ -8,7 +7,7 @@ import { PropOptions } from "../map/MapProps";
 import { MapTorchOptions } from "../map/MapTorches";
 import { PaintOptions } from "../map/PaintOptions";
 import { WallOptions } from "../map/WallShape";
-import { isSquareOnly, setTool, useApp, type MapTool } from "../store";
+import { setTool, useApp, type MapTool } from "../store";
 import { TipTitle } from "./TipTitle";
 import { Panel } from "./Panel";
 
@@ -37,8 +36,6 @@ export function BuildPanel() {
   const sceneStyle = useApp((s) => s.state?.battle.map.wallStyle ?? "stone");
   const torchCount = useApp((s) => s.state?.battle.torches.length ?? 0);
   const selectedProp = useApp((s) => s.state?.battle.props.find((p) => p.id === s.selectedPropId) ?? null);
-  // Cena hex (Passo 16): paredes e pincel ainda são só do quadrado.
-  const hex = useApp((s) => (s.state ? isHex(s.state.battle.map) : false));
 
   return (
     <Panel title={t("build.title")} anchor="build">
@@ -46,18 +43,15 @@ export function BuildPanel() {
         {BUILD_TOOLS.map((id) => {
           const { text, tip, icon: Icon } = TOOLS[id];
           const active = tool === id;
-          const off = hex && isSquareOnly(id);
           return (
-            <Tooltip key={id} label={off ? t("map.hexSoon") : <TipTitle title={t(text)} shortcut={TOOL_KEYS[id]}>{t(tip)}</TipTitle>}>
+            <Tooltip key={id} label={<TipTitle title={t(text)} shortcut={TOOL_KEYS[id]}>{t(tip)}</TipTitle>}>
               <Button
                 variant={active ? "filled" : "default"}
                 h={48}
                 px={0}
                 role="radio"
                 aria-checked={active}
-                aria-disabled={off || undefined}
-                data-disabled={off || undefined}
-                onClick={() => !off && setTool(active ? "move" : id)}
+                onClick={() => setTool(active ? "move" : id)}
                 styles={{ label: { flexDirection: "column", gap: 4 } }}
               >
                 <Icon size={18} />

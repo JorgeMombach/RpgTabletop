@@ -4,7 +4,7 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { isHex, WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
@@ -252,25 +252,7 @@ export function openSheet(id: string) {
   useApp.setState({ selectedId: id, ...(state && canOpenSheet(state, id) && { sheetId: id }) });
 }
 
-/**
- * Ferramentas que ainda só existem no grid quadrado (Passo 16, até a Fase 3): na cena hex ficam apagadas, os atalhos
- * não ativam e o servidor recusa.
- */
-export const SQUARE_ONLY_TOOLS = ["walls", "fog"] as const satisfies readonly MapTool[];
-
-/** Ferramenta que ainda só existe no grid quadrado? */
-export function isSquareOnly(tool: string): boolean {
-  return (SQUARE_ONLY_TOOLS as readonly string[]).includes(tool);
-}
-
-/** A cena atual é hex e esta ferramenta ainda não existe nela? */
-export function offOnHex(tool: MapTool): boolean {
-  const map = useApp.getState().state?.battle.map;
-  return !!map && isHex(map) && isSquareOnly(tool);
-}
-
 export function setTool(tool: MapTool) {
-  if (offOnHex(tool)) return;
   useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null });
 }
 

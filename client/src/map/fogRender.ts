@@ -1,4 +1,4 @@
-import type { FogRect } from "@rpg/shared";
+import { geometryOf, type FogRect, type GridKind, type GridPos } from "@rpg/shared";
 
 /**
  * Desenho da névoa de guerra (G): textura de fumaça em camadas e a "máscara" do que se vê, com borda
@@ -132,8 +132,99 @@ const MARGIN = 2;
  * Máscara com borda orgânica: as casas viram manchas desfocadas e a borda ganha ruído (fiapos) e
  * avança um pouco para fora. `cover` = casas sendo cobertas agora (pincelada do mestre).
  */
-export function buildMask(areas: MaskArea[], cover: FogRect[]): FogMask | null {
+export function buildMask(areas: MaskArea[], cover: FogRect[], kind?: GridKind): FogMask | null {
   if (areas.length === 0) return null;
+  const raster = kind && kind !== "square" ? hexRaster(areas, cover, kind) : squareRaster(areas, cover);
+  return finishMask(raster);
+}
+
+/** A máscara antes do desfoque: intensidade por pixel (`a`), a partir do canto `c0`, `r0` (em casas). */
+interface Raster {
+  a: Float32Array;
+  w: number;
+  h: number;
+  c0: number;
+  r0: number;
+  ppc: number;
+}
+
+/** Até 5 px por casa: a borda é desfocada, mais que isso só pesa (a conta trava a tela em aparelho fraco). */
+function pixelsPerCell(width: number, height: number): number {
+  return Math.max(2, Math.min(5, Math.floor(MAX_SIDE / Math.max(width, height))));
+}
+
+/** Casas de cada retângulo (a névoa guarda linhas com intervalos de colunas). */
+function cellsOf(rect: FogRect): GridPos[] {
+  const out: GridPos[] = [];
+  for (let row = rect.row; row < rect.row + rect.h; row++) for (let col = rect.col; col < rect.col + rect.w; col++) out.push({ col, row });
+  return out;
+}
+
+/**
+ * Hex (Passo 16): cada casa vira o hexágono dela, desenhado num canvas auxiliar com a intensidade da área
+ * (composição `lighten` = a maior vence, como no quadrado); as casas sendo cobertas vão por cima, em preto. O
+ * canvas faz o preenchimento dos polígonos; depois segue o mesmo desfoque e os mesmos fiapos do quadrado.
+ */
+function hexRaster(areas: MaskArea[], cover: FogRect[], kind: GridKind): Raster {
+  const geometry = geometryOf(kind);
+  const filled = areas.map(({ rect, amount }) => ({ cells: cellsOf(rect), amount }));
+  const covered = cover.flatMap(cellsOf);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const { cells } of filled) {
+    for (const cell of cells) {
+      const center = geometry.center(cell);
+      minX = Math.min(minX, center.x);
+      minY = Math.min(minY, center.y);
+      maxX = Math.max(maxX, center.x);
+      maxY = Math.max(maxY, center.y);
+    }
+  }
+  // Meia casa do centro até a borda do hex, mais a margem da borda esfumaçada.
+  const c0 = Math.floor(minX - 1 - MARGIN);
+  const r0 = Math.floor(minY - 1 - MARGIN);
+  const width = Math.ceil(maxX + 1 + MARGIN) - c0;
+  const height = Math.ceil(maxY + 1 + MARGIN) - r0;
+  const ppc = pixelsPerCell(width, height);
+  const w = width * ppc;
+  const h = height * ppc;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.setTransform(ppc, 0, 0, ppc, -c0 * ppc, -r0 * ppc);
+  const trace = (cells: GridPos[]) => {
+    ctx.beginPath();
+    for (const cell of cells) {
+      const corners = geometry.polygon(cell);
+      ctx.moveTo(corners[0].x, corners[0].y);
+      for (const corner of corners.slice(1)) ctx.lineTo(corner.x, corner.y);
+      ctx.closePath();
+    }
+  };
+  ctx.globalCompositeOperation = "lighten";
+  for (const { cells, amount } of filled) {
+    const level = Math.round(amount * 255);
+    ctx.fillStyle = `rgb(${level}, ${level}, ${level})`;
+    trace(cells);
+    ctx.fill();
+  }
+  if (covered.length > 0) {
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#000";
+    trace(covered);
+    ctx.fill();
+  }
+  const pixels = ctx.getImageData(0, 0, w, h).data;
+  const a = new Float32Array(w * h);
+  for (let i = 0; i < a.length; i++) a[i] = pixels[i * 4] / 255;
+  return { a, w, h, c0, r0, ppc };
+}
+
+/** Quadrado: cada retângulo pintado direto no vetor (o caminho de sempre). */
+function squareRaster(areas: MaskArea[], cover: FogRect[]): Raster {
   let c0 = Infinity;
   let r0 = Infinity;
   let c1 = -Infinity;
@@ -148,8 +239,7 @@ export function buildMask(areas: MaskArea[], cover: FogRect[]): FogMask | null {
   r0 -= MARGIN;
   c1 += MARGIN;
   r1 += MARGIN;
-  // Até 5 px por casa: a borda é desfocada, mais que isso só pesa (a conta trava a tela em aparelho fraco).
-  const ppc = Math.max(2, Math.min(5, Math.floor(MAX_SIDE / Math.max(c1 - c0, r1 - r0))));
+  const ppc = pixelsPerCell(c1 - c0, r1 - r0);
   const w = (c1 - c0) * ppc;
   const h = (r1 - r0) * ppc;
 
@@ -166,6 +256,11 @@ export function buildMask(areas: MaskArea[], cover: FogRect[]): FogMask | null {
   };
   for (const { rect, amount } of areas) fill(rect, amount, true);
   for (const r of cover) fill(r, 0, false);
+  return { a, w, h, c0, r0, ppc };
+}
+
+/** Desfoque e fiapos (iguais nas duas grades); devolve a máscara pronta para desenhar. */
+function finishMask({ a, w, h, c0, r0, ppc }: Raster): FogMask {
 
   // Desfoque: a borda vira uma rampa de mais ou menos meia casa.
   const tmp = new Float32Array(w * h);
