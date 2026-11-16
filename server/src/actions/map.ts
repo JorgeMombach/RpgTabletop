@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { areaAnchor, emptyFog, freeSpotNear, geometryOf, GRID_KINDS, inRows, isColor, isHex, isRevealed, LIMITS, occupiedCells, shapesOverlap, sharesCell, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
+import { areaAnchor, emptyFog, freeSpotNear, geometryOf, GRID_KINDS, inRows, isColor, isRevealed, LIMITS, occupiedCells, shapesOverlap, sharesCell, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import type { Store } from "../store";
 import { currentSight, forgetSight } from "../sight";
@@ -11,14 +11,6 @@ import { requireTurnFor } from "./rules";
 import { parseMapTorch } from "./mapTorches";
 import type { HandlerMap } from "./types";
 import { parseWall } from "./walls";
-
-/**
- * O que ainda só existe no grid quadrado (Passo 16, Fase 1): paredes, névoa, visão, pincéis e áreas de magia.
- * Recusado no servidor, não só apagado na tela.
- */
-export function requireSquareGrid(store: Store) {
-  if (isHex(store.game.battle.map)) fail("Ainda não disponível no grid hexagonal.");
-}
 
 function gridPosOf(raw: unknown): GridPos | null {
   if (raw === null) return null;

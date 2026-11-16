@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { geometryOf, shapesOverlap, type ActionPayloads, type ActionResult, type Area, type AreaBroadcast } from "@rpg/shared";
+import { geometryOf, isRevealed, shapesOverlap, type ActionPayloads, type GridPos, type ActionResult, type Area, type AreaBroadcast } from "@rpg/shared";
 import { act, join, stateWhere, useServer, type Client } from "./helpers";
 
 // Grid hexagonal (Passo 16): a cena guarda a grade; trocar apaga o que só vale na geometria antiga.
@@ -193,25 +193,110 @@ describe("grid hexagonal: o servidor confere a ocupação pela geometria", () =>
     await backToSquare(g);
   });
 
-  it("ações só do quadrado são recusadas no hex", async () => {
+  const keyOf = (cell: GridPos) => `${cell.col},${cell.row}`;
+
+  /** O lado comum de duas casas vizinhas no hex de pontas para cima, como parede. */
+  function sideWall(a: GridPos, b: GridPos) {
+    const other = hex.polygon(b);
+    const [from, to] = hex.polygon(a).filter((corner) => other.some((p) => Math.hypot(p.x - corner.x, p.y - corner.y) < 1e-6));
+    return { from: { col: Math.round(from.x * 100) / 100, row: Math.round(from.y * 100) / 100 }, to: { col: Math.round(to.x * 100) / 100, row: Math.round(to.y * 100) / 100 } };
+  }
+
+  it("paredes e névoa valem no hex", async () => {
     const g = await hexScene();
-    const refusals: [keyof ActionPayloads, ActionPayloads[keyof ActionPayloads]][] = [
+    const actions: [keyof ActionPayloads, ActionPayloads[keyof ActionPayloads]][] = [
       ["wall:add", { from: { col: 1, row: 1 }, to: { col: 3, row: 1 } }],
       ["wall:erase", { points: [10, 10, 50, 50], radius: 10 }],
       ["fog:set", { enabled: true }],
-      ["fog:paint", { reveal: true, rects: [{ col: 0, row: 0, w: 2, h: 2 }] }],
-      ["fog:room", { cell: { col: 0, row: 0 }, reveal: true }],
+      ["fog:paint", { reveal: true, rects: [{ col: 0, row: 0, w: 2, h: 1 }] }],
       ["fog:vision", { enabled: true }],
+      ["fog:room", { cell: { col: 30, row: 30 }, reveal: true }],
     ];
-    for (const [action, payload] of refusals) {
-      assert.match(errorOf(await act(g, action, payload as never)), /Ainda não disponível no grid hexagonal/, action);
-    }
-    assert.ok((await act(g, "prop:add", { kind: "barrel", col: 2, row: 2 })).ok, "objeto avulso continua");
-    await backToSquare(g);
-    for (const [action, payload] of refusals) {
+    for (const [action, payload] of actions) {
       const res = await act(g, action, payload as never);
-      assert.doesNotMatch(res.ok ? "" : res.error, /grid hexagonal/, `${action} no quadrado`);
+      assert.doesNotMatch(res.ok ? "" : res.error, /grid hexagonal/, action);
     }
+    await act(g, "fog:set", { enabled: false });
+    await act(g, "fog:vision", { enabled: false });
+    await backToSquare(g);
+  });
+
+  it("cômodo no hex", async () => {
+    const g = await hexScene();
+    const center = { col: 5, row: 5 };
+    const room = hex.footprint(center, "huge");
+    const inside = new Set(room.map(keyOf));
+    for (const cell of room) {
+      for (const neighbor of hex.neighbors(cell)) if (!inside.has(keyOf(neighbor))) await act(g, "wall:add", sideWall(cell, neighbor));
+    }
+    await act(g, "fog:set", { enabled: true });
+    assert.ok((await act(g, "fog:room", { cell: center, reveal: true })).ok);
+    const { fog } = battle();
+    for (const cell of room) assert.ok(isRevealed(fog, cell.col, cell.row), `revelou ${keyOf(cell)}`);
+    for (const neighbor of hex.neighbors({ col: 7, row: 5 })) if (!inside.has(keyOf(neighbor))) assert.equal(isRevealed(fog, neighbor.col, neighbor.row), false);
+    await act(g, "fog:set", { enabled: false });
+    await backToSquare(g);
+  });
+
+  it("jogador não recebe o que está atrás da parede no hex", async () => {
+    const g = await hexScene();
+    await act(g, "fog:set", { enabled: true });
+    await act(g, "fog:vision", { enabled: true });
+    const ana = await client("10.41.0.4");
+    await join(ana, "Ana");
+    const [thorin] = idsOf(await act(ana, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1 }));
+    const [goblin] = idsOf(await act(g, "mob:add", { name: "Goblin", hpMax: 7, dexMod: 2 }));
+    await act(g, "token:move", { id: goblin, pos: { col: 2, row: 8 } });
+    // Parede comprida entre as linhas 4 e 5: o goblin fica do outro lado.
+    const y = (hex.center({ col: 0, row: 4 }).y + hex.center({ col: 0, row: 5 }).y) / 2;
+    await act(g, "wall:add", { from: { col: -4, row: Math.round(y * 100) / 100 }, to: { col: 10, row: Math.round(y * 100) / 100 } });
+    await act(g, "effect:add", { name: "Teia", preset: "web", area: { ...AREA, kind: "sphere", origin: { col: 2.5, row: 12.12 } } });
+    const hidden = stateWhere(ana, (state) => state.allies.some((ally) => ally.id === thorin && ally.pos !== null));
+    await act(ana, "token:move", { id: thorin, pos: { col: 2, row: 2 } });
+    let state = await hidden;
+    assert.equal(state.battle.mobs.length, 0, "goblin atrás da parede");
+    assert.equal(state.battle.effects.length, 0, "efeito atrás da parede");
+    const seen = stateWhere(ana, (next) => next.battle.mobs.length === 1);
+    await act(g, "wall:clear", {});
+    state = await seen;
+    assert.equal(state.battle.mobs[0].name, "Goblin");
+    ana.disconnect();
+    await act(g, "fog:set", { enabled: false });
+    await act(g, "fog:vision", { enabled: false });
+    await backToSquare(g);
+  });
+
+  it("visto por último e NPC encontrado no hex", async () => {
+    const g = await hexScene();
+    await act(g, "fog:set", { enabled: true });
+    await act(g, "fog:vision", { enabled: true });
+    const ana = await client("10.41.0.5");
+    await join(ana, "Ana");
+    const [thorin] = idsOf(await act(ana, "ally:create", { name: "Thorin", hpMax: 30, dexMod: 1 }));
+    await act(ana, "token:move", { id: thorin, pos: { col: 2, row: 2 } });
+    const [ogro] = idsOf(await act(g, "mob:add", { name: "Ogro", hpMax: 59, dexMod: -1, size: "large" }));
+    const [guarda] = idsOf(await act(g, "npc:add", { name: "Guarda", hpMax: 11, dexMod: 1 }));
+    await act(g, "token:move", { id: guarda, pos: { col: 4, row: 2 } });
+    await act(g, "token:move", { id: ogro, pos: { col: 2, row: 6 } });
+    assert.deepEqual(battle().fog.foundNpcs, [guarda], "NPC visto entra nos encontrados");
+    // Uma parede entre eles: o ogro some da vista e deixa a marca.
+    const y = (hex.center({ col: 0, row: 4 }).y + hex.center({ col: 0, row: 5 }).y) / 2;
+    await act(g, "wall:add", { from: { col: -4, row: Math.round(y * 100) / 100 }, to: { col: 10, row: Math.round(y * 100) / 100 } });
+    assert.deepEqual(battle().fog.lastSeen.map((mark) => mark.id), [ogro]);
+    // Cobrir só o hex que completaria o 2×2 do quadrado não mexe na marca: ele não é da forma do Grande no hex.
+    assert.deepEqual(hex.footprint({ col: 2, row: 6 }, "large").some((cell) => cell.col === 3 && cell.row === 7), false);
+    await act(g, "fog:paint", { reveal: false, rects: [{ col: 3, row: 7, w: 1, h: 1 }] });
+    assert.equal(battle().fog.lastSeen.length, 1, "a marca continua");
+    // Cobrir um hex da forma, sim.
+    await act(g, "fog:paint", { reveal: false, rects: [{ col: 3, row: 6, w: 1, h: 1 }] });
+    assert.equal(battle().fog.lastSeen.length, 0, "a marca some");
+    await act(g, "wall:clear", {});
+    await act(g, "token:move", { id: ogro, pos: { col: 30, row: 30 } });
+    assert.equal(battle().fog.lastSeen.length, 0);
+    ana.disconnect();
+    await act(g, "fog:set", { enabled: false });
+    await act(g, "fog:vision", { enabled: false });
+    await backToSquare(g);
   });
 
   it("efeito que anda com o token solta ao trocar o grid (a posição em relação ao token não vale na outra grade)", async () => {
