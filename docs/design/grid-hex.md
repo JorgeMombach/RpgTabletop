@@ -1,6 +1,6 @@
 # Grid hexagonal (Passo 16)
 
-Desenho aprovado em 2026-11-12, em brainstorm com o dono do projeto. Entra no pacote da branch `feat/campanha`, em três fases jogáveis.
+Desenho aprovado em 2026-11-12, em brainstorm com o dono do projeto. Entra no pacote da branch `feat/campanha`, em três fases jogáveis. As três fases foram feitas (fase 1 em 2026-11-13, fase 2 em 2026-11-13, fase 3 em 2026-11-16); planos em `docs/superpowers/plans/2026-11-1*-grid-hex-fase-*.md`.
 
 ## Objetivo
 

@@ -239,10 +239,10 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 - [x] "Dia 3, 14h", avançando por descanso ou viagem; opcional: a luz do clima acompanha a hora. Painel *Hora do jogo* (aba *Ambiente*), hora no topo para todos, aviso no log.
 
 ### Passo 16. Grid hexagonal (G, por último; desenho em [docs/design/grid-hex.md](design/grid-hex.md), aprovado em 2026-11-12, em três fases)
-- [ ] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar.
+- [x] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar. *(feito em 2026-11-16, nas três fases abaixo)*
   - [x] Fase 1: dá para jogar combate em hex (grid, tokens e formas, régua, baús; o resto apagado no hex). *(feito em 2026-11-13)*
   - [x] Fase 2: áreas, fixar efeito, pincel de efeitos e pincel dos objetos em hex. *(feito em 2026-11-13)*
-  - [ ] Fase 3: paredes, névoa e visão em hex.
+  - [x] Fase 3: paredes, névoa e visão em hex. *(feito em 2026-11-16)*
 
 ### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
