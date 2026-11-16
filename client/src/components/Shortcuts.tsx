@@ -118,6 +118,7 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
         { keys: keys("J"), label: k("chests.tool"), gm: true },
         { keys: keys("O"), label: k("props.tool"), gm: true },
         { keys: keys("E"), label: k("paint.tool"), gm: true },
+        { keys: keys("M"), label: k("terrain.tool"), gm: true },
         { keys: keys("F"), label: k("fog.tool"), gm: true },
         { keys: keys("Shift", { text: k("keys.drag") }), label: k("keys.quickRuler") },
         { keys: keys("Alt", { text: k("keys.click") }), label: k("keys.quickPing") },

@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
+import { brushCells, paintTerrain, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -30,7 +30,7 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addChest, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addChest, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -72,7 +72,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", fog: "F" };
+export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
@@ -105,7 +105,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, reduceFx } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain } = useApp();
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
@@ -168,7 +168,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Ctrl+Z (fora de campos de texto): nas ferramentas Paredes, Desenho e Tochas, desfaz o último dela; nas
   // outras, o último que esta pessoa fez no mapa.
   useEffect(() => {
-    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : undefined;
+    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : undefined;
     const down = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
       const el = e.target as HTMLElement | null;
@@ -482,6 +482,38 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     void sent.then(() => setPaintDraft(null));
   }
 
+  // Pincel de terreno (mestre): a passada é pintada numa cópia local na hora (a mesma conta do servidor) e vai
+  // inteira ao soltar. O contorno do pincel anda sob o mouse sem redesenhar o mapa (mexe direto no Konva).
+  const terrainRef = useRef<{ points: number[]; local: TerrainChunks } | null>(null);
+  const [terrainPreview, setTerrainPreview] = useState<TerrainChunks | null>(null);
+  const terrainCursor = useRef<Konva.Circle>(null);
+  function terrainAt(p: Point) {
+    const cursor = terrainCursor.current;
+    if (cursor) {
+      cursor.position(p);
+      cursor.visible(true);
+      cursor.getLayer()?.batchDraw();
+    }
+    const draft = terrainRef.current;
+    if (!draft) return;
+    const brush = useApp.getState().terrainBrush;
+    const x = (p.x - grid.offsetX) / grid.cellPx;
+    const y = (p.y - grid.offsetY) / grid.cellPx;
+    const { points } = draft;
+    // Ponto novo só depois de andar um pedaço do raio: a força da passada não depende da velocidade do mouse.
+    if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
+    points.push(x, y);
+    paintTerrain(draft.local, { ...brush, points: [x, y] });
+    setTerrainPreview({ ...draft.local });
+  }
+  function finishTerrain() {
+    const draft = terrainRef.current;
+    terrainRef.current = null;
+    if (!draft || draft.points.length === 0) return;
+    // A prévia fica até o servidor responder (o terreno novo chega antes da resposta: sem piscar).
+    void paintTerrainStroke({ ...useApp.getState().terrainBrush, points: draft.points }).then(() => setTerrainPreview(null));
+  }
+
   // Pincel de espalhar (ou de apagar objetos): as casas da passada aparecem de leve; ao soltar, vai tudo junto.
   const propBrushRef = useRef<Set<string> | null>(null);
   const [propDraft, setPropDraft] = useState<GridPos[] | null>(null);
@@ -693,6 +725,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       fogAt(cell);
       return;
     }
+    if (tool === "terrain" && gm) {
+      terrainRef.current = { points: [], local: { ...useApp.getState().terrain } };
+      terrainAt(p);
+      return;
+    }
     if (tool === "paint" && gm) {
       paintRef.current = new Set();
       paintAt(cellAt(p, grid));
@@ -734,6 +771,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (restyleMode) {
       setEraserAt(p);
       restyleAt(p);
+      return;
+    }
+    if (tool === "terrain") {
+      terrainAt(p);
       return;
     }
     if (tool === "paint" || (tool === "props" && useApp.getState().propMode !== "place")) {
@@ -786,6 +827,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     finishWall();
     finishFog();
     finishPaint();
+    finishTerrain();
     finishPropBrush();
     finishRestyle();
     calibStart.current = null;
@@ -930,7 +972,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -1029,7 +1071,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
             )}
             {/* Terreno pintado (criação de mapa): acima da imagem, abaixo do grid. */}
-            <TerrainLayer chunks={terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} />
+            <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} draft={terrainPreview !== null} />
             {layout && !reduceFx && <MemoEdge bounds={layout.bounds} grid={grid} />}
             {grid.showGrid && <MemoGrid grid={grid} view={stageView} size={stageSize} onImage />}
           </Layer>
@@ -1083,6 +1125,20 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                     />
                   );
                 })()}
+            </Layer>
+          )}
+
+          {/* Pincel de terreno: o contorno do pincel sob o mouse (posto direto no Konva, em terrainAt). */}
+          {gm && tool === "terrain" && (
+            <Layer listening={false}>
+              <Circle
+                ref={terrainCursor}
+                visible={false}
+                radius={terrainBrush.radius * grid.cellPx}
+                stroke={terrainBrush.terrain === "erase" ? "#e05a5a" : "#d8b47a"}
+                strokeWidth={1.5 / view.scale}
+                dash={[6 / view.scale, 4 / view.scale]}
+              />
             </Layer>
           )}
 

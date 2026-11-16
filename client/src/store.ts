@@ -4,12 +4,12 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type TerrainChunks, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain";
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -115,6 +115,8 @@ interface AppStore extends DicePrefs {
   paintColor: string;
   paintErase: boolean;
   paintSize: number;
+  /** Ferramenta Terreno (mestre): terreno do pincel (ou borracha), raio em casas e força. */
+  terrainBrush: { terrain: TerrainId | "erase"; radius: number; strength: number };
   /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
   propKind: PropKind;
   selectedPropId: string | null;
@@ -187,6 +189,7 @@ export const useApp = create<AppStore>(() => ({
   paintColor: "#d4a24c",
   paintErase: false,
   paintSize: 3,
+  terrainBrush: { terrain: "grass", radius: 1.5, strength: 0.5 },
   propKind: "tree",
   selectedPropId: null,
   propMode: "place",

@@ -10,20 +10,25 @@ const FRAME_BUDGET_MS = 10;
 
 type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY">;
 
-/** Os pedaços vizinhos (e ele mesmo): a borda de um pedaço lê os pontos dos vizinhos. */
+/**
+ * O pedaço e os que leem a borda dele: cada pedaço lê a primeira coluna do vizinho da direita, a primeira linha do
+ * de baixo e o canto; então quem lê este são o da esquerda, o de cima e o da diagonal de cima à esquerda.
+ */
 function around(key: string): string[] {
   const [cx, cy] = key.split(",").map(Number);
   const out: string[] = [];
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) out.push(`${cx + dx},${cy + dy}`);
+  for (let dy = -1; dy <= 0; dy++) for (let dx = -1; dx <= 0; dx++) out.push(`${cx + dx},${cy + dy}`);
   return out;
 }
 
 /**
  * Terreno pintado (criação de mapa): acima da imagem do mapa e abaixo do grid. Cada pedaço vira uma imagem pronta
  * uma vez; quando chegam pedaços novos, só eles (e os vizinhos, pela borda) são refeitos. A fila anda alguns pedaços
- * por quadro, os mais perto do centro da tela primeiro.
+ * por quadro, os mais perto do centro da tela primeiro. Com `draft` (o mestre arrastando o pincel), os pedaços saem
+ * com metade dos pixels, para a prévia acompanhar o mouse; ao soltar, os mesmos pedaços chegam do servidor e são
+ * refeitos inteiros.
  */
-export function TerrainLayer({ chunks, grid, pixelsPerCell }: { chunks: TerrainChunks; grid: Grid; pixelsPerCell: number }) {
+export function TerrainLayer({ chunks, grid, pixelsPerCell, draft = false }: { chunks: TerrainChunks; grid: Grid; pixelsPerCell: number; draft?: boolean }) {
   const [images, setImages] = useState<Record<string, HTMLImageElement> | null>(null);
   const [, setDrawn] = useState(0);
   const cache = useRef(new Map<string, HTMLCanvasElement>());
@@ -77,7 +82,7 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell }: { chunks: TerrainC
       const current = previous.current?.chunks ?? {};
       for (const key of ordered) {
         queue.current.delete(key);
-        if (current[key]) cache.current.set(key, renderChunk(key, current, images, pixelsPerCell));
+        if (current[key]) cache.current.set(key, renderChunk(key, current, images, draft ? pixelsPerCell / 2 : pixelsPerCell));
         if (performance.now() - start > FRAME_BUDGET_MS) break;
       }
       setDrawn((n) => n + 1);
@@ -85,7 +90,7 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell }: { chunks: TerrainC
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [images, chunks, pixelsPerCell, grid.cellPx, grid.offsetX, grid.offsetY]);
+  }, [images, chunks, pixelsPerCell, draft, grid.cellPx, grid.offsetX, grid.offsetY]);
 
   const chunkPx = TERRAIN_CHUNK_CELLS * grid.cellPx;
   return (

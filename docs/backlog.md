@@ -244,6 +244,12 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
   - [x] Fase 2: áreas, fixar efeito, pincel de efeitos e pincel dos objetos em hex. *(feito em 2026-11-13)*
   - [x] Fase 3: paredes, névoa e visão em hex. *(feito em 2026-11-16)*
 
+### Criação de mapa (combinada em 2026-11-16, branch `feat/campanha`, em três entregas)
+Trazer para dentro do app o que hoje se faz no Dungeondraft: o mestre monta o chão e o cenário do mapa. Arte desenhada (não foto), bonita a ponto de ser "o que o jogador vê"; peso do app não importa.
+- [x] Entrega 1: terreno pintado com pincel livre (grama, terra, pedra e água, misturados na borda). *(feito em 2026-11-16; desenho em [docs/design/terreno.md](design/terreno.md))*
+- [ ] Entrega 2: objetos com mais qualidade.
+- [ ] Entrega 3: mapa vivo (água e árvores animadas).
+
 ### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
 - [ ] Hospedagem (era a Fase 1; adiada em 2026-11-03: a VPN incomoda, mas dá para jogar). Decisão: servidor sob demanda, ligado só durante a sessão (umas 5 horas), sem previsão de comercializar. O mestre salva o arquivo no fim e carrega na próxima, como hoje; a imagem Docker e a chave de mestre já existem. Comparar e testar: máquina paga por hora, planos gratuitos com conexão em tempo real e túnel a partir do PC do mestre, sem instalar nada nos jogadores. Medir envio dos mapas e estabilidade contra a VPN. Pesquisar preços na hora.
