@@ -13,6 +13,7 @@ import {
   type JoinResult,
   type MapPoint,
   type Ruler,
+  type TerrainBroadcast,
   type ServerToClientEvents,
   APP_VERSION,
 } from "@rpg/shared";
@@ -158,6 +159,13 @@ export function createApp(opts: AppOptions) {
     io.to(sid).emit("view:preview", viewFor(store, target, host));
   }
 
+  /** Terreno pintado: o inteiro ou só os pedaços que mudaram desde o último envio. */
+  function terrainPayload(reset: boolean): TerrainBroadcast {
+    const terrain = store.game.battle.terrain ?? {};
+    if (reset || store.terrainDirty === "all") return { reset: true, chunks: { ...terrain } };
+    return { reset: false, chunks: Object.fromEntries([...store.terrainDirty].map((key) => [key, terrain[key] ?? null])) };
+  }
+
   function broadcast() {
     // Visão dos personagens (névoa): recalcula se alguém andou ou uma porta mexeu, e guarda o explorado.
     updateSight(store);
@@ -171,6 +179,11 @@ export function createApp(opts: AppOptions) {
     if (store.handoutVersion !== sentHandoutVersion) {
       sentHandoutVersion = store.handoutVersion;
       io.to(SESSION_ROOM).emit("handout", store.handout);
+    }
+    // Terreno pintado: fora do estado (é pesado), só os pedaços que mudaram (ou o inteiro, ao trocar de cena).
+    if (store.terrainDirty === "all" || store.terrainDirty.size > 0) {
+      io.to(SESSION_ROOM).emit("terrain", terrainPayload(false));
+      store.terrainDirty = new Set();
     }
     // Diário da campanha (Passo 14): fora do estado, só quando muda; cada um recebe o que pode ler.
     const journalChanged = store.journalVersion !== sentJournalVersion;
@@ -232,6 +245,7 @@ export function createApp(opts: AppOptions) {
     if (store.game.battle.map.image) socket.emit("map:image", mapImage());
     if (store.handout) socket.emit("handout", store.handout);
     socket.emit("journal", journalFor(store, player));
+    socket.emit("terrain", terrainPayload(true));
     return { ok: true, self: toPublic(player), sessionToken: player.token };
   }
 

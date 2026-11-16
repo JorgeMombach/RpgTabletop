@@ -85,6 +85,8 @@ export class Store {
   handoutVersion = 0;
   /** Diário da campanha (Passo 14): a versão sobe a cada mudança (o servidor reenvia a cada um o que ele pode ler). */
   journalVersion = 0;
+  /** Terreno pintado a mandar no próximo envio: só estes pedaços, ou o inteiro (`"all"`). */
+  terrainDirty: Set<string> | "all" = new Set();
   /** Arquivos de áudio da pasta (lista lida no começo e quando o mestre atualiza). */
   soundLibrary: string[] | null = null;
   /** Antispam dos jogadores (E26); os testes zeram para rolar em sequência. */

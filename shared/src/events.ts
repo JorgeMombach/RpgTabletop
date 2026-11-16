@@ -1,4 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
+import type { TerrainChunk, TerrainStroke } from "./terrain";
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
@@ -107,6 +108,12 @@ export interface AreaBroadcast {
   playerId: string;
   name: string;
   area: Area | null;
+}
+
+/** Terreno que chega ao cliente: `reset` = este é o terreno inteiro (troque o seu); senão, só estes pedaços (`null` = apagado). */
+export interface TerrainBroadcast {
+  reset: boolean;
+  chunks: Record<string, TerrainChunk | null>;
 }
 
 export interface MapImagePayload {
@@ -361,6 +368,12 @@ export interface ActionPayloads {
   /** Mestre: libera ou recolhe uma entrada para os jogadores. */
   "journal:share": { id: string; shared: boolean };
   "journal:remove": { id: string };
+  /** Mestre: uma passada do pincel de terreno (criação de mapa). */
+  "terrain:paint": TerrainStroke;
+  /** Mestre: repõe pedaços do terreno como estavam (`null` = apagar o pedaço); usado pelo Desfazer. */
+  "terrain:restore": { chunks: Record<string, TerrainChunk | null> };
+  /** Mestre: apaga todo o terreno da cena. */
+  "terrain:clear": Record<string, never>;
   /** Mestre: liga, acerta ou desliga (`null`) a hora do jogo (Passo 15). */
   "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
   /** Mestre: avança a hora do jogo (descanso, viagem). */
@@ -496,6 +509,8 @@ export interface ServerToClientEvents {
   handout: (handout: Handout | null) => void;
   /** Diário da campanha (Passo 14): vai à parte do estado, só quando muda e ao entrar; o jogador recebe só as liberadas, sem nota. */
   journal: (entries: JournalEntry[]) => void;
+  /** Terreno pintado: o inteiro (`reset`) ao entrar ou trocar de cena; depois, só os pedaços que mudaram. */
+  terrain: (payload: TerrainBroadcast) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
