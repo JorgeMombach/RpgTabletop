@@ -3,6 +3,7 @@ export * from "./events";
 export * from "./colors";
 export * from "./grid";
 export * from "./gridGeometry";
+export * from "./terrain";
 export * from "./fog";
 export * from "./initiative";
 export * from "./version";
