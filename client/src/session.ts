@@ -188,6 +188,18 @@ socket.on("handout", (handout) => useApp.setState({ handout }));
 // Diário da campanha (Passo 14): fora do estado, só quando muda e ao entrar.
 socket.on("journal", receiveJournal);
 
+// Terreno pintado: o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram (`null` = apagado).
+socket.on("terrain", ({ reset, chunks }) => {
+  useApp.setState((s) => {
+    const terrain = reset ? {} : { ...s.terrain };
+    for (const [key, chunk] of Object.entries(chunks)) {
+      if (chunk) terrain[key] = chunk;
+      else delete terrain[key];
+    }
+    return { terrain };
+  });
+});
+
 socket.on("ping", ({ playerId, name, at, look }) => {
   const id = ++pingSeq;
   // "Olhem aqui" do mestre: o mapa de cada um desliza até o ping (o do mestre já está lá).

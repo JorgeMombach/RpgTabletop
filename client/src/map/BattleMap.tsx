@@ -19,6 +19,8 @@ import { FixEffectModal } from "../components/FixEffectModal";
 import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
 import { CALIBRATE_HINT } from "../components/MapPanel";
+import { TerrainLayer } from "./terrain/TerrainLayer";
+import { useSmallScreen } from "../layout";
 import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toCellUnits, toWorld, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
@@ -105,7 +107,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
-  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain } = useApp();
+  // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
+  const smallScreen = useSmallScreen();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
   const [hoverCell, setHoverCell] = useState<GridPos | null>(null);
   const image = useImage(mapImage.image);
@@ -1024,6 +1028,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
             {image && layout && (
               <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
             )}
+            {/* Terreno pintado (criação de mapa): acima da imagem, abaixo do grid. */}
+            <TerrainLayer chunks={terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} />
             {layout && !reduceFx && <MemoEdge bounds={layout.bounds} grid={grid} />}
             {grid.showGrid && <MemoGrid grid={grid} view={stageView} size={stageSize} onImage />}
           </Layer>

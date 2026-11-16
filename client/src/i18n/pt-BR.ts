@@ -233,6 +233,7 @@ export const ptBR = {
   "about.use.dice3d": "Desenho 3D dos dados",
   "about.use.icons": "Ícones",
   "about.use.gameIcons": "Ornamentos do chefe e ícones das condições",
+  "about.use.terrain": "Aquarelas do terreno pintado",
   "about.use.qr": "QR code do convite",
   "about.use.font": "Fonte do texto",
   "about.use.titles": "Fonte dos títulos",

@@ -226,6 +226,7 @@ export const es: Partial<Messages> = {
   "about.use.dice3d": "Dibujo 3D de los dados",
   "about.use.icons": "Iconos",
   "about.use.gameIcons": "Adornos del jefe e iconos de condiciones",
+  "about.use.terrain": "Acuarelas del terreno pintado",
   "about.use.qr": "Código QR de la invitación",
   "about.use.font": "Fuente del texto",
   "about.use.titles": "Fuente de los títulos",

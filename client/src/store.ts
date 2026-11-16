@@ -4,7 +4,7 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type TerrainChunks, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
@@ -134,6 +134,8 @@ interface AppStore extends DicePrefs {
   journal: JournalEntry[];
   /** Já chegou o primeiro diário desta conexão (o que vem depois disso é novidade). */
   journalLoaded: boolean;
+  /** Terreno pintado da cena (criação de mapa): chega à parte, pedaço a pedaço. */
+  terrain: TerrainChunks;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -198,6 +200,7 @@ export const useApp = create<AppStore>(() => ({
   handoutDismissed: null,
   journal: [],
   journalLoaded: false,
+  terrain: {},
   ...readPrefs(),
 }));
 
