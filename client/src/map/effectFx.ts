@@ -158,6 +158,40 @@ function glow(r: number, g: number, b: number) {
   return canvas;
 }
 
+/**
+ * Língua de chama: gota com a base redonda embaixo e a ponta fina em cima, centro claro e borda que some. Desenhada
+ * uma vez por cor, em pé; quem desenha inclina. A base fica a 70% da altura (o ponto de apoio da chama).
+ */
+function flameTongue(r: number, g: number, b: number) {
+  const key = `tongue:${r},${g},${b}`;
+  const hit = sprites.get(key);
+  if (hit) return hit;
+  const width = 64;
+  const height = 96;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  const cx = width / 2;
+  const baseY = height * 0.7;
+  const radius = width * 0.3;
+  // Borda macia: a gota desfocada (sem suporte a filtro, sai só mais nítida).
+  ctx.filter = "blur(4px)";
+  const grad = ctx.createRadialGradient(cx, baseY, 0, cx, baseY - radius, height * 0.7);
+  grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+  grad.addColorStop(0.45, `rgba(${r},${g},${b},0.7)`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(cx, height * 0.06);
+  ctx.bezierCurveTo(cx + radius * 0.35, baseY - radius * 1.6, cx + radius * 1.1, baseY - radius * 0.7, cx + radius, baseY);
+  ctx.arc(cx, baseY, radius, 0, Math.PI);
+  ctx.bezierCurveTo(cx - radius * 1.1, baseY - radius * 0.7, cx - radius * 0.35, baseY - radius * 1.6, cx, height * 0.06);
+  ctx.fill();
+  sprites.set(key, canvas);
+  return canvas;
+}
+
 interface Particle {
   x: number;
   y: number;
@@ -236,42 +270,66 @@ const fire: Painter = (ctx, st, t, dt, area, cell) => {
   ctx.fillRect(box.x, box.y, box.w, box.h);
   ctx.restore();
 
-  // Calor esticado na vertical, subindo em duas velocidades: línguas de fogo.
-  const heat = noiseTexture("fire", 11, [4, 8, 16, 32], (v) => [255, 90 + v * 140, 10 + v * 30, smooth(0.55, 0.9, v) * 255]);
-  drawTiled(ctx, heat, box, cell * 2.2, Math.sin(t * 0.7) * cell * 0.3, -t * cell * 2.2, 0.6, "lighter", 2.4);
-  drawTiled(ctx, heat, box, cell * 1.4, Math.cos(t * 0.9) * cell * 0.2, -t * cell * 3.4, 0.4, "lighter", 2.8);
+  // Brasas: rachaduras no chão que acendem e apagam devagar, em duas escalas fora de compasso.
+  const cracks = noiseTexture("fire-cracks", 13, [6, 12, 24], (v) => [255, 110 + v * 80, 20, smooth(0.9, 0.985, ridge(v)) * 255]);
+  drawTiled(ctx, cracks, box, cell * 3.2, 0, 0, 0.12 + Math.sin(t * 1.7) * 0.07, "lighter");
+  drawTiled(ctx, cracks, box, cell * 2.1, cell * 0.6, cell * 0.4, 0.08 + Math.sin(t * 2.3 + 1) * 0.05, "lighter");
 
-  // Chamas: sobem, encolhem e passam de amarelo-claro a vermelho.
+  // Calor que ferve no lugar: as camadas rodam devagar em volta de onde estão (visto de cima, fogo não "anda").
+  const heat = noiseTexture("fire", 11, [4, 8, 16, 32], (v) => [255, 90 + v * 140, 10 + v * 30, smooth(0.55, 0.9, v) * 255]);
+  const flicker = Math.sin(t * 9) * 0.06 + Math.sin(t * 15.7) * 0.04;
+  drawTiled(ctx, heat, box, cell * 2.2, Math.sin(t * 0.6) * cell * 0.3, Math.cos(t * 0.5) * cell * 0.3, 0.55 + flicker, "lighter", 1.3);
+  drawTiled(ctx, heat, box, cell * 1.4, Math.cos(t * 0.8) * cell * 0.2, -Math.sin(t * 0.7) * cell * 0.25, 0.4 + flicker, "lighter", 1.5);
+
+  // Chamas: línguas que nascem, crescem e encolhem quase no mesmo lugar, balançando com o vento. Por fora a
+  // laranja; dentro, menor, a amarela-clara.
   st.a = step(st.a, dt);
-  keep(st.a, budget(area, cell, 1.6, 140), () => ({
+  keep(st.a, budget(area, cell, 1.5, 120), () => ({
     ...spawnPoint(area),
-    vx: (Math.random() - 0.5) * cell * 0.2,
-    vy: -cell * (0.8 + Math.random()),
+    vx: (Math.random() - 0.5) * cell * 0.1,
+    vy: -cell * (0.1 + Math.random() * 0.2),
     age: 0,
-    life: 0.5 + Math.random() * 0.7,
-    size: cell * (0.55 + Math.random() * 0.5),
+    life: 0.35 + Math.random() * 0.4,
+    size: cell * (0.6 + Math.random() * 0.5),
     seed: Math.random() * 10,
   }));
+  const wind = Math.sin(t * 0.4) * 0.15;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (const p of st.a) {
     const k = p.age / p.life;
-    const img = k < 0.3 ? glow(255, 236, 170) : k < 0.65 ? glow(255, 130, 25) : glow(190, 35, 8);
-    const w = p.size * (1 - k * 0.6);
-    ctx.globalAlpha = Math.sin(Math.PI * Math.min(1, k * 1.2)) * 0.6;
-    sprite(ctx, img, p.x + Math.sin(t * 6 + p.seed) * cell * 0.08, p.y - w * 0.5, w, w * 1.7);
+    const rise = Math.pow(Math.sin(Math.PI * k), 0.7);
+    const width = p.size * (0.85 + Math.sin(t * 11 + p.seed) * 0.12);
+    const height = p.size * 1.9 * rise;
+    const lean = wind + Math.sin(t * 2.6 + p.seed) * 0.18;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(lean);
+    // Brilho na base junta as línguas num fogo só.
+    ctx.globalAlpha = rise * 0.25;
+    ctx.drawImage(glow(255, 110, 20), -width * 0.6, -width * 0.6, width * 1.2, width * 1.2);
+    ctx.globalAlpha = rise * 0.5;
+    const outer = k < 0.7 ? flameTongue(255, 120, 20) : flameTongue(200, 45, 10);
+    ctx.drawImage(outer, -width / 2, -height * 0.7, width, height);
+    ctx.globalAlpha = rise * 0.6;
+    ctx.drawImage(flameTongue(255, 230, 150), -width * 0.3, -height * 0.5, width * 0.6, height * 0.6);
+    ctx.restore();
   }
-  // Fagulhas que sobem balançando.
+  // Fagulhas: saltam para os lados e sobem um pouco, piscando.
   st.b = step(st.b, dt);
-  keep(st.b, budget(area, cell, 0.35, 40), () => ({
-    ...spawnPoint(area),
-    vx: 0,
-    vy: -cell * (1 + Math.random()),
-    age: 0,
-    life: 0.8 + Math.random() * 1.2,
-    size: cell * (0.06 + Math.random() * 0.06),
-    seed: Math.random() * 10,
-  }));
+  keep(st.b, budget(area, cell, 0.35, 40), () => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = cell * (0.3 + Math.random() * 0.5);
+    return {
+      ...spawnPoint(area),
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - cell * 0.3,
+      age: 0,
+      life: 0.6 + Math.random() * 0.8,
+      size: cell * (0.06 + Math.random() * 0.06),
+      seed: Math.random() * 10,
+    };
+  });
   for (const p of st.b) {
     ctx.globalAlpha = (1 - p.age / p.life) * (0.6 + Math.sin(t * 20 + p.seed) * 0.4);
     sprite(ctx, glow(255, 200, 90), p.x + Math.sin(t * 3 + p.seed) * cell * 0.15, p.y, p.size * 2);
