@@ -217,10 +217,13 @@ export class GroundRenderer {
     ctx.drawImage(this.canvas, 0, 0);
   }
 
-  /** Paredes, luzes e luz da cena (docs/design/luz.md): a geometria só é refeita quando algo muda. */
-  setLighting(input: LightingInput) {
-    if (this.gl.isContextLost()) return;
-    this.light.setLighting(input);
+  /**
+   * Paredes, luzes e luz da cena (docs/design/luz.md): a geometria só é refeita quando algo muda. Devolve se algo mudou
+   * (precisa redesenhar).
+   */
+  setLighting(input: LightingInput, animate: boolean): boolean {
+    if (this.gl.isContextLost()) return false;
+    return this.light.setLighting(input, animate);
   }
 
   /** Há luz de cena (dia, noite…) a aplicar: as imagens de luz e chamas valem. */

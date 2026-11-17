@@ -1,4 +1,4 @@
-import { lightPolygon, sunShadows, type LightId, type Segment } from "@rpg/shared";
+import { blockersNear, lightPolygon, stopAtWall, sunShadows, type LightId, type Segment } from "@rpg/shared";
 import { bindTextures, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
 import { blendSceneLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
@@ -82,16 +82,22 @@ export class LightPass {
   private shadowTexture: WebGLTexture | null = null;
   private size = { width: 0, height: 0 };
   private input: LightingInput | null = null;
-  private key = "";
   private torches: TorchMesh[] = [];
-  /** Recortes já feitos, pela tocha (posição, alcance) e pelas paredes: só o que mudou é refeito. */
-  private meshes = new Map<string, { key: string; mesh: TorchMesh }>();
-  private blockersKey = "";
+  /**
+   * Recortes já feitos, por tocha: a tocha (posição, alcance) e as paredes ao alcance dela. Abrir uma porta só refaz as
+   * tochas perto dela.
+   */
+  private meshes = new Map<string, { source: string; blockersVersion: number; near: string; mesh: TorchMesh }>();
+  private blockersJson = "";
+  /** Sobe quando as paredes mudam de fato (e não só a lista ser outra com o mesmo conteúdo). */
+  private blockersVersion = 0;
   /** Sombras do sol: um buffer com as 5 versões (cada uma, um bloco de triângulos). */
   private shadows: { buffer: WebGLBuffer; count: number } | null = null;
   private shadowsFor = "";
   private current: SceneLight = SCENE_LIGHT.day;
-  private lastBlend = performance.now();
+  /** Troca da luz da cena: de onde partiu e quando (ms); termina meio segundo depois. */
+  private fadeFrom: SceneLight = SCENE_LIGHT.day;
+  private fadeStart = -Infinity;
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.ambient = linkProgram(gl, FULLSCREEN_VERTEX, AMBIENT_FRAGMENT, "aPos");
@@ -103,17 +109,32 @@ export class LightPass {
     this.framebuffer = gl.createFramebuffer();
   }
 
-  /** Paredes, luzes e luz da cena: a geometria só é refeita se algo mudou de fato. */
-  setLighting(input: LightingInput) {
-    const firstTime = this.input === null;
+  /**
+   * Paredes, luzes e luz da cena: a geometria só é refeita se algo mudou de fato. Sem animação (`animate` falso), a
+   * troca de luz da cena é na hora (não há quadros para a troca suave). Devolve se algo mudou (precisa redesenhar).
+   */
+  setLighting(input: LightingInput, animate: boolean): boolean {
+    const previous = this.input;
     this.input = input;
-    if (firstTime) this.current = SCENE_LIGHT[input.scene];
-    const blockersKey = JSON.stringify(input.blockers);
-    const key = blockersKey + JSON.stringify(input.sources);
-    if (key === this.key) return;
-    this.key = key;
-    this.blockersKey = blockersKey;
-    this.rebuildTorches(input);
+    let changed = previous === null || previous.scene !== input.scene || previous.floor?.join() !== input.floor?.join();
+    if (previous === null) {
+      this.current = SCENE_LIGHT[input.scene];
+      this.fadeStart = -Infinity;
+    } else if (previous.scene !== input.scene) {
+      // Parte de onde a luz está agora (mesmo no meio de outra troca).
+      this.fadeFrom = this.current;
+      this.fadeStart = animate ? performance.now() : -Infinity;
+    }
+    if (input.blockers !== previous?.blockers) {
+      const blockersJson = JSON.stringify(input.blockers);
+      if (blockersJson !== this.blockersJson) {
+        this.blockersJson = blockersJson;
+        this.blockersVersion++;
+        changed = true;
+      }
+    }
+    if (this.rebuildTorches(input)) changed = true;
+    return changed;
   }
 
   private releaseMesh(mesh: TorchMesh) {
@@ -127,36 +148,45 @@ export class LightPass {
     this.torches = [];
   }
 
-  /** Refaz só os recortes das tochas que mudaram (ou todos, se as paredes mudaram); os outros ficam. */
-  private rebuildTorches(input: LightingInput) {
-    const next = new Map<string, { key: string; mesh: TorchMesh }>();
+  /**
+   * Refaz só os recortes das tochas que mudaram: a própria tocha ou as paredes ao alcance dela. Os outros ficam.
+   * Devolve se algum recorte mudou (ou alguma tocha entrou ou saiu).
+   */
+  private rebuildTorches(input: LightingInput): boolean {
+    let changed = input.sources.length !== this.meshes.size;
+    const next = new Map<string, { source: string; blockersVersion: number; near: string; mesh: TorchMesh }>();
     for (const source of input.sources) {
-      const key = `${this.blockersKey}|${JSON.stringify(source)}`;
+      const sourceJson = JSON.stringify(source);
       const old = this.meshes.get(source.id);
-      if (old && old.key === key) {
+      if (old && old.source === sourceJson && old.blockersVersion === this.blockersVersion) {
         next.set(source.id, old);
         this.meshes.delete(source.id);
         continue;
       }
-      next.set(source.id, { key, mesh: this.buildMesh(source, input.blockers) });
+      // Só as paredes ao alcance desta tocha entram na conta (as outras não mudam o recorte).
+      const near = blockersNear(source, source.reach, input.blockers);
+      const nearJson = JSON.stringify(near);
+      if (old && old.source === sourceJson && old.near === nearJson) {
+        next.set(source.id, { ...old, blockersVersion: this.blockersVersion });
+        this.meshes.delete(source.id);
+        continue;
+      }
+      changed = true;
+      next.set(source.id, { source: sourceJson, blockersVersion: this.blockersVersion, near: nearJson, mesh: this.buildMesh(source, near) });
     }
     for (const { mesh } of this.meshes.values()) this.releaseMesh(mesh);
     this.meshes = next;
     this.torches = [...next.values()].map((entry) => entry.mesh);
+    return changed;
   }
 
-  private buildMesh(source: LightSource, blockers: Segment[]): TorchMesh {
-    // Só as paredes ao alcance desta tocha entram na conta (as outras não mudam o recorte).
-    const near = blockers.filter((segment) => {
-      const length = Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
-      const midX = (segment.x1 + segment.x2) / 2;
-      const midY = (segment.y1 + segment.y2) / 2;
-      return Math.hypot(midX - source.x, midY - source.y) <= source.reach + length / 2 + 0.5;
-    });
+  private buildMesh(source: LightSource, near: Segment[]): TorchMesh {
     const vertices: number[] = [];
     const fans: { first: number; count: number }[] = [];
     for (const [dx, dy] of SOFT_ORIGINS) {
-      const origin: [number, number] = [source.x + dx, source.y + dy];
+      // A origem deslocada não passa para o outro lado de uma parede encostada na tocha.
+      const shifted = stopAtWall(source, { x: source.x + dx, y: source.y + dy }, near);
+      const origin: [number, number] = [shifted.x, shifted.y];
       const triangles = fan(origin, lightPolygon({ x: origin[0], y: origin[1] }, source.reach, near));
       fans.push({ first: vertices.length / 2, count: triangles.length / 2 });
       vertices.push(...triangles);
@@ -171,7 +201,7 @@ export class LightPass {
   private ensureShadows(scene: SceneLight) {
     const input = this.input;
     if (!input) return;
-    const key = `${this.blockersKey}|${scene.sunDirection.map((value) => value.toFixed(3)).join(",")}|${scene.shadowCells.toFixed(3)}`;
+    const key = `${this.blockersVersion}|${scene.sunDirection.map((value) => value.toFixed(3)).join(",")}|${scene.shadowCells.toFixed(3)}`;
     if (key === this.shadowsFor) return;
     this.shadowsFor = key;
     if (this.shadows) this.gl.deleteBuffer(this.shadows.buffer);
@@ -223,11 +253,9 @@ export class LightPass {
     const { gl } = this;
     const input = this.input;
     if (!input) return;
-    // Troca suave da luz da cena (pelo relógio real: com a luz parada, ainda assim chega ao destino).
-    const now = performance.now();
-    const k = Math.min(1, (now - this.lastBlend) / 1000 / SCENE_BLEND_SECONDS);
-    this.lastBlend = now;
-    this.current = blendSceneLight(this.current, SCENE_LIGHT[input.scene], k);
+    // Troca suave da luz da cena, contada desde a mudança (pelo relógio real).
+    const k = Math.min(1, (performance.now() - this.fadeStart) / 1000 / SCENE_BLEND_SECONDS);
+    this.current = blendSceneLight(this.fadeFrom, SCENE_LIGHT[input.scene], k);
     const scene = this.current;
     // A luz é suave: calculada em meia resolução e esticada com filtro na saída.
     const lightWidth = Math.max(1, Math.ceil(width / 2));
@@ -316,9 +344,7 @@ export class LightPass {
 
   /** A troca de luz da cena ainda está no meio (precisa de mais quadros para chegar). */
   get settling(): boolean {
-    if (!this.input) return false;
-    const target = SCENE_LIGHT[this.input.scene];
-    return this.current.ambient.some((value, index) => Math.abs(value - target.ambient[index]) > 0.002) || Math.abs(this.current.shadowCells - target.shadowCells) > 0.01;
+    return this.input !== null && performance.now() - this.fadeStart < SCENE_BLEND_SECONDS * 1000 + 100;
   }
 
   dispose() {

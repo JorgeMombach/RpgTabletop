@@ -194,13 +194,6 @@ export const GroundLayer = memo(function GroundLayer({
     setVersion((value) => value + 1);
   }, [renderer, chunks, epoch]);
 
-  // Luz: paredes, tochas e luz da cena (a geometria só é refeita quando algo muda de fato).
-  useEffect(() => {
-    if (!renderer || !lighting) return;
-    renderer.setLighting(lighting);
-    setVersion((value) => value + 1);
-  }, [renderer, lighting]);
-
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
   const lastCommitted = useRef<TerrainChunks | null>(null);
   useEffect(() => {
@@ -240,6 +233,12 @@ export const GroundLayer = memo(function GroundLayer({
   const windStalled = useApp((state) => state.windStalled);
   const groundFailed = useApp((state) => state.groundFailed);
   const animate = !reduceFx && !windStalled;
+
+  // Luz: paredes, tochas e luz da cena (a geometria só é refeita, e o chão redesenhado, quando algo muda de fato).
+  useEffect(() => {
+    if (!renderer || !lighting) return;
+    if (renderer.setLighting(lighting, animate)) setVersion((value) => value + 1);
+  }, [renderer, lighting, animate]);
 
   // Relógio da água: no máximo 30 quadros por segundo, só com água na tela. Cada quadro passa pelo detector (o mesmo
   // do vento): aparelho que não aguenta para a água e as plantas. Aba oculta: o navegador já pausa.

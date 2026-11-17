@@ -133,6 +133,7 @@ void main() {
       color += vec3(1.0, 0.65, 0.25) * glint * (1.0 - life) * uTorch;
     }
   }
-  // Somado por cima (mistura "tela" na camada): sem cobertura própria além da chama.
-  outColor = vec4(color, cover);
+  // Somado por cima (mistura "tela" na camada). A cor vai pré-multiplicada de verdade (alfa ≥ cada canal): com alfa
+  // zero e cor acesa, o navegador pode zerar o brilho ao copiar a imagem. Com a mistura "tela", dá o mesmo resultado.
+  outColor = vec4(color, clamp(max(cover, max(color.r, max(color.g, color.b))), 0.0, 1.0));
 }`;

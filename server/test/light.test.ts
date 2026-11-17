@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { lightBlockers, lightPolygon, sunShadows, type Segment, type Wall } from "@rpg/shared";
+import { blockersNear, lightBlockers, lightPolygon, stopAtWall, sunShadows, type Segment, type Wall } from "@rpg/shared";
 
 // Luz (docs/design/luz.md): o que segura a luz, o recorte de cada tocha pelas paredes e a sombra do sol.
 const wall = (from: [number, number], to: [number, number], extra: Partial<Wall> = {}): Wall => ({ id: `${from}-${to}`, from: { col: from[0], row: from[1] }, to: { col: to[0], row: to[1] }, ...extra });
@@ -47,5 +47,23 @@ describe("luz: geometria", () => {
     const fence: Segment = { ...solid, seeThrough: true };
     assert.deepEqual(sunShadows([solid], { x: 0, y: 1 }, 3), [[0, 0, 2, 0, 2, 3, 0, 3]]);
     assert.deepEqual(sunShadows([fence], { x: 0, y: 1 }, 3), [[0, 0, 2, 0, 2, 1, 0, 1]]);
+  });
+
+  it("tocha encostada na parede: a luz sai do lado da base, um tico antes da parede", () => {
+    const wallAbove: Segment = { x1: 0, y1: 1, x2: 5, y2: 1, seeThrough: false };
+    // Base logo abaixo da parede; a chama (desenho) fica acima dela.
+    const origin = stopAtWall({ x: 2.5, y: 1.3 }, { x: 2.5, y: 0.8 }, [wallAbove]);
+    assert.equal(origin.x, 2.5);
+    assert.ok(origin.y > 1 && origin.y < 1.05, `ficou do lado certo: ${origin.y}`);
+    // Sem parede no caminho, vai até o ponto pedido; parede vazada não segura.
+    assert.deepEqual(stopAtWall({ x: 2.5, y: 3 }, { x: 2.5, y: 2.5 }, [wallAbove]), { x: 2.5, y: 2.5 });
+    assert.deepEqual(stopAtWall({ x: 2.5, y: 1.3 }, { x: 2.5, y: 0.8 }, [{ ...wallAbove, seeThrough: true }]), { x: 2.5, y: 0.8 });
+  });
+
+  it("paredes ao alcance: uma porta longe não entra na conta da tocha", () => {
+    const near: Segment = { x1: 1, y1: -1, x2: 1, y2: 1, seeThrough: false };
+    const far: Segment = { x1: 20, y1: 0, x2: 21, y2: 0, seeThrough: false };
+    const long: Segment = { x1: -30, y1: 3, x2: 30, y2: 3, seeThrough: false };
+    assert.deepEqual(blockersNear({ x: 0, y: 0 }, 4, [near, far, long]), [near, long]);
   });
 });

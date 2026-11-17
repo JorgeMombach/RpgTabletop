@@ -25,6 +25,8 @@ const CIRCLE_POINTS = 48;
 const CORNER_NUDGE = 0.0001;
 /** Sombra de sol de uma parede vazada, em relação à de uma parede cheia. */
 const SEE_THROUGH_SHADOW = 1 / 3;
+/** Folga da origem da luz para a parede que ela não pode atravessar (casas). */
+const WALL_GAP = 0.02;
 
 /** Trechos que seguram (ou marcam) a luz: paredes e portas fechadas; porta aberta fica de fora. */
 export function lightBlockers(walls: Wall[]): Segment[] {
@@ -44,6 +46,32 @@ function rayHit(origin: LightPoint, dx: number, dy: number, segment: Segment): n
   const t = (qx * sy - qy * sx) / denominator;
   const u = (qx * dy - qy * dx) / denominator;
   return t > 1e-9 && u >= 0 && u <= 1 ? t : Infinity;
+}
+
+/**
+ * Leva a origem da luz de `from` até `to` sem atravessar parede sólida: com parede no caminho, para um tico antes dela.
+ * A chama da tocha fixa fica acima da base no desenho; encostada numa parede, a luz tem que sair do lado da base.
+ */
+export function stopAtWall(from: LightPoint, to: LightPoint, blockers: Segment[]): LightPoint {
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  if (length < 1e-9) return to;
+  const dx = (to.x - from.x) / length;
+  const dy = (to.y - from.y) / length;
+  let distance = Infinity;
+  for (const segment of blockers) if (!segment.seeThrough) distance = Math.min(distance, rayHit(from, dx, dy, segment));
+  if (distance > length) return to;
+  const stop = Math.max(0, distance - WALL_GAP);
+  return { x: from.x + dx * stop, y: from.y + dy * stop };
+}
+
+/** Paredes que podem mudar o recorte de uma luz: as que chegam ao alcance (pelo meio e metade do comprimento, com folga). */
+export function blockersNear(origin: LightPoint, reach: number, blockers: Segment[]): Segment[] {
+  return blockers.filter((segment) => {
+    const length = Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
+    const midX = (segment.x1 + segment.x2) / 2;
+    const midY = (segment.y1 + segment.y2) / 2;
+    return Math.hypot(midX - origin.x, midY - origin.y) <= reach + length / 2 + 0.5;
+  });
 }
 
 /**

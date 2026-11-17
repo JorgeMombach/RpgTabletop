@@ -1,4 +1,4 @@
-import { TORCH_FEET, type CombatantView, type MapConfig, type MapTorch } from "@rpg/shared";
+import { stopAtWall, TORCH_FEET, type CombatantView, type MapConfig, type MapTorch, type Segment } from "@rpg/shared";
 import { torchFlameAnchor } from "../mapTorchArt";
 import { TORCH_CELLS } from "../MapTorches";
 import { tokenCenter } from "../Torch";
@@ -15,7 +15,7 @@ export interface Dragging {
  * De onde sai luz, em casas (docs/design/luz.md): tochas fixas (a base da chama no desenho de cada uma) e tokens com
  * tocha acesa (o alcance conta da borda do token). Durante o arrasto, a peça arrastada já leva a luz junto.
  */
-export function lightSources(tokens: CombatantView[], torches: MapTorch[], grid: MapConfig, dragging: Dragging): LightSource[] {
+export function lightSources(tokens: CombatantView[], torches: MapTorch[], grid: MapConfig, dragging: Dragging, blockers: Segment[]): LightSource[] {
   const reach = TORCH_FEET / grid.feetPerCell;
   const shift = (id: string) => (dragging.id === id ? { x: dragging.dx / grid.cellPx, y: dragging.dy / grid.cellPx } : { x: 0, y: 0 });
   const fixed = torches.map((torch): LightSource => {
@@ -24,7 +24,10 @@ export function lightSources(tokens: CombatantView[], torches: MapTorch[], grid:
     const anchor = torchFlameAnchor(torch.style, size);
     const x = torch.col + offset.x;
     const y = torch.row + offset.y;
-    return { id: torch.id, x: x + anchor.x, y: y + anchor.y, reach, kind: "fixed", flame: { x: x + anchor.x, y: y + anchor.y } };
+    const flame = { x: x + anchor.x, y: y + anchor.y };
+    // A chama fica acima da base no desenho: encostada numa parede, a luz sai do lado da base, não do outro cômodo.
+    const origin = stopAtWall({ x, y }, flame, blockers);
+    return { id: torch.id, x: origin.x, y: origin.y, reach, kind: "fixed", flame };
   });
   const held = tokens
     .filter((token) => token.torch && token.pos)

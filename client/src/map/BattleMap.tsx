@@ -24,7 +24,7 @@ import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
 import { GroundOutputLayer } from "./ground/GroundOutputLayer";
 import { useTokenDrag } from "./dragFollow";
-import { lightSources } from "./ground/lightSources";
+import { lightSources, type Dragging } from "./ground/lightSources";
 import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
 import type { LightingInput } from "./ground/lightPass";
 import { CurrentLines } from "./water/CurrentLines";
@@ -32,6 +32,8 @@ import { CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent } from "./w
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
 const WEBGL_GROUND = GroundRenderer.supported();
+/** Nenhuma peça que dá luz sendo arrastada (o mesmo objeto sempre: não redesenha à toa). */
+const NO_DRAG: Dragging = { id: null, dx: 0, dy: 0 };
 import { useSmallScreen } from "../layout";
 import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toCellUnits, toWorld, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
@@ -956,24 +958,27 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const tokenKey = tokenSpots(tokens);
   // Luz (docs/design/luz.md): com o chão em WebGL, a luz da cena, as sombras e as tochas saem da placa de vídeo.
   const groundLit = WEBGL_GROUND && !groundFailed;
-  const dragging = useTokenDrag();
   const torchKey = tokens
     .filter((c) => c.torch)
     .map((c) => `${c.id}:${c.pos?.col},${c.pos?.row},${c.size}`)
     .join("|");
+  // Só o arrasto de uma peça que dá luz (tocha ou token com tocha) muda a luz: arrastar outro token não redesenha o mapa.
+  const lightIds = groundLit ? new Set([...state.battle.torches.map((torch) => torch.id), ...tokens.filter((c) => c.torch).map((c) => c.id)]) : null;
+  const dragging = useTokenDrag((drag) => (drag.id !== null && lightIds?.has(drag.id) ? drag : NO_DRAG));
+  const blockers = useMemo(() => lightBlockers(state.battle.walls), [state.battle.walls]);
   const lighting = useMemo<LightingInput | null>(
     () =>
       groundLit
         ? {
-            blockers: lightBlockers(state.battle.walls),
-            sources: lightSources(tokens, state.battle.torches, grid, dragging),
+            blockers,
+            sources: lightSources(tokens, state.battle.torches, grid, dragging, blockers),
             scene: state.battle.weather.light,
             // O mestre nunca fica no breu (dá para trabalhar); quem vê como jogador (outra visão) vê o breu deles.
             floor: gm ? GM_FLOOR : null,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `torchKey` resume o que importa dos tokens
-    [groundLit, state.battle.walls, state.battle.torches, torchKey, state.battle.weather.light, gm, dragging, grid],
+    [groundLit, blockers, state.battle.torches, torchKey, state.battle.weather.light, gm, dragging, grid],
   );
   // Chuva, neve e afins escurecem com a luz da cena (sem sombra de parede); o que brilha sozinho não muda.
   const sceneLight = SCENE_LIGHT[state.battle.weather.light];

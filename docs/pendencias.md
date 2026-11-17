@@ -62,6 +62,15 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ## Pendências pequenas
 
+### Luz ([docs/design/luz.md](design/luz.md))
+- [ ] O corpo da tocha fixa é desenhado por cima da chama nova (a camada das chamas fica embaixo de `MapTorchLayer`): conferir de olho, principalmente a bacia do braseiro (`BattleMap.tsx`).
+- [ ] Chuva e neve escurecem pela luz de destino, não pela que está no meio da troca: pulam enquanto o mapa escurece devagar (`weatherDim` em `BattleMap.tsx`).
+- [ ] Com qualquer tocha na cena, o chão redesenha a 30 quadros por segundo, até de dia e com a tocha fora da tela; também com o chão desligado por terreno grande demais (`GroundLayer.tsx`, `flickering`).
+- [ ] O texto do desenho diz que com névoa "nada aparece" depois de uma porta secreta, mas a camada da luz fica acima da névoa: a poça de luz aparece sobre a névoa (`docs/design/luz.md`; ajustar o texto).
+- [ ] O desenho diz que o mapa de luz já recebe a altura do chão; ainda não recebe (fica para o relevo).
+- [ ] No primeiro instante com o chão em WebGL, a película e o brilho antigos já saíram e o mapa de luz ainda não chegou: um piscar claro à noite ao abrir o mapa (`BattleMap.tsx`, `groundLit`).
+- [ ] Se só o shader da luz falhar, o chão inteiro volta para o desenho antigo (terreno junto).
+
 ### Água animada ([docs/design/agua.md](design/agua.md))
 - [ ] Ao trocar de cena, a água da cena anterior aparece por uma fração de segundo até o Worker responder (`WaterLayer.tsx`: limpar o renderizador ao trocar o terreno inteiro).
 - [ ] Ao soltar o pincel de água, a água some por ~150 ms até o Worker responder (`TerrainLayer.tsx` redesenha sem a aquarela antes).
