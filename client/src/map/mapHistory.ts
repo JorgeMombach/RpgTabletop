@@ -1,4 +1,4 @@
-import { paintTerrain, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall } from "@rpg/shared";
+import { paintTerrain, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -31,7 +31,9 @@ type Step =
   | { scope: "props"; kind: "removed"; props: MapProp[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
-  | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> };
+  | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
+  | { scope: "terrain"; kind: "currentAdded"; id: string }
+  | { scope: "terrain"; kind: "currentsRemoved"; currents: WaterCurrent[] };
 
 /** Casas tiradas de uma pintura (para pôr de volta no desfazer). */
 interface PaintGroup {
@@ -342,6 +344,21 @@ export async function paintTerrainStroke(stroke: TerrainStroke): Promise<ActionR
   return result;
 }
 
+/** Linha de correnteza riscada (água animada): desfazer apaga. */
+export async function addCurrent(points: number[]): Promise<ActionResult> {
+  const result = await act("current:add", { points });
+  const id = result.ok ? result.ids?.[0] : undefined;
+  if (id) push({ scope: "terrain", kind: "currentAdded", id });
+  return result;
+}
+
+/** Linhas de correnteza apagadas pela borracha: desfazer risca de novo (com id novo). */
+export async function removeCurrents(currents: WaterCurrent[]): Promise<ActionResult> {
+  const result = await act("current:remove", { ids: currents.map((current) => current.id) });
+  if (result.ok && currents.length > 0) push({ scope: "terrain", kind: "currentsRemoved", currents });
+  return result;
+}
+
 const sameChunk = (a: TerrainChunk | null, b: TerrainChunk | null) => TERRAINS.every((terrain) => a?.[terrain] === b?.[terrain]);
 
 // ---------- Desfazer ----------
@@ -387,6 +404,10 @@ export async function undo(scope?: UndoScope) {
     } else if (step.kind === "changed") {
       if (has(battle?.props, step.id)) await act("prop:update", { id: step.id, ...step.before });
     } else await restoreProps(step.props);
+  } else if (step.scope === "terrain" && step.kind === "currentAdded") {
+    if (has(battle?.currents, step.id)) await act("current:remove", { ids: [step.id] });
+  } else if (step.scope === "terrain" && step.kind === "currentsRemoved") {
+    for (const current of step.currents) await act("current:add", { points: current.points });
   } else if (step.scope === "terrain") {
     const now = useApp.getState().terrain;
     const chunks: Record<string, TerrainChunk | null> = {};

@@ -1,5 +1,5 @@
 import { ActionIcon, Box, Button, Group, Image, SimpleGrid, Slider, Text, Tooltip } from "@mantine/core";
-import { IconArrowBackUp, IconEraser, IconTrash } from "@tabler/icons-react";
+import { IconArrowBackUp, IconArrowWaveRightUp, IconEraser, IconTrash } from "@tabler/icons-react";
 import { LIMITS, TERRAINS, type TerrainId } from "@rpg/shared";
 import { memo } from "react";
 import { act } from "../../actions";
@@ -30,6 +30,9 @@ export const TerrainOptions = memo(function TerrainOptions() {
   const painted = useApp((s) => Object.keys(s.terrain).length > 0);
   const undoCount = useMapUndo((s) => s.terrain);
   const erase = brush.terrain === "erase";
+  // Correnteza (água animada): riscar linhas no sentido em que a água corre, ou apagá-las.
+  const current = brush.terrain === "current" || brush.terrain === "currentErase";
+  const currentErase = brush.terrain === "currentErase";
   const setBrush = (changes: Partial<typeof brush>) => useApp.setState((s) => ({ terrainBrush: { ...s.terrainBrush, ...changes } }));
 
   async function clearAll() {
@@ -64,13 +67,24 @@ export const TerrainOptions = memo(function TerrainOptions() {
       <Group gap="xs" wrap="wrap" align="center" mt={8}>
         <Button
           size="compact-xs"
-          variant={erase ? "filled" : "default"}
+          variant={erase || currentErase ? "filled" : "default"}
           leftSection={<IconEraser size={12} />}
-          aria-pressed={erase}
-          onClick={() => setBrush({ terrain: erase ? "grass" : "erase" })}
+          aria-pressed={erase || currentErase}
+          onClick={() => setBrush({ terrain: current ? (currentErase ? "current" : "currentErase") : erase ? "grass" : "erase" })}
         >
-          {t("terrain.eraser")}
+          {t(current ? "terrain.currentEraser" : "terrain.eraser")}
         </Button>
+        <Tooltip label={t("terrain.currentTip")}>
+          <Button
+            size="compact-xs"
+            variant={current ? "filled" : "default"}
+            leftSection={<IconArrowWaveRightUp size={12} />}
+            aria-pressed={current}
+            onClick={() => setBrush({ terrain: current ? "water" : "current" })}
+          >
+            {t("terrain.current")}
+          </Button>
+        </Tooltip>
         <Tooltip label={t("terrain.undoTip")}>
           <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("terrain")}>
             {t("walls.undo")}
@@ -80,40 +94,44 @@ export const TerrainOptions = memo(function TerrainOptions() {
           {t("terrain.clear")}
         </Button>
       </Group>
-      <Group gap={6} wrap="nowrap" mt={8}>
-        <Text size="xs" c="dimmed" w={44} style={{ flex: "none" }}>
-          {t("terrain.size")}
-        </Text>
-        <Slider
-          size="xs"
-          style={{ flex: 1 }}
-          min={LIMITS.terrainRadius.min}
-          max={LIMITS.terrainRadius.max}
-          step={0.5}
-          value={brush.radius}
-          onChange={(radius) => setBrush({ radius })}
-          label={(v) => t("terrain.sizeValue", { n: v })}
-          aria-label={t("terrain.size")}
-        />
-      </Group>
-      <Group gap={6} wrap="nowrap" mt={4}>
-        <Text size="xs" c="dimmed" w={44} style={{ flex: "none" }}>
-          {t("terrain.strength")}
-        </Text>
-        <Slider
-          size="xs"
-          style={{ flex: 1 }}
-          min={LIMITS.terrainStrength.min}
-          max={LIMITS.terrainStrength.max}
-          step={0.05}
-          value={brush.strength}
-          onChange={(strength) => setBrush({ strength })}
-          label={(v) => `${Math.round(v * 100)}%`}
-          aria-label={t("terrain.strength")}
-        />
-      </Group>
+      {!current && (
+        <>
+          <Group gap={6} wrap="nowrap" mt={8}>
+            <Text size="xs" c="dimmed" w={44} style={{ flex: "none" }}>
+              {t("terrain.size")}
+            </Text>
+            <Slider
+              size="xs"
+              style={{ flex: 1 }}
+              min={LIMITS.terrainRadius.min}
+              max={LIMITS.terrainRadius.max}
+              step={0.5}
+              value={brush.radius}
+              onChange={(radius) => setBrush({ radius })}
+              label={(v) => t("terrain.sizeValue", { n: v })}
+              aria-label={t("terrain.size")}
+            />
+          </Group>
+          <Group gap={6} wrap="nowrap" mt={4}>
+            <Text size="xs" c="dimmed" w={44} style={{ flex: "none" }}>
+              {t("terrain.strength")}
+            </Text>
+            <Slider
+              size="xs"
+              style={{ flex: 1 }}
+              min={LIMITS.terrainStrength.min}
+              max={LIMITS.terrainStrength.max}
+              step={0.05}
+              value={brush.strength}
+              onChange={(strength) => setBrush({ strength })}
+              label={(v) => `${Math.round(v * 100)}%`}
+              aria-label={t("terrain.strength")}
+            />
+          </Group>
+        </>
+      )}
       <Text size="xs" c="dimmed" mt={6}>
-        {t(erase ? "terrain.hintErase" : "terrain.hint")}
+        {t(currentErase ? "terrain.currentHintErase" : current ? "terrain.currentHint" : erase ? "terrain.hintErase" : "terrain.hint")}
       </Text>
     </Box>
   );

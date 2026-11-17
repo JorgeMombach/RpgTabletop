@@ -116,7 +116,8 @@ interface AppStore extends DicePrefs {
   paintErase: boolean;
   paintSize: number;
   /** Ferramenta Terreno (mestre): terreno do pincel (ou borracha), raio em casas e força. */
-  terrainBrush: { terrain: TerrainId | "erase"; radius: number; strength: number };
+  /** Pincel do Terreno: um terreno, a borracha, ou os modos da correnteza (riscar e apagar linhas). */
+  terrainBrush: { terrain: TerrainId | "erase" | "current" | "currentErase"; radius: number; strength: number };
   /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
   propKind: PropKind;
   selectedPropId: string | null;

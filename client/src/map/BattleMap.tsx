@@ -22,6 +22,8 @@ import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { WaterLayer } from "./water/WaterLayer";
 import { WaterRenderer } from "./water/WaterRenderer";
+import { CurrentLines } from "./water/CurrentLines";
+import { CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent } from "./water/currentTool";
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
 const WEBGL_WATER = WaterRenderer.supported();
@@ -35,7 +37,7 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addChest, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -501,7 +503,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     }
     const draft = terrainRef.current;
     if (!draft) return;
-    const brush = useApp.getState().terrainBrush;
+    const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
+    if (brushTerrain === "current" || brushTerrain === "currentErase") return;
+    const brush = { ...brushSize, terrain: brushTerrain };
     const x = (p.x - grid.offsetX) / grid.cellPx;
     const y = (p.y - grid.offsetY) / grid.cellPx;
     const { points } = draft;
@@ -512,11 +516,50 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     setTerrainPreview({ ...draft.local });
   }
   function finishTerrain() {
+    finishCurrent();
     const draft = terrainRef.current;
     terrainRef.current = null;
-    if (!draft || draft.points.length === 0) return;
+    const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
+    if (!draft || draft.points.length === 0 || brushTerrain === "current" || brushTerrain === "currentErase") return;
     // A prévia fica até o servidor responder (o terreno novo chega antes da resposta: sem piscar).
-    void paintTerrainStroke({ ...useApp.getState().terrainBrush, points: draft.points }).then(() => setTerrainPreview(null));
+    void paintTerrainStroke({ ...brushSize, terrain: brushTerrain, points: draft.points }).then(() => setTerrainPreview(null));
+  }
+
+  // Correnteza (água animada, mestre): risca a linha no sentido em que a água corre; ou, na borracha de correnteza,
+  // apaga as linhas tocadas. As linhas aparecem só com a ferramenta Terreno aberta.
+  const currentRef = useRef<{ points: number[] } | null>(null);
+  const currentErasing = useRef(false);
+  /** Linhas já apagadas nesta passada da borracha (o servidor ainda não respondeu: não apaga duas vezes). */
+  const currentErased = useRef(new Set<string>());
+  const [currentDraft, setCurrentDraft] = useState<number[] | null>(null);
+  function currentAt(p: Point) {
+    const x = (p.x - grid.offsetX) / grid.cellPx;
+    const y = (p.y - grid.offsetY) / grid.cellPx;
+    if (currentErasing.current) {
+      const touched = currentsNear(useApp.getState().state?.battle.currents ?? [], x, y, CURRENT_ERASER).filter((current) => !currentErased.current.has(current.id));
+      for (const current of touched) currentErased.current.add(current.id);
+      if (touched.length > 0) void removeCurrents(touched);
+      return;
+    }
+    const draft = currentRef.current;
+    if (!draft) return;
+    const { points } = draft;
+    if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < CURRENT_STEP) return;
+    points.push(x, y);
+    setCurrentDraft([...points]);
+  }
+  function startCurrent(p: Point, erasing: boolean) {
+    currentErasing.current = erasing;
+    currentErased.current.clear();
+    currentRef.current = erasing ? null : { points: [] };
+    currentAt(p);
+  }
+  function finishCurrent() {
+    const draft = currentRef.current;
+    currentRef.current = null;
+    currentErasing.current = false;
+    setCurrentDraft(null);
+    if (draft && draft.points.length >= 4) void addCurrent(simplifyCurrent(draft.points, LIMITS.currentNumbers));
   }
 
   // Pincel de espalhar (ou de apagar objetos): as casas da passada aparecem de leve; ao soltar, vai tudo junto.
@@ -731,6 +774,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       return;
     }
     if (tool === "terrain" && gm) {
+      const mode = useApp.getState().terrainBrush.terrain;
+      if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
       terrainRef.current = { points: [], local: { ...useApp.getState().terrain } };
       terrainAt(p);
       return;
@@ -779,7 +824,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       return;
     }
     if (tool === "terrain") {
-      terrainAt(p);
+      if (currentRef.current || currentErasing.current) currentAt(p);
+      else terrainAt(p);
       return;
     }
     if (tool === "paint" || (tool === "props" && useApp.getState().propMode !== "place")) {
@@ -1140,8 +1186,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
             </Layer>
           )}
 
+          {/* Correnteza da água: as linhas (e a que está sendo riscada), só para o mestre com o Terreno aberto. */}
+          {gm && tool === "terrain" && <CurrentLines currents={state.battle.currents} draft={currentDraft} grid={grid} scale={view.scale} />}
+
           {/* Pincel de terreno: o contorno do pincel sob o mouse (posto direto no Konva, em terrainAt). */}
-          {gm && tool === "terrain" && (
+          {gm && tool === "terrain" && terrainBrush.terrain !== "current" && terrainBrush.terrain !== "currentErase" && (
             <Layer listening={false}>
               <Circle
                 ref={terrainCursor}
