@@ -1,4 +1,4 @@
-import { TERRAIN_CHUNK_CELLS, type MapConfig, type TerrainChunks } from "@rpg/shared";
+import { TERRAIN_CHUNK_CELLS, type MapConfig, type TerrainChunks, type TerrainId } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { Group, Image as KImage } from "react-konva";
 import { useApp } from "../../store";
@@ -28,12 +28,15 @@ function around(key: string): string[] {
  * com metade dos pixels, para a prévia acompanhar o mouse; ao soltar, os mesmos pedaços chegam do servidor e são
  * refeitos inteiros.
  */
-export function TerrainLayer({ chunks, grid, pixelsPerCell, epoch, draft = false }: { chunks: TerrainChunks; grid: Grid; pixelsPerCell: number; epoch: number; draft?: boolean }) {
+/** Água desenhada pelo WebGL (água animada): o terreno deixa a aquarela dela de fora. */
+const WATER_TERRAINS: ReadonlySet<TerrainId> = new Set<TerrainId>(["water", "waterDark"]);
+
+export function TerrainLayer({ chunks, grid, pixelsPerCell, epoch, draft = false, hideWater = false }: { chunks: TerrainChunks; grid: Grid; pixelsPerCell: number; epoch: number; draft?: boolean; hideWater?: boolean }) {
   const [images, setImages] = useState<Record<string, HTMLImageElement> | null>(null);
   const [, setDrawn] = useState(0);
   const cache = useRef(new Map<string, HTMLCanvasElement>());
   const queue = useRef(new Set<string>());
-  const previous = useRef<{ chunks: TerrainChunks; pixelsPerCell: number; epoch: number } | null>(null);
+  const previous = useRef<{ chunks: TerrainChunks; pixelsPerCell: number; epoch: number; hideWater: boolean } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -51,7 +54,7 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell, epoch, draft = false
   // (`epoch`: outra cena, arquivo carregado) começa do zero: o pedaço velho não fica à mostra enquanto a fila anda.
   useEffect(() => {
     const before = previous.current;
-    const everything = !before || before.pixelsPerCell !== pixelsPerCell || before.epoch !== epoch;
+    const everything = !before || before.pixelsPerCell !== pixelsPerCell || before.epoch !== epoch || before.hideWater !== hideWater;
     if (everything) cache.current.clear();
     const changed = new Set<string>();
     for (const key of Object.keys(chunks)) if (everything || before.chunks[key] !== chunks[key]) changed.add(key);
@@ -62,9 +65,9 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell, epoch, draft = false
         else cache.current.delete(near);
       }
     }
-    previous.current = { chunks, pixelsPerCell, epoch };
+    previous.current = { chunks, pixelsPerCell, epoch, hideWater };
     setDrawn((n) => n + 1);
-  }, [chunks, pixelsPerCell, epoch]);
+  }, [chunks, pixelsPerCell, epoch, hideWater]);
 
   // A fila: alguns pedaços por quadro, os mais perto do centro da tela primeiro.
   useEffect(() => {
@@ -83,7 +86,7 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell, epoch, draft = false
       const current = previous.current?.chunks ?? {};
       for (const key of ordered) {
         queue.current.delete(key);
-        if (current[key]) cache.current.set(key, renderChunk(key, current, images, draft ? pixelsPerCell / 2 : pixelsPerCell));
+        if (current[key]) cache.current.set(key, renderChunk(key, current, images, draft ? pixelsPerCell / 2 : pixelsPerCell, hideWater && !draft ? WATER_TERRAINS : undefined));
         if (performance.now() - start > FRAME_BUDGET_MS) break;
       }
       setDrawn((n) => n + 1);
@@ -91,7 +94,7 @@ export function TerrainLayer({ chunks, grid, pixelsPerCell, epoch, draft = false
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [images, chunks, pixelsPerCell, draft, grid.cellPx, grid.offsetX, grid.offsetY]);
+  }, [images, chunks, pixelsPerCell, draft, hideWater, grid.cellPx, grid.offsetX, grid.offsetY]);
 
   const chunkPx = TERRAIN_CHUNK_CELLS * grid.cellPx;
   return (

@@ -95,11 +95,13 @@ function texturePixels(terrain: TerrainId, cx: number, cy: number, side: number,
   return ctx.getImageData(0, 0, side, side).data;
 }
 
-export function renderChunk(key: string, chunks: TerrainChunks, images: Record<string, HTMLImageElement>, pixelsPerCell: number): HTMLCanvasElement {
+/** `skip`: terrenos que não entram no desenho (a água, quando o WebGL desenha a água animada). */
+export function renderChunk(key: string, chunks: TerrainChunks, images: Record<string, HTMLImageElement>, pixelsPerCell: number, skip?: ReadonlySet<TerrainId>): HTMLCanvasElement {
   const [cx, cy] = key.split(",").map(Number);
   const side = TERRAIN_CHUNK_CELLS * pixelsPerCell;
   const layers: { grid: Float32Array; texture: Uint8ClampedArray }[] = [];
   for (const terrain of TERRAINS) {
+    if (skip?.has(terrain)) continue;
     const grid = localGrid(chunks, terrain, cx, cy);
     if (grid) layers.push({ grid, texture: texturePixels(terrain, cx, cy, side, pixelsPerCell, images) });
   }

@@ -20,6 +20,11 @@ import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
 import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
+import { WaterLayer } from "./water/WaterLayer";
+import { WaterRenderer } from "./water/WaterRenderer";
+
+/** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
+const WEBGL_WATER = WaterRenderer.supported();
 import { useSmallScreen } from "../layout";
 import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toCellUnits, toWorld, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
@@ -1070,8 +1075,15 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
             {image && layout && (
               <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
             )}
-            {/* Terreno pintado (criação de mapa): acima da imagem, abaixo do grid. */}
-            <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} epoch={terrainEpoch} draft={terrainPreview !== null} />
+            {/* Terreno pintado (criação de mapa): acima da imagem, abaixo do grid. Com WebGL, a água é da camada dela. */}
+            <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} epoch={terrainEpoch} draft={terrainPreview !== null} hideWater={WEBGL_WATER} />
+          </Layer>
+
+          {/* Água animada (docs/design/agua.md): camada própria, a única redesenhada a cada quadro da água. */}
+          {WEBGL_WATER && <WaterLayer chunks={terrain} currents={state.battle.currents} props={state.battle.props} grid={grid} view={stageView} size={stageSize} />}
+
+          {/* Borda e grid: por cima do terreno e da água. */}
+          <Layer listening={false}>
             {layout && !reduceFx && <MemoEdge bounds={layout.bounds} grid={grid} />}
             {grid.showGrid && <MemoGrid grid={grid} view={stageView} size={stageSize} onImage />}
           </Layer>
