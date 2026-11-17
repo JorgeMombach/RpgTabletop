@@ -47,6 +47,19 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Trocar de cena e carregar arquivo: terreno e água da cena certa.
 - [ ] Reserva: com WebGL desligado no navegador, o terreno aparece como antes.
 
+### Luz (dia, noite, tochas e sombras)
+- [ ] Dia, entardecer, noite e luar: aparência de cada um e a troca entre eles (inclusive com a *Hora do jogo* avançando).
+- [ ] Sombras do sol e da lua nas paredes, com borda macia; janela faz sombra curta.
+- [ ] Tochas fixas e de token param nas paredes e portas fechadas, passam por porta aberta e janela; tremulam e mudam de cor.
+- [ ] Chama nova nos três desenhos de tocha (fincada, de ferro, braseiro) e no selo do token; tamanho de ~0,75 casa.
+- [ ] Arrastar tocha ou token com tocha: a luz e a chama acompanham.
+- [ ] Mestre com brilho mínimo na noite; *Ver como jogador* mostra o escuro de verdade; jogador (pelo IP da rede) vê escuro.
+- [ ] Chuva e outros climas escurecem à noite; relâmpago continua clareando.
+- [ ] Névoa cobre a chama das tochas escondidas.
+- [ ] *Reduzir efeitos*: tochas sem tremular.
+- [ ] Reserva: com WebGL desligado no navegador, véu e brilho de antes.
+- [ ] Desempenho: mapa com muitas paredes e tochas (arrastar e zoom fluidos); editar parede em cena enorme dá um tranco de ~0,4 s (aceito).
+
 ## Pendências pequenas
 
 ### Água animada ([docs/design/agua.md](design/agua.md))
