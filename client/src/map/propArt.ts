@@ -847,38 +847,80 @@ export interface PlantLayers {
   glints: Glint[];
 }
 
-const layerCache = new Map<string, PlantLayers>();
-const LAYER_CACHE_MAX = 300;
+interface LayerEntry {
+  layers: PlantLayers;
+  /** Pixels das duas imagens (o que pesa na memória). */
+  pixels: number;
+  step: number;
+  /** Última vez que um desenho do mapa pediu esta planta (ms). */
+  usedAt: number;
+}
+
+const layerCache = new Map<string, LayerEntry>();
+let layerPixels = 0;
+/** Teto das imagens do vento: ~256 MB. Passou disso, a planta fica parada (não troca uma pela outra em ciclo). */
+const LAYER_PIXEL_BUDGET = 64_000_000;
+/** Planta pedida há menos que isso está na tela agora: não sai do cache para dar lugar a outra. */
+const LAYER_IN_USE_MS = 2000;
+
+function dropLayer(key: string, entry: LayerEntry) {
+  layerCache.delete(key);
+  layerPixels -= entry.pixels;
+}
+
+/**
+ * Abre espaço para `pixels`: primeiro sai o que é de outro degrau de zoom (não volta tão cedo), depois o que
+ * ninguém pediu nos últimos 2 s. O que está em uso fica: sem espaço, `false` (a planta fica parada). Assim um mapa
+ * com mais plantas que o teto não repinta todas a cada desenho.
+ */
+function roomFor(pixels: number, step: number, now: number): boolean {
+  if (layerPixels + pixels <= LAYER_PIXEL_BUDGET) return true;
+  for (const [key, entry] of layerCache) {
+    if (entry.step !== step) dropLayer(key, entry);
+    if (layerPixels + pixels <= LAYER_PIXEL_BUDGET) return true;
+  }
+  for (const [key, entry] of layerCache) {
+    if (now - entry.usedAt >= LAYER_IN_USE_MS) dropLayer(key, entry);
+    if (layerPixels + pixels <= LAYER_PIXEL_BUDGET) return true;
+  }
+  return false;
+}
 
 /**
  * Planta pronta para balançar (docs/design/vento.md): mesmo degrau de resolução de `propImage`; `null` para quem
- * não balança. As folhas que piscam saem de um sorteio à parte (a mesma semente desenha a mesma planta de sempre).
+ * não balança ou quando as imagens do vento já ocupam o teto de memória (a planta fica parada). As folhas que piscam
+ * saem de um sorteio à parte (a mesma semente desenha a mesma planta de sempre).
  */
 export function plantLayers(kind: PropKind, seed: number, pxPerCell: number): PlantLayers | null {
   const painter = SWAYING[kind];
   if (!painter) return null;
   const step = cacheStep(pxPerCell);
   const key = `${kind}|${seed}|${step}`;
+  const now = performance.now();
   const hit = layerCache.get(key);
   if (hit) {
     layerCache.delete(key);
     layerCache.set(key, hit);
-    return hit;
+    hit.usedAt = now;
+    return hit.layers;
   }
   const side = Math.ceil(PROP_EXTENT[kind] * 2 * step);
+  const pixels = side * side * 2;
+  if (!roomFor(pixels, step, now)) return null;
   const layer = () => {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = side;
-    const ctx = canvas.getContext("2d")!;
-    ctx.translate(side / 2, side / 2);
+    const ctx = canvas.getContext("2d");
+    ctx?.translate(side / 2, side / 2);
     return { canvas, ctx };
   };
   const low = layer();
   const high = layer();
+  if (!low.ctx || !high.ctx) return null;
   const glints: Glint[] = [];
   painter({ shadow: low.ctx, low: low.ctx, high: high.ctx, glints: { list: glints, random: rng(seed ^ 0x5f3759df) } }, step, seed);
   const layers: PlantLayers = { low: low.canvas, high: high.canvas, glints };
-  layerCache.set(key, layers);
-  if (layerCache.size > LAYER_CACHE_MAX) layerCache.delete(layerCache.keys().next().value!);
+  layerCache.set(key, { layers, pixels, step, usedAt: now });
+  layerPixels += pixels;
   return layers;
 }

@@ -1,14 +1,7 @@
 import Konva from "konva";
 import { useEffect, useRef, type RefObject } from "react";
 import { Group, Image as KImage, Shape } from "react-konva";
-import {
-  FrameWatch,
-  gust,
-  windOf,
-  type MapConfig,
-  type MapProp,
-  type WeatherState,
-} from "@rpg/shared";
+import { FrameWatch, gust, windOf, type MapConfig, type MapProp, type WeatherState } from "@rpg/shared";
 import { useApp } from "../store";
 import { PROP_EXTENT, type Glint, type PlantLayers } from "./propArt";
 
@@ -45,19 +38,20 @@ const VIEW_MARGIN_CELLS = 2;
 /** Casa menor que isso na tela: o balanço some (menos de meio pixel), então nem redesenha. */
 const MIN_CELL_ON_SCREEN = 20;
 
-/** Uma planta balançando. Só aparece com vento ligado; em edição o mapa usa o objeto parado de sempre. */
+/**
+ * Uma planta balançando. Só aparece com vento ligado; em edição, ou com token embaixo da copa (transparente), o mapa
+ * usa o objeto parado de sempre.
+ */
 export function PlantNode({
   p,
   grid,
   layers,
-  faded,
   registry,
   time,
 }: {
   p: MapProp;
   grid: MapConfig;
   layers: PlantLayers;
-  faded: boolean;
   registry: PlantRegistry;
   time: RefObject<number>;
 }) {
@@ -104,14 +98,7 @@ export function PlantNode({
   // As folhas estão em pixels da imagem guardada: a mesma escala e o mesmo centro da copa de cima.
   const glintScale = side / layers.high.width;
   return (
-    <Group
-      ref={groupRef}
-      id={`prop-${p.id}`}
-      x={x}
-      y={y}
-      opacity={faded ? 0.45 : 1}
-      listening={false}
-    >
+    <Group ref={groupRef} id={`prop-${p.id}`} x={x} y={y} listening={false}>
       <KImage ref={lowRef} image={layers.low} {...imageProps} />
       <KImage ref={highRef} image={layers.high} {...imageProps} />
       {layers.glints.length > 0 && (
@@ -122,14 +109,7 @@ export function PlantNode({
           scaleY={glintScale}
           listening={false}
           perfectDrawEnabled={false}
-          sceneFunc={(ctx) =>
-            drawGlints(
-              ctx._context,
-              layers.glints,
-              time.current ?? 0,
-              registry.get(p.id)?.gust ?? 0,
-            )
-          }
+          sceneFunc={(ctx) => drawGlints(ctx._context, layers.glints, time.current ?? 0, registry.get(p.id)?.gust ?? 0)}
         />
       )}
     </Group>
@@ -137,31 +117,20 @@ export function PlantNode({
 }
 
 /** Folhas que viram para a luz e voltam: piscam mais quando a rajada está forte. */
-function drawGlints(
-  ctx: CanvasRenderingContext2D,
-  glints: Glint[],
-  t: number,
-  gustNow: number,
-) {
+function drawGlints(ctx: CanvasRenderingContext2D, glints: Glint[], t: number, gustNow: number) {
   ctx.fillStyle = GLINT_COLOR;
+  // A transparência que o Konva já pôs (opacidade do grupo) vale também para as folhas.
+  const baseAlpha = ctx.globalAlpha;
   for (const glint of glints) {
     const pulse = Math.max(0, Math.sin(t * glint.speed + glint.phase));
     const alpha = pulse ** 6 * (0.35 + Math.abs(gustNow) * 0.5);
     if (alpha < 0.01) continue;
-    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.globalAlpha = baseAlpha * Math.min(1, alpha);
     ctx.beginPath();
-    ctx.ellipse(
-      glint.x,
-      glint.y,
-      glint.width,
-      glint.height,
-      glint.turn + pulse * 0.6,
-      0,
-      Math.PI * 2,
-    );
+    ctx.ellipse(glint.x, glint.y, glint.width, glint.height, glint.turn + pulse * 0.6, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = baseAlpha;
 }
 
 /**
@@ -184,8 +153,7 @@ export function useWindClock(
     const animation = new Konva.Animation((frame) => {
       if (!frame) return false;
       // Só conta quadros com a página à vista e em foco: janela de trás ou minimizada fica lenta sem o aparelho estar.
-      const watching =
-        document.visibilityState === "visible" && document.hasFocus();
+      const watching = document.visibilityState === "visible" && document.hasFocus();
       if (watching && !watch.tick(frame.timeDiff)) {
         useApp.setState({ windStalled: true });
         return false;
@@ -207,28 +175,14 @@ export function useWindClock(
         const margin = plant.cellPx * (VIEW_MARGIN_CELLS + 2);
         const x = plant.group.x();
         const y = plant.group.y();
-        if (
-          x < left - margin ||
-          x > right + margin ||
-          y < top - margin ||
-          y > bottom + margin
-        )
-          continue;
+        if (x < left - margin || x > right + margin || y < top - margin || y > bottom + margin) continue;
         visible++;
-        const low =
-          gust(t, plant.col, plant.row, plant.seed, direction) * strength;
-        const high =
-          gust(t - 0.25, plant.col, plant.row, plant.seed, direction) *
-          strength;
+        const low = gust(t, plant.col, plant.row, plant.seed, direction) * strength;
+        const high = gust(t - 0.25, plant.col, plant.row, plant.seed, direction) * strength;
         plant.gust = low;
         const unit = plant.cellPx;
         // Deslocamentos em casas (os do teste aprovado), no sentido do vento; o giro soma ao do objeto.
-        place(
-          plant.low,
-          low * 0.035 * unit * direction,
-          low * 0.012 * unit,
-          plant.rotation + degrees(low * 0.018 * direction),
-        );
+        place(plant.low, low * 0.035 * unit * direction, low * 0.012 * unit, plant.rotation + degrees(low * 0.018 * direction));
         const highX = high * 0.06 * unit * direction;
         const highY = high * 0.021 * unit;
         const highTurn = plant.rotation + degrees(high * 0.03 * direction);

@@ -183,9 +183,11 @@ export const MapPropLayer = memo(function MapPropLayer({
   return (
     <Layer ref={layerRef} listening={editing}>
       {list.map((p) => {
-        const layers = windOn ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
-        if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} faded={under(p)} registry={registry} time={windTime} />;
-        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={under(p)} onPick={() => useApp.setState({ selectedPropId: p.id })} />;
+        const faded = under(p);
+        // Copa transparente (token embaixo) fica parada: as duas copas meio transparentes, uma sobre a outra, somariam.
+        const layers = windOn && !faded ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
+        if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} registry={registry} time={windTime} />;
+        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} onPick={() => useApp.setState({ selectedPropId: p.id })} />;
       })}
       {editing && (
         <Transformer
