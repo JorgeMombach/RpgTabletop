@@ -201,8 +201,8 @@ interface Particle {
   life: number;
   size: number;
   seed: number;
-  /** Raio elétrico: os pontos do zigue-zague. */
-  path?: number[];
+  /** Raio elétrico: o arco principal e os galhos, cada um uma lista de pontos (x, y, x, y…). */
+  bolts?: number[][];
 }
 
 /** Uma raiz (ou galho de raiz): pontos relativos ao canto da área, espessura na base e semente do balanço da ponta. */
@@ -228,6 +228,8 @@ export interface FxState {
   c: Particle[];
   last: number;
   roots?: RootsDrawing;
+  /** Clarão do eletrificado: 1 quando acende, cai até 0 em uma fração de segundo. */
+  flash?: number;
 }
 
 export function newFxState(): FxState {
@@ -430,47 +432,100 @@ const wet: Painter = (ctx, st, t, dt, area, cell) => {
   ripples(ctx, st, dt, area, cell, 0.05, 1);
 };
 
-const electric: Painter = (ctx, st, _t, dt, area, cell) => {
+/**
+ * Arco elétrico de (x1, y1) a (x2, y2): o meio de cada trecho é empurrado de lado, cada vez menos (deslocamento do
+ * ponto médio). Sai curvo e irregular, sem cara de zigue-zague de régua.
+ */
+function arcPoints(x1: number, y1: number, x2: number, y2: number, bend: number, levels: number): number[] {
+  if (levels === 0) return [x1, y1, x2, y2];
+  const length = Math.hypot(x2 - x1, y2 - y1) || 1;
+  const push = (Math.random() - 0.5) * 2 * bend;
+  const mx = (x1 + x2) / 2 - ((y2 - y1) / length) * push;
+  const my = (y1 + y2) / 2 + ((x2 - x1) / length) * push;
+  const first = arcPoints(x1, y1, mx, my, bend * 0.55, levels - 1);
+  const second = arcPoints(mx, my, x2, y2, bend * 0.55, levels - 1);
+  return [...first, ...second.slice(2)];
+}
+
+/** Linha arredondada pelos pontos: curva passando pelos meios dos trechos. */
+function smoothLine(ctx: Ctx, points: number[]) {
+  ctx.beginPath();
+  ctx.moveTo(points[0], points[1]);
+  for (let i = 2; i < points.length - 2; i += 2) {
+    ctx.quadraticCurveTo(points[i], points[i + 1], (points[i] + points[i + 2]) / 2, (points[i + 1] + points[i + 3]) / 2);
+  }
+  ctx.lineTo(points[points.length - 2], points[points.length - 1]);
+  ctx.stroke();
+}
+
+/** Um raio: arco principal entre dois pontos da área e um ou dois galhos curtos saindo do meio dele. */
+function makeBolt(area: FxArea, cell: number): Particle {
+  const from = spawnPoint(area);
+  let to = spawnPoint(area);
+  for (let i = 0; i < 6; i++) {
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    if (distance > cell * 0.8 && distance < cell * 2.2) break;
+    to = spawnPoint(area);
+  }
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  const main = arcPoints(from.x, from.y, to.x, to.y, length * 0.22, 4);
+  const bolts = [main];
+  const heading = Math.atan2(to.y - from.y, to.x - from.x);
+  const branchCount = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < branchCount; i++) {
+    const at = 2 * Math.floor((main.length / 2) * (0.3 + Math.random() * 0.4));
+    const angle = heading + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.4);
+    const reach = length * (0.3 + Math.random() * 0.2);
+    const sx = main[at];
+    const sy = main[at + 1];
+    bolts.push(arcPoints(sx, sy, sx + Math.cos(angle) * reach, sy + Math.sin(angle) * reach, reach * 0.25, 3));
+  }
+  return { ...from, vx: 0, vy: 0, age: 0, life: 0.15 + Math.random() * 0.25, size: 0, seed: Math.random() * 10, bolts };
+}
+
+const electric: Painter = (ctx, st, t, dt, area, cell) => {
   const { box } = area;
   fill(ctx, box, "rgba(20, 50, 110, 0.35)");
-  // Brilho que tremula, com clarões de vez em quando.
-  const flash = Math.random() < dt * 1.5 ? 0.35 : 0;
+  // Clarão de vez em quando: acende de uma vez e apaga em ~0,2 s (nunca preso num quadro só).
+  st.flash = Math.max(0, (st.flash ?? 0) - dt * 5);
+  if (Math.random() < dt * 0.6) st.flash = 1;
+  // Carga no chão: anda devagar em volta do lugar e tremula suave (sem pular de posição).
   const charge = noiseTexture("electric", 97, [6, 12, 24], (v) => [120, 200, 255, smooth(0.6, 0.9, v) * 255]);
-  drawTiled(ctx, charge, box, cell * 3, Math.random() * cell * 0.2, Math.random() * cell * 0.2, 0.25 + Math.random() * 0.15 + flash, "lighter");
+  const hum = Math.sin(t * 7) * 0.04 + Math.sin(t * 13.3) * 0.03;
+  drawTiled(ctx, charge, box, cell * 3, Math.sin(t * 0.5) * cell * 0.4, Math.cos(t * 0.4) * cell * 0.4, 0.28 + hum + st.flash * 0.3, "lighter");
+  drawTiled(ctx, charge, box, cell * 2, -Math.cos(t * 0.6) * cell * 0.3, Math.sin(t * 0.55) * cell * 0.3, 0.15 + hum, "lighter");
 
-  // Raios: zigue-zagues curtos que estalam e somem em frações de segundo.
+  // Raios: arcos curvos com galhos, que piscam enquanto vivem; o halo azul some mais devagar que o núcleo branco.
   st.a = step(st.a, dt);
-  const want = budget(area, cell, 0.25, 14);
-  while (st.a.length < want && Math.random() < 0.6) {
-    const from = spawnPoint(area);
-    const ang = Math.random() * Math.PI * 2;
-    const len = cell * (0.8 + Math.random() * 2.2);
-    const segs = 6 + Math.floor(Math.random() * 5);
-    const path: number[] = [];
-    for (let i = 0; i <= segs; i++) {
-      const k = i / segs;
-      const jitter = i === 0 || i === segs ? 0 : (Math.random() - 0.5) * cell * 0.45;
-      path.push(from.x + Math.cos(ang) * len * k - Math.sin(ang) * jitter, from.y + Math.sin(ang) * len * k + Math.cos(ang) * jitter);
-    }
-    st.a.push({ ...from, vx: 0, vy: 0, age: 0, life: 0.06 + Math.random() * 0.18, size: 0, seed: 0, path });
-  }
+  if (st.a.length < budget(area, cell, 0.25, 14) && Math.random() < dt * 8) st.a.push(makeBolt(area, cell));
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   for (const p of st.a) {
-    const a = 1 - p.age / p.life;
-    const line = () => {
-      ctx.beginPath();
-      for (let i = 0; i < p.path!.length; i += 2) ctx[i ? "lineTo" : "moveTo"](p.path![i], p.path![i + 1]);
-      ctx.stroke();
-    };
-    ctx.strokeStyle = `rgba(90, 170, 255, ${a * 0.45})`;
-    ctx.lineWidth = cell * 0.14;
-    line();
-    ctx.strokeStyle = `rgba(235, 248, 255, ${a})`;
-    ctx.lineWidth = Math.max(1, cell * 0.035);
-    line();
+    const k = p.age / p.life;
+    const blink = Math.sin(p.age * 70 + p.seed) > -0.3 ? 1 : 0.35;
+    const halo = Math.pow(1 - k, 0.5);
+    const core = Math.pow(1 - k, 1.5) * blink;
+    for (const [index, points] of (p.bolts ?? []).entries()) {
+      const thin = index === 0 ? 1 : 0.6;
+      ctx.strokeStyle = `rgba(80, 160, 255, ${halo * 0.35})`;
+      ctx.lineWidth = cell * 0.16 * thin;
+      smoothLine(ctx, points);
+      ctx.strokeStyle = `rgba(170, 220, 255, ${core * 0.6})`;
+      ctx.lineWidth = cell * 0.07 * thin;
+      smoothLine(ctx, points);
+      ctx.strokeStyle = `rgba(240, 250, 255, ${core})`;
+      ctx.lineWidth = Math.max(1, cell * 0.025 * thin);
+      smoothLine(ctx, points);
+    }
+    // Onde o raio toca o chão, um brilho.
+    const main = p.bolts?.[0];
+    if (main) {
+      ctx.globalAlpha = halo * 0.5;
+      for (const end of [0, main.length - 2]) sprite(ctx, glow(150, 210, 255), main[end], main[end + 1], cell * 0.5);
+      ctx.globalAlpha = 1;
+    }
   }
   ctx.restore();
   glints(ctx, st, dt, area, cell, 0.3, [180, 225, 255]);

@@ -13,6 +13,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ### Alterado
 - **Ficha editada para um tamanho maior:** se o token passaria a encostar em alguém no mapa, ele vai para a casa livre mais próxima (como já fazia a ficha importada); ninguém é empurrado. Antes ficava encavalado e a mesa ajeitava na mão.
+- **Efeitos de fogo, raízes e eletrificado redesenhados:** o fogo tremula no lugar em línguas de chama, com brasas por baixo (antes deslizava para o topo da tela); as raízes são desenhadas para a área, ramificando e afinando, e só as pontas rastejam (antes o chão inteiro "respirava"); o eletrificado tem arcos curvos com galhos que piscam e deixam rastro, e o brilho do chão tremula sem pular.
 
 ### Corrigido
 - **Engasgo ao mover token (mestre):** mover um token, rolar um dado ou qualquer outro envio redesenhava as quatro abas do mestre (inclusive as escondidas: o catálogo de monstros inteiro, o diário, clima e som) e todas as rolagens do log. Agora só redesenha o que mudou: numa mesa com 10 mobs, 200 objetos e névoa, o mestre passou de ~11.500 para ~950 componentes redesenhados por movimento, e o tranco ao soltar o token caiu de ~105 para ~78 ms (o resto é o mapa e a névoa).
