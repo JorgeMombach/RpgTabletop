@@ -1,7 +1,8 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import type { MapConfig, MapProp, TerrainChunks, WaterCurrent } from "@rpg/shared";
+import { FrameWatch, type MapConfig, type MapProp, type TerrainChunks, type WaterCurrent } from "@rpg/shared";
+import { useApp } from "../../store";
 import { WaterRenderer, type WaterView } from "./WaterRenderer";
 import type { WaterJob, WaterResult, WaterRock } from "./waterTypes";
 
@@ -13,6 +14,8 @@ import type { WaterJob, WaterResult, WaterRock } from "./waterTypes";
 
 /** Pixels por casa das contas da água (distância e rio). */
 const PER_CELL = 20;
+/** Quadros da água: no máximo 30 por segundo. */
+const FRAME_MS = 33;
 /** Espera depois da última mudança antes de recalcular (o mestre pintando em sequência). */
 const SETTLE_MS = 150;
 
@@ -128,10 +131,45 @@ export const WaterLayer = memo(function WaterLayer({
     pixelRatio: window.devicePixelRatio || 1,
   };
 
-  // Quadro parado: redesenha quando a visão, o tamanho ou a água mudam.
+  const viewRef = useRef(waterView);
+  viewRef.current = waterView;
+  // Tempo da água: contínuo (não volta a zero quando algo muda); parada, fica no último instante.
+  const timeRef = useRef(performance.now() / 1000);
+  const reduceFx = useApp((state) => state.reduceFx);
+  const windStalled = useApp((state) => state.windStalled);
+  const animate = !reduceFx && !windStalled;
+
+  // Relógio da água: no máximo 30 quadros por segundo, só com água na tela. Cada quadro passa pelo detector (o mesmo
+  // do vento): aparelho que não aguenta para a água e as plantas. Aba oculta: o navegador já pausa.
+  useEffect(() => {
+    if (!renderer || !animate) return;
+    const watch = new FrameWatch();
+    let frame = 0;
+    let previous = performance.now();
+    let lastDraw = 0;
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      const elapsed = now - previous;
+      previous = now;
+      const watching = document.visibilityState === "visible" && document.hasFocus();
+      if (watching && !watch.tick(elapsed)) {
+        useApp.setState({ windStalled: true });
+        return;
+      }
+      if (now - lastDraw < FRAME_MS || renderer.empty || !renderer.visible(viewRef.current)) return;
+      lastDraw = now;
+      timeRef.current = now / 1000;
+      renderer.render(viewRef.current, timeRef.current);
+      imageRef.current?.getLayer()?.batchDraw();
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [renderer, animate]);
+
+  // Quadro na hora: quando a visão, o tamanho ou a água mudam (com a água parada, é o único desenho).
   useEffect(() => {
     if (!renderer) return;
-    renderer.render(waterView, 0);
+    renderer.render(waterView, timeRef.current);
     imageRef.current?.getLayer()?.batchDraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- waterView é refeito a cada render a partir destes valores
   }, [renderer, version, view.x, view.y, view.scale, size.width, size.height, grid.cellPx, grid.offsetX, grid.offsetY]);
