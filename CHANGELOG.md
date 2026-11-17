@@ -15,6 +15,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Pinheiro, palmeira e grama alta (mestre):** três objetos novos que também balançam; o pinheiro e a palmeira ficam por cima dos tokens (o pinheiro atrapalha a visão). O pincel *Espalhar* ganhou o conjunto *Campo* (grama alta, flores, um ou outro arbusto e pedra), e a *Floresta* agora tem pinheiros.
 
 ### Alterado
+- **Terreno pintado desenhado pela placa de vídeo:** o chão (terreno e água) agora sai de um desenho só, por pixel, com a mesma aparência de antes, mas nítido em qualquer zoom (não fica borrado de perto nem é refeito ao dar zoom). O pincel mostra a passada em resolução cheia enquanto arrasta, e um mapa grande aparece de uma vez, sem ir surgindo aos poucos. O detalhe do chão (folhinhas, pedrinhas, lajes) passa a se repetir a cada 16 casas. Sem WebGL 2, o terreno continua sendo desenhado como antes.
 - **Ficha editada para um tamanho maior:** se o token passaria a encostar em alguém no mapa, ele vai para a casa livre mais próxima (como já fazia a ficha importada); ninguém é empurrado. Antes ficava encavalado e a mesa ajeitava na mão.
 - **Efeitos de fogo, raízes e eletrificado redesenhados:** o fogo tremula no lugar em línguas de chama, com brasas por baixo (antes deslizava para o topo da tela); as raízes são desenhadas para a área, ramificando e afinando, e só as pontas rastejam (antes o chão inteiro "respirava"); o eletrificado tem arcos curvos com galhos que piscam e deixam rastro, e o brilho do chão tremula sem pular.
 
