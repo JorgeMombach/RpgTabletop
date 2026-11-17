@@ -2,6 +2,7 @@ import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainCh
 import type { DetailKind } from "../terrain/terrainArt";
 import { bindTextures, createTexture, imageTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, DETAIL_KINDS, FULLSCREEN_VERTEX, TERRAIN_FRAGMENT } from "./terrainShader";
+import { LightPass, type LightingInput } from "./lightPass";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
 
@@ -27,6 +28,14 @@ export class GroundRenderer {
   private readonly blit: Program;
   private readonly triangle: WebGLBuffer;
   private readonly water: WaterPass;
+  private readonly light: LightPass;
+  /**
+   * As três saídas, copiadas do canvas WebGL em sequência a cada desenho (docs/design/luz.md): o chão (terreno e água),
+   * o mapa de luz (a camada que multiplica) e as chamas com o brilho (a camada que soma).
+   */
+  readonly groundImage = document.createElement("canvas");
+  readonly lightImage = document.createElement("canvas");
+  readonly flameImage = document.createElement("canvas");
   private readonly terrainFramebuffer: WebGLFramebuffer | null;
   private terrainImage: WebGLTexture | null = null;
   private weights: { bounds: ChunkRect; first: WebGLTexture; second: WebGLTexture } | null = null;
@@ -57,6 +66,7 @@ export class GroundRenderer {
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
     this.terrainFramebuffer = gl.createFramebuffer();
     this.water = new WaterPass(gl);
+    this.light = new LightPass(gl);
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor), ladrilhos de detalhe e a terra do barranco da água. */
@@ -182,6 +192,45 @@ export class GroundRenderer {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     this.water.render(view, time);
     gl.disable(gl.BLEND);
+    this.copyTo(this.groundImage);
+    if (!this.light.active) return;
+    // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
+    this.light.renderLight(view, time, width, height);
+    this.copyTo(this.lightImage);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.light.renderFlames(view, time);
+    this.copyTo(this.flameImage);
+  }
+
+  /** Copia o que está no canvas WebGL agora para uma das saídas (do mesmo tamanho). */
+  private copyTo(target: HTMLCanvasElement) {
+    if (target.width !== this.canvas.width || target.height !== this.canvas.height) {
+      target.width = this.canvas.width;
+      target.height = this.canvas.height;
+    }
+    const ctx = target.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, target.width, target.height);
+    ctx.drawImage(this.canvas, 0, 0);
+  }
+
+  /** Paredes, luzes e luz da cena (docs/design/luz.md): a geometria só é refeita quando algo muda. */
+  setLighting(input: LightingInput) {
+    if (this.gl.isContextLost()) return;
+    this.light.setLighting(input);
+  }
+
+  /** Há luz de cena (dia, noite…) a aplicar: as imagens de luz e chamas valem. */
+  get lighting(): boolean {
+    return this.light.active;
+  }
+
+  /** Alguma tocha na cena (para animar a tremulação mesmo sem água na tela). */
+  get flickering(): boolean {
+    return this.light.hasTorches;
   }
 
   private drawTerrain(view: GroundView, width: number, height: number, waterDraft: boolean) {
@@ -216,6 +265,7 @@ export class GroundRenderer {
   dispose() {
     const { gl } = this;
     this.water.dispose();
+    this.light.dispose();
     this.releaseWeights();
     for (const texture of [...this.watercolors, ...this.details]) gl.deleteTexture(texture);
     if (this.terrainImage) gl.deleteTexture(this.terrainImage);
