@@ -4,7 +4,7 @@ import { randomPointIn, type GridKind, type MapProp, type PropKind } from "@rpg/
  * Pincel de espalhar (cenário, passo 3): distribui objetos nas casas pintadas, sem encavalar. Cada conjunto diz o
  * que entra e com que peso; cada objeto sai com tamanho, giro e variação sorteados.
  */
-export const SCATTER_SETS = ["forest", "grove", "rocks", "rubble"] as const;
+export const SCATTER_SETS = ["forest", "grove", "rocks", "rubble", "field"] as const;
 export type ScatterSet = (typeof SCATTER_SETS)[number];
 
 interface SetEntry {
@@ -17,6 +17,7 @@ const SETS: Record<ScatterSet, SetEntry[]> = {
   // Floresta: árvores fechadas, arbustos entre elas, um toco ou tronco aqui e ali.
   forest: [
     { kind: "tree", weight: 6, size: [0.85, 1.3] },
+    { kind: "pine", weight: 2, size: [0.85, 1.3] },
     { kind: "bush", weight: 3, size: [0.8, 1.3] },
     { kind: "stump", weight: 0.5, size: [0.8, 1.2] },
     { kind: "log", weight: 0.5, size: [0.8, 1.1] },
@@ -43,6 +44,13 @@ const SETS: Record<ScatterSet, SetEntry[]> = {
     { kind: "stones", weight: 2, size: [0.8, 1.2] },
     { kind: "planks", weight: 1.2, size: [0.7, 1] },
     { kind: "boulder", weight: 0.8, size: [0.5, 0.9] },
+  ],
+  // Campo: grama alta balançando, flores, um ou outro arbusto e pedra (vento nas plantas).
+  field: [
+    { kind: "tallGrass", weight: 6, size: [0.8, 1.4] },
+    { kind: "flowers", weight: 2, size: [0.8, 1.2] },
+    { kind: "bush", weight: 1, size: [0.7, 1.1] },
+    { kind: "stones", weight: 0.3, size: [0.7, 1] },
   ],
 };
 
@@ -73,6 +81,9 @@ const ROOM: Record<PropKind, number> = {
   mushrooms: 0.25,
   flowers: 0.35,
   bridge: 1.5,
+  pine: 0.8,
+  palm: 0.85,
+  tallGrass: 0.35,
 };
 
 /** Aleatório com semente (a mesma pincelada sai igual no protótipo). */

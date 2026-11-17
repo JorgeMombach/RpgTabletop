@@ -44,6 +44,20 @@ describe("objetos no mapa", () => {
     assert.equal(props().length, 2);
   });
 
+  it("pinheiro, palmeira e grama alta (vento nas plantas) saem com os padrões do desenho", async () => {
+    const { g } = await setup();
+    const [pinheiro] = idsOf(await act(g, "prop:add", { kind: "pine", col: 1, row: 1 }));
+    const [palmeira] = idsOf(await act(g, "prop:add", { kind: "palm", col: 3, row: 1 }));
+    const [grama] = idsOf(await act(g, "prop:add", { kind: "tallGrass", col: 5, row: 1 }));
+    const layerOf = (id: string) => {
+      const prop = props().find((p) => p.id === id)!;
+      return { above: prop.above, blocks: prop.blocks };
+    };
+    assert.deepEqual(layerOf(pinheiro), { above: true, blocks: true });
+    assert.deepEqual(layerOf(palmeira), { above: true, blocks: false });
+    assert.deepEqual(layerOf(grama), { above: false, blocks: false });
+  });
+
   it("segunda leva: estátua, barraca e estante atrapalham a visão; os outros não; nenhum fica por cima dos tokens", async () => {
     const { g } = await setup();
     const kinds = ["statue", "bones", "altar", "tent", "cart", "well", "shelf", "bed", "sacks", "mushrooms", "flowers", "bridge"] as const;

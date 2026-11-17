@@ -2,6 +2,7 @@ import type { PropKind } from "@rpg/shared";
 import { METALS, rivet, shade } from "./tokenArt";
 import { rng, shadowed, textured, WOODS } from "./wallKit";
 import { altar, bed, bones, bridge, cart, flowers, mushrooms, sacks, shelf, statue, tent, well } from "./propArtMore";
+import { palm, pine, tallGrass } from "./plantArt";
 
 /**
  * Objetos do cenário vistos de cima (docs/design/cenario.md, passo 2), no mesmo kit das paredes: sombra no chão,
@@ -18,7 +19,7 @@ export type R = () => number;
 export type Leaves = [string, string, string, string];
 export const GREEN: Leaves = ["#1d3a22", "#2c5a2d", "#43803a", "#6aa64b"];
 const OLIVE: Leaves = ["#2f3a17", "#4c5f22", "#6f862f", "#9bb246"];
-const PINE: Leaves = ["#132a1a", "#1e4226", "#2d5e35", "#4a8048"];
+export const PINE: Leaves = ["#132a1a", "#1e4226", "#2d5e35", "#4a8048"];
 
 /** Folha clara que vira para a luz e volta com o vento (vento nas plantas), em pixels da imagem a partir do centro. */
 export interface Glint {
@@ -726,7 +727,7 @@ function pillar(ctx: CanvasRenderingContext2D, c: number, seed: number) {
 }
 
 /** Plantas que balançam com o vento: desenhadas em camadas (docs/design/vento.md). */
-export const SWAYING: Partial<Record<PropKind, PlantPainter>> = { tree, bush, flowers };
+export const SWAYING: Partial<Record<PropKind, PlantPainter>> = { tree, bush, flowers, pine, palm, tallGrass };
 
 /** Planta parada: as camadas no mesmo canvas. */
 const still =
@@ -760,6 +761,9 @@ const DRAW: Record<PropKind, (ctx: CanvasRenderingContext2D, c: number, seed: nu
   mushrooms,
   flowers: still(flowers),
   bridge,
+  pine: still(pine),
+  palm: still(palm),
+  tallGrass: still(tallGrass),
 };
 
 /** Desenha o objeto em volta de (0, 0); `c` = lado da casa já com o tamanho do objeto. */
@@ -796,6 +800,9 @@ export const PROP_EXTENT: Record<PropKind, number> = {
   mushrooms: 0.55,
   flowers: 0.55,
   bridge: 1.7,
+  pine: 1.5,
+  palm: 1.4,
+  tallGrass: 0.8,
 };
 
 const cache = new Map<string, HTMLCanvasElement>();

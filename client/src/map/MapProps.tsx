@@ -38,6 +38,9 @@ export const PROP_LABEL: Record<PropKind, MessageKey> = {
   mushrooms: "props.mushrooms",
   flowers: "props.flowers",
   bridge: "props.bridge",
+  pine: "props.pine",
+  palm: "props.palm",
+  tallGrass: "props.tallGrass",
 };
 
 /** Centro do objeto em pixels do mapa. */
@@ -233,7 +236,7 @@ export function PropIcon({ kind, size = 34 }: { kind: PropKind; size?: number })
  * Opções da ferramenta Objetos (mestre): o catálogo (o próximo a pôr) e, com um objeto escolhido, variar, camada,
  * atrapalhar a visão, tamanho e apagar. Em `memo`: o mapa redesenha a cada passo do WASD.
  */
-const SET_LABEL: Record<ScatterSet, MessageKey> = { forest: "props.setForest", grove: "props.setGrove", rocks: "props.setRocks", rubble: "props.setRubble" };
+const SET_LABEL: Record<ScatterSet, MessageKey> = { forest: "props.setForest", grove: "props.setGrove", rocks: "props.setRocks", rubble: "props.setRubble", field: "props.setField" };
 
 export const PropOptions = memo(function PropOptions({ selected }: { selected: MapProp | null }) {
   const t = useT();
