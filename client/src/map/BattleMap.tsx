@@ -20,13 +20,13 @@ import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
 import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
-import { WaterLayer } from "./water/WaterLayer";
-import { WaterRenderer } from "./water/WaterRenderer";
+import { GroundLayer } from "./ground/GroundLayer";
+import { GroundRenderer } from "./ground/GroundRenderer";
 import { CurrentLines } from "./water/CurrentLines";
 import { CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent } from "./water/currentTool";
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
-const WEBGL_WATER = WaterRenderer.supported();
+const WEBGL_GROUND = GroundRenderer.supported();
 import { useSmallScreen } from "../layout";
 import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toCellUnits, toWorld, type Point } from "./geometry";
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
@@ -114,7 +114,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
-  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, waterFailed } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, groundFailed } = useApp();
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
   const smallScreen = useSmallScreen();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
@@ -1121,12 +1121,26 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
             {image && layout && (
               <KImage image={image} x={layout.x} y={layout.y} width={layout.w} height={layout.h} rotation={grid.rotation} />
             )}
-            {/* Terreno pintado (criação de mapa): acima da imagem, abaixo do grid. Com WebGL, a água é da camada dela. */}
-            <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} epoch={terrainEpoch} draft={terrainPreview !== null} hideWater={WEBGL_WATER && !waterFailed} />
+            {/* Terreno pintado, desenhado no processador: só sem WebGL 2 (ou com o chão em WebGL falhando). */}
+            {(!WEBGL_GROUND || groundFailed) && (
+              <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} epoch={terrainEpoch} draft={terrainPreview !== null} />
+            )}
           </Layer>
 
-          {/* Água animada (docs/design/agua.md): camada própria, a única redesenhada a cada quadro da água. */}
-          {WEBGL_WATER && <WaterLayer chunks={terrain} currents={state.battle.currents} props={state.battle.props} grid={grid} view={stageView} size={stageSize} />}
+          {/* O chão (docs/design/renderizador-chao.md): terreno e água animada em WebGL, numa camada própria. */}
+          {WEBGL_GROUND && (
+            <GroundLayer
+              chunks={terrainPreview ?? terrain}
+              committed={terrain}
+              draft={terrainPreview !== null}
+              epoch={terrainEpoch}
+              currents={state.battle.currents}
+              props={state.battle.props}
+              grid={grid}
+              view={stageView}
+              size={stageSize}
+            />
+          )}
 
           {/* Borda e grid: por cima do terreno e da água. */}
           <Layer listening={false}>
