@@ -62,13 +62,27 @@ const KIND_SEED: Record<DetailKind, number> = { grass: 11, dirt: 23, stone: 37, 
  * Inclui o que nasce numa casa de folga em volta, para os traços que passam da borda aparecerem nos dois pedaços.
  */
 export function drawDetail(ctx: CanvasRenderingContext2D, kind: DetailKind, cx: number, cy: number, pixelsPerCell: number) {
+  drawDetailArea(ctx, kind, cx * TERRAIN_CHUNK_CELLS, cy * TERRAIN_CHUNK_CELLS, TERRAIN_CHUNK_CELLS, pixelsPerCell);
+}
+
+/** Período (casas) do ladrilho de detalhe da placa de vídeo: a aquarela repete a cada 8, o detalhe a cada 16. */
+export const DETAIL_PERIOD = 16;
+
+/** Resto sempre positivo (casa -1 com período 16 = casa 15). */
+const wrapped = (value: number, period: number | undefined) => (period ? ((value % period) + period) % period : value);
+
+/**
+ * Detalhe de uma área quadrada de `cells` casas a partir de (firstCol, firstRow). Com `period`, o sorteio de cada casa
+ * usa a posição módulo o período: o que passa da borda de um lado é igual ao que entra do outro (ladrilho que emenda).
+ */
+function drawDetailArea(ctx: CanvasRenderingContext2D, kind: DetailKind, firstCol: number, firstRow: number, cells: number, pixelsPerCell: number, period?: number) {
   const scale = pixelsPerCell / 40;
-  const firstCol = cx * TERRAIN_CHUNK_CELLS;
-  const firstRow = cy * TERRAIN_CHUNK_CELLS;
-  if (kind === "stone") return drawSlabs(ctx, firstCol, firstRow, pixelsPerCell);
-  for (let row = firstRow - 1; row <= firstRow + TERRAIN_CHUNK_CELLS; row++) {
-    for (let col = firstCol - 1; col <= firstCol + TERRAIN_CHUNK_CELLS; col++) {
-      const rand = seeded(KIND_SEED[kind], col, row);
+  if (kind === "stone") return drawSlabs(ctx, firstCol, firstRow, cells, pixelsPerCell, period);
+  // Folga em volta: o que nasce fora e entra na área. No ladrilho, 2 casas (uma rachadura anda mais de uma).
+  const margin = period ? 2 : 1;
+  for (let row = firstRow - margin; row < firstRow + cells + margin; row++) {
+    for (let col = firstCol - margin; col < firstCol + cells + margin; col++) {
+      const rand = seeded(KIND_SEED[kind], wrapped(col, period), wrapped(row, period));
       const at = () => [(col - firstCol + rand()) * pixelsPerCell, (row - firstRow + rand()) * pixelsPerCell] as const;
       if (kind === "grass") {
         for (let n = 0; n < 24; n++) {
@@ -122,31 +136,38 @@ export function drawDetail(ctx: CanvasRenderingContext2D, kind: DetailKind, cx: 
   }
 }
 
+/** Lajes por ladrilho de detalhe: fileiras e lajes por fileira (16/22 × 16/17 ≈ 0,73 × 0,94 casa). */
+const SLAB_ROWS = 22;
+const SLAB_COLUMNS = 17;
+
 /**
  * Lajes em fileiras (cada fileira deslocada meia laje), com as juntas e os cantos sorteados pela posição no mapa:
  * junta escura e luz na borda de cima. Sem emenda entre pedaços.
  */
-function drawSlabs(ctx: CanvasRenderingContext2D, firstCol: number, firstRow: number, pixelsPerCell: number) {
-  const height = 0.72;
-  const width = 0.95;
+function drawSlabs(ctx: CanvasRenderingContext2D, firstCol: number, firstRow: number, cells: number, pixelsPerCell: number, period?: number) {
+  // Cabem inteiras no ladrilho de `DETAIL_PERIOD` casas: 22 fileiras e 17 lajes por fileira.
+  const height = DETAIL_PERIOD / SLAB_ROWS;
+  const width = DETAIL_PERIOD / SLAB_COLUMNS;
+  const rowPeriod = period ? (period / DETAIL_PERIOD) * SLAB_ROWS : undefined;
+  const jointPeriod = period ? (period / DETAIL_PERIOD) * SLAB_COLUMNS : undefined;
   const toPixels = (x: number, y: number): [number, number] => [(x - firstCol) * pixelsPerCell, (y - firstRow) * pixelsPerCell];
   /** Junta `k` da fileira `row`: onde ela cai na horizontal (com sorteio) e o quanto cada ponta sobe ou desce. */
   const joint = (row: number, k: number) => {
-    const rand = seeded(KIND_SEED.stone, row, k);
+    const rand = seeded(KIND_SEED.stone, wrapped(row, rowPeriod), wrapped(k, jointPeriod));
     return { x: k * width + (row % 2 !== 0 ? width / 2 : 0) + (rand() - 0.5) * 0.36, top: (rand() - 0.5) * 0.1, bottom: (rand() - 0.5) * 0.1 };
   };
   const row0 = Math.floor((firstRow - 1) / height);
-  const row1 = Math.ceil((firstRow + TERRAIN_CHUNK_CELLS + 1) / height);
+  const row1 = Math.ceil((firstRow + cells + 1) / height);
   for (let row = row0; row < row1; row++) {
     const k0 = Math.floor((firstCol - 2) / width);
-    const k1 = Math.ceil((firstCol + TERRAIN_CHUNK_CELLS + 2) / width);
+    const k1 = Math.ceil((firstCol + cells + 2) / width);
     for (let k = k0; k < k1; k++) {
       const left = joint(row, k);
       const right = joint(row, k + 1);
       const y0 = row * height;
       const y1 = y0 + height;
       const quad = [toPixels(left.x, y0 + left.top), toPixels(right.x, y0 + right.top), toPixels(right.x, y1 + right.bottom), toPixels(left.x, y1 + left.bottom)];
-      const rand = seeded(KIND_SEED.stone + 1, row, k);
+      const rand = seeded(KIND_SEED.stone + 1, wrapped(row, rowPeriod), wrapped(k, jointPeriod));
       ctx.beginPath();
       quad.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.closePath();
@@ -163,4 +184,30 @@ function drawSlabs(ctx: CanvasRenderingContext2D, firstCol: number, firstRow: nu
       ctx.stroke();
     }
   }
+}
+
+/**
+ * Ladrilho de detalhe para a placa de vídeo (docs/design/renderizador-chao.md): o mesmo desenho de `drawDetail`,
+ * `DETAIL_PERIOD` casas de lado, emendando consigo mesmo.
+ */
+export function detailTile(kind: DetailKind, pixelsPerCell: number): HTMLCanvasElement {
+  const side = DETAIL_PERIOD * pixelsPerCell;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = side;
+  const ctx = canvas.getContext("2d");
+  if (ctx) drawDetailArea(ctx, kind, 0, 0, DETAIL_PERIOD, pixelsPerCell, DETAIL_PERIOD);
+  return canvas;
+}
+
+/** A aquarela de um terreno com o ajuste de cor de `TERRAIN_ART` aplicado (textura da placa de vídeo). */
+export function filteredWatercolor(terrain: TerrainId, image: HTMLImageElement): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.filter = TERRAIN_ART[terrain].filter;
+    ctx.drawImage(image, 0, 0);
+  }
+  return canvas;
 }
