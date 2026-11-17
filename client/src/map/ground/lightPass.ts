@@ -314,6 +314,13 @@ export class LightPass {
     return this.torches.length > 0;
   }
 
+  /** A troca de luz da cena ainda está no meio (precisa de mais quadros para chegar). */
+  get settling(): boolean {
+    if (!this.input) return false;
+    const target = SCENE_LIGHT[this.input.scene];
+    return this.current.ambient.some((value, index) => Math.abs(value - target.ambient[index]) > 0.002) || Math.abs(this.current.shadowCells - target.shadowCells) > 0.01;
+  }
+
   dispose() {
     this.releaseTorches();
     if (this.shadows) this.gl.deleteBuffer(this.shadows.buffer);

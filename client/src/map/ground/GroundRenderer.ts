@@ -228,9 +228,9 @@ export class GroundRenderer {
     return this.light.active;
   }
 
-  /** Alguma tocha na cena (para animar a tremulação mesmo sem água na tela). */
+  /** Alguma tocha na cena, ou a luz da cena ainda trocando: precisa animar mesmo sem água na tela. */
   get flickering(): boolean {
-    return this.light.hasTorches;
+    return this.light.hasTorches || this.light.settling;
   }
 
   private drawTerrain(view: GroundView, width: number, height: number, waterDraft: boolean) {

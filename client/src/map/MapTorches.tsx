@@ -16,7 +16,7 @@ import { drawMapTorch } from "./mapTorchArt";
 export const TORCH_DRAG_MIME = "application/x-map-torch";
 
 /** Tamanho do desenho, em casas: as tochas, meia casa e pouco (objeto, não token); o braseiro, uma casa. A luz não muda. */
-const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.75, iron: 0.75, brazier: 1 };
+export const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.75, iron: 0.75, brazier: 1 };
 
 const LABEL: Record<MapTorchStyle, MessageKey> = { stick: "torches.stick", iron: "torches.iron", brazier: "torches.brazier" };
 
@@ -33,7 +33,7 @@ export function torchPoint(t: Pick<MapTorch, "col" | "row">, grid: Pick<MapConfi
 }
 
 /** Uma tocha no mapa. Com a ferramenta Tochas, o mestre arrasta para qualquer ponto. */
-function TorchShape({ t, grid, time, draggable }: { t: MapTorch; grid: MapConfig; time: React.RefObject<number>; draggable: boolean }) {
+function TorchShape({ t, grid, time, draggable, fire }: { t: MapTorch; grid: MapConfig; time: React.RefObject<number>; draggable: boolean; fire: boolean }) {
   const s = grid.cellPx * TORCH_CELLS[t.style];
   const seed = torchSeed(t.id);
   const at = torchPoint(t, grid);
@@ -69,13 +69,16 @@ function TorchShape({ t, grid, time, draggable }: { t: MapTorch; grid: MapConfig
         k.closePath();
         k.fillStrokeShape(shape);
       }}
-      sceneFunc={(k) => drawMapTorch(k._context as CanvasRenderingContext2D, t.style, 0, 0, s, time.current ?? 0, seed)}
+      sceneFunc={(k) => drawMapTorch(k._context as CanvasRenderingContext2D, t.style, 0, 0, s, time.current ?? 0, seed, fire)}
     />
   );
 }
 
-/** Desenhos das tochas fixas: abaixo da névoa (coberta, ninguém vê), animados como a tocha dos tokens. */
-export function MapTorchLayer({ torches, grid, editing }: { torches: MapTorch[]; grid: MapConfig; editing: boolean }) {
+/**
+ * Desenhos das tochas fixas: abaixo da névoa (coberta, ninguém vê), animados como a tocha dos tokens. `fire` falso
+ * (chão em WebGL): só o corpo, parado; a chama nova vem da placa de vídeo (docs/design/luz.md).
+ */
+export function MapTorchLayer({ torches, grid, editing, fire = true }: { torches: MapTorch[]; grid: MapConfig; editing: boolean; fire?: boolean }) {
   const layerRef = useRef<Konva.Layer>(null);
   const reduceFx = useApp((s) => s.reduceFx);
   const time = useRef(0);
@@ -83,7 +86,7 @@ export function MapTorchLayer({ torches, grid, editing }: { torches: MapTorch[];
 
   useEffect(() => {
     const layer = layerRef.current;
-    if (!layer || reduceFx || !any) return;
+    if (!layer || reduceFx || !any || !fire) return;
     let last = 0;
     const anim = new Konva.Animation((frame) => {
       if (!frame) return false;
@@ -96,13 +99,13 @@ export function MapTorchLayer({ torches, grid, editing }: { torches: MapTorch[];
     return () => {
       anim.stop();
     };
-  }, [reduceFx, any]);
+  }, [reduceFx, any, fire]);
 
   if (!any) return null;
   return (
     <Layer ref={layerRef} listening={editing}>
       {torches.map((t) => (
-        <TorchShape key={t.id} t={t} grid={grid} time={time} draggable={editing} />
+        <TorchShape key={t.id} t={t} grid={grid} time={time} draggable={editing} fire={fire} />
       ))}
     </Layer>
   );

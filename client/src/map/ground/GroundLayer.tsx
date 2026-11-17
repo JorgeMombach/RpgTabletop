@@ -6,6 +6,8 @@ import { useApp } from "../../store";
 import { detailTile, filteredWatercolor, loadTerrainImages, TERRAIN_ART, type DetailKind } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
+import { notifyGroundDrawn, useGroundOutputs } from "./groundOutputs";
+import type { LightingInput } from "./lightPass";
 import type { WaterJob, WaterResult, WaterRock } from "./waterTypes";
 
 /**
@@ -51,7 +53,10 @@ export const GroundLayer = memo(function GroundLayer({
   grid,
   view,
   size,
+  lighting,
 }: {
+  /** Paredes, luzes e luz da cena (docs/design/luz.md); `null` = sem luz na placa (fica a película de antes). */
+  lighting: LightingInput | null;
   /** O terreno a desenhar (com a prévia da passada do pincel, se houver). */
   chunks: TerrainChunks;
   /** O terreno confirmado pelo servidor (o que a água usa). */
@@ -131,6 +136,7 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
+    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage });
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
@@ -140,6 +146,7 @@ export const GroundLayer = memo(function GroundLayer({
       canvas.removeEventListener("webglcontextrestored", restored);
       createdWorker.terminate();
       created.dispose();
+      useGroundOutputs.setState({ light: null, flame: null });
       setEngine(null);
     };
   }, [generation]);
@@ -186,6 +193,13 @@ export const GroundLayer = memo(function GroundLayer({
     uploaded.current = { chunks, epoch };
     setVersion((value) => value + 1);
   }, [renderer, chunks, epoch]);
+
+  // Luz: paredes, tochas e luz da cena (a geometria só é refeita quando algo muda de fato).
+  useEffect(() => {
+    if (!renderer || !lighting) return;
+    renderer.setLighting(lighting);
+    setVersion((value) => value + 1);
+  }, [renderer, lighting]);
 
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
   const lastCommitted = useRef<TerrainChunks | null>(null);
@@ -245,11 +259,13 @@ export const GroundLayer = memo(function GroundLayer({
         useApp.setState({ windStalled: true });
         return;
       }
-      if (now - lastDraw < FRAME_MS || !renderer.visibleWater(viewRef.current)) return;
+      // Anima com água na tela, com tocha tremulando ou com a luz da cena ainda trocando.
+      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering)) return;
       lastDraw = now;
       timeRef.current = now / 1000;
       renderer.render(viewRef.current, timeRef.current, { waterDraft: waterDraftRef.current });
       imageRef.current?.getLayer()?.batchDraw();
+      notifyGroundDrawn();
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
@@ -260,13 +276,14 @@ export const GroundLayer = memo(function GroundLayer({
     if (!renderer) return;
     renderer.render(groundView, timeRef.current, { waterDraft });
     imageRef.current?.getLayer()?.batchDraw();
+    notifyGroundDrawn();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- groundView é refeito a cada render a partir destes valores
   }, [renderer, version, waterDraft, view.x, view.y, view.scale, size.width, size.height, grid.cellPx, grid.offsetX, grid.offsetY]);
 
   if (!renderer || renderer.empty || groundFailed) return null;
   return (
     <Layer listening={false}>
-      <KImage ref={imageRef} image={renderer.canvas} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />
+      <KImage ref={imageRef} image={renderer.groundImage} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />
     </Layer>
   );
 });

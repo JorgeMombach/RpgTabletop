@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, paintTerrain, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
+import { brushCells, lightBlockers, paintTerrain, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -22,6 +22,11 @@ import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
+import { GroundOutputLayer } from "./ground/GroundOutputLayer";
+import { useTokenDrag } from "./dragFollow";
+import { lightSources } from "./ground/lightSources";
+import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
+import type { LightingInput } from "./ground/lightPass";
 import { CurrentLines } from "./water/CurrentLines";
 import { CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent } from "./water/currentTool";
 
@@ -949,6 +954,30 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   const tokenKey = tokenSpots(tokens);
+  // Luz (docs/design/luz.md): com o chão em WebGL, a luz da cena, as sombras e as tochas saem da placa de vídeo.
+  const groundLit = WEBGL_GROUND && !groundFailed;
+  const dragging = useTokenDrag();
+  const torchKey = tokens
+    .filter((c) => c.torch)
+    .map((c) => `${c.id}:${c.pos?.col},${c.pos?.row},${c.size}`)
+    .join("|");
+  const lighting = useMemo<LightingInput | null>(
+    () =>
+      groundLit
+        ? {
+            blockers: lightBlockers(state.battle.walls),
+            sources: lightSources(tokens, state.battle.torches, grid, dragging),
+            scene: state.battle.weather.light,
+            // O mestre nunca fica no breu (dá para trabalhar); quem vê como jogador (outra visão) vê o breu deles.
+            floor: gm ? GM_FLOOR : null,
+          }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `torchKey` resume o que importa dos tokens
+    [groundLit, state.battle.walls, state.battle.torches, torchKey, state.battle.weather.light, gm, dragging, grid],
+  );
+  // Chuva, neve e afins escurecem com a luz da cena (sem sombra de parede); o que brilha sozinho não muda.
+  const sceneLight = SCENE_LIGHT[state.battle.weather.light];
+  const weatherDim = Math.min(1, Math.max(0.3, (sceneLight.ambient[0] + sceneLight.ambient[1] + sceneLight.ambient[2] + sceneLight.sun[0] + sceneLight.sun[1] + sceneLight.sun[2]) / 3));
   const plateNumbers = repeatedNumbers(tokens);
   const wallStyle = state.battle.map.wallStyle ?? "stone";
   const doors = doorLayouts(state.battle.walls);
@@ -1139,6 +1168,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               grid={grid}
               view={stageView}
               size={stageSize}
+              lighting={lighting}
             />
           )}
 
@@ -1292,8 +1322,12 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
               onde se vê (não "vaza" pela parede para dentro de um cômodo coberto). */}
-          <TorchGlowLayer tokens={tokens} torches={state.battle.torches} grid={grid} light={state.battle.weather.light} />
-          <MapTorchLayer torches={state.battle.torches} grid={grid} editing={gm && tool === "torches" && !torchErase} />
+          {groundLit ? (
+            <GroundOutputLayer which="flame" view={stageView} size={stageSize} />
+          ) : (
+            <TorchGlowLayer tokens={tokens} torches={state.battle.torches} grid={grid} light={state.battle.weather.light} />
+          )}
+          <MapTorchLayer torches={state.battle.torches} grid={grid} editing={gm && tool === "torches" && !torchErase} fire={!groundLit} />
           <MapChestLayer chests={state.battle.chests} grid={grid} editing={gm && tool === "chests"} clickable={tool === "move" && !placing && !gathering} />
 
           {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos, paredes e brilho das tochas; os tokens ficam por cima. */}
@@ -1330,6 +1364,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
           {/* Copas e o que fica por cima dos tokens (o token passa por baixo; com alguém embaixo, fica meio transparente). */}
           <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="above" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} />
+
+          {/* Luz da cena, sombras e tochas (docs/design/luz.md): multiplica tudo o que está embaixo; a interface do mapa
+              (áreas, régua, pings) fica por cima, legível à noite. */}
+          {groundLit && <GroundOutputLayer which="light" view={stageView} size={stageSize} />}
 
           <Layer listening={false}>
             {Object.entries(areas).map(([pid, a]) => (
@@ -1389,7 +1427,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       {/* Vinheta: bordas da área do mapa escurecidas (luz de cena no centro); some com "Reduzir efeitos". */}
       {!reduceFx && <div className="map-vignette" />}
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
-      <WeatherOverlay weather={state.battle.weather} lights={screenLights(tokens, state.battle.torches, grid, view)} />
+      <WeatherOverlay weather={state.battle.weather} lights={groundLit ? [] : screenLights(tokens, state.battle.torches, grid, view)} film={!groundLit} dim={groundLit ? weatherDim : 1} />
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
       {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
