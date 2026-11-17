@@ -150,3 +150,76 @@ export function terrainAt(chunks: TerrainChunks, x: number, y: number): Partial<
   }
   return out;
 }
+
+/** Retângulo em pedaços (8 × 8 casas). */
+export interface ChunkRect {
+  cx: number;
+  cy: number;
+  cols: number;
+  rows: number;
+}
+
+/** Os pedaços pintados, num retângulo só (a área que as texturas do terreno cobrem na placa de vídeo). */
+export function terrainBounds(chunks: TerrainChunks): ChunkRect | null {
+  const keys = Object.keys(chunks);
+  if (keys.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const key of keys) {
+    const [cx, cy] = key.split(",").map(Number);
+    minX = Math.min(minX, cx);
+    minY = Math.min(minY, cy);
+    maxX = Math.max(maxX, cx);
+    maxY = Math.max(maxY, cy);
+  }
+  return { cx: minX, cy: minY, cols: maxX - minX + 1, rows: maxY - minY + 1 };
+}
+
+/** Pesos dos terrenos no formato das texturas RGBA8: os 4 primeiros de `TERRAINS` em `first`, os 4 últimos em `second`. */
+export interface TerrainWeights {
+  width: number;
+  height: number;
+  first: Uint8Array<ArrayBuffer>;
+  second: Uint8Array<ArrayBuffer>;
+}
+
+/**
+ * Pesos dos terrenos para a placa de vídeo (docs/design/renderizador-chao.md): um texel por ponto fino. Sem `keys`, o
+ * retângulo `bounds` inteiro; com `keys`, um bloco de 32 × 32 por pedaço, um embaixo do outro, na ordem das chaves
+ * (para subir só o que mudou).
+ */
+export function terrainWeights(chunks: TerrainChunks, bounds: ChunkRect, keys?: string[]): TerrainWeights {
+  const blocks = keys ?? null;
+  const width = blocks ? TERRAIN_CHUNK_SIDE : bounds.cols * TERRAIN_CHUNK_SIDE;
+  const height = blocks ? blocks.length * TERRAIN_CHUNK_SIDE : bounds.rows * TERRAIN_CHUNK_SIDE;
+  const first = new Uint8Array(width * height * 4);
+  const second = new Uint8Array(width * height * 4);
+  const place = (key: string, originX: number, originY: number) => {
+    const chunk = chunks[key];
+    if (!chunk) return;
+    TERRAINS.forEach((terrain, layer) => {
+      const text = chunk[terrain];
+      const bytes = text ? decodeLayer(text) : null;
+      if (!bytes) return;
+      const target = layer < 4 ? first : second;
+      const channel = layer % 4;
+      for (let j = 0; j < TERRAIN_CHUNK_SIDE; j++) {
+        for (let i = 0; i < TERRAIN_CHUNK_SIDE; i++) {
+          const value = bytes[j * TERRAIN_CHUNK_SIDE + i];
+          if (value > 0) target[((originY + j) * width + originX + i) * 4 + channel] = value;
+        }
+      }
+    });
+  };
+  if (blocks) blocks.forEach((key, index) => place(key, 0, index * TERRAIN_CHUNK_SIDE));
+  else {
+    for (const key of Object.keys(chunks)) {
+      const [cx, cy] = key.split(",").map(Number);
+      if (cx < bounds.cx || cy < bounds.cy || cx >= bounds.cx + bounds.cols || cy >= bounds.cy + bounds.rows) continue;
+      place(key, (cx - bounds.cx) * TERRAIN_CHUNK_SIDE, (cy - bounds.cy) * TERRAIN_CHUNK_SIDE);
+    }
+  }
+  return { width, height, first, second };
+}

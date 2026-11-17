@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { chunkKey, decodeLayer, encodeLayer, paintTerrain, terrainAt, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
+import { chunkKey, decodeLayer, encodeLayer, paintTerrain, terrainAt, terrainBounds, terrainWeights, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
 
 // Terreno pintado (entrega 1 da criação de mapa): as contas do pincel e da mistura, puras.
 const stroke = (terrain: TerrainStroke["terrain"], points: number[], radius = 1, strength = 1): TerrainStroke => ({ terrain, radius, strength, points });
@@ -63,5 +63,49 @@ describe("terreno: contas do pincel", () => {
     const changed = paintTerrain(chunks, stroke("water", [-2, -3]));
     assert.ok(changed.includes("-1,-1"));
     assert.ok((terrainAt(chunks, -2, -3).water ?? 0) > 0);
+  });
+});
+
+// Terreno na placa de vídeo (docs/design/renderizador-chao.md): área pintada e pesos no formato das texturas.
+describe("terreno: pesos para a placa de vídeo", () => {
+  const layerWith = (index: number, value: number) => {
+    const bytes = new Uint8Array(1024);
+    bytes[index] = value;
+    return encodeLayer(bytes);
+  };
+
+  it("área do terreno: cobre os pedaços pintados; vazio = null", () => {
+    const chunks: TerrainChunks = { "0,0": { grass: layerWith(0, 9) }, "2,-1": { dirt: layerWith(0, 9) } };
+    assert.deepEqual(terrainBounds(chunks), { cx: 0, cy: -1, cols: 3, rows: 2 });
+    assert.equal(terrainBounds({}), null);
+  });
+
+  it("pesos: um texel por ponto fino, na ordem de TERRAINS", () => {
+    const index = 2 * 32 + 3;
+    const chunks: TerrainChunks = { "0,0": { grass: layerWith(index, 200), water: layerWith(index, 55) } };
+    const weights = terrainWeights(chunks, { cx: 0, cy: 0, cols: 1, rows: 1 });
+    assert.equal(weights.width, 32);
+    assert.equal(weights.height, 32);
+    const texel = (2 * weights.width + 3) * 4;
+    assert.equal(weights.first[texel], 200);
+    assert.equal(weights.second[texel + 2], 55);
+    assert.equal(weights.first.reduce((total, value) => total + value, 0), 200);
+    assert.equal(weights.second.reduce((total, value) => total + value, 0), 55);
+  });
+
+  it("pesos num retângulo com pedaços negativos: cada pedaço no lugar dele", () => {
+    const chunks: TerrainChunks = { "-1,0": { stone: layerWith(0, 77) } };
+    const weights = terrainWeights(chunks, { cx: -1, cy: 0, cols: 2, rows: 1 });
+    assert.equal(weights.width, 64);
+    assert.equal(weights.second[0], 77);
+  });
+
+  it("pesos de só alguns pedaços: um bloco 32 × 32 por chave", () => {
+    const chunks: TerrainChunks = { "0,0": { grassDry: layerWith(5, 120) }, "1,0": { dirtDark: layerWith(7, 30) } };
+    const weights = terrainWeights(chunks, { cx: 0, cy: 0, cols: 2, rows: 1 }, ["1,0", "0,0"]);
+    assert.equal(weights.width, 32);
+    assert.equal(weights.height, 64);
+    assert.equal(weights.first[7 * 4 + 3], 30, "primeiro bloco = 1,0");
+    assert.equal(weights.first[(32 * 32 + 5) * 4 + 1], 120, "segundo bloco = 0,0");
   });
 });
