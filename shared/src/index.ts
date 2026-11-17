@@ -11,3 +11,4 @@ export * from "./shareState";
 export * from "./sheetFile";
 export * from "./uvtt";
 export * from "./catalog";
+export * from "./wind";

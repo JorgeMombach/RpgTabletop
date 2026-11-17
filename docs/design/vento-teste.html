@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Teste árvores vivas</title>
+<style>
+  body { margin: 0; background: #17120f; color: #e8dcc4; font: 15px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  label { display: flex; gap: 8px; align-items: center; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Árvores vivas: teste</h1>
+  <label><input type="checkbox" id="wind" checked> Vento</label>
+  <label>Força <input type="range" id="strength" min="0" max="2" step="0.1" value="1"></label>
+  <label>Tamanho da casa <input type="range" id="cellSize" min="32" max="120" step="4" value="64"></label>
+  <button id="reseed">Sortear de novo</button>
+</header>
+<canvas id="map"></canvas>
+<script src="propart.js"></script>
+<script>
+// Mesmo gerador do app (wallKit.rng).
+function rng(seed) {
+  let state = seed >>> 0 || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return ((state >>> 0) % 10000) / 10000;
+  };
+}
+const GREEN = ["#1d3a22", "#2c5a2d", "#43803a", "#6aa64b"];
+const OLIVE = ["#2f3a17", "#4c5f22", "#6f862f", "#9bb246"];
+const PINE = ["#132a1a", "#1e4226", "#2d5e35", "#4a8048"];
+
+function layerCanvas(side) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = side;
+  const context = canvas.getContext("2d");
+  context.translate(side / 2, side / 2);
+  return { canvas, context };
+}
+
+/**
+ * A folhagem de hoje (propArt.foliage), separada em camadas: sombra, blocos de baixo e blocos de cima.
+ * Também guarda folhas claras de cima, que piscam com o vento.
+ */
+function layeredFoliage(side, random, radius, lobes, tones, shadowK, spread = 0.5) {
+  const shadow = layerCanvas(side);
+  const low = layerCanvas(side);
+  const high = layerCanvas(side);
+  const blobs = [];
+  for (let index = 0; index < lobes; index++) {
+    const angle = (index / lobes) * Math.PI * 2 + random() * 0.6;
+    const distance = index === 0 ? radius * 0.08 : radius * (spread + random() * 0.18);
+    blobs.push([Math.cos(angle) * distance, Math.sin(angle) * distance, radius * (index === 0 ? 0.46 + (0.5 - spread) : 0.34 + random() * 0.12)]);
+  }
+  shadow.context.fillStyle = "rgba(18,8,22,.42)";
+  const offset = radius * 0.12 * shadowK;
+  for (const [x, y, blobRadius] of blobs) {
+    shadow.context.beginPath();
+    shadow.context.arc(x + offset, y + offset * 1.2, blobRadius * 1.04, 0, Math.PI * 2);
+    shadow.context.fill();
+  }
+  blobs.sort((first, second) => second[0] + second[1] - (first[0] + first[1]));
+  const leaf = radius * 0.075;
+  const glints = [];
+  blobs.forEach(([blobX, blobY, blobRadius], blobIndex) => {
+    // Metade de baixo à direita numa camada, a de cima à esquerda (mais iluminada) na outra.
+    const target = blobIndex < Math.ceil(blobs.length / 2) ? low.context : high.context;
+    const count = Math.round(((blobRadius * blobRadius) / (leaf * leaf)) * 1.6);
+    target.fillStyle = tones[0];
+    target.beginPath();
+    target.arc(blobX, blobY, blobRadius * 0.9, 0, Math.PI * 2);
+    target.fill();
+    const leaves = [];
+    for (let index = 0; index < count; index++) {
+      const angle = random() * Math.PI * 2;
+      const distance = Math.sqrt(random()) * blobRadius * 1.08;
+      const x = blobX + Math.cos(angle) * distance;
+      const y = blobY + Math.sin(angle) * distance;
+      const lightX = (x - blobX) / blobRadius;
+      const lightY = (y - blobY) / blobRadius;
+      let value = 0.5 - (lightX + lightY) * 0.42 - Math.max(0, lightX + lightY) * 0.15 + (random() - 0.5) * 0.28;
+      value -= ((blobX + blobY) / radius) * 0.08;
+      leaves.push([x, y, Math.max(0, Math.min(3, Math.floor(value * 4)))]);
+    }
+    leaves.sort((first, second) => first[2] - second[2]);
+    for (const [x, y, tone] of leaves) {
+      const width = leaf * (0.8 + random() * 0.5);
+      const height = leaf * (0.5 + random() * 0.3);
+      const turn = random() * Math.PI;
+      target.fillStyle = tones[tone];
+      target.beginPath();
+      target.ellipse(x, y, width, height, turn, 0, Math.PI * 2);
+      target.fill();
+      if (target === high.context && tone >= 2 && random() < 0.08) glints.push({ x, y, width, height, turn, phase: random() * Math.PI * 2, speed: 2 + random() * 2 });
+    }
+  });
+  return { shadow: shadow.canvas, low: low.canvas, high: high.canvas, glints, leaf };
+}
+
+/** Árvore de hoje (mesmas escolhas de `tree` em propArt), em camadas. */
+function layeredTree(cell, seed) {
+  const random = rng(seed);
+  const pick = random();
+  const tones = pick < 0.15 ? OLIVE : pick < 0.32 ? PINE : GREEN;
+  const result = layeredFoliage(cell * 4, random, cell * (0.95 + random() * 0.25), 5 + Math.floor(random() * 3), tones, 2.2);
+  result.glintColor = tones[3];
+  return result;
+}
+
+/**
+ * Pinheiro na mesma técnica: andares de agulhas soltas (riscos) em volta de um centro, borda irregular,
+ * luz em cima à esquerda; cada andar numa camada, os de cima balançam mais.
+ */
+function layeredPine(cell, seed) {
+  const random = rng(seed);
+  const side = cell * 4;
+  const radius = cell * (0.8 + random() * 0.2);
+  const shadow = layerCanvas(side);
+  const low = layerCanvas(side);
+  const high = layerCanvas(side);
+  const tones = PINE;
+  // Contorno irregular de cada andar: raio que varia com o ângulo (sem pontas regulares).
+  function outline(tierRadius, wobble) {
+    const points = [];
+    const count = 64;
+    const phases = [random() * 6, random() * 6, random() * 6];
+    for (let index = 0; index < count; index++) {
+      const angle = (index / count) * Math.PI * 2;
+      const wave = Math.sin(angle * 3 + phases[0]) * 0.07 + Math.sin(angle * 7 + phases[1]) * 0.05;
+      const reach = tierRadius * (1 + wave + (random() - 0.5) * wobble);
+      points.push([Math.cos(angle) * reach, Math.sin(angle) * reach]);
+    }
+    return points;
+  }
+  function fillPoints(context, points, color) {
+    context.fillStyle = color;
+    context.beginPath();
+    points.forEach(([x, y], index) => (index ? context.lineTo(x, y) : context.moveTo(x, y)));
+    context.closePath();
+    context.fill();
+  }
+  const base = outline(radius, 0.22);
+  shadow.context.translate(radius * 0.3, radius * 0.38);
+  fillPoints(shadow.context, base, "rgba(18,8,22,.42)");
+  const tiers = 4;
+  const glints = [];
+  for (let tier = 0; tier < tiers; tier++) {
+    const k = tier / (tiers - 1);
+    const target = tier < 2 ? low.context : high.context;
+    const tierRadius = radius * (1 - k * 0.68);
+    // O andar de cima um pouco para cima à esquerda (ponta da árvore mais perto da luz).
+    const centerX = -k * radius * 0.08;
+    const centerY = -k * radius * 0.1;
+    target.save();
+    target.translate(centerX, centerY);
+    const shape = tier === 0 ? base : outline(tierRadius, 0.4);
+    // Sombra do andar sobre o de baixo (separa os andares).
+    if (tier > 0) {
+      target.save();
+      target.translate(tierRadius * 0.07, tierRadius * 0.09);
+      fillPoints(target, shape, "rgba(8,18,10,.45)");
+      target.restore();
+    }
+    fillPoints(target, shape, tones[0]);
+    // Agulhas: riscos curtos apontando para fora, do escuro para o claro.
+    const needles = [];
+    const count = Math.round(260 * (tierRadius / radius) ** 2) + 30;
+    for (let index = 0; index < count; index++) {
+      const angle = random() * Math.PI * 2;
+      const distance = Math.sqrt(random()) * tierRadius * 1.02;
+      const x = Math.cos(angle) * distance;
+      const y = Math.sin(angle) * distance;
+      const light = 0.55 - ((x + y) / tierRadius) * 0.35 + k * 0.25 + (random() - 0.5) * 0.3;
+      needles.push([x, y, angle + (random() - 0.5) * 0.7, Math.max(0, Math.min(3, Math.floor(light * 4)))]);
+    }
+    needles.sort((first, second) => first[3] - second[3]);
+    target.lineCap = "round";
+    for (const [x, y, angle, tone] of needles) {
+      const length = cell * (0.08 + random() * 0.06) * (0.7 + (Math.hypot(x, y) / tierRadius) * 0.9);
+      target.strokeStyle = tones[tone];
+      target.lineWidth = Math.max(1, cell * (0.035 + random() * 0.02));
+      target.beginPath();
+      target.moveTo(x - Math.cos(angle) * length * 0.5, y - Math.sin(angle) * length * 0.5);
+      target.lineTo(x + Math.cos(angle) * length * 0.5, y + Math.sin(angle) * length * 0.5);
+      target.stroke();
+      if (tier >= 2 && tone >= 2 && random() < 0.05) glints.push({ x: x + centerX, y: y + centerY, width: length * 0.5, height: cell * 0.025, turn: angle, phase: random() * 6, speed: 2 + random() * 2 });
+    }
+    target.restore();
+  }
+  // Topo: um tufinho mais claro no meio.
+  high.context.fillStyle = tones[3];
+  high.context.beginPath();
+  high.context.arc(-radius * 0.1, -radius * 0.12, cell * 0.05, 0, Math.PI * 2);
+  high.context.fill();
+  return { shadow: shadow.canvas, low: low.canvas, high: high.canvas, glints, glintColor: "#5f9a5a" };
+}
+
+// ---------- palmeira do teste anterior (aprovada) ----------
+const INK = "#16261a";
+function drawPalm(ctx, cell, seed) {
+  const random = rng(seed + 3);
+  const size = cell * (0.85 + random() * 0.2);
+  const ink = Math.max(1, cell * 0.026);
+  const leaves = 7 + Math.floor(random() * 3);
+  const tones = ["#2c5a2c", "#3f7a36", "#5b9a42", "#86bd5a"];
+  for (let layer = 0; layer < 2; layer++) {
+    for (let index = 0; index < leaves; index++) {
+      const angle = (index / leaves) * Math.PI * 2 + layer * (Math.PI / leaves) + random() * 0.2;
+      const length = size * (layer === 0 ? 1 : 0.72) * (0.85 + random() * 0.2);
+      const width = length * 0.2;
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      const teeth = 7;
+      for (let tooth = 1; tooth <= teeth; tooth++) {
+        const t = tooth / teeth;
+        const half = Math.sin(t * Math.PI) * width;
+        ctx.lineTo(t * length - length * 0.04, -half * 1.15);
+        ctx.lineTo(t * length, -half * 0.55);
+      }
+      for (let tooth = teeth; tooth >= 1; tooth--) {
+        const t = tooth / teeth;
+        const half = Math.sin(t * Math.PI) * width;
+        ctx.lineTo(t * length, half * 0.55);
+        ctx.lineTo(t * length - length * 0.04, half * 1.15);
+      }
+      ctx.closePath();
+      const light = -Math.cos(angle) - Math.sin(angle);
+      ctx.fillStyle = tones[Math.max(0, Math.min(3, Math.round(1 + layer + light * 0.7)))];
+      ctx.fill();
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = ink;
+      ctx.lineJoin = "round";
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(length * 0.05, 0);
+      ctx.quadraticCurveTo(length * 0.5, -width * 0.1, length * 0.95, 0);
+      ctx.lineWidth = ink * 0.7;
+      ctx.globalAlpha = 0.7;
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = "#6b4a2e";
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = ink;
+  ctx.stroke();
+}
+function layeredPalm(cell, seed) {
+  const side = cell * 4;
+  const shadow = layerCanvas(side);
+  const high = layerCanvas(side);
+  const low = layerCanvas(side);
+  drawPalm(high.context, cell, seed);
+  shadow.context.filter = `brightness(0) blur(${Math.max(1, cell * 0.05)}px)`;
+  shadow.context.globalAlpha = 0.4;
+  shadow.context.drawImage(high.canvas, -side / 2 + cell * 0.25, -side / 2 + cell * 0.32);
+  return { shadow: shadow.canvas, low: low.canvas, high: high.canvas, glints: [] };
+}
+
+// ---------- cena ----------
+const COLUMNS = [
+  { title: "Hoje (parada)", make: null },
+  { title: "Hoje com vento", make: layeredTree },
+  { title: "Hoje com vento", make: layeredTree, seedShift: 40 },
+  { title: "Pinheiro novo", make: layeredPine },
+  { title: "Pinheiro novo", make: layeredPine, seedShift: 40 },
+  { title: "Palmeira", make: layeredPalm },
+];
+let baseSeed = 3;
+const cache = new Map();
+function treeLayers(column, seed, cell) {
+  const key = `${column.title}:${seed}:${cell}`;
+  if (!cache.has(key)) {
+    if (column.make) cache.set(key, column.make(cell, seed));
+    else {
+      const still = layerCanvas(cell * 4);
+      window.drawProp(still.context, "tree", cell, seed);
+      cache.set(key, { still: still.canvas });
+    }
+  }
+  return cache.get(key);
+}
+
+const grass = new Image();
+grass.src = "grass_01.webp";
+const canvas = document.getElementById("map");
+const ctx = canvas.getContext("2d");
+document.getElementById("reseed").onclick = () => { baseSeed += 7; cache.clear(); };
+
+function drawLayer(image, x, y, angle) {
+  const half = image.width / 2;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.drawImage(image, -half, -half);
+  ctx.restore();
+}
+
+function frame(nowMs) {
+  const t = nowMs / 1000;
+  const cell = Number(document.getElementById("cellSize").value);
+  const strength = document.getElementById("wind").checked ? Number(document.getElementById("strength").value) : 0;
+  const tile = cell * 3;
+  const width = tile * COLUMNS.length;
+  const rows = 3;
+  const height = tile * rows + 28;
+  if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+  ctx.fillStyle = ctx.createPattern(grass, "repeat");
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "rgba(15,10,8,.82)";
+  ctx.fillRect(0, 0, width, 28);
+  ctx.fillStyle = "#e8dcc4";
+  ctx.font = "15px Segoe UI";
+  COLUMNS.forEach((column, index) => ctx.fillText(column.title, index * tile + 10, 19));
+  COLUMNS.forEach((column, columnIndex) => {
+    for (let row = 0; row < rows; row++) {
+      const seed = baseSeed + (column.seedShift ?? 0) + row * 13 + columnIndex;
+      const centerX = columnIndex * tile + tile / 2;
+      const centerY = 28 + row * tile + tile / 2;
+      const layers = treeLayers(column, seed, cell);
+      if (layers.still) { drawLayer(layers.still, centerX, centerY, 0); continue; }
+      // Rajada que atravessa o mapa da esquerda para a direita (árvores vizinhas balançam quase juntas).
+      const travel = t - centerX / (cell * 8) - centerY / (cell * 20);
+      const gust = (Math.sin(travel * 0.9) * 0.55 + Math.sin(travel * 2.3 + seed) * 0.25 + Math.sin(travel * 4.1 + seed * 2) * 0.1) * strength;
+      const lowShift = gust * cell * 0.035;
+      // A camada de cima atrasa um pouco e vai mais longe: as folhas de cima "escorregam" sobre as de baixo.
+      const lag = (Math.sin((travel - 0.25) * 0.9) * 0.55 + Math.sin((travel - 0.25) * 2.3 + seed) * 0.25 + Math.sin((travel - 0.25) * 4.1 + seed * 2) * 0.1) * strength;
+      const highShift = lag * cell * 0.06;
+      drawLayer(layers.shadow, centerX + lowShift * 0.6, centerY + lowShift * 0.25, gust * 0.01);
+      drawLayer(layers.low, centerX + lowShift, centerY + lowShift * 0.35, gust * 0.018);
+      drawLayer(layers.high, centerX + highShift, centerY + highShift * 0.35, lag * 0.03);
+      // Folhas claras que viram para a luz e voltam (piscam mais quando a rajada está forte).
+      ctx.save();
+      ctx.translate(centerX + highShift, centerY + highShift * 0.35);
+      ctx.rotate(lag * 0.03);
+      ctx.fillStyle = "#b5dc78";
+      for (const glint of layers.glints) {
+        const pulse = Math.max(0, Math.sin(t * glint.speed + glint.phase));
+        ctx.globalAlpha = pulse ** 6 * (0.35 + Math.abs(gust) * 0.5) * (strength > 0 ? 1 : 0);
+        ctx.beginPath();
+        ctx.ellipse(glint.x, glint.y, glint.width, glint.height, glint.turn + pulse * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  });
+  requestAnimationFrame(frame);
+}
+grass.onload = () => requestAnimationFrame(frame);
+</script>
+</body>
+</html>
