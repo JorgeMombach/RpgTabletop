@@ -62,6 +62,7 @@ export class GroundRenderer {
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor), ladrilhos de detalhe e a terra do barranco da água. */
   setArt(watercolors: TexImageSource[], details: Record<DetailKind, TexImageSource>, dirt: TexImageSource) {
     const { gl } = this;
+    if (gl.isContextLost()) return;
     for (const texture of [...this.watercolors, ...this.details]) gl.deleteTexture(texture);
     this.watercolors = watercolors.map((image) => imageTexture(gl, image));
     this.details = DETAIL_KINDS.map((kind) => imageTexture(gl, details[kind]));
@@ -87,6 +88,8 @@ export class GroundRenderer {
    */
   setTerrain(chunks: TerrainChunks, changed: string[] | "all") {
     const { gl } = this;
+    // Contexto perdido: nada a fazer até o navegador devolver (aí o motor é refeito e tudo sobe de novo).
+    if (gl.isContextLost()) return;
     this.terrainDirty = true;
     const bounds = terrainBounds(chunks);
     if (!bounds) return this.releaseWeights();
@@ -127,6 +130,7 @@ export class GroundRenderer {
 
   /** Grupos de água (o que o Worker calculou). */
   setWaterFields(fields: WaterGpuField[]) {
+    if (this.gl.isContextLost()) return;
     this.water.setFields(fields);
   }
 
@@ -142,6 +146,8 @@ export class GroundRenderer {
 
   render(view: GroundView, time: number, options: { waterDraft: boolean }) {
     const { gl, canvas } = this;
+    // Contexto perdido: criar textura pode falhar (devolve nada); não desenha até o navegador devolver.
+    if (gl.isContextLost()) return;
     const ratio = Math.min(view.pixelRatio, MAX_PIXEL_RATIO);
     const width = Math.max(1, Math.round(view.width * ratio));
     const height = Math.max(1, Math.round(view.height * ratio));

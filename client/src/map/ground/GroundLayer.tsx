@@ -5,7 +5,7 @@ import { FrameWatch, TERRAINS, type MapConfig, type MapProp, type TerrainChunks,
 import { useApp } from "../../store";
 import { detailTile, filteredWatercolor, loadTerrainImages, TERRAIN_ART, type DetailKind } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
-import { GroundRenderer } from "./GroundRenderer";
+import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
 import type { WaterJob, WaterResult, WaterRock } from "./waterTypes";
 
 /**
@@ -76,6 +76,10 @@ export const GroundLayer = memo(function GroundLayer({
   const [generation, setGeneration] = useState(0);
   const jobId = useRef(0);
   const uploaded = useRef<{ chunks: TerrainChunks; epoch: number } | null>(null);
+  // Água pedida ao Worker e ainda não chegou: o terreno mostra a aquarela da água (sem buraco ao soltar o pincel).
+  const [waterPending, setWaterPending] = useState(true);
+  // O chão desligou por terreno grande demais (não por falha do WebGL): volta sozinho se o terreno passar a caber.
+  const tooLarge = useRef(false);
 
   // Pedras: só os objetos que podem virar pedra; a lista só muda quando uma delas muda.
   const rocksKey = props
@@ -111,6 +115,7 @@ export const GroundLayer = memo(function GroundLayer({
         fail();
         return;
       }
+      setWaterPending(false);
       setVersion((value) => value + 1);
     };
     createdWorker.onerror = fail;
@@ -126,6 +131,8 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
+    // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
+    lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
     setEngine({ renderer: created, worker: createdWorker });
     return () => {
@@ -165,18 +172,30 @@ export const GroundLayer = memo(function GroundLayer({
     if (!renderer) return;
     const before = uploaded.current;
     try {
-      renderer.setTerrain(chunks, !before || before.epoch !== epoch ? "all" : changedChunks(before.chunks, chunks));
-    } catch {
+      // Depois de terreno grande demais, tenta de novo do zero (pode ter diminuído).
+      renderer.setTerrain(chunks, !before || before.epoch !== epoch || tooLarge.current ? "all" : changedChunks(before.chunks, chunks));
+    } catch (error) {
+      tooLarge.current = error instanceof TerrainTooLarge;
       useApp.setState({ groundFailed: true });
       return;
+    }
+    if (tooLarge.current) {
+      tooLarge.current = false;
+      useApp.setState({ groundFailed: false });
     }
     uploaded.current = { chunks, epoch };
     setVersion((value) => value + 1);
   }, [renderer, chunks, epoch]);
 
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
+  const lastCommitted = useRef<TerrainChunks | null>(null);
   useEffect(() => {
     if (!worker) return;
+    // Só a forma da água (o terreno) deixa a água pendente; correnteza e pedras não mudam onde há água.
+    if (lastCommitted.current !== committed) {
+      lastCommitted.current = committed;
+      setWaterPending(true);
+    }
     const timer = window.setTimeout(() => {
       jobId.current += 1;
       const job: WaterJob = { id: jobId.current, chunks: committed, currents, rocks, perCell: PER_CELL };
@@ -198,8 +217,9 @@ export const GroundLayer = memo(function GroundLayer({
   };
   const viewRef = useRef(groundView);
   viewRef.current = groundView;
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
+  const waterDraft = draft || waterPending;
+  const waterDraftRef = useRef(waterDraft);
+  waterDraftRef.current = waterDraft;
   // Tempo da água: contínuo (não volta a zero quando algo muda); parada, fica no último instante.
   const timeRef = useRef(performance.now() / 1000);
   const reduceFx = useApp((state) => state.reduceFx);
@@ -228,7 +248,7 @@ export const GroundLayer = memo(function GroundLayer({
       if (now - lastDraw < FRAME_MS || !renderer.visibleWater(viewRef.current)) return;
       lastDraw = now;
       timeRef.current = now / 1000;
-      renderer.render(viewRef.current, timeRef.current, { waterDraft: draftRef.current });
+      renderer.render(viewRef.current, timeRef.current, { waterDraft: waterDraftRef.current });
       imageRef.current?.getLayer()?.batchDraw();
     };
     frame = requestAnimationFrame(tick);
@@ -238,10 +258,10 @@ export const GroundLayer = memo(function GroundLayer({
   // Quadro na hora: quando a visão, o tamanho, o terreno ou a água mudam (com a água parada, é o único desenho).
   useEffect(() => {
     if (!renderer) return;
-    renderer.render(groundView, timeRef.current, { waterDraft: draft });
+    renderer.render(groundView, timeRef.current, { waterDraft });
     imageRef.current?.getLayer()?.batchDraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- groundView é refeito a cada render a partir destes valores
-  }, [renderer, version, draft, view.x, view.y, view.scale, size.width, size.height, grid.cellPx, grid.offsetX, grid.offsetY]);
+  }, [renderer, version, waterDraft, view.x, view.y, view.scale, size.width, size.height, grid.cellPx, grid.offsetX, grid.offsetY]);
 
   if (!renderer || renderer.empty || groundFailed) return null;
   return (

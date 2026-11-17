@@ -39,6 +39,14 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Jogador (entrando pelo IP da rede): vê a água correr, não vê as linhas.
 - [ ] *Reduzir efeitos*: água parada.
 
+### Terreno na placa de vídeo (renderizador do chão)
+- [ ] Mesmo terreno de antes (cores, borda irregular, detalhe), nítido em zoom bem perto e bem longe; detalhe repetindo a cada 16 casas sem saltar aos olhos.
+- [ ] Pincel: a passada aparece na hora, em resolução cheia; pincel de água mostra a aquarela até soltar e vira água animada depois.
+- [ ] Mapa grande com terreno: aparece de uma vez; arrastar e dar zoom fluidos.
+- [ ] Grid hex e celular (jogador entrando pelo IP da rede): o terreno acompanha o grid.
+- [ ] Trocar de cena e carregar arquivo: terreno e água da cena certa.
+- [ ] Reserva: com WebGL desligado no navegador, o terreno aparece como antes.
+
 ## Pendências pequenas
 
 ### Água animada ([docs/design/agua.md](design/agua.md))
@@ -48,6 +56,15 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] `dFdx`/`dFdy` depois de `return` antecipado e dentro de `if` no shader da água: possíveis pixels soltos na margem (`waterShader.ts`).
 - [ ] Desfazer em cadeia (riscar → apagar → desfazer → desfazer) não remove a linha recriada, que ganhou id novo (`mapHistory.ts`).
 - [ ] Pedras no rio têm só espuma e esteira, não a cúpula no relevo da água que o desenho pedia (`waterShader.ts`, `heightAt`).
+
+### Renderizador do chão ([docs/design/renderizador-chao.md](design/renderizador-chao.md))
+- [ ] Pintando grama por cima de água, a água animada antiga cobre a grama nova por ~150 ms depois de soltar, até o Worker responder (`GroundLayer.tsx`).
+- [ ] Com o chão desligado (`groundFailed`), o relógio da água continua desenhando num canvas invisível e alimentando o detector de aparelho lento (`GroundLayer.tsx`: incluir `!groundFailed` no relógio).
+- [ ] Mudar a densidade da tela (arrastar a janela para outro monitor) não redesenha o chão até a próxima mudança de visão (`GroundLayer.tsx`).
+- [ ] `terrainShader.ts` usa 8 e 16 fixos em vez de `TERRAIN_CHUNK_CELLS` e `DETAIL_PERIOD`.
+- [ ] Hash do ruído da borda faz `uint(x)` de inteiro negativo (terreno à esquerda/acima da origem): o ANGLE preserva os bits, mas a GLSL ES 3.00 não garante (`terrainShader.ts`).
+- [ ] `dispose` do chão não apaga programas, buffers e framebuffers (o `loseContext` libera tudo; só registro).
+- [ ] Conferir de olho: detalhe com zoom bem longe pode sair um pouco mais escuro (mipmap de textura com alfa não pré-multiplicado; não reproduzido na medição).
 
 ### Vento nas plantas ([docs/design/vento.md](design/vento.md))
 - [ ] Mudar o clima (até só a luz de dia/noite) recria a animação e as plantas dão um pulinho no balanço (`PlantWind.tsx`: `frame.time` volta a 0).
