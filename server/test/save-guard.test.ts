@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { encodeLayer } from "@rpg/shared";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock, JournalEntry } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock, JournalEntry, WaterCurrent } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -156,6 +156,7 @@ function fullGame(playerId: string, gmId: string): GameState {
       { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door>, style: "iron" } satisfies Required<Wall>,
     ],
     props: [{ id: "pr1", kind: "tree", col: 6.25, row: 3.5, size: 1.4, rotation: 30, seed: 1234, above: true, blocks: false } satisfies Required<MapProp>],
+    currents: [{ id: "c1", points: [1, 2.5, 3.25, 4] } satisfies Required<WaterCurrent>],
     weather,
     fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60, foundNpcs: ["guarda"] } satisfies Required<FogState>,
     terrain: { "0,0": { grass: encodeLayer(new Uint8Array(1024).fill(200)), dirt: encodeLayer(new Uint8Array(1024).fill(55)) } },
@@ -171,6 +172,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     torches: [],
     props: [{ id: "pr2", kind: "crates", col: 1, row: 1, size: 1, rotation: 0, seed: 5, above: false, blocks: true }],
+    currents: [],
     chests: [],
     weather,
     fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] },

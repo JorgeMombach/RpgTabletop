@@ -329,6 +329,10 @@ export interface ActionPayloads {
    * livre é cortado; seta e círculo tocados somem inteiros. Jogador: só nas próprias setas.
    */
   "draw:erase": { points: number[]; radius: number };
+  /** Mestre: linha de correnteza da água (x, y em casas, no sentido em que a água corre). */
+  "current:add": { points: number[] };
+  /** Mestre: apaga linhas de correnteza. */
+  "current:remove": { ids: string[] };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   /** Mestre: tocha fixa em qualquer ponto do mapa (em casas). */
   "maptorch:add": { col: number; row: number; style: MapTorchStyle };
@@ -570,6 +574,9 @@ export const LIMITS = {
   /** Desenhos do mestre no mapa ao mesmo tempo, números por desenho (x e y) e espessura do traço. */
   drawings: 150,
   drawingNumbers: 1200,
+  /** Linhas de correnteza por cena e números (x, y) por linha (água animada). */
+  currents: 60,
+  currentNumbers: 400,
   drawingWidth: { min: 1, max: 24 },
   /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
   drawingCoord: 100_000,

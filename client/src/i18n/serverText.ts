@@ -291,6 +291,13 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Texto inválido.": ["Invalid text.", "Texto no válido."],
   "Tipo de desenho desconhecido.": ["Unknown drawing type.", "Tipo de dibujo desconocido."],
   "Traço longo demais: desenhe em partes.": ["Stroke too long: draw it in parts.", "Trazo demasiado largo: dibújalo por partes."],
+  // Correnteza da água (docs/design/agua.md).
+  Correnteza: ["Current", "Corriente"],
+  correnteza: ["current", "corriente"],
+  correntezas: ["currents", "corrientes"],
+  "Correnteza inválida.": ["Invalid current.", "Corriente no válida."],
+  "Correnteza longa demais: risque em partes.": ["Current too long: draw it in parts.", "Corriente demasiado larga: trázala por partes."],
+  "Limite de correntezas da cena atingido.": ["This scene has reached its current limit.", "Se alcanzó el límite de corrientes de la escena."],
   "Um invocado não invoca outro (invoque a partir de quem lançou a magia).": ["A summon can't summon another (summon from whoever cast the spell).", "Un invocado no invoca a otro (invoca desde quien lanzó el conjuro)."],
   "Use a remoção de mob.": ["Use the mob removal.", "Usa la eliminación de mob."],
   "Use um arquivo de áudio (MP3, OGG, WAV, M4A, WEBM ou FLAC).": ["Use an audio file (MP3, OGG, WAV, M4A, WEBM or FLAC).", "Usa un archivo de audio (MP3, OGG, WAV, M4A, WEBM o FLAC)."],

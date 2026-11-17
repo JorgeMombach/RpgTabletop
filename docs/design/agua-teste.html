@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Teste água WebGL</title>
+<style>
+  body { margin: 0; background: #17120f; color: #e8dcc4; font: 15px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  label { display: flex; gap: 8px; align-items: center; }
+  canvas { display: block; }
+  #wrap { position: relative; width: 1024px; height: 640px; }
+  #wrap canvas { position: absolute; left: 0; top: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Água (shader): teste 2</h1>
+  <label>Velocidade <input type="range" id="speed" min="0" max="2" step="0.05" value="1"></label>
+  <label>Barranco <input type="range" id="bank" min="0.3" max="2" step="0.05" value="1"></label>
+  <label><input type="checkbox" id="lines"> Mostrar linha de correnteza</label>
+  <label><input type="checkbox" id="grid" checked> Grid</label>
+</header>
+<div id="wrap"><canvas id="water" width="1024" height="640"></canvas><canvas id="overlay" width="1024" height="640"></canvas></div>
+<script>
+const W = 1024, H = 640, CELL = 48;
+
+// ---------- máscara em resolução cheia: rio com curva entrando num lago, pedras ----------
+function bezier(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  return [0, 1].map((k) => u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]);
+}
+const RIVER = [[-60, 80], [280, 20], [240, 460], [660, 410]];
+const centerline = [];
+for (let i = 0; i <= 160; i++) centerline.push(bezier(...RIVER, i / 160));
+const LAKE = { x: 770, y: 400, rx: 190, ry: 156 };
+const ROCKS = [[236, 256, 17], [800, 340, 22], [600, 392, 12]];
+
+const maskCanvas = document.createElement("canvas");
+maskCanvas.width = W; maskCanvas.height = H;
+const maskCtx = maskCanvas.getContext("2d");
+maskCtx.fillStyle = "#000"; maskCtx.fillRect(0, 0, W, H);
+maskCtx.strokeStyle = "#fff"; maskCtx.fillStyle = "#fff"; maskCtx.lineCap = "round";
+for (let i = 0; i < centerline.length - 1; i++) {
+  maskCtx.lineWidth = 70 + (i / centerline.length) * 40;
+  maskCtx.beginPath(); maskCtx.moveTo(...centerline[i]); maskCtx.lineTo(...centerline[i + 1]); maskCtx.stroke();
+}
+maskCtx.beginPath();
+for (let i = 0; i <= 128; i++) {
+  const a = (i / 128) * Math.PI * 2;
+  const wobble = 1 + Math.sin(a * 3 + 1) * 0.08 + Math.sin(a * 5 + 2) * 0.05;
+  const x = LAKE.x + Math.cos(a) * LAKE.rx * wobble, y = LAKE.y + Math.sin(a) * LAKE.ry * wobble;
+  i ? maskCtx.lineTo(x, y) : maskCtx.moveTo(x, y);
+}
+maskCtx.fill();
+const maskData = maskCtx.getImageData(0, 0, W, H).data;
+const water = new Uint8Array(W * H);
+for (let i = 0; i < W * H; i++) water[i] = maskData[i * 4] > 127 ? 1 : 0;
+const rock = new Float32Array(W * H);
+for (const [rx, ry, rr] of ROCKS) for (let y = Math.max(0, ry - rr - 4); y < Math.min(H, ry + rr + 4); y++) for (let x = Math.max(0, rx - rr - 4); x < Math.min(W, rx + rr + 4); x++) {
+  const d = Math.hypot(x - rx, y - ry);
+
+  const a = Math.atan2(y - ry, x - rx), edge = rr * (1 + Math.sin(a * 3 + rx) * 0.12 + Math.sin(a * 5 + ry) * 0.07);
+  if (d < edge) rock[y * W + x] = Math.max(rock[y * W + x], Math.sqrt(1 - (d / edge) ** 2) * rr * 0.9);
+}
+
+// ---------- distância exata (Felzenszwalb) ----------
+function edt1d(f, n) {
+  const d = new Float32Array(n), v = new Int32Array(n), z = new Float32Array(n + 1);
+  let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity;
+  for (let q = 1; q < n; q++) {
+    let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+    while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+    k++; v[k] = q; z[k] = s; z[k + 1] = Infinity;
+  }
+  k = 0;
+  for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  return d;
+}
+function edt(isTarget) {
+  const BIG = 1e12, grid = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) grid[i] = isTarget(i) ? 0 : BIG;
+  const col = new Float32Array(H);
+  for (let x = 0; x < W; x++) { for (let y = 0; y < H; y++) col[y] = grid[y * W + x]; const r = edt1d(col, H); for (let y = 0; y < H; y++) grid[y * W + x] = r[y]; }
+  const row = new Float32Array(W);
+  for (let y = 0; y < H; y++) { for (let x = 0; x < W; x++) row[x] = grid[y * W + x]; const r = edt1d(row, W); for (let x = 0; x < W; x++) grid[y * W + x] = Math.sqrt(r[x]); }
+  return grid;
+}
+const toLand = edt((i) => water[i] === 0);
+const toWater = edt((i) => water[i] === 1);
+const sdf = new Float32Array(W * H);
+for (let i = 0; i < W * H; i++) sdf[i] = water[i] ? toLand[i] - 0.5 : -(toWater[i] - 0.5);
+
+// ---------- coordenadas do rio ----------
+const segLen = [], cumLen = [0];
+for (let s = 0; s < centerline.length - 1; s++) {
+  const l = Math.hypot(centerline[s + 1][0] - centerline[s][0], centerline[s + 1][1] - centerline[s][1]);
+  segLen.push(l); cumLen.push(cumLen[s] + l);
+}
+const total = cumLen[cumLen.length - 1];
+const river = new Float32Array(W * H * 4);
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const i = y * W + x;
+  if (sdf[i] < -60) continue;
+  let best = 1e9, along = 0, across = 0;
+  for (let s = 0; s < centerline.length - 1; s++) {
+    const [ax, ay] = centerline[s], [bx, by] = centerline[s + 1];
+    const vx = bx - ax, vy = by - ay;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / (segLen[s] * segLen[s])));
+    const d = Math.hypot(x - (ax + vx * t), y - (ay + vy * t));
+    if (d < best) { best = d; along = cumLen[s] + segLen[s] * t; across = ((x - ax) * vy - (y - ay) * vx) / segLen[s]; }
+  }
+  let strength = 1 - Math.max(0, Math.min(1, (best - 50) / 50));
+  strength *= 1 - Math.max(0, Math.min(1, (along / total - 0.82) / 0.18)) * 0.9;
+  river[i * 4] = along; river[i * 4 + 1] = across; river[i * 4 + 2] = strength; river[i * 4 + 3] = rock[i];
+}
+
+// ---------- WebGL 2 ----------
+const canvas = document.getElementById("water");
+const gl = canvas.getContext("webgl2", { antialias: true });
+const VERT = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main() { vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5); gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 outColor;
+uniform sampler2D uSdf, uRiver, uGrass, uDirt, uStone;
+uniform vec2 uRes; uniform float uTime, uCell, uShowGrid, uBank;
+
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+}
+float fbm(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 5; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v; }
+
+const vec3 LIGHT = normalize(vec3(-0.55, -0.62, 0.56));
+const float BANK = 14.0;
+const float DEEP = 22.0;
+
+float sdfAt(vec2 px) {
+  return texture(uSdf, px / uRes).r + (fbm(px / 60.0) - 0.5) * 10.0 + (fbm(px / 9.0) - 0.5) * 2.5;
+}
+float bankWidth(vec2 px) { return mix(10.0, 30.0, fbm(px / 140.0 + 3.0)); }
+float rockAt(vec2 px) { return texture(uRiver, px / uRes).w; }
+float heightAt(vec2 px) {
+  float rockH = rockAt(px);
+  if (rockH > 0.01) return -BANK * uBank + rockH - 4.0;
+  float s = sdfAt(px);
+  float bw = bankWidth(px);
+  float x = clamp((s + bw) / bw, 0.0, 1.0);
+  float land = -BANK * uBank * x * x * (3.0 - 2.0 * x);
+  float bottom = -BANK * uBank - DEEP * (1.0 - exp(-max(s, 0.0) / 28.0));
+  return s < 0.0 ? land : bottom;
+}
+vec3 terrainNormal(vec2 px) {
+  float e = 1.5;
+  float hx = heightAt(px + vec2(e, 0)) - heightAt(px - vec2(e, 0));
+  float hy = heightAt(px + vec2(0, e)) - heightAt(px - vec2(0, e));
+  return normalize(vec3(-hx / (2.0 * e), -hy / (2.0 * e), 1.0));
+}
+float shadowAt(vec2 px, float h0) {
+  vec2 dir = normalize(LIGHT.xy);
+  float rise = LIGHT.z / length(LIGHT.xy);
+  float lit = 1.0;
+  for (int k = 1; k <= 10; k++) {
+    float d = float(k) * 4.5;
+    float over = heightAt(px + dir * d) - (h0 + d * rise);
+    lit = min(lit, clamp(1.0 - over / 3.0, 0.0, 1.0));
+  }
+  return lit;
+}
+float lambert(vec3 n) { return max(dot(n, LIGHT), 0.0) / LIGHT.z; }
+
+vec3 groundMaterial(vec2 px, float h) {
+  vec3 grass = texture(uGrass, px / 420.0).rgb * vec3(0.8, 0.88, 0.72);
+  vec3 dirt = texture(uDirt, px / 300.0).rgb;
+  float x = clamp(-h / (BANK * uBank), 0.0, 1.2);
+  float strata = 0.94 + 0.06 * sin(h * 0.9 + fbm(px / 18.0) * 9.0);
+  vec3 earth = mix(vec3(0.42, 0.31, 0.2), vec3(0.6, 0.48, 0.32), fbm(px / 40.0)) * (0.7 + 0.6 * dot(dirt, vec3(0.33))) * strata;
+  earth = mix(earth, vec3(0.3, 0.26, 0.2), smoothstep(0.75, 1.0, x));
+  float fringe = x + (fbm(px / 6.0) - 0.5) * 0.45 + (fbm(px / 23.0) - 0.5) * 0.3;
+  float grassAmount = 1.0 - smoothstep(0.08, 0.3, fringe);
+  return mix(earth, grass, grassAmount);
+}
+
+// Uma camada do rio andando a speed px/s ao longo da linha, com redemoinhos (o ruído torto por outro ruído).
+float riverLayer(vec4 r, float speed, float seed) {
+  vec2 q = vec2(r.x - uTime * speed, r.y) + seed;
+  float swirl = fbm(q / 46.0) * 26.0;
+  return fbm(vec2((q.x + swirl) / 40.0, (q.y - swirl * 0.4) / 17.0)) * 0.62 + fbm(vec2((q.x + swirl * 0.5) / 15.0, q.y / 8.0) + 7.0) * 0.38;
+}
+// O meio do rio corre mais que as margens: duas camadas, misturadas pela distância da linha.
+float riverProfile(vec4 r) { return 1.0 - pow(clamp(abs(r.y) / 52.0, 0.0, 1.0), 2.0); }
+float riverSurface(vec2 px) {
+  vec4 r = texture(uRiver, px / uRes);
+  float strong = max(r.z, 0.15);
+  float flowing = mix(riverLayer(r, 26.0 * strong, 0.0), riverLayer(r, 64.0 * strong, 31.0), riverProfile(r));
+  vec2 w = px + vec2(uTime * 3.0, uTime * 2.0);
+  float still = fbm(w / 40.0) * 0.6 + fbm(w / 14.0 + 3.0) * 0.4;
+  return mix(still, flowing, smoothstep(0.0, 1.0, r.z));
+}
+
+void main() {
+  vec2 px = vUv * uRes;
+  float s = sdfAt(px);
+  float h = heightAt(px);
+  vec4 riv = texture(uRiver, vUv);
+  float strength = riv.z;
+  float rockMask = riv.w;
+
+  vec3 n = terrainNormal(px);
+  vec3 ground = groundMaterial(px, max(h, -BANK * uBank * 1.1));
+  float light = lambert(n);
+  float surfaceLevel = -BANK * uBank;
+  float sh = shadowAt(px, s > 0.0 ? surfaceLevel : h);
+  float foot = smoothstep(-6.0, 0.0, s) * (1.0 - smoothstep(0.0, 6.0, s));
+  vec3 terrain = ground * (0.38 + 0.62 * light * mix(0.45, 1.0, sh)) * (1.0 - 0.18 * foot);
+
+  vec2 e = vec2(1.5, 0.0);
+  float rockH = rockAt(px);
+  float isRock = smoothstep(4.0, 6.0, rockH);
+  vec3 stone = texture(uStone, px / 120.0).rgb * vec3(0.95, 0.92, 0.86) * (0.85 + 0.3 * fbm(px / 5.0));
+  terrain = mix(terrain, stone * (0.3 + 0.75 * light * mix(0.5, 1.0, sh)), isRock);
+
+  vec3 color = terrain;
+  if (s > -1.0 && isRock < 0.99) {
+    float depth = max(surfaceLevel - h, 0.0);
+    float w0 = riverSurface(px);
+    float wx = riverSurface(px + e.xy) - riverSurface(px - e.xy);
+    float wy = riverSurface(px + e.yx) - riverSurface(px - e.yx);
+    vec3 wn = normalize(vec3(-wx * 4.0, -wy * 4.0, 1.0));
+    vec2 refr = wn.xy * 6.0 * smoothstep(0.0, 6.0, depth);
+    vec3 bottom = groundMaterial(px + refr, heightAt(px + refr)) * (0.38 + 0.62 * lambert(terrainNormal(px + refr)));
+    vec3 absorb = exp(-depth * vec3(0.13, 0.04, 0.035));
+    vec3 deepColor = vec3(0.04, 0.3, 0.36);
+    vec3 col = bottom * absorb + deepColor * (1.0 - absorb);
+    float caustic = pow(1.0 - abs(fbm(px / 14.0 + uTime * 0.25) - fbm(px / 19.0 - uTime * 0.2)) * 2.0, 7.0);
+    col += caustic * exp(-depth / 8.0) * 0.18;
+    vec3 sky = vec3(0.5, 0.85, 0.86);
+    float fres = 0.08 + 0.25 * (1.0 - wn.z) * 8.0;
+    col = mix(col, sky, clamp(fres, 0.0, 0.35) * smoothstep(0.0, 5.0, depth));
+    col *= 0.92 + (w0 - 0.5) * 0.3;
+    float spec = smoothstep(0.975, 0.995, dot(wn, normalize(LIGHT + vec3(0, 0, 1))));
+    col += spec * 0.3;
+    col *= mix(0.55, 1.0, sh);
+
+    float profile = riverProfile(riv);
+    vec2 q = vec2(riv.x - uTime * mix(26.0, 64.0, profile) * max(riv.z, 0.15), riv.y);
+    float streak = fbm(vec2(q.x / 46.0, q.y / 9.0) + 11.0) * 0.75 + fbm(vec2(q.x / 12.0, q.y / 4.0)) * 0.25;
+    float nearEdge = 1.0 - smoothstep(0.0, 18.0, s);
+    // Pedra: espuma em volta e rio abaixo.
+    float aroundRock = smoothstep(0.5, 4.0, rockH) * 0.0 + (1.0 - smoothstep(0.0, 10.0, length(vec2(0.0)) )) * 0.0;
+    float foam = strength * smoothstep(0.64, 0.74, streak) * nearEdge * 0.85;
+    // Esteira das pedras: anda contra a correnteza procurando pedra; achou perto, espuma rio abaixo dela.
+    vec2 ax = vec2(texture(uRiver, (px + e.xy) / uRes).x - texture(uRiver, (px - e.xy) / uRes).x,
+                   texture(uRiver, (px + e.yx) / uRes).x - texture(uRiver, (px - e.yx) / uRes).x);
+    vec2 downstream = length(ax) > 0.01 ? normalize(ax) : vec2(0.0);
+    float wake = 0.0;
+    for (int k = 1; k <= 9; k++) {
+      float d = float(k) * 7.0;
+      float hit = smoothstep(0.5, 3.0, rockAt(px - downstream * d));
+      wake = max(wake, hit * (1.0 - d / 70.0));
+    }
+    float wakeNoise = smoothstep(0.45, 0.7, fbm(vec2(q.x / 10.0, q.y / 3.0) + 5.0));
+    foam = max(foam, strength * wake * wakeNoise);
+    float gate = smoothstep(0.55, 0.75, fbm(px / 160.0 + vec2(uTime * 0.05, uTime * 0.03)));
+    float ring = sin(s / 11.0 - uTime * 1.6);
+    foam = max(foam, (1.0 - strength) * gate * smoothstep(0.9, 1.0, ring) * smoothstep(2.0, 8.0, s) * (1.0 - smoothstep(10.0, 55.0, s)) * 0.5);
+    foam = max(foam, (1.0 - smoothstep(0.0, 3.5, s)) * smoothstep(0.45, 0.62, fbm(px / 7.0 + uTime * 0.2)) * 0.6);
+    col = mix(col, vec3(0.88, 0.95, 0.93), clamp(foam, 0.0, 1.0) * 0.8);
+
+    // Espuma em volta das pedras (anel que pulsa).
+    float ringRock = 0.0;
+    for (int k = 0; k < 8; k++) { float a = float(k) * 0.785; ringRock = max(ringRock, rockAt(px + vec2(cos(a), sin(a)) * 7.0)); }
+    float rockEdge = smoothstep(0.5, 3.0, ringRock) * (1.0 - isRock);
+    col = mix(col, vec3(0.9, 0.97, 0.95), rockEdge * smoothstep(0.4, 0.6, fbm(px / 5.0 + uTime * 0.8)) * 0.85);
+    color = mix(terrain, col, smoothstep(-1.0, 2.5, s) * (1.0 - isRock));
+  }
+  vec2 g = abs(fract(px / uCell + 0.5) - 0.5) * uCell;
+  color *= 1.0 - uShowGrid * 0.12 * (1.0 - smoothstep(0.0, 1.0, min(g.x, g.y)));
+  outColor = vec4(pow(color, vec3(0.95)), 1.0);
+}`;
+function shader(type, source) {
+  const sh = gl.createShader(type); gl.shaderSource(sh, source); gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+  return sh;
+}
+const program = gl.createProgram();
+gl.attachShader(program, shader(gl.VERTEX_SHADER, VERT));
+gl.attachShader(program, shader(gl.FRAGMENT_SHADER, FRAG));
+gl.linkProgram(program);
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+gl.useProgram(program);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(program, "aPos");
+gl.enableVertexAttribArray(loc);
+gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
+function toHalf(value) {
+  f32[0] = value; const x = u32[0];
+  const sign = (x >>> 16) & 0x8000, exp = ((x >>> 23) & 0xff) - 127 + 15, mant = x & 0x7fffff;
+  if (exp <= 0) return sign;
+  if (exp >= 31) return sign | 0x7c00;
+  return sign | (exp << 10) | (mant >>> 13);
+}
+function halfArray(source) { const out = new Uint16Array(source.length); for (let i = 0; i < source.length; i++) out[i] = toHalf(source[i]); return out; }
+function floatTexture(unit, data, internal, format) {
+  const tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, internal, W, H, 0, format, gl.HALF_FLOAT, halfArray(data));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+function imageTexture(unit, image) {
+  const tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+}
+function load(src) { return new Promise((resolve) => { const image = new Image(); image.onload = () => resolve(image); image.src = src; }); }
+
+Promise.all([load("grass_01.webp"), load("dirt_01.webp"), load("stone_01.webp")]).then(([grass, dirt, stone]) => {
+  floatTexture(0, sdf, gl.R16F, gl.RED);
+  floatTexture(1, river, gl.RGBA16F, gl.RGBA);
+  imageTexture(2, grass); imageTexture(3, dirt); imageTexture(4, stone);
+  const uniform = (name) => gl.getUniformLocation(program, name);
+  ["uSdf", "uRiver", "uGrass", "uDirt", "uStone"].forEach((name, unit) => gl.uniform1i(uniform(name), unit));
+  gl.uniform2f(uniform("uRes"), W, H);
+  gl.uniform1f(uniform("uCell"), CELL);
+  let simTime = 0, last = performance.now();
+  function frame(now) {
+    simTime += ((now - last) / 1000) * Number(document.getElementById("speed").value);
+    last = now;
+    gl.uniform1f(uniform("uTime"), simTime);
+    gl.uniform1f(uniform("uBank"), Number(document.getElementById("bank").value));
+    gl.uniform1f(uniform("uShowGrid"), document.getElementById("grid").checked ? 1 : 0);
+    gl.viewport(0, 0, W, H);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+});
+
+document.getElementById("lines").onchange = (event) => {
+  const ctx = document.getElementById("overlay").getContext("2d");
+  ctx.clearRect(0, 0, W, H);
+  if (!event.target.checked) return;
+  ctx.strokeStyle = "rgba(255,215,120,.9)"; ctx.lineWidth = 3; ctx.setLineDash([10, 6]);
+  ctx.beginPath(); centerline.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+  const [ax, ay] = centerline[centerline.length - 2], [bx, by] = centerline[centerline.length - 1];
+  const angle = Math.atan2(by - ay, bx - ax);
+  ctx.setLineDash([]); ctx.fillStyle = "rgba(255,215,120,.9)"; ctx.beginPath();
+  ctx.moveTo(bx + Math.cos(angle) * 14, by + Math.sin(angle) * 14);
+  ctx.lineTo(bx + Math.cos(angle + 2.5) * 14, by + Math.sin(angle + 2.5) * 14);
+  ctx.lineTo(bx + Math.cos(angle - 2.5) * 14, by + Math.sin(angle - 2.5) * 14);
+  ctx.fill();
+};
+</script>
+</body>
+</html>

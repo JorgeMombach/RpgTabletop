@@ -52,6 +52,7 @@ import {
   type JournalEntry,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
+import { parseCurrent } from "./actions/currents";
 import { normalizeExpression } from "./dice";
 import { gridColorOf, gridKindOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { markTerrain, parseTerrainChunks } from "./actions/terrain";
@@ -701,6 +702,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     chests: list(b.chests ?? [], "baús", LIMITS.chests).map(parseChest),
     // Objetos do cenário (2.13); arquivos anteriores não têm.
     props: list(b.props ?? [], "objetos", LIMITS.props).map((p) => ({ id: requireString(obj(p, "objeto").id, "Objeto"), ...parseProp(p) })),
+    // Correnteza da água; arquivos anteriores não têm.
+    currents: list(b.currents ?? [], "correntezas", LIMITS.currents).map((c) => ({ id: requireString(obj(c, "correnteza").id, "Correnteza"), ...parseCurrent(c) })),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),

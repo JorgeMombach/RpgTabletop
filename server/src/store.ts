@@ -55,6 +55,7 @@ export function createGame(): GameState {
       torches: [],
       chests: [],
       props: [],
+      currents: [],
       weather: defaultWeather(),
       fog: emptyFog(),
     },

@@ -3,6 +3,7 @@ import { combatantHandlers } from "./combatants";
 import { conditionHandlers } from "./conditions";
 import { diceHandlers } from "./dice";
 import { drawingHandlers } from "./drawings";
+import { currentHandlers } from "./currents";
 import { effectHandlers } from "./effects";
 import { initiativeHandlers } from "./initiative";
 import { magicHandlers } from "./magic";
@@ -35,6 +36,7 @@ export const handlers: HandlerMap = {
   ...conditionHandlers,
   ...effectHandlers,
   ...drawingHandlers,
+  ...currentHandlers,
   ...wallHandlers,
   ...sceneHandlers,
   ...handoutHandlers,

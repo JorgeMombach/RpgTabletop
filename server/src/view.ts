@@ -151,6 +151,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       chests,
       // Objeto do cenário coberto pela névoa nem chega.
       props: gm ? game.battle.props : game.battle.props.filter(sight.prop),
+      // Correnteza vai para todos, como o terreno (que não passa pela névoa): a água corre igual em cada tela.
+      currents: game.battle.currents,
       // A disputa do loot vai para todos (o baú abre na tela de cada um).
       // ...mas só de baú que a pessoa recebe (coberto pela névoa, nem a disputa nem o resultado chegam).
       lootCount: store.lootCount && seesChest(store.lootCount.chestId) ? { chestId: store.lootCount.chestId, remainingMs: Math.max(0, store.lootCount.endsAt - Date.now()), wants: store.lootCount.wants } : null,

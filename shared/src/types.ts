@@ -737,6 +737,15 @@ export interface LootResults {
   lines: { lootId: string; name: string; rolls: { who: string; d20: number }[]; gave: { who: string; qty: number; coins?: Coins }[] }[];
 }
 
+/**
+ * Linha de correnteza (água animada, docs/design/agua.md): o mestre risca no sentido em que a água corre. Pares x, y
+ * em casas (centésimos). A água perto da linha corre seguindo a curva; longe de toda linha, é lago.
+ */
+export interface WaterCurrent {
+  id: string;
+  points: number[];
+}
+
 /** O que muda de uma cena (mapa) para outra: imagem e grid, mobs, NPCs, efeitos, desenhos, paredes e clima. */
 export interface SceneContent {
   map: MapConfig & { image: string | null; imageVersion: number };
@@ -748,6 +757,8 @@ export interface SceneContent {
   torches: MapTorch[];
   chests: MapChest[];
   props: MapProp[];
+  /** Linhas de correnteza da água (água animada). */
+  currents: WaterCurrent[];
   weather: WeatherState;
   /** Névoa de guerra da cena (G). */
   fog: FogState;
@@ -818,6 +829,7 @@ export interface GameState {
     torches: MapTorch[];
     chests: MapChest[];
     props: MapProp[];
+    currents: WaterCurrent[];
     weather: WeatherState;
     fog: FogState;
     /** Terreno pintado da cena (criação de mapa). Ausente = sem terreno. Vai por evento próprio, fora do estado. */
@@ -999,6 +1011,8 @@ export interface ClientState {
     torches: MapTorch[];
     chests: MapChest[];
     props: MapProp[];
+    /** Linhas de correnteza: todos recebem (a água corre na tela de cada um; a linha só aparece para o mestre). */
+    currents: WaterCurrent[];
     lootCount: LootCountView | null;
     lootResults: LootResults | null;
     weather: WeatherState;

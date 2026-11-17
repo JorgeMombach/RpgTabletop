@@ -177,6 +177,7 @@ export const mapHandlers: HandlerMap = {
     battle.torches = [];
     battle.chests = [];
     battle.props = [];
+    battle.currents = [];
     // O terreno pintado também é do campo que se limpa.
     delete battle.terrain;
     markTerrain(store, "all");
