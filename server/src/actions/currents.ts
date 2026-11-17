@@ -10,11 +10,16 @@ import type { HandlerMap } from "./types";
  */
 export function parseCurrent(raw: unknown): Omit<WaterCurrent, "id"> {
   const points = typeof raw === "object" && raw !== null && "points" in raw ? raw.points : undefined;
-  const coord = (value: unknown) => typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= LIMITS.gridCoord;
+  const coord = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= LIMITS.gridCoord;
   if (!Array.isArray(points) || points.length < 4 || points.length % 2 !== 0) fail("Correnteza inválida.");
   if (points.length > LIMITS.currentNumbers) fail("Correnteza longa demais: risque em partes.");
-  if (!points.every(coord)) fail("Correnteza inválida.");
-  return { points: points.map((value: number) => Math.round(value * 100) / 100) };
+  const values: unknown[] = points;
+  const rounded: number[] = [];
+  for (const value of values) {
+    if (!coord(value)) fail("Correnteza inválida.");
+    rounded.push(Math.round(value * 100) / 100);
+  }
+  return { points: rounded };
 }
 
 export const currentHandlers: HandlerMap = {

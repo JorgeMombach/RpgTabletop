@@ -34,9 +34,9 @@ interface GpuGroup {
 
 /** Densidade máxima da tela para a água (acima disso o ganho não paga o peso). */
 const MAX_PIXEL_RATIO = 1.5;
-/** Resolução do assado (px por casa) e o lado máximo de uma textura. */
+/** Resolução do assado (px por casa) e o lado máximo dele (tempo de desenho e memória limitados). */
 const BAKE_PER_CELL = 40;
-const MAX_TEXTURE = 4096;
+const MAX_BAKE_SIDE = 2048;
 
 type Program = { program: WebGLProgram; uniforms: Map<string, WebGLUniformLocation | null> };
 
@@ -51,7 +51,10 @@ export class WaterRenderer {
   /** O navegador desenha WebGL 2 (sem isso, a água fica a aquarela do terreno de hoje). */
   static supported(): boolean {
     try {
-      return document.createElement("canvas").getContext("webgl2") !== null;
+      const probe = document.createElement("canvas").getContext("webgl2");
+      // Só para saber: o contexto de teste é liberado na hora (o navegador limita quantos ficam abertos).
+      probe?.getExtension("WEBGL_lose_context")?.loseContext();
+      return probe !== null;
     } catch {
       return false;
     }
@@ -111,15 +114,27 @@ export class WaterRenderer {
     return texture;
   }
 
-  private halfTexture(data: Uint16Array, width: number, height: number, channels: 2 | 4): WebGLTexture {
+  private halfTexture(data: Uint16Array, width: number, height: number): WebGLTexture {
     const { gl } = this;
     return this.texture(
       () => {
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-        if (channels === 2) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, width, height, 0, gl.RG, gl.HALF_FLOAT, data);
-        else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, data);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, width, height, 0, gl.RG, gl.HALF_FLOAT, data);
       },
       gl.LINEAR,
+      gl.CLAMP_TO_EDGE,
+    );
+  }
+
+  /** Coordenadas do rio em precisão cheia (sem filtro: o shader interpola). */
+  private floatTexture(data: Float32Array, width: number, height: number): WebGLTexture {
+    const { gl } = this;
+    return this.texture(
+      () => {
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, width, height, 0, gl.RGBA, gl.FLOAT, data);
+      },
+      gl.NEAREST,
       gl.CLAMP_TO_EDGE,
     );
   }
@@ -144,8 +159,8 @@ export class WaterRenderer {
     this.release();
     this.groups = fields.map((field) => ({
       field,
-      sdfDeep: this.halfTexture(field.sdfDeep, field.width, field.height, 2),
-      river: this.halfTexture(field.river, field.width, field.height, 4),
+      sdfDeep: this.halfTexture(field.sdfDeep, field.width, field.height),
+      river: this.floatTexture(field.river, field.width, field.height),
       bakedTerrain: null,
       bakedData: null,
     }));
@@ -165,7 +180,8 @@ export class WaterRenderer {
     const { gl } = this;
     if (!this.dirt || !this.framebuffer) return;
     const { rect } = group.field;
-    const perCell = Math.min(BAKE_PER_CELL, MAX_TEXTURE / rect.cols, MAX_TEXTURE / rect.rows);
+    const maxSide = Math.min(MAX_BAKE_SIDE, Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)));
+    const perCell = Math.min(BAKE_PER_CELL, maxSide / rect.cols, maxSide / rect.rows);
     const width = Math.max(1, Math.round(rect.cols * perCell));
     const height = Math.max(1, Math.round(rect.rows * perCell));
     const target = () =>

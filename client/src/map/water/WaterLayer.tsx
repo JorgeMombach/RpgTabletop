@@ -61,6 +61,8 @@ export const WaterLayer = memo(function WaterLayer({
   const worker = engine?.worker ?? null;
   const imageRef = useRef<Konva.Image>(null);
   const [version, setVersion] = useState(0);
+  // Sobe quando o navegador devolve o contexto WebGL perdido: o motor é refeito do zero.
+  const [generation, setGeneration] = useState(0);
   const jobId = useRef(0);
 
   // Pedras: só os objetos que podem virar pedra; a lista só muda quando uma delas muda.
@@ -74,23 +76,52 @@ export const WaterLayer = memo(function WaterLayer({
     [rocksKey],
   );
 
+  // Se o WebGL falha (shader que não compila, contexto recusado) ou se perde (driver reiniciado, notebook acordando),
+  // `waterFailed` liga: o terreno volta a desenhar a aquarela da água. Contexto devolvido: o motor volta.
   useEffect(() => {
-    if (!WaterRenderer.supported()) return;
-    const created = new WaterRenderer(document.createElement("canvas"));
+    const fail = () => useApp.setState({ waterFailed: true });
+    const canvas = document.createElement("canvas");
+    let created: WaterRenderer;
+    try {
+      created = new WaterRenderer(canvas);
+    } catch {
+      fail();
+      return;
+    }
     const createdWorker = new Worker(new URL("./waterWorker.ts", import.meta.url), { type: "module" });
     createdWorker.onmessage = (event: MessageEvent<WaterResult>) => {
       // Resposta de um pedido que já foi substituído: ignora.
       if (event.data.id !== jobId.current) return;
-      created.setFields(event.data.fields);
+      try {
+        created.setFields(event.data.fields);
+      } catch {
+        fail();
+        return;
+      }
       setVersion((value) => value + 1);
     };
+    createdWorker.onerror = fail;
+    const lost = (event: Event) => {
+      // Sem isso o navegador nunca devolve o contexto.
+      event.preventDefault();
+      fail();
+    };
+    const restored = () => {
+      useApp.setState({ waterFailed: false });
+      setGeneration((value) => value + 1);
+    };
+    canvas.addEventListener("webglcontextlost", lost);
+    canvas.addEventListener("webglcontextrestored", restored);
+    useApp.setState({ waterFailed: false });
     setEngine({ renderer: created, worker: createdWorker });
     return () => {
+      canvas.removeEventListener("webglcontextlost", lost);
+      canvas.removeEventListener("webglcontextrestored", restored);
       createdWorker.terminate();
       created.dispose();
       setEngine(null);
     };
-  }, []);
+  }, [generation]);
 
   useEffect(() => {
     if (!renderer) return;
@@ -137,6 +168,7 @@ export const WaterLayer = memo(function WaterLayer({
   const timeRef = useRef(performance.now() / 1000);
   const reduceFx = useApp((state) => state.reduceFx);
   const windStalled = useApp((state) => state.windStalled);
+  const waterFailed = useApp((state) => state.waterFailed);
   const animate = !reduceFx && !windStalled;
 
   // Relógio da água: no máximo 30 quadros por segundo, só com água na tela. Cada quadro passa pelo detector (o mesmo
@@ -174,7 +206,7 @@ export const WaterLayer = memo(function WaterLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- waterView é refeito a cada render a partir destes valores
   }, [renderer, version, view.x, view.y, view.scale, size.width, size.height, grid.cellPx, grid.offsetX, grid.offsetY]);
 
-  if (!renderer || renderer.empty) return null;
+  if (!renderer || renderer.empty || waterFailed) return null;
   return (
     <Layer listening={false}>
       <KImage ref={imageRef} image={renderer.canvas} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />

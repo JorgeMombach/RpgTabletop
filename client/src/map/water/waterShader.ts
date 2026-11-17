@@ -21,7 +21,8 @@ const float UNIT = 48.0;            // px do teste por casa
 const vec3 LIGHT = normalize(vec3(-0.55, -0.62, 0.56));
 uniform vec4 uRectCells;            // canto e tamanho do grupo, em casas
 uniform float uPerCell;
-uniform sampler2D uSdfDeep, uRiver;
+uniform sampler2D uSdfDeep;
+uniform highp sampler2D uRiver;     // RGBA32F: sem filtro de textura em todo aparelho, a interpolação é feita aqui
 
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p) {
@@ -35,6 +36,19 @@ float fbm4(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8);
 vec2 fieldUv(vec2 px) { return (px / UNIT - uRectCells.xy) / uRectCells.zw; }
 float toUnit(float fieldPx) { return fieldPx * UNIT / uPerCell; }
 float lambert(vec3 n) { return max(dot(n, LIGHT), 0.0) / LIGHT.z; }
+// Coordenadas do rio, interpoladas à mão entre os 4 texels (precisão cheia em "ao longo").
+vec4 riverSample(vec2 uv) {
+  ivec2 size = textureSize(uRiver, 0);
+  vec2 p = uv * vec2(size) - 0.5;
+  ivec2 i = ivec2(floor(p));
+  vec2 f = fract(p);
+  ivec2 top = size - 1;
+  vec4 a = texelFetch(uRiver, clamp(i, ivec2(0), top), 0);
+  vec4 b = texelFetch(uRiver, clamp(i + ivec2(1, 0), ivec2(0), top), 0);
+  vec4 c = texelFetch(uRiver, clamp(i + ivec2(0, 1), ivec2(0), top), 0);
+  vec4 d = texelFetch(uRiver, clamp(i + ivec2(1, 1), ivec2(0), top), 0);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
 `;
 
 /** Retângulo do grupo: na tela (passo da água) ou ocupando a textura inteira (passo de assar). */
@@ -156,7 +170,7 @@ void main() {
   if (w > -1.0) {
     float depth = data.r * ${DEPTH_RANGE};
     float sh = data.g;
-    vec4 raw = texture(uRiver, uv);
+    vec4 raw = riverSample(uv);
     vec4 riv = vec4(toUnit(raw.x), toUnit(raw.y), raw.z, raw.w);
     float strength = riv.z;
     float strong = max(strength, 0.15);

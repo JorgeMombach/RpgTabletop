@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { encodeLayer, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
+import { encodeLayer, fieldScale, toHalfFloat, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
 
 // Água animada (docs/design/agua.md): máscara da água a partir do terreno, distância com sinal e coordenadas do rio.
 
@@ -96,5 +96,23 @@ describe("água: coordenadas do rio", () => {
     assert.equal(at(onLand, field.width, 40, 24, 4, 2), 0, "água do rio sem linha por perto");
     const crossed = riverField(field, [line, { id: "contra", points: [39, 5, 1, 7] }]);
     assert.ok(crossed.every((number) => Number.isFinite(number)));
+  });
+});
+
+describe("água: limites (revisão final)", () => {
+  it("escala do campo: 20 px por casa até o teto; grupo grande desce para caber", () => {
+    assert.equal(fieldScale({ col: 0, row: 0, cols: 30, rows: 20 }, 20, 2048), 20);
+    assert.equal(fieldScale({ col: 0, row: 0, cols: 160, rows: 40 }, 20, 2048), 12.8);
+    assert.ok(fieldScale({ col: 0, row: 0, cols: 900, rows: 900 }, 20, 2048) * 900 <= 2048);
+  });
+
+  it("meia precisão arredonda para o mais perto (não trunca)", () => {
+    // 1 + 3/4 do passo de 2^-10 fica mais perto de 1 + 2^-10 que de 1.
+    const value = 1 + 0.75 * 2 ** -10;
+    assert.equal(toHalfFloat(value), 0x3c01);
+    assert.equal(toHalfFloat(1), 0x3c00);
+    assert.equal(toHalfFloat(-2), 0xc000);
+    assert.equal(toHalfFloat(0), 0);
+    assert.equal(toHalfFloat(1e9), 0x7bff, "grande demais: o maior finito");
   });
 });

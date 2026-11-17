@@ -143,6 +143,8 @@ interface AppStore extends DicePrefs {
   terrainEpoch: number;
   /** Este aparelho não aguentou as plantas balançando (vento nas plantas): ficam paradas até recarregar a página. */
   windStalled: boolean;
+  /** A água animada (WebGL) falhou ou perdeu o contexto: o terreno volta a desenhar a aquarela da água. */
+  waterFailed: boolean;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -211,6 +213,7 @@ export const useApp = create<AppStore>(() => ({
   terrain: {},
   terrainEpoch: 0,
   windStalled: false,
+  waterFailed: false,
   ...readPrefs(),
 }));
 

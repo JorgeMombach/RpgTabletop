@@ -252,7 +252,7 @@ const FALLOFF = 0.3;
  * (px, com sinal), força (0 a 1) e 0. Só a água conta (`sdf` > 0); a linha num trecho em terra não manda em nada.
  * Água sem linha por perto fica com força 0 (lago).
  */
-export function riverField(field: WaterField, currents: WaterCurrent[]): Float32Array {
+export function riverField(field: WaterField, currents: WaterCurrent[]): Float32Array<ArrayBuffer> {
   const { width, height, perCell, rect, sdf } = field;
   const out = new Float32Array(width * height * 4);
   const sdfAt = (x: number, y: number) => {
@@ -331,4 +331,32 @@ export function riverField(field: WaterField, currents: WaterCurrent[]): Float32
     }
   }
   return out;
+}
+
+/**
+ * Pixels por casa de um grupo de água: `preferred`, mas sem passar de `maxSide` pixels de lado (um rio enorme fica
+ * com menos detalhe em vez de estourar a memória e o tamanho de textura dos celulares).
+ */
+export function fieldScale(rect: CellRect, preferred: number, maxSide: number): number {
+  return Math.min(preferred, maxSide / rect.cols, maxSide / rect.rows);
+}
+
+const halfFloatView = new Float32Array(1);
+const halfBitsView = new Uint32Array(halfFloatView.buffer);
+
+/**
+ * Número para meia precisão (IEEE 754 binary16, o formato das texturas `RG16F`), arredondando para o mais perto. Grande
+ * demais vira o maior finito; pequeno demais, zero.
+ */
+export function toHalfFloat(value: number): number {
+  halfFloatView[0] = value;
+  const bits = halfBitsView[0];
+  const sign = (bits >>> 16) & 0x8000;
+  const exponent = ((bits >>> 23) & 0xff) - 127 + 15;
+  const mantissa = bits & 0x7fffff;
+  if (exponent <= 0) return sign;
+  if (exponent >= 31) return sign | 0x7bff;
+  // O bit logo abaixo do último guardado decide o arredondamento (o "vai um" pode subir o expoente, e tudo bem).
+  const rounded = ((exponent << 10) | (mantissa >>> 13)) + ((mantissa >>> 12) & 1);
+  return sign | Math.min(rounded, 0x7bff);
 }

@@ -2,7 +2,7 @@ import type { CellRect, TerrainChunks, WaterCurrent } from "@rpg/shared";
 
 /**
  * Água animada (docs/design/agua.md): o que vai para o Worker e o que volta dele, pronto para virar textura WebGL.
- * Os números vêm em meia precisão (`Uint16Array`), o formato das texturas `RG16F`/`RGBA16F`.
+ * Distância e parte funda vêm em meia precisão (`Uint16Array`, textura `RG16F`); o rio, em precisão cheia (`RGBA32F`).
  */
 
 /** Pedra no rio (objeto *Pedras* ou *Pedregulho* com o centro na água), em casas. */
@@ -30,7 +30,7 @@ export interface WaterGpuField {
   width: number;
   height: number;
   sdfDeep: Uint16Array;
-  river: Uint16Array;
+  river: Float32Array;
   rocks: WaterRock[];
 }
 
