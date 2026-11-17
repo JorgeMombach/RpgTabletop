@@ -140,6 +140,8 @@ interface AppStore extends DicePrefs {
   terrain: TerrainChunks;
   /** Sobe a cada terreno inteiro recebido (entrar, trocar de cena, carregar arquivo, apagar tudo, Limpar campo). */
   terrainEpoch: number;
+  /** Este aparelho não aguentou as plantas balançando (vento nas plantas): ficam paradas até recarregar a página. */
+  windStalled: boolean;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -207,6 +209,7 @@ export const useApp = create<AppStore>(() => ({
   journalLoaded: false,
   terrain: {},
   terrainEpoch: 0,
+  windStalled: false,
   ...readPrefs(),
 }));
 

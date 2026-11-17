@@ -830,9 +830,11 @@ export function propImage(kind: PropKind, seed: number, pxPerCell: number): HTML
   return canvas;
 }
 
-/** Camadas de uma planta com vento: imagens do mesmo lado e centro que `propImage`, mais as folhas que piscam. */
+/**
+ * Camadas de uma planta com vento: imagens do mesmo lado e centro que `propImage`, mais as folhas que piscam. A
+ * sombra vai pintada na copa de baixo (anda com ela): uma imagem a menos por planta a cada quadro.
+ */
 export interface PlantLayers {
-  shadow: HTMLCanvasElement;
   low: HTMLCanvasElement;
   high: HTMLCanvasElement;
   glints: Glint[];
@@ -864,12 +866,11 @@ export function plantLayers(kind: PropKind, seed: number, pxPerCell: number): Pl
     ctx.translate(side / 2, side / 2);
     return { canvas, ctx };
   };
-  const shadow = layer();
   const low = layer();
   const high = layer();
   const glints: Glint[] = [];
-  painter({ shadow: shadow.ctx, low: low.ctx, high: high.ctx, glints: { list: glints, random: rng(seed ^ 0x5f3759df) } }, step, seed);
-  const layers: PlantLayers = { shadow: shadow.canvas, low: low.canvas, high: high.canvas, glints };
+  painter({ shadow: low.ctx, low: low.ctx, high: high.ctx, glints: { list: glints, random: rng(seed ^ 0x5f3759df) } }, step, seed);
+  const layers: PlantLayers = { low: low.canvas, high: high.canvas, glints };
   layerCache.set(key, layers);
   if (layerCache.size > LAYER_CACHE_MAX) layerCache.delete(layerCache.keys().next().value!);
   return layers;

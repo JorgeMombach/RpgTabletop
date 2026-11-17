@@ -3,12 +3,13 @@ import { IconArrowBackUp, IconDice5, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { memo, useEffect, useRef } from "react";
 import { Image as KImage, Layer, Transformer } from "react-konva";
-import { brushCells, LIMITS, PROP_KINDS, type CombatantView, type MapConfig, type MapProp, type PropKind } from "@rpg/shared";
+import { brushCells, LIMITS, PROP_KINDS, type CombatantView, type MapConfig, type MapProp, type PropKind, type WeatherState } from "@rpg/shared";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { cellCenter } from "./geometry";
 import { removeProps, undo, updateProp, useMapUndo } from "./mapHistory";
-import { drawProp, PROP_EXTENT, propImage } from "./propArt";
+import { drawProp, plantLayers, PROP_EXTENT, propImage, SWAYING } from "./propArt";
+import { PlantNode, useWindClock, type PlantRegistry } from "./PlantWind";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
 
 export const PROP_LABEL: Record<PropKind, MessageKey> = {
@@ -126,13 +127,16 @@ interface PropLayerProps {
   tokens: CombatantView[];
   /** Onde estão os tokens (`tokenSpots`): só isso importa da lista de tokens, para a copa ficar transparente. */
   tokenKey: string;
+  /** Clima da cena: o vento nas plantas fica mais forte e muda de lado com ele. */
+  weather: WeatherState;
 }
 
 /**
  * Objetos de uma camada: os de baixo (abaixo das tochas e da névoa) ou os de cima dos tokens (copas). Copa com token
  * embaixo fica meio transparente, para não esconder ninguém. O escolhido ganha as alças de tamanho e giro.
  * Em `memo` (`samePropLayer`): o mapa redesenha a cada passo do WASD, e com centenas de objetos refazer a camada
- * à toa engasgava a visão.
+ * à toa engasgava a visão. Com vento (fora da edição, sem *Reduzir efeitos* e se o aparelho aguenta), as plantas
+ * balançam (`PlantWind.tsx`).
  */
 export const MapPropLayer = memo(function MapPropLayer({
   props,
@@ -142,9 +146,18 @@ export const MapPropLayer = memo(function MapPropLayer({
   editing,
   selectedId,
   tokens,
+  weather,
 }: PropLayerProps) {
   const list = props.filter((p) => p.above === (layer === "above"));
   const tr = useRef<Konva.Transformer>(null);
+  const layerRef = useRef<Konva.Layer>(null);
+  const registry = useRef<PlantRegistry>(new Map()).current;
+  const windTime = useRef(0);
+  const reduceFx = useApp((s) => s.reduceFx);
+  const windStalled = useApp((s) => s.windStalled);
+  const windOn = !editing && !reduceFx && !windStalled;
+  const swaying = windOn && list.some((p) => SWAYING[p.kind]);
+  useWindClock(layerRef, registry, windTime, weather, swaying);
   const picked = editing && list.some((p) => p.id === selectedId) ? selectedId : null;
   useEffect(() => {
     const t = tr.current;
@@ -165,10 +178,12 @@ export const MapPropLayer = memo(function MapPropLayer({
     });
   };
   return (
-    <Layer listening={editing}>
-      {list.map((p) => (
-        <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={under(p)} onPick={() => useApp.setState({ selectedPropId: p.id })} />
-      ))}
+    <Layer ref={layerRef} listening={editing}>
+      {list.map((p) => {
+        const layers = windOn ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
+        if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} faded={under(p)} registry={registry} time={windTime} />;
+        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={under(p)} onPick={() => useApp.setState({ selectedPropId: p.id })} />;
+      })}
       {editing && (
         <Transformer
           ref={tr}
@@ -192,7 +207,7 @@ export const MapPropLayer = memo(function MapPropLayer({
 }, samePropLayer);
 
 function samePropLayer(a: PropLayerProps, b: PropLayerProps): boolean {
-  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey;
+  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey && a.weather === b.weather;
 }
 
 /** Chave das posições dos tokens no mapa (muda só quando algum anda). */
