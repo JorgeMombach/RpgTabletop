@@ -1,5 +1,5 @@
 import { METALS, rivet, shade } from "./tokenArt";
-import { plank, type R } from "./propArt";
+import { plank, type PlantTargets, type R } from "./propArt";
 import { rng, shadowed, textured, WOODS } from "./wallKit";
 
 /**
@@ -777,8 +777,10 @@ export function mushrooms(ctx: CanvasRenderingContext2D, c: number, seed: number
 }
 
 /** Flores: um canteiro de capim com florzinhas de uma ou duas cores. */
-export function flowers(ctx: CanvasRenderingContext2D, c: number, seed: number) {
+export function flowers(targets: PlantTargets, c: number, seed: number) {
   const r = rng(seed);
+  // Com vento, o capim fica embaixo e as flores em cima (balançam mais).
+  let ctx = targets.low;
   const COLORS = ["#c94a8a", "#e8d47a", "#f2ece0", "#7a6ad8", "#e07a4a"];
   const a = COLORS[Math.floor(r() * COLORS.length)];
   const b = COLORS[Math.floor(r() * COLORS.length)];
@@ -798,6 +800,7 @@ export function flowers(ctx: CanvasRenderingContext2D, c: number, seed: number) 
     }
   }
   // Flores: cinco pétalas e o miolo.
+  ctx = targets.high;
   for (let k = 0; k < 9; k++) {
     const x = (r() - 0.5) * c * 0.7;
     const y = (r() - 0.5) * c * 0.7;
