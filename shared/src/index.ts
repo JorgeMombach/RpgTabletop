@@ -14,3 +14,4 @@ export * from "./catalog";
 export * from "./wind";
 export * from "./water";
 export * from "./light";
+export * from "./wallJoin";
