@@ -301,9 +301,12 @@ function segmentDistance(
   return Math.hypot(x - a.x - dx * k, y - a.y - dy * k);
 }
 
-/** Que peças passam perto de cada casa; `null` sem peças. */
+/**
+ * Que paredes passam perto de cada casa; `null` sem paredes. Portas e janelas ficam de fora: são desenhadas peça a peça
+ * e não podem tomar a vaga de uma parede de verdade.
+ */
 export function wallCellIndex(pieces: WallPiece[]): WallCellIndex | null {
-  if (pieces.length === 0) return null;
+  if (!pieces.some((piece) => piece.kind === "wall")) return null;
   const reachOf = pieces.map(
     (piece) => pieceMargin(piece) + Math.max(piece.reach[0], piece.reach[1]),
   );
@@ -312,6 +315,7 @@ export function wallCellIndex(pieces: WallPiece[]): WallCellIndex | null {
   let maxX = -Infinity;
   let maxY = -Infinity;
   pieces.forEach((piece, index) => {
+    if (piece.kind !== "wall") return;
     minX = Math.min(
       minX,
       piece.a.x - reachOf[index],
@@ -342,6 +346,7 @@ export function wallCellIndex(pieces: WallPiece[]): WallCellIndex | null {
     () => [],
   );
   pieces.forEach((piece, index) => {
+    if (piece.kind !== "wall") return;
     const reach = reachOf[index] + HALF_DIAGONAL;
     const fromCol = Math.max(
       col,

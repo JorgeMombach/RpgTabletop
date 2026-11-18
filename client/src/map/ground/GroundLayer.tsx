@@ -309,7 +309,15 @@ export const GroundLayer = memo(function GroundLayer({
 
   /** Um desenho do chão: a camada da imagem, as outras saídas e, se mudou, a das paredes. */
   const paint = (target: GroundRenderer, frameView: GroundView, time: number, frameDraft: boolean) => {
-    target.render(frameView, time, { waterDraft: frameDraft });
+    // Chão já desligado: o mapa usa o desenho de antes (não insiste num programa que não compila).
+    if (useApp.getState().groundFailed) return;
+    try {
+      target.render(frameView, time, { waterDraft: frameDraft });
+    } catch {
+      // Programa das paredes que o aparelho recusou (compilado tarde, no desenho): volta tudo ao desenho de antes.
+      useApp.setState({ groundFailed: true });
+      return;
+    }
     imageRef.current?.getLayer()?.batchDraw();
     notifyGroundDrawn();
     if (target.wallsFresh) notifyWallsDrawn();

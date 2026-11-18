@@ -30,7 +30,8 @@ import {
  * Passo das paredes do renderizador do chão (docs/design/relevo.md, etapa 2): sobe as peças e o índice por casa como
  * texturas e desenha a camada das paredes, portas e janelas. Um programa por desenho, montado só quando o desenho
  * aparece e compilado em paralelo (cada um leva cerca de 1 s: compilar esperando travaria a tela); enquanto compila,
- * o desenho não aparece e `pending` pede mais quadros. Cada programa corta a tela na caixa das suas peças. Portas e
+ * o desenho não aparece e `pending` pede mais quadros. Sem a extensão de compilação em paralelo, compila esperando, mas
+ * no máximo um programa por desenho (a tela trava um instante, não vários segundos seguidos). Cada programa corta a tela na caixa das suas peças. Portas e
  * janelas: uma passada por peça, cortada na caixa dela.
  */
 
@@ -62,6 +63,8 @@ export class WallPass {
   private readonly parallel: KHR_parallel_shader_compile | null;
   /** Algum programa em uso ainda compilando no último desenho. */
   private compiling = false;
+  /** Sem a extensão: já compilou (esperando) um programa neste desenho; os outros ficam para os próximos quadros. */
+  private compiledThisDraw = false;
   private uploaded: Uploaded | null = null;
   /** Caixa (casas) das paredes de cada desenho. */
   private styleBoxes = new Map<WallStyle, Box>();
@@ -97,8 +100,17 @@ export class WallPass {
     this.release();
     this.styleBoxes = new Map();
     this.openings = [];
-    const index = wallCellIndex(pieces);
-    if (!index) return;
+    if (pieces.length === 0) return;
+    // Só portas e janelas: índice vazio de uma casa (elas não usam o índice).
+    const index = wallCellIndex(pieces) ?? {
+      col: 0,
+      row: 0,
+      cols: 1,
+      rows: 1,
+      start: new Uint32Array(1),
+      count: new Uint8Array(1),
+      list: new Uint32Array(0),
+    };
     const width = WALL_TEXTURE_WIDTH;
     const packed = packPieces(pieces);
     const pieceRows = Math.max(1, Math.ceil(packed.length / 4 / width));
@@ -199,6 +211,10 @@ export class WallPass {
   private programFor(key: WallStyle | "opening"): Program | null {
     const known = this.programs.get(key);
     if (known && "ready" in known) return known.ready;
+    if (!known && !this.parallel && this.compiledThisDraw) {
+      this.compiling = true;
+      return null;
+    }
     const pending =
       known?.pending ??
       startProgram(
@@ -207,6 +223,7 @@ export class WallPass {
         key === "opening" ? OPENING_FRAGMENT : wallStyleFragment(key),
         "aPos",
       );
+    if (!this.parallel) this.compiledThisDraw = true;
     const ready = finishProgram(this.gl, pending, this.parallel);
     this.programs.set(key, ready ? { ready } : { pending });
     if (!ready) this.compiling = true;
@@ -308,6 +325,7 @@ export class WallPass {
   ) {
     const { gl } = this;
     this.compiling = false;
+    this.compiledThisDraw = false;
     if (!this.uploaded) return;
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

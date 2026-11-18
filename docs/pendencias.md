@@ -103,6 +103,11 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Tinta do lado do chão às vezes com 0 a 1 px (vem das derivadas em grupos de 2 × 2 pixels); a borda de dentro da parede é que garante o contorno.
 - [ ] Porta aberta escolhida: o contorno branco marca o vão, não a folha.
 - [ ] Casa com mais de 8 paredes por perto: ficam as 8 mais próximas do centro; uma nona pode sumir num canto da casa.
+- [ ] A chave de redesenho das paredes não inclui a densidade da tela: levar a janela para um monitor com outra densidade, com tudo parado, deixa as paredes borradas até mexer na visão (`GroundRenderer.ts`).
+- [ ] As paredes saem com no máximo 1,5 × a densidade da tela (`MAX_PIXEL_RATIO`, o mesmo do chão); em tela Retina ou celular (densidade 2–3), o desenho antigo no canvas usava a densidade inteira e era mais nítido.
+- [ ] Os shaders compilados não são apagados depois de ligados (`glKit.ts`, também no `linkProgram` de antes); o contexto morre junto com o renderizador.
+- [ ] Porta secreta vista pelo mestre aparece como uma lasca fina de pedra (a espessura da folha, não a da parede).
+- [ ] Sem compilação em paralelo no navegador, a tela trava um instante (1–2 s) a cada desenho de parede novo que aparece.
 
 ### Relevo ([docs/design/relevo.md](design/relevo.md))
 - [ ] Sombra do relevo só alcança 8 casas (a margem da janela): no entardecer, a de um patamar de 2+ níveis termina numa linha quase reta (`reliefShader.ts`).

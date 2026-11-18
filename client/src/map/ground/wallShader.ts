@@ -17,6 +17,8 @@ const COMMON = `#version 300 es
 precision highp float;
 precision highp int;
 precision highp usampler2D;
+// Peças em precisão cheia: o padrão do sampler no fragmento é baixo (no celular, viraria meia precisão).
+precision highp sampler2D;
 out vec4 outColor;
 uniform sampler2D uPieces;   // RGBA32F, quatro texels por peça (packPieces)
 uniform usampler2D uCells;   // RG32UI: início e quantidade na lista, por casa
@@ -418,6 +420,9 @@ vec2 scene(vec2 q) {
     float len = LEN - postHalf * (double_ ? 1.0 : 2.0);
     vec3 l = leaf(q, vec2(postHalf, 0.0), len, angle, t * 0.3);
     if (l.x > 0.0 && (abs(abs(l.z) - t * 0.16) < t * 0.07 || abs(fract(l.y / 0.4 + 0.5) - 0.5) * 0.4 < 0.03)) put(1.0, 0.38, material);
+    // Marcas do mestre também no portão (trancado, secreto), em volta da folha.
+    markKind = flag(4) ? 1.0 : flag(8) ? 2.0 : 0.0;
+    mark = l.x;
     return best;
   }
   float inset = t * 0.6;

@@ -8,6 +8,7 @@ import {
   wallPieces,
   WALL_THICKNESS,
   type Wall,
+  type WallPiece,
 } from "@rpg/shared";
 
 // Paredes na placa de vídeo (docs/design/relevo.md, etapa 2): peças que o shader desenha e o índice por casa.
@@ -180,5 +181,58 @@ describe("paredes na placa de vídeo: índice por casa", () => {
 
   it("sem paredes, sem índice", () => {
     assert.equal(wallCellIndex([]), null);
+  });
+});
+
+describe("paredes na placa de vídeo: aberturas fora do índice", () => {
+  it("portas e janelas não ocupam vagas do índice por casa", () => {
+    const door = (index: number): WallPiece => ({
+      kind: "door",
+      style: "stone",
+      a: { x: 5 + index * 0.05, y: 0.5 },
+      b: { x: 6 + index * 0.05, y: 0.5 },
+      thickness: T,
+      along: 0,
+      reach: [0, 0],
+      seed: 0,
+      door: {
+        open: false,
+        swing: 1,
+        double: false,
+        locked: false,
+        secret: false,
+      },
+    });
+    const wallPiece: WallPiece = {
+      kind: "wall",
+      style: "stone",
+      a: { x: 0, y: 1.2 },
+      b: { x: 10, y: 1.2 },
+      thickness: T,
+      along: 0,
+      reach: [0, 0],
+      seed: 0,
+    };
+    const pieces = [
+      ...Array.from({ length: 9 }, (_, index) => door(index)),
+      wallPiece,
+    ];
+    const index = wallCellIndex(pieces);
+    assert.ok(index);
+    const at = (0 - index.row) * index.cols + (5 - index.col);
+    assert.deepEqual(
+      [
+        ...index.list.subarray(
+          index.start[at],
+          index.start[at] + index.count[at],
+        ),
+      ],
+      [9],
+    );
+    assert.equal(
+      wallCellIndex(pieces.slice(0, 9)),
+      null,
+      "só aberturas: sem índice",
+    );
   });
 });
