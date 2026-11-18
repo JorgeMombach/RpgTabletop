@@ -184,7 +184,7 @@ function woodWall(ctx: CanvasRenderingContext2D, L: number, t: number, seed: num
 }
 
 /** `cell` (lado da casa, nas mesmas unidades) dá o passo dos esteios da cerca, da grade e do arame. */
-const WALL_DRAW: Record<WallStyle, (ctx: CanvasRenderingContext2D, L: number, t: number, seed: number, cell: number) => void> = {
+export const WALL_DRAW: Record<WallStyle, (ctx: CanvasRenderingContext2D, L: number, t: number, seed: number, cell: number) => void> = {
   stone: stoneWall,
   rock: rockWall,
   wood: woodWall,
@@ -413,4 +413,48 @@ function drawGate(ctx: CanvasRenderingContext2D, L: number, t: number, seed: num
   gatePost(ctx, 0, t, post);
   gatePost(ctx, L, t, post);
   if (look.locked) lockMark(ctx, L, t);
+}
+
+// ---------- janela ----------
+
+export interface WindowLook {
+  /** Persiana fechada: corta a visão e a luz. */
+  closed: boolean;
+  /** Escolhida pelo mestre na ferramenta Paredes. */
+  selected: boolean;
+  /** Estilo das paredes da cena (o batente acompanha). */
+  style: WallStyle;
+}
+
+/**
+ * Janela vista de cima, no eixo dela (de 0 a L), entre batentes (docs/design/paredes.md): parapeito fino com vidro e
+ * travessa; com a persiana fechada, tábuas por cima. Desenho provisório (o definitivo vem no lote das portas).
+ */
+export function drawWindow(ctx: CanvasRenderingContext2D, L: number, t: number, look: WindowLook) {
+  const wood = look.style === "wood" || look.style === "palisade";
+  const sill = new Path2D();
+  sill.rect(t * 0.3, -t * 0.22, L - t * 0.6, t * 0.44);
+  ctx.fillStyle = "#1d1712";
+  ctx.fill(sill);
+  const glass = ctx.createLinearGradient(0, -t * 0.16, 0, t * 0.16);
+  glass.addColorStop(0, "rgba(196,226,240,.9)");
+  glass.addColorStop(1, "rgba(120,160,185,.9)");
+  ctx.fillStyle = glass;
+  ctx.fillRect(t * 0.36, -t * 0.15, L - t * 0.72, t * 0.3);
+  ctx.fillStyle = "#3a2a1a";
+  ctx.fillRect(L / 2 - t * 0.04, -t * 0.18, t * 0.08, t * 0.36);
+  if (look.closed) {
+    const width = (L - t * 0.72) / 4;
+    for (let index = 0; index < 4; index++) {
+      ctx.fillStyle = WOODS[index % WOODS.length];
+      ctx.fillRect(t * 0.36 + index * width, -t * 0.2, width - t * 0.02, t * 0.4);
+    }
+  }
+  jamb(ctx, 0, t, wood);
+  jamb(ctx, L, t, wood);
+  if (look.selected) {
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = t * 0.09;
+    ctx.stroke(sill);
+  }
 }

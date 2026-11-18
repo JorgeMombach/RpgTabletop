@@ -40,6 +40,7 @@ import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
 import { doorLayouts, wallPointAt, wallSpan, WallPreview, WallShape } from "./WallShape";
+import { WallChains } from "./WallChains";
 import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
@@ -438,7 +439,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const w = wallRef.current;
     wallRef.current = null;
     setWallDraft(null);
-    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door" ? "door" : null, useApp.getState().wallThick, wallDrawStyle ?? undefined);
+    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door" || wallMode === "window" ? wallMode : null, useApp.getState().wallThick, wallDrawStyle ?? undefined);
   }
 
   // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
@@ -629,6 +630,13 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   /** Clique numa parede ou porta: depende da ferramenta (abrir a porta, escolher, apagar). */
   function onWallClick(w: Wall) {
+    // Janela: o mestre escolhe (Paredes › Janela) ou abre e fecha a persiana com um clique (Mover).
+    if (w.window) {
+      if (!gm) return;
+      if (tool === "walls" && wallMode === "window") return useApp.setState({ selectedDoorId: w.id });
+      if (tool === "move") void act("window:set", { id: w.id, closed: !w.window.closed });
+      return;
+    }
     if (!w.door) return;
     if (tool === "walls" && wallMode === "door") return useApp.setState({ selectedDoorId: w.id });
     if (tool === "move" && (gm || !w.door.locked)) void act("door:set", { id: w.id, open: !w.door.open });
@@ -986,6 +994,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const plateNumbers = repeatedNumbers(tokens);
   const wallStyle = state.battle.map.wallStyle ?? "stone";
   const doors = doorLayouts(state.battle.walls);
+  // Paredes emendadas (docs/design/paredes.md): com a prévia de *Trocar desenho* já aplicada.
+  const chainWalls = useMemo(
+    () => (restyleIds ? state.battle.walls.map((w) => (restyleIds.has(w.id) ? { ...w, style: wallDrawStyle ?? wallStyle } : w)) : state.battle.walls),
+    [state.battle.walls, restyleIds, wallDrawStyle, wallStyle],
+  );
   // Grupo de mobs iguais: todos os tokens do grupo ficam marcados como na vez.
   const activeIds = new Set(currentGroup(state).map((c) => c.id));
   // Com a regra "movimento só na vez" ligada, o jogador só arrasta os seus na vez dele.
@@ -1307,6 +1320,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
           {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga. */}
           <Layer listening={tool === "move" || (gm && tool === "walls")}>
+            <WallChains walls={chainWalls} grid={grid} sceneStyle={wallStyle} />
             {state.battle.walls.map((w) => (
               <WallShape
                 key={w.id}
@@ -1319,7 +1333,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                 onClick={() => onWallClick(w)}
               />
             ))}
-            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} door={wallMode === "door"} grid={grid} style={wallDrawStyle ?? wallStyle} />}
+            {wallDraft && wallSpan(wallDraft.from, wallDraft.to) >= 0.1 && <WallPreview from={wallDraft.from} to={wallDraft.to} opening={wallMode === "door" || wallMode === "window" ? wallMode : null} grid={grid} style={wallDrawStyle ?? wallStyle} />}
           </Layer>
 
           {/* Objetos do cenário que ficam no chão (abaixo dos tokens): a luz das tochas e a névoa passam por cima. */}
