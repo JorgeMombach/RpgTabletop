@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { decodeReliefPoint, distanceField, encodeLayer, encodeReliefPoint, validReliefByte, paintRelief, ReliefQueue, reliefFields, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
+import { duneDustLevel, duneMask, decodeReliefPoint, distanceField, encodeLayer, encodeReliefPoint, validReliefByte, paintRelief, ReliefQueue, reliefFields, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke, type WeatherId, type WeatherState } from "@rpg/shared";
 import { act, join, nextState, useServer, type Client } from "./helpers";
 
 // Relevo (docs/design/relevo.md): níveis de −2 a +3 e tipo de borda (escarpa ou suave) na grade fina do terreno.
@@ -124,6 +124,29 @@ describe("relevo: dunas", () => {
       const fromRight = right[row + Math.round((16 - 8) * RELIEF_PER_CELL)];
       assert.ok(Math.abs(fromLeft - fromRight) < 1e-3, `y ${y}: ${fromLeft} × ${fromRight}`);
     }
+  });
+});
+
+describe("relevo: poeira das dunas", () => {
+  const weather = (kind: WeatherId | null): WeatherState => ({ kind, intensity: 0.6, wind: 0, light: "day", startedAt: 0 });
+  it("só os climas de vento levantam poeira; a tempestade de areia, mais", () => {
+    assert.equal(duneDustLevel(weather(null)), 0);
+    assert.equal(duneDustLevel(weather("rain")), 0);
+    assert.equal(duneDustLevel(weather("leaves")), 1);
+    assert.equal(duneDustLevel(weather("storm")), 1);
+    assert.equal(duneDustLevel(weather("sand")), 2);
+  });
+
+  it("máscara das dunas: onde há duna, na grade fina; sem duna, nada", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(2));
+    assert.equal(duneMask(chunks), null, "relevo sem duna");
+    paintRelief(chunks, { level: 0, soft: false, dune: 3, radius: 1, points: [4, 4] });
+    const mask = duneMask(chunks);
+    assert.ok(mask);
+    assert.deepEqual([mask.cx, mask.cy, mask.cols, mask.rows], [0, 0, 1, 1]);
+    assert.equal(mask.data[16 * 32 + 16], 255, "duna 3 no centro");
+    assert.equal(mask.data[0], 0);
   });
 });
 

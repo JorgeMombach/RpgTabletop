@@ -1,10 +1,11 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type TerrainId, type WallPiece } from "@rpg/shared";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type TerrainId, type WallPiece } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
 import { ReliefPass } from "./reliefPass";
 import type { ReliefWindow } from "./reliefTypes";
 import { faceLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
+import { DustPass } from "./dustPass";
 import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
@@ -35,6 +36,8 @@ export class GroundRenderer {
   private readonly light: LightPass;
   /** Paredes, portas e janelas (docs/design/relevo.md, etapa 2). */
   private readonly walls: WallPass;
+  /** Poeira das dunas com vento (etapa 3). */
+  private readonly dust: DustPass;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
   readonly relief: ReliefPass;
   /**
@@ -93,6 +96,19 @@ export class GroundRenderer {
     this.light = new LightPass(gl);
     this.relief = new ReliefPass(gl, smallScreen);
     this.walls = new WallPass(gl);
+    this.dust = new DustPass(gl);
+  }
+
+  /** Onde há dunas (do relevo) e o vento do clima, para a poeira. */
+  setDust(mask: DuneMask | null, level: 0 | 1 | 2, direction: 1 | -1) {
+    if (this.gl.isContextLost()) return;
+    this.dust.setMask(mask);
+    this.dust.setWind(level, direction);
+  }
+
+  /** Há poeira das dunas animando: precisa de quadros. */
+  get dusting(): boolean {
+    return this.dust.active;
   }
 
   /** Peças das paredes, portas e janelas (`wallPieces`): a camada é refeita no próximo desenho. */
@@ -124,7 +140,7 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending || this.terrain.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
@@ -278,6 +294,8 @@ export class GroundRenderer {
       bindTextures(gl, this.blit, [["uImage", this.reliefImage]]);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
+    // Poeira das dunas por cima de tudo do chão (só com dunas pintadas e vento).
+    if (this.dust.active) this.dust.draw(view, width, height, time);
     gl.disable(gl.BLEND);
     this.copyTo(this.groundImage);
     this.drawWalls(view, width, height, state, lightKey, reliefLight);
@@ -408,6 +426,7 @@ export class GroundRenderer {
     this.light.dispose();
     this.relief.dispose();
     this.walls.dispose();
+    this.dust.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

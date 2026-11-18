@@ -88,6 +88,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Areia: botão no *Terreno* (cor do botão), pintar, apagar, desfazer; sem WebGL, a aquarela cor de areia.
 - [ ] Dunas: *Relevo › Dunas*, alturas 1 a 3 e 0 apaga; não muda o nível; dia, entardecer (sombra comprida) e luar; duna atravessando pedaços sem costura; desfazer.
 - [ ] Água: lago e rio com correnteza e pedras, de perto e de longe; barranco nítido, faixa molhada, brilhos, bolhas; sem manchas pretas; arrastar e dar zoom sem engasgo.
+- [ ] Poeira das dunas: com vento (folhas, nevasca, tempestade) sutil e com a tempestade de areia forte, correndo pelo campo todo no sentido do vento do clima; só onde há duna; para com *Reduzir efeitos*; de perto, grãos voando; desempenho com muitas dunas na tela.
 - [ ] Primeira vez de cada terreno na cena: aparece um instante depois (programa compilando), sem travar.
 - [ ] Tela de alta densidade (Retina, celular): chão, água e paredes nítidos; desempenho ok.
 - [ ] Mapa antigo (arquivo de sessão de antes): abre igual, com o chão novo.

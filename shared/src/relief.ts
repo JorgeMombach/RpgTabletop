@@ -1,4 +1,5 @@
 import { chunkKey, decodeLayer, encodeLayer, TERRAIN_CHUNK_SIDE, TERRAIN_FINE } from "./terrain";
+import type { WeatherState } from "./types";
 
 /**
  * Relevo (docs/design/relevo.md): na mesma grade fina do terreno (4 pontos por casa, pedaços de 8 × 8 casas), cada
@@ -443,4 +444,49 @@ export function reliefAffected(changed: string[]): string[] {
     for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) out.add(chunkKey(cx + dx, cy + dy));
   }
   return [...out];
+}
+
+// ---------- Poeira das dunas (docs/design/relevo.md, etapa 3; teste aprovado em docs/design/dunas-poeira-teste.html) ----------
+
+/** Climas que levantam poeira das dunas: 1 = vento (sutil), 2 = tempestade de areia (forte); 0 = nada. */
+export function duneDustLevel(weather: WeatherState | null): 0 | 1 | 2 {
+  if (!weather?.kind) return 0;
+  if (weather.kind === "sand") return 2;
+  return weather.kind === "leaves" || weather.kind === "blizzard" || weather.kind === "storm" ? 1 : 0;
+}
+
+/** Onde há dunas, na grade fina (4 pontos por casa), num retângulo de pedaços: 0 sem duna, 255 na duna de altura 3. */
+export interface DuneMask {
+  cx: number;
+  cy: number;
+  cols: number;
+  rows: number;
+  data: Uint8Array<ArrayBuffer>;
+}
+
+/** A máscara das dunas do relevo; `null` sem nenhuma duna. */
+export function duneMask(chunks: ReliefChunks): DuneMask | null {
+  const withDunes: [number, number, Uint8Array][] = [];
+  for (const [key, text] of Object.entries(chunks)) {
+    const bytes = decodeLayer(text);
+    if (!bytes || !bytes.some((byte) => (byte & DUNE_MASK) !== 0)) continue;
+    const [cx, cy] = key.split(",").map(Number);
+    withDunes.push([cx, cy, bytes]);
+  }
+  if (withDunes.length === 0) return null;
+  const cx = Math.min(...withDunes.map(([x]) => x));
+  const cy = Math.min(...withDunes.map(([, y]) => y));
+  const cols = Math.max(...withDunes.map(([x]) => x)) - cx + 1;
+  const rows = Math.max(...withDunes.map(([, y]) => y)) - cy + 1;
+  const width = cols * TERRAIN_CHUNK_SIDE;
+  const data = new Uint8Array(width * rows * TERRAIN_CHUNK_SIDE);
+  for (const [x, y, bytes] of withDunes) {
+    for (let j = 0; j < TERRAIN_CHUNK_SIDE; j++) {
+      for (let i = 0; i < TERRAIN_CHUNK_SIDE; i++) {
+        const dune = (bytes[j * TERRAIN_CHUNK_SIDE + i] & DUNE_MASK) >> DUNE_SHIFT;
+        data[((y - cy) * TERRAIN_CHUNK_SIDE + j) * width + (x - cx) * TERRAIN_CHUNK_SIDE + i] = dune * 85;
+      }
+    }
+  }
+  return { cx, cy, cols, rows, data };
 }

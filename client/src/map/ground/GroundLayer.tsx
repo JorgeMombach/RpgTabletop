@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { FrameWatch, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
+import { duneMask, FrameWatch, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
 import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
@@ -60,7 +60,10 @@ export const GroundLayer = memo(function GroundLayer({
   walls,
   sceneStyle,
   gm,
+  dust,
 }: {
+  /** Vento do clima para a poeira das dunas: 0 = nada, 1 = vento, 2 = tempestade de areia; direção 1 = direita. */
+  dust: { level: 0 | 1 | 2; direction: 1 | -1 };
   /** Paredes, portas e janelas (com a prévia de *Trocar desenho* já aplicada): desenhadas na placa de vídeo. */
   walls: Wall[];
   sceneStyle: WallStyle;
@@ -259,6 +262,15 @@ export const GroundLayer = memo(function GroundLayer({
     setVersion((value) => value + 1);
   }, [renderer, pieces]);
 
+  // Poeira das dunas: onde há duna (do relevo, com a prévia) e o vento do clima; parada com a animação desligada.
+  const dunes = useMemo(() => duneMask(relief), [relief]);
+  const reduceDust = useApp((state) => state.reduceFx || state.windStalled);
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setDust(dunes, reduceDust ? 0 : dust.level, dust.direction);
+    setVersion((value) => value + 1);
+  }, [renderer, dunes, dust.level, dust.direction, reduceDust]);
+
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
   const lastCommitted = useRef<TerrainChunks | null>(null);
   useEffect(() => {
@@ -350,7 +362,7 @@ export const GroundLayer = memo(function GroundLayer({
         return;
       }
       // Anima com água na tela, com tocha tremulando ou com a luz da cena ainda trocando.
-      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering || renderer.busy)) return;
+      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering || renderer.busy || renderer.dusting)) return;
       lastDraw = now;
       timeRef.current = now / 1000;
       paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);

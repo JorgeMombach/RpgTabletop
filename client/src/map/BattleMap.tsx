@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, doorLayouts, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { brushCells, doorLayouts, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -1041,6 +1041,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   );
   // Chuva, neve e afins escurecem com a luz da cena (sem sombra de parede); o que brilha sozinho não muda.
   const sceneLight = SCENE_LIGHT[state.battle.weather.light];
+  // Poeira das dunas (docs/design/relevo.md, etapa 3): com clima de vento, para o lado do vento do clima.
+  const dustLevel = duneDustLevel(state.battle.weather);
+  const dustDirection: 1 | -1 = state.battle.weather.wind < 0 ? -1 : 1;
+  const dust = useMemo(() => ({ level: dustLevel, direction: dustDirection }), [dustLevel, dustDirection]);
   const weatherDim = Math.min(1, Math.max(0.3, (sceneLight.ambient[0] + sceneLight.ambient[1] + sceneLight.ambient[2] + sceneLight.sun[0] + sceneLight.sun[1] + sceneLight.sun[2]) / 3));
   const plateNumbers = repeatedNumbers(tokens);
   const wallStyle = state.battle.map.wallStyle ?? "stone";
@@ -1244,6 +1248,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               walls={chainWalls}
               sceneStyle={wallStyle}
               gm={gm}
+              dust={dust}
             />
           )}
 
