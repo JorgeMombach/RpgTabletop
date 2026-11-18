@@ -111,6 +111,19 @@ describe("relevo: dunas", () => {
     assert.ok(jump < 0.05, `sem degrau na borda: ${jump}`);
   });
 
+  it("duna não passa da área pintada (nem tira a rocha do penhasco vizinho)", () => {
+    const chunks: ReliefChunks = {};
+    // dunas de x = 14 a 22 (quadrado), e nada fora
+    for (let y = 12; y <= 20; y += 0.5) paintRelief(chunks, { level: 0, soft: false, dune: 3, radius: 0.5, points: [14, y, 16, y, 18, y, 20, y, 22, y] });
+    const { heights, soft } = reliefFields(chunks, "2,2");
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    const index = (x: number, y: number) => Math.round((y - 8) * RELIEF_PER_CELL) * side + Math.round((x - 8) * RELIEF_PER_CELL);
+    for (const x of [13, 12.5, 12]) {
+      assert.equal(heights[index(x, 16)], 0, `altura fora da área em x = ${x}`);
+      assert.equal(soft[index(x, 16)], 0, `sem "suave" fora da área em x = ${x}`);
+    }
+  });
+
   it("duna emenda entre pedaços", () => {
     const chunks: ReliefChunks = {};
     paintRelief(chunks, dunes(2, [16, 12, 16, 16, 16, 20], 3));
@@ -145,8 +158,16 @@ describe("relevo: poeira das dunas", () => {
     const mask = duneMask(chunks);
     assert.ok(mask);
     assert.deepEqual([mask.cx, mask.cy, mask.cols, mask.rows], [0, 0, 1, 1]);
-    assert.equal(mask.data[16 * 32 + 16], 255, "duna 3 no centro");
-    assert.equal(mask.data[0], 0);
+    // Borda de um texel vazio em volta (fora da caixa a poeira some, não repete a beira).
+    const width = 32 + 2;
+    assert.equal(mask.data.length, width * width);
+    assert.equal(mask.data[(16 + 1) * width + 16 + 1], 255, "duna 3 no centro");
+    for (let i = 0; i < width; i++) {
+      assert.equal(mask.data[i], 0, "borda de cima");
+      assert.equal(mask.data[(width - 1) * width + i], 0, "borda de baixo");
+      assert.equal(mask.data[i * width], 0, "borda da esquerda");
+      assert.equal(mask.data[i * width + width - 1], 0, "borda da direita");
+    }
   });
 });
 

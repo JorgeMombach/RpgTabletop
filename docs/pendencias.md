@@ -108,6 +108,17 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ## Pendências pequenas
 
+### Chão, água, areia e dunas ([docs/design/relevo.md](design/relevo.md))
+- [ ] A poeira anima (chão redesenhado a 30 quadros/s) mesmo com as dunas fora da tela (`GroundRenderer.dusting` não olha a visibilidade, ao contrário da água).
+- [ ] `duneMask` não tem limite de tamanho: dunas a milhares de casas umas das outras alocam uma máscara enorme (sem o equivalente ao `TerrainTooLarge`).
+- [ ] A máscara das dunas é refeita a cada movimento do pincel de relevo, mesmo sem vento.
+- [ ] Sem compilação em paralelo, até 3 programas compilam no mesmo quadro (terreno, paredes, poeira: um por cache).
+- [ ] As duas texturas do assado da água (do tamanho da tela) são criadas e limpas mesmo sem água.
+- [ ] Comentário de `TerrainWeights.third` (`terrain.ts`) diz "areia"; lá fica a água funda. Comentário duplicado em `reliefBrush` (`store.ts`).
+- [ ] `reliefStrokeOf` exportada de um arquivo de componente (`ReliefOptions.tsx`): atrapalha o recarregamento rápido do Vite.
+- [ ] O relógio da poeira volta a zero a cada 30 min: o desenho dos fiapos pula uma vez nesse instante.
+- [ ] A superfície da água ainda usa o relógio sem voltar a zero (sessões muito longas podem perder detalhe fino).
+
 ### Paredes na placa de vídeo ([docs/design/relevo.md](design/relevo.md))
 - [ ] Grade de ferro na espessura padrão (0,18) fica fina de longe (barras com menos de 1 px a 40 px por casa).
 - [ ] Tinta do lado do chão às vezes com 0 a 1 px (vem das derivadas em grupos de 2 × 2 pixels); a borda de dentro da parede é que garante o contorno.

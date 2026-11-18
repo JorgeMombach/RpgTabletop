@@ -59,20 +59,30 @@ float edgeSmooth(float value) {
 }
 
 // Detalhe (do teste aprovado).
-float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+// Sorteio pelos bits do número (inteiros de 32 bits): igual perto e longe da origem do mapa.
+float hash(vec2 p) {
+  highp uvec2 q = floatBitsToUint(p);
+  highp uint h = (q.x * 1597334677u) ^ (q.y * 3812015801u);
+  h ^= h >> 16u; h *= 2246822519u; h ^= h >> 13u; h *= 3266489917u; h ^= h >> 16u;
+  return float(h) * (1.0 / 4294967296.0);
+}
+vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
 float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
 float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
-// Grão solto: ponto sorteado dentro de cada célula (não fica em fileira).
-float speck(vec2 c, float scale, float chance, float seed) { vec2 g = c * scale + seed; vec2 id = floor(g); vec2 at = 0.5 + (hash2(id) - 0.5) * 0.6; return hash(id + seed) > chance ? 1.0 - smoothstep(0.18, 0.32, length(fract(g) - at)) : 0.0; }
+/** Casas por pixel do aparelho. */
+float pixelCells() { return (uScreen.x / uCanvas.x) / (uStage.z * uMapGrid.z); }
+/** Quanto de um detalhe com perCell repetições por casa ainda aparece: some (vira a média) abaixo de ~2 pixels. */
+float detail(float perCell) { return 1.0 - smoothstep(0.35, 0.8, pixelCells() * perCell); }
+/** Ruído fino que vai para a média de longe. */
+float fineNoise(vec2 c, float perCell) { return mix(0.5, noise(c * perCell), detail(perCell)); }
+// Grão solto: ponto sorteado dentro de cada célula (não fica em fileira); some de longe.
+float speck(vec2 c, float scale, float chance, float seed) { vec2 g = c * scale + seed; vec2 id = floor(g); vec2 at = 0.5 + (hash2(id) - 0.5) * 0.6; return (hash(id + seed) > chance ? 1.0 - smoothstep(0.18, 0.32, length(fract(g) - at)) : 0.0) * detail(scale); }
 // Voronoi: id, distância ao ponto mais perto e folga até a borda.
 vec4 voronoi(vec2 p) {
   vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0);
   for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; }
   return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1));
 }
-/** Casas por pixel do aparelho. */
-float pixelCells() { return (uScreen.x / uCanvas.x) / (uStage.z * uMapGrid.z); }
 /** Luz da face relativa ao chão plano (a do relevo): 1 no plano. */
 float relativeShade(vec3 n) {
   float flatLit = max(uLightDir.z, 0.35);
@@ -116,10 +126,11 @@ vec3 grassBlades(vec2 c, float density, int count) {
 }
 vec3 grassColor(vec2 c, vec3 w, float density, int count) {
   vec3 blade = grassBlades(c, density, count);
-  vec3 mat = w * (0.74 + 0.14 * noise(c * 20.0)) * (0.92 + 0.12 * noise(c * 90.0));   // fundo entre as folhas
+  vec3 mat = w * (0.74 + 0.14 * noise(c * 20.0)) * (0.92 + 0.12 * fineNoise(c, 90.0));   // fundo entre as folhas
   vec3 leaf = w * (0.88 + 0.28 * blade.y) * (0.88 + 0.26 * blade.z);                 // ponta mais clara
   leaf = mix(leaf, w * vec3(1.3, 1.32, 0.8), smoothstep(0.7, 1.0, blade.y) * 0.25 * step(0.5, blade.z));
-  vec3 col = mix(mat, leaf, blade.x);
+  // De longe, as folhas viram a média (cerca de metade coberta), sem sortear folha por pixel.
+  vec3 col = mix(mix(mat, w * 1.02, 0.45), mix(mat, leaf, blade.x), detail(45.0));
   return col * (0.9 + 0.2 * fbm(c * 0.7));                                            // tufos mais claros/escuros
 }
 `;
@@ -142,7 +153,7 @@ const LAYER_ART: Record<TerrainId, LayerArt> = {
     vec3 col = grassColor(c, w, 0.95, 5);
     // flores miúdas, raras
     vec2 f = fract(c * 6.0) - 0.5; float pick = hash(floor(c * 6.0));
-    if (pick > 0.985 && length(f) < 0.1) col = mix(col, pick > 0.993 ? vec3(0.95, 0.9, 0.6) : vec3(0.92, 0.92, 0.95), 0.8);
+    if (pick > 0.985 && length(f) < 0.1 && detail(30.0) > 0.5) col = mix(col, pick > 0.993 ? vec3(0.95, 0.9, 0.6) : vec3(0.92, 0.92, 0.95), 0.8);
     return col;`,
   },
   grassDry: {
@@ -153,23 +164,23 @@ const LAYER_ART: Record<TerrainId, LayerArt> = {
     color: `
     float bare = smoothstep(0.42, 0.3, fbm(c * 1.6 + 4.0));
     vec3 col = grassColor(c, w, 0.75 - bare * 0.6, 4);
-    vec3 soil = vec3(0.55, 0.43, 0.3) * (0.85 + 0.25 * fbm(c * 14.0)) * (0.94 + 0.12 * noise(c * 55.0));
+    vec3 soil = vec3(0.55, 0.43, 0.3) * (0.85 + 0.25 * fbm(c * 14.0)) * (0.94 + 0.12 * fineNoise(c, 55.0));
     return mix(col, soil, bare * 0.75);`,
   },
   dirt: {
     height: `
     vec4 v = voronoi(c * 7.0); float r = 0.2 + 0.15 * hash(v.xy + 1.0);
-    float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) : 0.0;
-    float crack = 1.0 - smoothstep(0.0, 0.04, voronoi(c * 1.4 + 9.0).w);
+    float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) : 0.0; pebble *= detail(30.0);
+    float crack = (1.0 - smoothstep(0.0, 0.04, voronoi(c * 1.4 + 9.0).w)) * detail(25.0);
     return pebble * 0.035 + (fbm(c * 10.0) - 0.5) * 0.016 - crack * 0.012 * smoothstep(0.5, 0.7, fbm(c * 0.9));`,
     color: `
     vec4 v = voronoi(c * 7.0); float r = 0.2 + 0.15 * hash(v.xy + 1.0);
-    float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.8, v.z) * 0.8 : 0.0;
+    float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.8, v.z) * 0.8 : 0.0; pebble *= detail(30.0);
     vec3 col = w * (0.84 + 0.3 * fbm(c * 9.0));
-    col *= 0.94 + 0.12 * noise(c * 55.0);
-    vec3 stone = mix(w * 1.2, vec3(0.5, 0.45, 0.4), 0.3 + 0.25 * hash(v.xy + 7.0)) * (0.9 + 0.2 * noise(c * 60.0));
+    col *= 0.94 + 0.12 * fineNoise(c, 55.0);
+    vec3 stone = mix(w * 1.2, vec3(0.5, 0.45, 0.4), 0.3 + 0.25 * hash(v.xy + 7.0)) * (0.9 + 0.2 * fineNoise(c, 60.0));
     col = mix(col, stone, pebble);
-    float crack = 1.0 - smoothstep(0.0, 0.04, voronoi(c * 1.4 + 9.0).w);
+    float crack = (1.0 - smoothstep(0.0, 0.04, voronoi(c * 1.4 + 9.0).w)) * detail(25.0);
     col *= 1.0 - crack * 0.35 * smoothstep(0.5, 0.7, fbm(c * 0.9));
     return col;`,
   },
@@ -177,16 +188,16 @@ const LAYER_ART: Record<TerrainId, LayerArt> = {
     height: `
     float clod = fbm(c * 6.0);
     vec4 v = voronoi(c * 5.0); float r = 0.16 + 0.1 * hash(v.xy + 1.0);
-    float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) : 0.0;
-    return clod * 0.03 + pebble * 0.03 + (noise(c * 30.0) - 0.5) * 0.006;`,
+    float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) : 0.0; pebble *= detail(30.0);
+    return clod * 0.03 + pebble * 0.03 + (fineNoise(c, 30.0) - 0.5) * 0.006;`,
     color: `
     float clod = fbm(c * 6.0);
     vec4 v = voronoi(c * 5.0); float r = 0.16 + 0.1 * hash(v.xy + 1.0);
-    float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.8, v.z) : 0.0;
+    float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.8, v.z) : 0.0; pebble *= detail(30.0);
     vec3 col = w * (0.78 + 0.4 * clod);
-    col *= 0.93 + 0.14 * noise(c * 50.0);
+    col *= 0.93 + 0.14 * fineNoise(c, 50.0);
     col = mix(col, vec3(0.3, 0.38, 0.2), smoothstep(0.62, 0.75, fbm(c * 1.2 + 2.0)) * 0.35);  // musgo úmido
-    col = mix(col, vec3(0.42, 0.38, 0.33) * (0.9 + 0.2 * noise(c * 60.0)), pebble);
+    col = mix(col, vec3(0.42, 0.38, 0.33) * (0.9 + 0.2 * fineNoise(c, 60.0)), pebble);
     return col;`,
   },
   stone: {
@@ -202,8 +213,8 @@ const LAYER_ART: Record<TerrainId, LayerArt> = {
     vec3 col = w * (0.82 + 0.3 * hash(v.xy));
     col *= 0.86 + 0.28 * fbm(c * 12.0);
     col = mix(col, col * 1.18, (1.0 - smoothstep(0.07, 0.16, v.w)) * slab * 0.6);   // aresta gasta clara
-    col = mix(col, col * 1.35, step(0.96, hash(floor(c * 48.0))) * 0.6);             // mica
-    vec3 gap = vec3(0.3, 0.27, 0.22) * (0.8 + 0.3 * noise(c * 40.0));
+    col = mix(col, col * 1.35, step(0.96, hash(floor(c * 48.0))) * 0.6 * detail(48.0));             // mica
+    vec3 gap = vec3(0.3, 0.27, 0.22) * (0.8 + 0.3 * fineNoise(c, 40.0));
     gap = mix(gap, vec3(0.28, 0.36, 0.18), smoothstep(0.55, 0.7, fbm(c * 3.0)) * 0.6);  // musgo nas juntas
     return mix(gap, col, slab);`,
   },
@@ -217,17 +228,17 @@ const LAYER_ART: Record<TerrainId, LayerArt> = {
     float dome = smoothstep(0.0, 0.28, v.w);
     vec3 col = w * (0.78 + 0.38 * hash(v.xy)) * mix(vec3(1.0), vec3(1.05, 1.0, 0.92), hash(v.xy + 3.0));
     col *= 0.88 + 0.24 * fbm(c * 16.0);
-    vec3 gap = vec3(0.42, 0.37, 0.29) * (0.8 + 0.3 * noise(c * 50.0));
+    vec3 gap = vec3(0.42, 0.37, 0.29) * (0.8 + 0.3 * fineNoise(c, 50.0));
     return mix(gap, col, smoothstep(0.0, 0.08, v.w));`,
   },
   sand: {
     height: `
     vec2 dir = normalize(vec2(1.0, 0.35 + (noise(c * 0.12) - 0.5) * 0.5));
     float phase = dot(c, dir) * 12.0 + noise(c * 0.5) * 2.0;
-    return pow(0.5 + 0.5 * sin(phase), 2.2) * 0.012 + (noise(c * 70.0) - 0.5) * 0.002;`,
+    return pow(0.5 + 0.5 * sin(phase), 2.2) * 0.012 + (fineNoise(c, 70.0) - 0.5) * 0.002;`,
     color: `
     vec3 col = ${SAND_COLOR} * (0.93 + 0.1 * fbm(c * 2.0));
-    col *= 0.96 + 0.06 * noise(c * 80.0);
+    col *= 0.96 + 0.06 * fineNoise(c, 80.0);
     col = mix(col, col * 0.62, speck(c, 90.0, 0.97, 0.0));   // grãos escuros
     col = mix(col, col * 1.18, speck(c, 90.0, 0.98, 5.0));   // grãos claros
     return col;`,

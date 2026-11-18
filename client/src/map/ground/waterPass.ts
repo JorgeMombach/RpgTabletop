@@ -128,6 +128,7 @@ export class WaterPass {
     gl.uniform4f(uniformOf(gl, this.bake, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
     gl.uniform3f(uniformOf(gl, this.bake, "uStage"), view.stageX, view.stageY, view.scale);
     gl.uniform2f(uniformOf(gl, this.bake, "uScreen"), view.width, view.height);
+    gl.uniform1f(uniformOf(gl, this.bake, "uPxUnits"), 48 / Math.max(1e-6, view.cellPx * view.scale * (width / view.width)));
     for (const group of this.groups) {
       if (!this.onScreen(group.field, view)) continue;
       const { rect } = group.field;

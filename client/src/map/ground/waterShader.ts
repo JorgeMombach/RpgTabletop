@@ -26,14 +26,20 @@ uniform float uPerCell;
 uniform sampler2D uSdfDeep;
 uniform highp sampler2D uRiver;     // RGBA32F: sem filtro de textura em todo aparelho, a interpolação é feita aqui
 
-float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+// Sorteio pelos bits do número (inteiros de 32 bits): igual perto e longe da origem do mapa.
+float hash(vec2 p) {
+  highp uvec2 q = floatBitsToUint(p);
+  highp uint h = (q.x * 1597334677u) ^ (q.y * 3812015801u);
+  h ^= h >> 16u; h *= 2246822519u; h ^= h >> 13u; h *= 3266489917u; h ^= h >> 16u;
+  return float(h) * (1.0 / 4294967296.0);
+}
 float noise(vec2 p) {
   vec2 i = floor(p), f = fract(p); vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
   return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
 float fbm(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 5; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v; }
 float fbm4(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 4; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v / 0.9375; }
-vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
 // Voronoi: id, distância ao ponto mais perto e folga até a borda (pedrinhas do barranco, bolhas da espuma).
 vec4 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1)); }
 
@@ -84,7 +90,10 @@ in vec2 vCell;
 layout(location = 0) out vec4 outTerrain;
 layout(location = 1) out vec4 outData;
 uniform sampler2D uDirt;
+uniform float uPxUnits;     // px do teste (48 por casa) por pixel do aparelho
 ${COMMON}
+/** Quanto de um detalhe com período period (px do teste) ainda aparece: some (vira a média) abaixo de ~2 pixels. */
+float detailPx(float period) { return 1.0 - smoothstep(0.35, 0.8, uPxUnits / period); }
 const float BANK = 14.0;            // altura do barranco
 const float DEEP = 22.0;            // fundo da água abaixo da beira
 
@@ -107,7 +116,7 @@ float detailHeight(vec2 px) {
   vec4 v = voronoi(px / 3.0 + fbm(px / 2.0) * 0.6);
   float r = 0.18 + 0.14 * hash(v.xy + 1.0);
   float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) * 0.6 : 0.0;
-  return pebble * 1.4 + (noise(px / 1.6) - 0.5) * 0.25 + (fbm(px / 6.0) - 0.5) * 0.6;
+  return pebble * 1.4 * detailPx(6.0) + (noise(px / 1.6) - 0.5) * 0.25 * detailPx(1.6) + (fbm(px / 6.0) - 0.5) * 0.6 * detailPx(3.0);
 }
 vec3 terrainNormal(vec2 px) {
   float e = 0.4;
@@ -129,17 +138,17 @@ float shadowAt(vec2 px, float h0) {
 }
 // Terra do barranco e do fundo: tons quentes em camadas suaves seguindo a curva de nível; lama perto da água.
 vec3 earthMaterial(vec2 px, float h, float s, float bw) {
-  vec3 dirt = textureLod(uDirt, px / 300.0, 0.0).rgb;
+  vec3 dirt = textureLod(uDirt, px / 300.0, max(0.0, log2(max(float(textureSize(uDirt, 0).x) / 300.0 * uPxUnits, 1e-6)))).rgb;
   float x = clamp(-h / BANK, 0.0, 1.2);
   float strata = 0.94 + 0.06 * sin(h * 0.9 + fbm(px / 18.0) * 9.0);
   vec3 earth = mix(vec3(0.42, 0.31, 0.2), vec3(0.6, 0.48, 0.32), fbm(px / 40.0)) * (0.7 + 0.6 * dot(dirt, vec3(0.33))) * strata;
   earth = mix(earth, vec3(0.3, 0.26, 0.2), smoothstep(0.75, 1.0, x));
   // Grão, pedrinhas e a faixa de terra molhada logo acima da água.
-  earth *= 0.92 + 0.16 * noise(px / 1.3);
+  earth *= 0.92 + 0.16 * mix(0.5, noise(px / 1.3), detailPx(1.3));
   vec4 v = voronoi(px / 3.0 + fbm(px / 2.0) * 0.6);
   float r = 0.18 + 0.14 * hash(v.xy + 1.0);
   float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.75, v.z) : 0.0;
-  earth = mix(earth, earth * mix(vec3(1.25, 1.2, 1.12), vec3(0.85, 0.82, 0.8), hash(v.xy + 5.0)) * (0.9 + 0.2 * noise(px * 1.5)), pebble * 0.8);
+  earth = mix(earth, earth * mix(vec3(1.25, 1.2, 1.12), vec3(0.85, 0.82, 0.8), hash(v.xy + 5.0)) * (0.9 + 0.2 * noise(px * 1.5)), pebble * 0.8 * detailPx(6.0));
   float wet = smoothstep(bw - 7.0, bw, s) * step(s, bw + 1.0);
   return mix(earth, earth * vec3(0.62, 0.6, 0.58), wet);
 }

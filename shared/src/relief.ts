@@ -317,16 +317,20 @@ export function duneWave(x: number, y: number): number {
 const DUNE_BLUR = 1.25;
 
 /**
- * Soma a ondulação das dunas na altura (e marca como encosta suave: sem rocha). A altura pintada (0 a 3) é amaciada
- * na grade fina por duas médias móveis em cada eixo (a borda sobe aos poucos, sem degrau, e some a 2,5 casas).
+ * Soma a ondulação das dunas na altura (e marca como encosta suave: sem rocha), só dentro da área pintada. A altura
+ * pintada (0 a 3) é amaciada na grade fina por duas médias móveis em cada eixo; a duna cresce de zero na borda até a
+ * altura cheia para dentro (sem degrau) e nunca passa da área pintada (não tira a rocha do penhasco vizinho nem
+ * sombreia a água ao lado).
  */
 function addDunes(fields: { heights: Float32Array; soft: Float32Array }, fineValues: Uint8Array, fineSide: number, side: number, originX: number, originY: number) {
   const fineCount = fineSide * fineSide;
   let amount = new Float32Array(fineCount);
+  const painted = new Float32Array(fineCount);
   let any = false;
   for (let index = 0; index < fineCount; index++) {
     const dune = (fineValues[index] & DUNE_MASK) >> DUNE_SHIFT;
     amount[index] = dune / 2;
+    painted[index] = dune > 0 ? 1 : 0;
     if (dune > 0) any = true;
   }
   if (!any) return;
@@ -347,6 +351,12 @@ function addDunes(fields: { heights: Float32Array; soft: Float32Array }, fineVal
     return out;
   };
   amount = box(box(box(box(amount, true), false), true), false);
+  // Quanto da vizinhança é duna (1 no meio da área, 1/2 na borda reta): a rampa vai de 1/2 a 1, para dentro.
+  const coverage = box(box(box(box(painted, true), false), true), false);
+  for (let index = 0; index < fineCount; index++) {
+    const inside = Math.min(1, Math.max(0, coverage[index] * 2 - 1));
+    amount[index] = painted[index] > 0 && coverage[index] > 0 ? (amount[index] / coverage[index]) * inside : 0;
+  }
   const { heights, soft } = fields;
   for (let gy = 0; gy < side; gy++) {
     for (let gx = 0; gx < side; gx++) {
@@ -362,7 +372,8 @@ function addDunes(fields: { heights: Float32Array; soft: Float32Array }, fineVal
       const top = amount[y0 * fineSide + x0] * (1 - tx) + amount[y0 * fineSide + x1] * tx;
       const bottom = amount[y1 * fineSide + x0] * (1 - tx) + amount[y1 * fineSide + x1] * tx;
       const strength = top * (1 - ty) + bottom * ty;
-      if (strength <= 0) continue;
+      // Ponto da altura fora da área pintada (o fino mais perto, como o nível): sem duna.
+      if (strength <= 0 || painted[(gy >> 1) * fineSide + (gx >> 1)] === 0) continue;
       const index = gy * side + gx;
       heights[index] += duneWave(originX + gx / RELIEF_PER_CELL, originY + gy / RELIEF_PER_CELL) * RELIEF_DUNE.amplitude * strength;
       soft[index] = Math.max(soft[index], Math.min(1, strength * 4));
@@ -455,7 +466,11 @@ export function duneDustLevel(weather: WeatherState | null): 0 | 1 | 2 {
   return weather.kind === "leaves" || weather.kind === "blizzard" || weather.kind === "storm" ? 1 : 0;
 }
 
-/** Onde há dunas, na grade fina (4 pontos por casa), num retângulo de pedaços: 0 sem duna, 255 na duna de altura 3. */
+/**
+ * Onde há dunas, na grade fina (4 pontos por casa), num retângulo de pedaços, com uma borda de um texel vazio em volta
+ * (fora dela a leitura repete a borda: nada): 0 sem duna, 255 na duna de altura 3. O primeiro texel é o ponto fino
+ * `(cx · 32 − 1, cy · 32 − 1)`.
+ */
 export interface DuneMask {
   cx: number;
   cy: number;
@@ -478,13 +493,13 @@ export function duneMask(chunks: ReliefChunks): DuneMask | null {
   const cy = Math.min(...withDunes.map(([, y]) => y));
   const cols = Math.max(...withDunes.map(([x]) => x)) - cx + 1;
   const rows = Math.max(...withDunes.map(([, y]) => y)) - cy + 1;
-  const width = cols * TERRAIN_CHUNK_SIDE;
-  const data = new Uint8Array(width * rows * TERRAIN_CHUNK_SIDE);
+  const width = cols * TERRAIN_CHUNK_SIDE + 2;
+  const data = new Uint8Array(width * (rows * TERRAIN_CHUNK_SIDE + 2));
   for (const [x, y, bytes] of withDunes) {
     for (let j = 0; j < TERRAIN_CHUNK_SIDE; j++) {
       for (let i = 0; i < TERRAIN_CHUNK_SIDE; i++) {
         const dune = (bytes[j * TERRAIN_CHUNK_SIDE + i] & DUNE_MASK) >> DUNE_SHIFT;
-        data[((y - cy) * TERRAIN_CHUNK_SIDE + j) * width + (x - cx) * TERRAIN_CHUNK_SIDE + i] = dune * 85;
+        data[((y - cy) * TERRAIN_CHUNK_SIDE + j + 1) * width + (x - cx) * TERRAIN_CHUNK_SIDE + i + 1] = dune * 85;
       }
     }
   }

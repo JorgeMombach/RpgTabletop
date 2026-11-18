@@ -19,8 +19,14 @@ uniform vec2 uMaskOrigin;    // ponto fino do primeiro texel
 uniform vec2 uMaskSize;      // tamanho da máscara (texels)
 uniform float uTime, uLevel, uDirection;
 ${SCREEN}
-float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+// Sorteio pelos bits do número (inteiros de 32 bits): igual perto e longe da origem do mapa.
+float hash(vec2 p) {
+  highp uvec2 q = floatBitsToUint(p);
+  highp uint h = (q.x * 1597334677u) ^ (q.y * 3812015801u);
+  h ^= h >> 16u; h *= 2246822519u; h ^= h >> 13u; h *= 3266489917u; h ^= h >> 16u;
+  return float(h) * (1.0 / 4294967296.0);
+}
+vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
 float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
 float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
 float speck(vec2 c, float scale, float chance, float seed) { vec2 g = c * scale + seed; vec2 id = floor(g); vec2 at = 0.5 + (hash2(id) - 0.5) * 0.6; return hash(id + seed) > chance ? 1.0 - smoothstep(0.18, 0.32, length(fract(g) - at)) : 0.0; }
@@ -68,6 +74,9 @@ void main() {
   outColor = vec4(dust * alpha, alpha);
 }`;
 
+/** Período do relógio da poeira (segundos). */
+const DUST_CLOCK = 1800;
+
 export class DustPass {
   private readonly triangle: WebGLBuffer;
   private readonly programs: ProgramCache<"dust">;
@@ -86,8 +95,8 @@ export class DustPass {
     if (this.mask) gl.deleteTexture(this.mask.texture);
     this.mask = null;
     if (!mask) return;
-    const width = mask.cols * 32;
-    const height = mask.rows * 32;
+    const width = mask.cols * 32 + 2;
+    const height = mask.rows * 32 + 2;
     const texture = createTexture(
       gl,
       () => {
@@ -97,7 +106,7 @@ export class DustPass {
       gl.LINEAR,
       gl.CLAMP_TO_EDGE,
     );
-    this.mask = { texture, origin: [mask.cx * 32, mask.cy * 32], size: [width, height] };
+    this.mask = { texture, origin: [mask.cx * 32 - 1, mask.cy * 32 - 1], size: [width, height] };
   }
 
   /** Vento do clima: 0 = sem poeira, 1 = vento, 2 = tempestade de areia; direção 1 = direita. */
@@ -113,7 +122,7 @@ export class DustPass {
 
   /** Programa ainda compilando. */
   get pending(): boolean {
-    return this.programs.pending;
+    return this.active && this.programs.pending;
   }
 
   /** Desenha a poeira no alvo ligado (viewport e mistura pré-multiplicada já postos pelo chão). */
@@ -133,7 +142,8 @@ export class DustPass {
     gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
     gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
     gl.uniform2f(uniformOf(gl, program, "uCanvas"), width, height);
-    gl.uniform1f(uniformOf(gl, program, "uTime"), time);
+    // O relógio volta a zero a cada meia hora: as contas do vento ficam pequenas (precisão boa a sessão inteira).
+    gl.uniform1f(uniformOf(gl, program, "uTime"), time % DUST_CLOCK);
     gl.uniform1f(uniformOf(gl, program, "uLevel"), this.level);
     gl.uniform1f(uniformOf(gl, program, "uDirection"), this.direction);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
