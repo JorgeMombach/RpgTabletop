@@ -10,16 +10,6 @@ import { rng, textured, WOODS } from "./wallKit";
  * `wallArtMore.ts`. Parede comum vira imagem guardada; porta é desenhada ao vivo (são poucas e mudam de estado).
  */
 
-/** Semente a partir das pontas da parede (a mesma parede sai sempre igual, em qualquer tela). */
-export function wallSeed(ax: number, ay: number, bx: number, by: number): number {
-  let h = 2166136261;
-  for (const n of [ax, ay, bx, by]) {
-    h ^= Math.round(n * 100);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
 function dropShadow(ctx: CanvasRenderingContext2D, path: Path2D, t: number, color: string) {
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,.7)";

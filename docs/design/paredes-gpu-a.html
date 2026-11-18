@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paredes na placa: lote a</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="thick"><b>Espessura</b><button data-v="0.18">Fina (padrão)</button><button data-v="0.3" class="on">Média</button><button data-v="0.55">Grossa</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button></div>
+  <span id="ms"></span>
+</header>
+<p>Quatro quadros, a mesma cena em cada um (quina, T, diagonal e ponta solta): <b>rocha</b> (penhasco fino), <b>pedra lavrada</b>, <b>tijolo</b> e <b>madeira</b>. Cada parede tem altura: pega luz de um lado, faz sombra no chão e tem contorno de tinta fino. Arraste para mover.</p>
+<canvas id="view"></canvas>
+<script>
+const COLS = 32, ROWS = 18;
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0, 1); }`;
+const FS = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform sampler2D uGrass, uStone, uStone2, uDirt;
+uniform vec2 uCanvas, uPan; uniform float uCellPx, uThick;
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uElev;
+uniform vec4 uSeg[6];
+
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+vec3 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec3(id, sqrt(d2) - sqrt(d1)); }
+
+// Parede mais perto do ponto (no quadro): posição ao longo, lado (com sinal) e quanto falta até a borda (>0 = dentro).
+// Quinas quadradas: cada trecho passa meia espessura das pontas.
+vec4 wallAt(vec2 p, float rockWobble) {
+  vec4 best = vec4(0.0, 0.0, -1.0, -9.0);
+  for (int i = 0; i < 6; i++) {
+    vec2 a = uSeg[i].xy, b = uSeg[i].zw, d = b - a;
+    float len = length(d); vec2 u = d / len, n = vec2(-u.y, u.x);
+    float along = dot(p - a, u), across = dot(p - a, n);
+    // Rocha: um pouco mais larga que as outras, com a largura variando (penhasco fino).
+    float half_ = uThick * 0.5 * (1.0 + rockWobble * (0.45 + (fbm(vec2(along * 1.3, float(i) * 7.0)) - 0.5) * 0.9));
+    float alongOut = max(-along - uThick * 0.5, along - len - uThick * 0.5);
+    float inside = min(half_ - abs(across), -alongOut);
+    if (inside > best.w) best = vec4(along + float(i) * 37.0, across, float(i), inside);
+  }
+  return best;
+}
+
+// Altura (em casas) de cada desenho, e o material na hora de pintar. style: 0 rocha, 1 pedra, 2 tijolo, 3 madeira.
+float wallHeight(vec2 p, int style) {
+  vec4 w = wallAt(p, style == 0 ? 1.0 : 0.0);
+  if (w.w < 0.0) return 0.0;
+  float edge = clamp(w.w / (uThick * 0.5), 0.0, 1.0);
+  if (style == 0) {
+    // crista de rocha: sobe arredondada, com saliências
+    return 0.75 * pow(edge, 0.5) * (0.8 + fbm(p * 2.5) * 0.4) + (fbm(p * 9.0) - 0.5) * 0.05 * edge;
+  }
+  float top = 0.6;
+  float along = w.x, across = w.y;
+  if (style == 1) {
+    float row = step(0.0, across);
+    float blockLen = uThick * 1.3;
+    float x = along / blockLen + row * 0.5;
+    float j = floor(x + hash(vec2(floor(x), row)) * 0.0);
+    float fx = fract(x);
+    float joint = min(min(fx, 1.0 - fx) * blockLen, abs(across)) ;
+    float bevel = smoothstep(0.0, uThick * 0.08, joint);
+    return top * (0.86 + 0.14 * bevel) * smoothstep(0.0, 0.015, w.w);
+  }
+  if (style == 2) {
+    float rows = 4.0, rowH = uThick / rows;
+    float r = floor((across + uThick * 0.5) / rowH);
+    float bl = uThick * 0.55;
+    float x = along / bl + mod(r, 2.0) * 0.5;
+    float fx = fract(x), fy = fract((across + uThick * 0.5) / rowH);
+    float joint = min(min(fx, 1.0 - fx) * bl, min(fy, 1.0 - fy) * rowH);
+    return top * (0.9 + 0.1 * smoothstep(0.0, uThick * 0.05, joint)) * smoothstep(0.0, 0.015, w.w);
+  }
+  // madeira: tábuas ao comprido, topo arredondado de cada tábua
+  float rows = 3.0, rowH = uThick / rows;
+  float fy = fract((across + uThick * 0.5) / rowH);
+  float r = floor((across + uThick * 0.5) / rowH);
+  float plankLen = uThick * (3.5 + hash(vec2(floor(along / (uThick * 3.5)), r)) * 2.0);
+  float fx = fract(along / plankLen + r * 0.37);
+  float round_ = 1.0 - pow(abs(fy - 0.5) * 2.0, 3.0) * 0.25;
+  float gap = smoothstep(0.0, 0.04, min(fy, 1.0 - fy)) * smoothstep(0.0, 0.02, min(fx, 1.0 - fx));
+  return top * (0.85 + 0.15 * gap) * round_ * smoothstep(0.0, 0.015, w.w);
+}
+
+vec3 wallColor(vec2 p, int style, vec4 w, float h) {
+  float along = w.x, across = w.y;
+  if (style == 0) {
+    vec3 cell = voronoi(p * 3.0 + vec2(0.0, h * 2.0));
+    vec3 col = mix(texture(uStone, p * 0.3 + vec2(0.0, h * 0.35)).rgb, texture(uStone2, p * 0.45).rgb, 0.35) * vec3(1.1, 1.03, 0.94);
+    // camadas como no penhasco: borda de cima clara, de baixo escura
+    float layer = fract(h * 5.0 + fbm(p * 0.8) * 0.35);
+    col *= 0.9 + 0.3 * hash(cell.xy);
+    col += (1.0 - smoothstep(0.0, 0.12, layer)) * 0.12;
+    col *= 1.0 - smoothstep(0.75, 1.0, layer) * 0.18;
+    col *= 0.84 + 0.32 * fbm(p * 13.0);
+    col = mix(col, col * 1.35, step(0.95, hash(floor(p * 52.0))) * 0.7);
+    col *= 1.0 - (1.0 - smoothstep(0.01, 0.05, cell.z)) * 0.35;
+    return col;
+  }
+  if (style == 1) {
+    float row = step(0.0, across);
+    float blockLen = uThick * 1.3;
+    float x = along / blockLen + row * 0.5;
+    float j = floor(x);
+    vec3 col = texture(uStone, p * 0.35 + vec2(j * 0.37, row)).rgb * vec3(1.05, 1.02, 0.96);
+    col *= 0.82 + 0.3 * hash(vec2(j, row));
+    col *= 0.86 + 0.28 * fbm(p * 14.0);
+    if (hash(vec2(j, row + 3.0)) < 0.18) col = mix(col, vec3(0.36, 0.45, 0.24), 0.45 * smoothstep(0.45, 0.7, fbm(p * 6.0)));
+    return col;
+  }
+  if (style == 2) {
+    float rows = 4.0, rowH = uThick / rows;
+    float r = floor((across + uThick * 0.5) / rowH);
+    float bl = uThick * 0.55;
+    float x = along / bl + mod(r, 2.0) * 0.5;
+    float fx = fract(x), fy = fract((across + uThick * 0.5) / rowH);
+    float joint = min(min(fx, 1.0 - fx) * bl, min(fy, 1.0 - fy) * rowH);
+    float k = hash(vec2(floor(x), r));
+    vec3 brick = mix(vec3(0.62, 0.3, 0.2), vec3(0.5, 0.23, 0.16), k) * (0.86 + 0.28 * fbm(p * 18.0));
+    if (k > 0.9) brick *= 0.7;
+    vec3 mortar = vec3(0.78, 0.74, 0.66) * (0.9 + 0.2 * noise(p * 40.0));
+    return mix(mortar, brick, smoothstep(0.004, 0.012, joint));
+  }
+  float rows = 3.0, rowH = uThick / rows;
+  float r = floor((across + uThick * 0.5) / rowH);
+  float plankLen = uThick * (3.5 + hash(vec2(floor(along / (uThick * 3.5)), r)) * 2.0);
+  float id = floor(along / plankLen + r * 0.37);
+  vec3 wood = mix(vec3(0.55, 0.36, 0.18), vec3(0.45, 0.28, 0.13), hash(vec2(id, r)));
+  float grain = sin((along * 22.0 + fbm(vec2(along * 1.5, across * 30.0 + r)) * 6.0)) * 0.5 + 0.5;
+  wood *= 0.85 + 0.2 * grain * fbm(vec2(along * 3.0, across * 40.0));
+  wood *= 0.88 + 0.24 * fbm(p * 16.0);
+  float fx = fract(along / plankLen + r * 0.37);
+  float nail = 1.0 - smoothstep(0.012, 0.02, length(vec2((min(fx, 1.0 - fx)) * plankLen - uThick * 0.12, (fract((across + uThick * 0.5) / rowH) - 0.5) * rowH)));
+  return mix(wood, vec3(0.16, 0.16, 0.18), nail);
+}
+
+void main() {
+  vec2 px = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 world = (px - uPan) / uCellPx;
+  if (world.x < 0.0 || world.y < 0.0 || world.x > 32.0 || world.y > 18.0) { outColor = vec4(0.09, 0.075, 0.06, 1); return; }
+  int style = int(floor(world.x / 16.0)) + 2 * int(floor(world.y / 9.0));
+  vec2 p = mod(world, vec2(16.0, 9.0));
+  // chão: grama
+  vec3 ground = texture(uGrass, world / 8.0).rgb;
+  float bladeAngle = noise(world * 1.3) * 3.14;
+  vec2 bladeUv = mat2(cos(bladeAngle), -sin(bladeAngle), sin(bladeAngle), cos(bladeAngle)) * world;
+  ground *= 0.9 + 0.2 * noise(bladeUv * vec2(42.0, 9.0));
+  float h = wallHeight(p, style);
+  vec4 w = wallAt(p, style == 0 ? 1.0 : 0.0);
+  float e = 0.5 / uCellPx;
+  vec2 grad = vec2(wallHeight(p + vec2(e, 0), style) - wallHeight(p - vec2(e, 0), style), wallHeight(p + vec2(0, e), style) - wallHeight(p - vec2(0, e), style)) / (2.0 * e);
+  vec3 n = normalize(vec3(-grad, 1.0));
+  vec3 L = normalize(vec3(-uSunDir, uElev));
+  float flatLit = max(L.z, 0.35);
+  // sombra da parede no chão (e de uma parede na outra)
+  float shadow = 1.0;
+  float rise = uElev / length(uSunDir);
+  for (int i = 1; i <= 28; i++) {
+    float t = float(i) * 0.04;
+    float above = wallHeight(p - uSunDir * t, style) - (h + rise * t);
+    shadow = min(shadow, clamp(1.0 - (above - 0.01) * 12.0, 0.0, 1.0));
+  }
+  vec3 light = uAmbient + uSun * 0.8 * max(dot(n, L), 0.0) / flatLit * shadow;
+  vec3 col;
+  if (w.w > 0.0) {
+    col = wallColor(p, style, w, h) * light;
+    // contorno de tinta na borda, largura fixa em pixels
+    float rim = 1.0 - smoothstep(0.0, max(fwidth(w.w) * 1.6, 0.002), w.w);
+    col = mix(col, vec3(0.1, 0.075, 0.06), rim * 0.9);
+  } else {
+    col = ground * light;
+    // sombra de contato bem no pé da parede
+    col *= 1.0 - (1.0 - smoothstep(0.0, uThick * 0.35, -w.w)) * 0.25;
+  }
+  // grade fraca e divisão dos quadros
+  vec2 g = abs(fract(world) - 0.5);
+  col *= 1.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.1;
+  if (abs(world.x - 16.0) < 0.02 || abs(world.y - 9.0) < 0.02) col = vec3(0.1, 0.08, 0.06);
+  outColor = vec4(col, 1.0);
+}`;
+function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram(); gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS)); gl.bindAttribLocation(prog, 0, "aPos"); gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const U = (name) => gl.getUniformLocation(prog, name);
+const images = ["grass_01.webp", "stone_01.webp", "stone_02.webp", "dirt_01.webp"], names = ["uGrass", "uStone", "uStone2", "uDirt"];
+let loaded = 0;
+images.forEach((src, i) => { const img = new Image(); img.onload = () => { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); gl.uniform1i(U(names[i]), i); if (++loaded === images.length) draw(); }; img.src = src; });
+// A mesma cena em cada quadro (16 × 9 casas): quina (L), T, diagonal com ponta solta.
+const SEG = [[2, 2, 11, 2], [11, 2, 11, 7.5], [2, 2, 2, 5], [6.5, 2, 6.5, 5.2], [2, 5, 5.5, 7.8], [12.5, 5, 14.5, 5]];
+gl.uniform4fv(U("uSeg"), SEG.flat());
+const LIGHTS = {
+  day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], elev: 1.24 },
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], elev: 0.28 },
+  moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], dir: [0.45, 0.89], elev: 0.7 },
+};
+const state = { light: "day", thick: 0.3, zoom: 1, pan: [0, 0] };
+const CSS_W = 1280, CSS_H = 720;
+function resize() { const k = window.devicePixelRatio || 1; canvas.style.width = CSS_W + "px"; canvas.style.height = CSS_H + "px"; canvas.width = Math.round(CSS_W * k); canvas.height = Math.round(CSS_H * k); }
+function draw() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  const L = LIGHTS[state.light], n = Math.hypot(...L.dir);
+  const k = canvas.width / CSS_W;
+  gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), state.pan[0] * k, state.pan[1] * k);
+  gl.uniform1f(U("uCellPx"), (CSS_W / COLS) * k * state.zoom); gl.uniform1f(U("uThick"), state.thick);
+  gl.uniform3f(U("uAmbient"), ...L.ambient); gl.uniform3f(U("uSun"), ...L.sun); gl.uniform2f(U("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(U("uElev"), L.elev);
+  const t0 = performance.now(); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${(performance.now() - t0).toFixed(0)} ms por quadro`;
+}
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); draw(); })); }
+wire("light", (v) => (state.light = v));
+wire("thick", (v) => (state.thick = +v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "1" ? [0, 0] : [-120, -60]; });
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; state.pan = [e.clientX - drag[0], e.clientY - drag[1]]; draw(); };
+resize();
+</script>
+</body>
+</html>

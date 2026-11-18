@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { brushCells, doorLayouts, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -39,7 +39,7 @@ import { cellAt, cellCenter, placeFor, sameCell, shapeCenterAt, toCellUnits, toW
 import { AREA_LABEL, AREA_MEASURE, AreaShape, areaOrigin } from "./AreaShape";
 import { AuraShape } from "./AuraShape";
 import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./DrawingShape";
-import { doorLayouts, wallPointAt, wallSpan, WallPreview, WallShape } from "./WallShape";
+import { wallPointAt, wallSpan, WallPreview, WallShape } from "./WallShape";
 import { WallChains } from "./WallChains";
 import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";

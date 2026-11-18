@@ -2,14 +2,14 @@ import { Button, Center, Checkbox, Box, Group, SegmentedControl, Select, Slider,
 import { IconArrowBackUp, IconBrush, IconDoor, IconEraser, IconTrash, IconWall, IconWindow } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Shape as KShape } from "react-konva";
-import { seeThrough, wallAnchor, WALL_STYLES, WALL_THICKNESS, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
+import { seeThrough, wallAnchor, wallSeed, WALL_STYLES, WALL_THICKNESS, type DoorLayout, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
 import { useEffect, useRef } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { toCellUnits, type Point } from "./geometry";
-import { drawDoor, drawWindow, wallArt, wallSeed } from "./wallArt";
+import { drawDoor, drawWindow, wallArt } from "./wallArt";
 import { removeWall, restyleWalls, undo, useMapUndo } from "./mapHistory";
 
 /** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder), trocar o desenho ou apagar. */
@@ -55,44 +55,6 @@ export function wallSpan(from: GridPos, to: GridPos): number {
 
 function cornerPx(c: GridPos, g: MapConfig): Point {
   return { x: g.offsetX + c.col * g.cellPx, y: g.offsetY + c.row * g.cellPx };
-}
-
-/** Como a porta abre: dobradiça na ponta `to` em vez de `from` e para que lado a folha gira. */
-export interface DoorLayout {
-  hingeAtTo: boolean;
-  swing: number;
-}
-
-const near = (p: GridPos, q: GridPos) => Math.abs(p.col - q.col) < 0.02 && Math.abs(p.row - q.row) < 0.02;
-
-/**
- * Portas duplas (L5): duas portas em linha que se encostam numa ponta. As dobradiças ficam nas pontas de
- * fora e as duas folhas giram para o mesmo lado, cada uma para a sua ponta. Porta sozinha: dobradiça em `from`.
- */
-export function doorLayouts(walls: Wall[]): Map<string, DoorLayout> {
-  const doors = walls.filter((w) => w.door);
-  const out = new Map<string, DoorLayout>();
-  for (let i = 0; i < doors.length; i++) {
-    const a = doors[i];
-    if (out.has(a.id)) continue;
-    for (let j = i + 1; j < doors.length; j++) {
-      const b = doors[j];
-      if (out.has(b.id)) continue;
-      const shared = [a.from, a.to].find((p) => near(p, b.from) || near(p, b.to));
-      if (!shared) continue;
-      // Em linha: as duas direções são paralelas.
-      const da = { x: a.to.col - a.from.col, y: a.to.row - a.from.row };
-      const db = { x: b.to.col - b.from.col, y: b.to.row - b.from.row };
-      const cross = da.x * db.y - da.y * db.x;
-      if (Math.abs(cross) > 0.02 * Math.hypot(da.x, da.y) * Math.hypot(db.x, db.y)) continue;
-      // A dobradiça é a ponta que não é a do meio; as direções (dobradiça → meio) são opostas, então os
-      // giros têm sinais opostos para as folhas irem para o mesmo lado.
-      out.set(a.id, { hingeAtTo: near(a.from, shared), swing: 1 });
-      out.set(b.id, { hingeAtTo: near(b.from, shared), swing: -1 });
-      break;
-    }
-  }
-  return out;
 }
 
 /**

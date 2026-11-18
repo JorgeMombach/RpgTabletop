@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portas e janela na placa</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button></div>
+  <span id="ms"></span>
+</header>
+<p>Em cima: <b>porta fechada</b>, <b>aberta</b>, <b>trancada</b> (marca do mestre), <b>secreta</b> (marca do mestre). Embaixo: <b>porta dupla aberta</b>, <b>portão de cerca</b>, <b>janela aberta</b>, <b>janela com a persiana fechada</b>. Arraste para mover.</p>
+<canvas id="view"></canvas>
+<script>
+const COLS = 32, ROWS = 18, PANEL = [8, 9];
+const T = 0.3;
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0, 1); }`;
+const COMMON = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform sampler2D uGrass, uStone, uStone2;
+uniform vec2 uCanvas, uPan, uPanel; uniform float uCellPx;
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uElev; uniform float uTime;
+const float T = ${T.toFixed(2)};
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+// Caixa girada: folga até a borda (>0 dentro) e posição local (x ao longo da folha, de 0 a len; y através).
+vec3 leaf(vec2 p, vec2 hinge, float len, float angle, float half_) {
+  vec2 u = vec2(cos(angle), sin(angle)), n = vec2(-u.y, u.x);
+  float x = dot(p - hinge, u), y = dot(p - hinge, n);
+  return vec3(min(min(x, len - x), half_ - abs(y)), x, y);
+}
+// Parede de pedra reta (y = 4.5), de x0 a x1, com quinas quadradas.
+float wallInside(vec2 p, float x0, float x1) { return min(min(p.x - x0, x1 - p.x), T * 0.5 - abs(p.y - 4.5)); }
+// Material: 1 pedra, 2 batente, 3 folha de madeira, 4 ferro, 5 vidro, 6 moldura, 7 cerca; altura em casas.
+`;
+// Cada quadro: o que existe nele (altura e material num ponto).
+const PANELS = [
+  { name: "porta fechada", body: `door(p, 0.0, 0.0, false);` },
+  { name: "porta aberta", body: `door(p, 1.4, 0.0, false);` },
+  { name: "trancada", body: `door(p, 0.0, 1.0, false);` },
+  { name: "secreta", body: `door(p, 0.0, 2.0, false);` },
+  { name: "dupla", body: `door(p, 1.3, 0.0, true);` },
+  { name: "portão", body: `gate(p);` },
+  { name: "janela aberta", body: `windowAt(p, false);` },
+  { name: "janela fechada", body: `windowAt(p, true);` },
+];
+const PIECES = `
+vec2 best;  // x = altura, y = material
+vec2 leafUV; // posição na folha que venceu (ao longo de 0 a 1, através)
+void putLeaf(vec3 l, float len, float h) { if (l.x > 0.0 && h > best.x) { best = vec2(h, 3.0); leafUV = vec2(l.y / len, l.z); } }
+float mark; // 0 nada, 1 trancada, 2 secreta: distância até a folha para o contorno do mestre
+float markKind;
+void put(float inside, float h, float m) { if (inside > 0.0 && h > best.x) best = vec2(h, m); }
+void jambs(vec2 p, float m) {
+  for (int i = 0; i < 2; i++) { vec2 c = vec2(i == 0 ? 3.5 : 4.5, 4.5); vec2 d = abs(p - c); put(T * 0.6 - max(d.x, d.y), 0.72, m); }
+}
+void stoneWall(vec2 p) { put(wallInside(p, 0.5, 3.5), 0.6, 1.0); put(wallInside(p, 4.5, 7.5), 0.6, 1.0); }
+// Folha da porta: espessura própria (fina, como porta de verdade), não a da parede.
+const float LEAF = 0.055;
+void doorLeaf(vec2 p, vec2 hinge, float len, float angle) {
+  vec3 l = leaf(p, hinge, len, angle, LEAF);
+  putLeaf(l, len, 0.5);
+  // dobradiças: duas tiras de ferro saindo um pouco da folha, perto da dobradiça
+  vec2 u = vec2(cos(angle), sin(angle)), n = vec2(-u.y, u.x);
+  float x = dot(p - hinge, u), y = dot(p - hinge, n);
+  if (x > 0.01 && x < 0.16 && abs(y) < LEAF + 0.012) put(1.0, 0.52, 9.0);
+  // puxador dos dois lados, perto da ponta solta
+  if (length(vec2(x - len * 0.86, abs(y) - LEAF - 0.018)) < 0.022) put(1.0, 0.47, 9.0);
+}
+void door(vec2 p, float open, float kind, bool double_) {
+  stoneWall(p); jambs(p, 2.0);
+  if (double_) {
+    doorLeaf(p, vec2(3.68, 4.5), 0.32, open);
+    doorLeaf(p, vec2(4.32, 4.5), 0.32, 3.14159 - open);
+    return;
+  }
+  vec3 l = leaf(p, vec2(3.68, 4.5), 0.64, open, LEAF);
+  if (kind > 1.5) { put(l.x, 0.6, 1.0); } else doorLeaf(p, vec2(3.68, 4.5), 0.64, open);
+  markKind = kind; mark = l.x;
+}
+void gate(vec2 p) {
+  // cerca nos dois lados: esteios e travessas; o portão aberto 60°
+  for (int s = 0; s < 2; s++) {
+    float x0 = s == 0 ? 0.5 : 4.5, x1 = s == 0 ? 3.5 : 7.5;
+    if (p.x > x0 - 0.1 && p.x < x1 + 0.1) {
+      float post = abs(fract(p.x + 0.5) - 0.5);
+      if (post < T * 0.25 && abs(p.y - 4.5) < T * 0.25) put(1.0, 0.5, 7.0);
+      if (abs(abs(p.y - 4.5) - T * 0.16) < T * 0.07) put(1.0, 0.38, 7.0);
+    }
+  }
+  for (int i = 0; i < 2; i++) { vec2 c = vec2(i == 0 ? 3.5 : 4.5, 4.5); vec2 d = abs(p - c); put(T * 0.35 - max(d.x, d.y), 0.55, 7.0); }
+  vec3 l = leaf(p, vec2(3.6, 4.5), 0.8, 1.05, T * 0.3);
+  if (l.x > 0.0 && (abs(abs(l.z) - T * 0.16) < T * 0.07 || abs(fract(l.y / 0.4 + 0.5) - 0.5) * 0.4 < 0.03)) put(1.0, 0.38, 7.0);
+}
+// Janela dentro do vão: peitoril de pedra na espessura da parede (mais baixo) e, por cima, a moldura fina com quatro
+// vidraças; fechada, uma persiana de tábuas finas na frente.
+void windowAt(vec2 p, bool closed) {
+  stoneWall(p); jambs(p, 2.0);
+  vec2 d = vec2(abs(p.x - 4.0), abs(p.y - 4.5));
+  if (d.x < 0.32) put(T * 0.5 - d.y, 0.34, 8.0);
+  if (d.x < 0.32 && d.y < 0.07) {
+    float pane = fract((p.x - 3.68) / 0.16);
+    bool mullion = min(pane, 1.0 - pane) * 0.16 < 0.012 || d.y > 0.05;
+    put(1.0, mullion ? 0.5 : 0.46, mullion ? 6.0 : 5.0);
+  }
+  if (closed && d.x < 0.32 && abs(p.y - 4.5 - 0.1) < 0.035) put(1.0, 0.53, 10.0);
+}
+vec2 scene(vec2 p) { best = vec2(0.0); mark = -1.0; markKind = 0.0; BODY return best; }
+vec3 colorOf(vec2 p, float m) {
+  if (m < 1.5) {
+    float row = step(4.5, p.y); float x = p.x / (T * 1.3) + row * 0.5; float j = floor(x);
+    vec3 col = texture(uStone, p * 0.35 + vec2(j * 0.37, row)).rgb * vec3(1.05, 1.02, 0.96) * (0.82 + 0.3 * hash(vec2(j, row)));
+    float joint = min(min(fract(x), 1.0 - fract(x)) * T * 1.3, abs(p.y - 4.5));
+    return col * (0.86 + 0.28 * fbm(p * 14.0)) * (0.75 + 0.25 * smoothstep(0.0, 0.015, joint));
+  }
+  if (m < 2.5) return texture(uStone, p * 0.5 + 3.0).rgb * vec3(0.9, 0.88, 0.84) * (0.85 + 0.25 * fbm(p * 16.0));
+  if (m > 2.5 && m < 3.5) {
+    // folha vista de cima: as pontas das tábuas em pé (juntas escuras), veio fino, borda gasta clara
+    float plank = leafUV.x * 6.0;
+    float seam = min(fract(plank), 1.0 - fract(plank));
+    float id = floor(plank);
+    vec3 wood = mix(vec3(0.58, 0.39, 0.2), vec3(0.46, 0.29, 0.14), hash(vec2(id, 4.0)));
+    wood *= 0.86 + 0.24 * fbm(vec2(leafUV.x * 60.0 + id * 3.0, leafUV.y * 260.0));
+    wood *= 0.92 + 0.12 * sin(leafUV.y * 700.0 + fbm(vec2(leafUV.x * 30.0, id)) * 5.0);
+    wood = mix(wood * 0.45, wood, smoothstep(0.0, 0.06, seam));
+    wood = mix(wood, wood * 1.25, smoothstep(0.7, 1.0, abs(leafUV.y) / LEAF) * 0.6);
+    return wood;
+  }
+  if (m > 8.5 && m < 9.5) {
+    // ferro: escuro, com brilho e rebites
+    vec3 iron = vec3(0.2, 0.2, 0.22) * (0.85 + 0.3 * fbm(p * 90.0));
+    return iron + step(0.88, noise(p * 140.0)) * 0.18;
+  }
+  if (m > 7.5 && m < 8.5) return texture(uStone, p * 0.6 + 7.0).rgb * vec3(0.95, 0.93, 0.88) * (0.82 + 0.3 * fbm(p * 22.0));
+  if (m > 9.5) {
+    // persiana: tábuas finas lado a lado, veio, juntas
+    float slat = fract((p.x - 3.68) / 0.08);
+    vec3 wood = mix(vec3(0.5, 0.33, 0.17), vec3(0.42, 0.27, 0.13), hash(vec2(floor((p.x - 3.68) / 0.08), 2.0)));
+    wood *= 0.88 + 0.22 * fbm(vec2(p.x * 40.0, p.y * 300.0));
+    return mix(wood * 0.5, wood, smoothstep(0.0, 0.08, min(slat, 1.0 - slat)));
+  }
+  if (m < 3.5 || m > 5.5) {
+    vec3 wood = vec3(0.55, 0.36, 0.18) * (0.85 + 0.25 * fbm(vec2(p.x * 3.0, p.y * 30.0) + vec2(p.y * 30.0, p.x * 3.0) * 0.0));
+    wood *= 0.9 + 0.2 * sin(p.x * 40.0 + p.y * 40.0 + fbm(p * 8.0) * 6.0) * 0.5;
+    return m > 6.5 ? wood * vec3(1.0, 0.95, 0.9) : wood;
+  }
+  if (m < 4.5) return vec3(0.22, 0.22, 0.24);
+  // vidro: céu refletido (azul que clareia), reflexo em diagonal e um pouco de sujeira perto da moldura
+  float pane = fract((p.x - 3.68) / 0.16);
+  vec3 glass = mix(vec3(0.3, 0.42, 0.5), vec3(0.6, 0.74, 0.82), pane);
+  float glint = smoothstep(0.82, 1.0, sin((p.x - p.y) * 26.0) * 0.5 + 0.5);
+  glass = mix(glass, vec3(0.92, 0.96, 1.0), glint * 0.55);
+  float dirt = (1.0 - smoothstep(0.0, 0.25, min(pane, 1.0 - pane))) * fbm(p * 80.0);
+  return mix(glass, vec3(0.42, 0.4, 0.34), dirt * 0.45);
+}
+`;
+const programs = PANELS.map((panel) => {
+  const FS = COMMON + PIECES.replace("BODY", panel.body) + `
+void main() {
+  vec2 px = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 world = (px - uPan) / uCellPx;
+  vec2 p = world - uPanel;
+  vec3 ground = texture(uGrass, world / 8.0).rgb;
+  float bladeAngle = noise(world * 1.3) * 3.14;
+  vec2 bladeUv = mat2(cos(bladeAngle), -sin(bladeAngle), sin(bladeAngle), cos(bladeAngle)) * world;
+  ground *= 0.9 + 0.2 * noise(bladeUv * vec2(42.0, 9.0));
+  vec2 here = scene(p);
+  float h = here.x, m = here.y, markHere = mark, markKindHere = markKind;
+  float e = 0.5 / uCellPx;
+  vec2 grad = vec2(scene(p + vec2(e, 0)).x - h, scene(p + vec2(0, e)).x - h) / e;
+  vec3 n = normalize(vec3(-grad, 1.0));
+  vec3 L = normalize(vec3(-uSunDir, uElev));
+  float flatLit = max(L.z, 0.35);
+  float shadow = 1.0, rise = uElev / length(uSunDir);
+  for (int i = 1; i <= 20; i++) {
+    float t = float(i) * 0.05;
+    float above = scene(p - uSunDir * t).x - (h + rise * t);
+    shadow = min(shadow, clamp(1.0 - (above - 0.01) * 12.0, 0.0, 1.0));
+  }
+  vec3 light = uAmbient + uSun * 0.8 * max(dot(n, L), 0.0) / flatLit * shadow;
+  vec3 col = h > 0.001 ? colorOf(p, m) * light : ground * light;
+  // contorno de tinta onde algo encontra o chão (1 a 2 pixels)
+  float px15 = 1.5 / uCellPx;
+  float nearH = max(max(scene(p + vec2(px15, 0.0)).x, scene(p - vec2(px15, 0.0)).x), max(scene(p + vec2(0.0, px15)).x, scene(p - vec2(0.0, px15)).x));
+  if (abs(nearH - h) > 0.08) col = mix(col, vec3(0.1, 0.075, 0.06), 0.85);
+  // marcas do mestre na folha: trancada (contorno vermelho e cadeado), secreta (contorno violeta tracejado, translúcida)
+  if (markKindHere > 0.5 && markHere > -0.05 && markHere < 0.03) {
+    vec3 tint = markKindHere < 1.5 ? vec3(0.79, 0.29, 0.32) : vec3(0.65, 0.56, 0.84);
+    float dash = markKindHere < 1.5 ? 1.0 : step(0.5, fract((p.x + p.y) * 6.0));
+    col = mix(col, tint, 0.9 * dash);
+  }
+  if (markKindHere > 0.5 && markKindHere < 1.5 && length(p - vec2(4.0, 4.5)) < 0.09) col = vec3(0.79, 0.29, 0.32);
+  if (markKindHere > 1.5 && markHere > 0.0) col = mix(col, vec3(0.65, 0.56, 0.84), 0.25);
+  vec2 g = abs(fract(world) - 0.5);
+  col *= 1.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.1;
+  outColor = vec4(col, 1.0);
+}`;
+  const compile = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(panel.name + ": " + gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram(); gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS)); gl.bindAttribLocation(prog, 0, "aPos"); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(panel.name + ": " + gl.getProgramInfoLog(prog));
+  return prog;
+});
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const images = ["grass_01.webp", "stone_01.webp", "stone_02.webp"], names = ["uGrass", "uStone", "uStone2"];
+let loaded = 0;
+images.forEach((src, i) => { const img = new Image(); img.onload = () => { const tx = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tx); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); if (++loaded === images.length) draw(); }; img.src = src; });
+const LIGHTS = {
+  day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], elev: 1.24 },
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], elev: 0.28 },
+  moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], dir: [0.45, 0.89], elev: 0.7 },
+};
+const state = { light: "day", zoom: 1, pan: [0, 0] };
+const CSS_W = 1280, CSS_H = 720;
+function resize() { const k = window.devicePixelRatio || 1; canvas.style.width = CSS_W + "px"; canvas.style.height = CSS_H + "px"; canvas.width = Math.round(CSS_W * k); canvas.height = Math.round(CSS_H * k); }
+function draw() {
+  const L = LIGHTS[state.light], n = Math.hypot(...L.dir);
+  const k = canvas.width / CSS_W;
+  const cellPx = (CSS_W / COLS) * k * state.zoom;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.09, 0.075, 0.06, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.SCISSOR_TEST);
+  const t0 = performance.now();
+  programs.forEach((prog, index) => {
+    const panel = [(index % 4) * PANEL[0], Math.floor(index / 4) * PANEL[1]];
+    const x0 = state.pan[0] * k + panel[0] * cellPx, y0 = state.pan[1] * k + panel[1] * cellPx;
+    gl.scissor(Math.round(x0), Math.round(canvas.height - (y0 + PANEL[1] * cellPx)), Math.round(PANEL[0] * cellPx), Math.round(PANEL[1] * cellPx));
+    gl.useProgram(prog);
+    const U = (name) => gl.getUniformLocation(prog, name);
+    names.forEach((name, unit) => gl.uniform1i(U(name), unit));
+    gl.uniform2f(U("uPanel"), panel[0], panel[1]);
+    gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), state.pan[0] * k, state.pan[1] * k);
+    gl.uniform1f(U("uCellPx"), cellPx);
+    gl.uniform3f(U("uAmbient"), ...L.ambient); gl.uniform3f(U("uSun"), ...L.sun); gl.uniform2f(U("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(U("uElev"), L.elev);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  });
+  gl.disable(gl.SCISSOR_TEST);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${(performance.now() - t0).toFixed(0)} ms por quadro`;
+}
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); draw(); })); }
+wire("light", (v) => (state.light = v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "1" ? [0, 0] : [-160, -330]; });
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; state.pan = [e.clientX - drag[0], e.clientY - drag[1]]; draw(); };
+resize();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
-import { seeThrough, type LightPoint, type MapConfig, type WallChain, type WallStyle } from "@rpg/shared";
-import { WALL_DRAW, wallSeed } from "./wallArt";
+import { seeThrough, straightenChain, wallSeed, type LightPoint, type MapConfig, type WallChain, type WallStyle } from "@rpg/shared";
+import { WALL_DRAW } from "./wallArt";
 
 /**
  * Desenho das paredes emendadas (docs/design/paredes.md; teste aprovado em `docs/design/paredes-teste.html`): cada
@@ -98,21 +98,6 @@ function outline(points: Vec[], chain: WallChain, half: number, t: number, cell:
 /** Tira mais longa que isso (px do mapa) vira pedaços: fica nítida de perto e só o pedaço na tela é desenhado. */
 const MAX_PIECE = 1024;
 
-/** Tira os pontos no meio de uma reta (os encontros em T por onde a parede passa): um trecho longo, uma tira só. */
-function straighten(points: Vec[], closed: boolean): Vec[] {
-  const out = points.filter((point, index) => {
-    if (!closed && (index === 0 || index === points.length - 1)) return true;
-    const previous = points[(index - 1 + points.length) % points.length];
-    const next = points[(index + 1) % points.length];
-    const ax = point[0] - previous[0];
-    const ay = point[1] - previous[1];
-    const bx = next[0] - point[0];
-    const by = next[1] - point[1];
-    return Math.abs(ax * by - ay * bx) > 1e-6 * Math.hypot(ax, ay) * Math.hypot(bx, by) || ax * bx + ay * by < 0;
-  });
-  return out.length >= (closed ? 3 : 2) ? out : points;
-}
-
 /** Imagens guardadas, com um teto de pixels somados (saem primeiro as mais antigas, como as de outro degrau de zoom). */
 const cache = new Map<string, { ink: StripImage[]; body: StripImage[]; pixels: number }>();
 const PIXEL_BUDGET = 32_000_000;
@@ -132,7 +117,7 @@ export function chainArt(chain: WallChain, grid: MapConfig, pxPerUnit: number): 
     return hit;
   }
   const toPx = (point: LightPoint): Vec => [grid.offsetX + point.x * grid.cellPx, grid.offsetY + point.y * grid.cellPx];
-  const points = straighten(chain.points.map(toPx), chain.closed);
+  const points = straightenChain(chain.points, chain.closed).map(toPx);
   const t = chain.thickness * grid.cellPx;
   const open = seeThrough(chain.style);
   const first = chain.points[0];
