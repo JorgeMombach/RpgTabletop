@@ -105,6 +105,13 @@ describe("paredes: cômodos", () => {
     assert.equal(wallRooms(square({ style: "fence" })).length, 0);
   });
 
+  it("muralha e paliçada não fecham cômodo (pátio murado é ao ar livre), nem pelo desenho da cena", () => {
+    assert.equal(wallRooms(square({ style: "rampart" })).length, 0);
+    assert.equal(wallRooms(square({ style: "palisade" })).length, 0);
+    assert.equal(wallRooms(square(), "palisade").length, 0);
+    assert.equal(wallRooms(square(), "brick").length, 1);
+  });
+
   it("com um buraco não é cômodo", () => {
     const walls = [wall([0, 0], [7, 0]), wall([7, 0], [7, 7]), wall([7, 7], [1, 7]), wall([0, 7], [0, 0])];
     assert.equal(wallRooms(walls).length, 0);

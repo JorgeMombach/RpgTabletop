@@ -209,9 +209,15 @@ export function wallChains(walls: Wall[], sceneStyle: WallStyle): WallChain[] {
   return chains;
 }
 
-/** Cômodos fechados (polígonos em casas, pares x, y): paredes sólidas, portas e janelas; vazadas não fecham. */
-export function wallRooms(walls: Wall[]): number[][] {
-  const edges = splitWalls(walls, "stone").filter((edge) => !seeThrough(edge.ownStyle));
+/** Muros de fora (muralha, paliçada): cercam um pátio, não um cômodo coberto. */
+const OPEN_AIR: readonly WallStyle[] = ["rampart", "palisade"];
+
+/**
+ * Cômodos fechados (polígonos em casas, pares x, y): paredes, portas e janelas. Vazadas, muralha e paliçada não fecham
+ * (pátio murado é ao ar livre). `sceneStyle` = desenho de quem não tem.
+ */
+export function wallRooms(walls: Wall[], sceneStyle: WallStyle = "stone"): number[][] {
+  const edges = splitWalls(walls, sceneStyle).filter((edge) => !seeThrough(edge.ownStyle) && !OPEN_AIR.includes(edge.style));
   interface HalfEdge {
     from: LightPoint;
     to: LightPoint;

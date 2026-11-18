@@ -977,10 +977,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Telhado invisível (docs/design/paredes.md): cômodos com as paredes que este jogador tem (o mestre, todas).
   const roofs = useMemo(
     () => ({
-      rooms: wallRooms(state.battle.walls),
+      rooms: wallRooms(state.battle.walls, state.battle.map.wallStyle),
       windows: state.battle.walls.filter((w) => w.window && !w.window.closed).map((w) => ({ x1: w.from.col, y1: w.from.row, x2: w.to.col, y2: w.to.row, seeThrough: false })),
     }),
-    [state.battle.walls],
+    [state.battle.walls, state.battle.map.wallStyle],
   );
   const lighting = useMemo<LightingInput | null>(
     () =>

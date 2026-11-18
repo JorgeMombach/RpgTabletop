@@ -51,7 +51,7 @@ Hoje cada parede é um traço solto (`from` → `to`), desenhado no próprio eix
 
 ### Telhado invisível
 
-- **Cômodos:** faces do desenho das paredes sólidas, portas e janelas (vazadas não fecham cômodo: um curral com cerca não tem telhado). Conta pura em `shared`, com teste.
+- **Cômodos:** faces do desenho das paredes sólidas, portas e janelas (vazadas não fecham cômodo: um curral com cerca não tem telhado; muralha e paliçada também não: pátio murado é ao ar livre, decisão do dono depois da revisão final). Conta pura em `shared`, com teste.
 - **Na luz** (`client/src/map/ground/lightPass.ts`): os cômodos viram uma máscara de "telhado"; dentro dela não entra sombra de sol/lua e a luz é ambiente + `INDOOR_SUN` (0,45) × sol. Tochas iguais dentro e fora.
 - **Jogador:** calcula os cômodos com as paredes que recebeu (`server/src/view.ts` só manda as já vistas, sem porta secreta). Um cômodo ainda não todo visto fica sem telhado para ele; a parte não vista está sob a névoa. *(Chamada minha: mandar os cômodos prontos do servidor entregaria a forma de paredes não vistas.)*
 

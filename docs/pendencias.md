@@ -73,7 +73,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ## Pendências pequenas
 
 ### Paredes emendadas ([docs/design/paredes.md](design/paredes.md))
-- [ ] **Decidir:** pátio murado, muralha de castelo ou cercado de paliçada fechado conta como cômodo (ganha o telhado invisível: sem sombra e luz de dentro). Ideia: muralha e paliçada não fecham cômodo, como as vazadas.
 - [ ] Mapa com mais de ~700 cadeias (muitos cruzamentos de desenhos diferentes) pode refazer as imagens a todo quadro (`wallChainArt.ts`: o teto é de pixels, mas o que está na tela pode passar dele).
 - [ ] Quina muito fechada no traço livre (ângulo interno abaixo de ~35°): o lado de dentro do contorno se cruza (`wallChainArt.ts`, chanfrar em vez de limitar o bico).
 - [ ] Emenda por arredondamento (0,001 casa), não por distância: traço livre que quase encosta (0,01) não emenda; sobreposição quase alinhada vira um X raso (`wallJoin.ts`).
