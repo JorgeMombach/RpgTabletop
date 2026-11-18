@@ -9,6 +9,7 @@ import { editable, requireGm } from "./combatants";
 import { moveFollowers } from "./effects";
 import { requireTurnFor } from "./rules";
 import { parseMapTorch } from "./mapTorches";
+import { markRelief } from "./relief";
 import { markTerrain } from "./terrain";
 import type { HandlerMap } from "./types";
 import { parseWall } from "./walls";
@@ -180,6 +181,8 @@ export const mapHandlers: HandlerMap = {
     battle.currents = [];
     // O terreno pintado também é do campo que se limpa.
     delete battle.terrain;
+    delete battle.relief;
+    markRelief(store, "all");
     markTerrain(store, "all");
     // A disputa de loot era da batalha que acabou.
     store.lootCount = null;

@@ -24,10 +24,12 @@ import { weatherHandlers } from "./weather";
 import { tableHandlers } from "./tables";
 import { clockHandlers } from "./clock";
 import { journalHandlers } from "./journal";
+import { reliefHandlers } from "./relief";
 import { terrainHandlers } from "./terrain";
 
 export const handlers: HandlerMap = {
   ...terrainHandlers,
+  ...reliefHandlers,
   ...combatantHandlers,
   ...diceHandlers,
   ...mapHandlers,

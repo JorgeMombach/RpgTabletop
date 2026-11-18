@@ -1,4 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
+import type { ReliefStroke } from "./relief";
 import type { TerrainChunk, TerrainStroke } from "./terrain";
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
 import type { FogRect } from "./fog";
@@ -114,6 +115,12 @@ export interface AreaBroadcast {
 export interface TerrainBroadcast {
   reset: boolean;
   chunks: Record<string, TerrainChunk | null>;
+}
+
+/** Relevo: o inteiro (`reset`) ao entrar ou trocar de cena; depois, só os pedaços que mudaram (`null` = sem relevo). */
+export interface ReliefBroadcast {
+  reset: boolean;
+  chunks: Record<string, string | null>;
 }
 
 export interface MapImagePayload {
@@ -378,6 +385,12 @@ export interface ActionPayloads {
   "terrain:restore": { chunks: Record<string, TerrainChunk | null> };
   /** Mestre: apaga todo o terreno da cena. */
   "terrain:clear": Record<string, never>;
+  /** Mestre: uma passada do pincel de relevo (docs/design/relevo.md). */
+  "relief:paint": ReliefStroke;
+  /** Mestre: repõe pedaços do relevo como estavam (`null` = apagar o pedaço); usado pelo Desfazer. */
+  "relief:restore": { chunks: Record<string, string | null> };
+  /** Mestre: aplaina todo o relevo da cena. */
+  "relief:clear": Record<string, never>;
   /** Mestre: liga, acerta ou desliga (`null`) a hora do jogo (Passo 15). */
   "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
   /** Mestre: avança a hora do jogo (descanso, viagem). */
@@ -518,6 +531,8 @@ export interface ServerToClientEvents {
   journal: (entries: JournalEntry[]) => void;
   /** Terreno pintado: o inteiro (`reset`) ao entrar ou trocar de cena; depois, só os pedaços que mudaram. */
   terrain: (payload: TerrainBroadcast) => void;
+  /** Relevo: como o terreno, por evento próprio. */
+  relief: (payload: ReliefBroadcast) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;

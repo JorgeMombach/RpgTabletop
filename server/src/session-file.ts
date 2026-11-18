@@ -55,6 +55,7 @@ import { parseDrawing } from "./actions/drawings";
 import { parseCurrent } from "./actions/currents";
 import { normalizeExpression } from "./dice";
 import { gridColorOf, gridKindOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { markRelief, parseReliefChunks } from "./actions/relief";
 import { markTerrain, parseTerrainChunks } from "./actions/terrain";
 import { parseChest } from "./actions/chests";
 import { parseProp } from "./actions/props";
@@ -709,6 +710,7 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
     // Arquivos anteriores ao terreno pintado não têm.
     ...(b.terrain !== undefined && { terrain: parseTerrainChunks(b.terrain) }),
+    ...(b.relief !== undefined && { relief: parseReliefChunks(b.relief) }),
   };
 }
 
@@ -811,6 +813,7 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   // O diário (Passo 14) também vai à parte: a versão nova faz cada um receber o do arquivo.
   store.journalVersion++;
   markTerrain(store, "all");
+  markRelief(store, "all");
   // Disputa de loot não vai no arquivo: o baú volta aberto, no modo Pegar.
   store.lootCount = null;
   store.lootResults = null;

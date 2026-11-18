@@ -161,6 +161,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     weather,
     fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60, foundNpcs: ["guarda"] } satisfies Required<FogState>,
     terrain: { "0,0": { grass: encodeLayer(new Uint8Array(1024).fill(200)), dirt: encodeLayer(new Uint8Array(1024).fill(55)) } },
+    relief: { "0,0": encodeLayer(new Uint8Array(1024).fill(3)) },
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -178,6 +179,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     weather,
     fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] },
     terrain: { "-1,2": { water: encodeLayer(new Uint8Array(1024).fill(90)) } },
+    relief: { "-1,2": encodeLayer(new Uint8Array(1024).fill(11)) },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];

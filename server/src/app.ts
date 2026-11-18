@@ -13,6 +13,7 @@ import {
   type JoinResult,
   type MapPoint,
   type Ruler,
+  type ReliefBroadcast,
   type TerrainBroadcast,
   type ServerToClientEvents,
   APP_VERSION,
@@ -166,6 +167,13 @@ export function createApp(opts: AppOptions) {
     return { reset: false, chunks: Object.fromEntries([...store.terrainDirty].map((key) => [key, terrain[key] ?? null])) };
   }
 
+  /** Relevo: o inteiro ou só os pedaços que mudaram desde o último envio. */
+  function reliefPayload(reset: boolean): ReliefBroadcast {
+    const relief = store.game.battle.relief ?? {};
+    if (reset || store.reliefDirty === "all") return { reset: true, chunks: { ...relief } };
+    return { reset: false, chunks: Object.fromEntries([...store.reliefDirty].map((key) => [key, relief[key] ?? null])) };
+  }
+
   function broadcast() {
     // Visão dos personagens (névoa): recalcula se alguém andou ou uma porta mexeu, e guarda o explorado.
     updateSight(store);
@@ -184,6 +192,10 @@ export function createApp(opts: AppOptions) {
     if (store.terrainDirty === "all" || store.terrainDirty.size > 0) {
       io.to(SESSION_ROOM).emit("terrain", terrainPayload(false));
       store.terrainDirty = new Set();
+    }
+    if (store.reliefDirty === "all" || store.reliefDirty.size > 0) {
+      io.to(SESSION_ROOM).emit("relief", reliefPayload(false));
+      store.reliefDirty = new Set();
     }
     // Diário da campanha (Passo 14): fora do estado, só quando muda; cada um recebe o que pode ler.
     const journalChanged = store.journalVersion !== sentJournalVersion;
@@ -246,6 +258,7 @@ export function createApp(opts: AppOptions) {
     if (store.handout) socket.emit("handout", store.handout);
     socket.emit("journal", journalFor(store, player));
     socket.emit("terrain", terrainPayload(true));
+    socket.emit("relief", reliefPayload(true));
     return { ok: true, self: toPublic(player), sessionToken: player.token };
   }
 
