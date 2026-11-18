@@ -3,7 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
 import { FrameWatch, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
-import { detailTile, filteredWatercolor, loadTerrainImages, TERRAIN_ART, type DetailKind } from "../terrain/terrainArt";
+import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
 import { notifyGroundDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
@@ -25,8 +25,6 @@ const PER_CELL = 20;
 const FRAME_MS = 33;
 /** Espera depois da última mudança antes de recalcular a água (o mestre pintando em sequência). */
 const SETTLE_MS = 150;
-/** Resolução dos ladrilhos de detalhe (px por casa). */
-const DETAIL_PER_CELL = 40;
 
 /** Objetos que viram pedra no rio, e o raio (em casas, no tamanho 1). */
 const ROCK_RADIUS: Partial<Record<MapProp["kind"], number>> = { stones: 0.3, boulder: 0.4 };
@@ -199,13 +197,7 @@ export const GroundLayer = memo(function GroundLayer({
       .then((images) => {
         if (!alive) return;
         const watercolors = TERRAINS.map((terrain) => filteredWatercolor(terrain, images[TERRAIN_ART[terrain].image]));
-        const details: Record<DetailKind, HTMLCanvasElement> = {
-          grass: detailTile("grass", DETAIL_PER_CELL),
-          dirt: detailTile("dirt", DETAIL_PER_CELL),
-          stone: detailTile("stone", DETAIL_PER_CELL),
-          water: detailTile("water", DETAIL_PER_CELL),
-        };
-        renderer.setArt(watercolors, details, images.dirt_01);
+        renderer.setArt(watercolors, images.dirt_01);
         setVersion((value) => value + 1);
       })
       .catch(() => useApp.setState({ groundFailed: true }));

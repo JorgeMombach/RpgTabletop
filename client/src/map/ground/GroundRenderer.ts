@@ -1,11 +1,10 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type WallPiece } from "@rpg/shared";
-import type { DetailKind } from "../terrain/terrainArt";
-import { bindTextures, createTexture, imageTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
-import { BLIT_FRAGMENT, DETAIL_KINDS, FULLSCREEN_VERTEX, TERRAIN_FRAGMENT } from "./terrainShader";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type TerrainId, type WallPiece } from "@rpg/shared";
+import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
+import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
 import { ReliefPass } from "./reliefPass";
 import type { ReliefWindow } from "./reliefTypes";
-import { SCENE_LIGHT, type SceneLight } from "./sceneLight";
+import { faceLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
@@ -28,7 +27,8 @@ export class TerrainTooLarge extends Error {}
 
 export class GroundRenderer {
   private readonly gl: WebGL2RenderingContext;
-  private readonly terrain: Program;
+  /** Um programa por terreno (docs/design/relevo.md, etapa 3), compilados em paralelo. */
+  private readonly terrain: ProgramCache<TerrainId>;
   private readonly blit: Program;
   private readonly triangle: WebGLBuffer;
   private readonly water: WaterPass;
@@ -57,7 +57,8 @@ export class GroundRenderer {
   private reliefImage: WebGLTexture | null = null;
   private weights: { bounds: ChunkRect; first: WebGLTexture; second: WebGLTexture; third: WebGLTexture } | null = null;
   private watercolors: WebGLTexture[] = [];
-  private details: WebGLTexture[] = [];
+  /** Terrenos que aparecem em algum pedaço pintado. */
+  private present = new Set<TerrainId>();
   /** Luz da cena do último desenho do relevo (a face muda com ela). */
   private reliefLightKey = "";
   /** O que estava valendo no último desenho do terreno (redesenha só se mudar). */
@@ -84,7 +85,7 @@ export class GroundRenderer {
     const gl = canvas.getContext("webgl2", { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false, alpha: true });
     if (!gl) throw new Error("WebGL 2 indisponível");
     this.gl = gl;
-    this.terrain = linkProgram(gl, FULLSCREEN_VERTEX, TERRAIN_FRAGMENT, "aPos");
+    this.terrain = new ProgramCache(gl, FULLSCREEN_VERTEX);
     this.blit = linkProgram(gl, FULLSCREEN_VERTEX, BLIT_FRAGMENT, "aPos");
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
     this.terrainFramebuffer = gl.createFramebuffer();
@@ -123,16 +124,15 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending;
   }
 
-  /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor), ladrilhos de detalhe e a terra do barranco da água. */
-  setArt(watercolors: TexImageSource[], details: Record<DetailKind, TexImageSource>, dirt: TexImageSource) {
+  /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
+  setArt(watercolors: TexImageSource[], dirt: TexImageSource) {
     const { gl } = this;
     if (gl.isContextLost()) return;
-    for (const texture of [...this.watercolors, ...this.details]) gl.deleteTexture(texture);
+    for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.watercolors = watercolors.map((image) => imageTexture(gl, image));
-    this.details = DETAIL_KINDS.map((kind) => imageTexture(gl, details[kind]));
     this.water.setDirt(dirt);
     this.terrainDirty = true;
   }
@@ -159,6 +159,8 @@ export class GroundRenderer {
     // Contexto perdido: nada a fazer até o navegador devolver (aí o motor é refeito e tudo sobe de novo).
     if (gl.isContextLost()) return;
     this.terrainDirty = true;
+    // Terrenos que aparecem em algum pedaço: só eles ganham passada (e programa).
+    this.present = new Set(Object.values(chunks).flatMap((chunk) => TERRAINS.filter((terrain) => chunk[terrain] !== undefined)));
     const bounds = terrainBounds(chunks);
     if (!bounds) return this.releaseWeights();
     const width = bounds.cols * CHUNK_SIDE + 2;
@@ -244,10 +246,11 @@ export class GroundRenderer {
       this.terrainDirty = true;
     }
     if (this.terrainDirty) {
-      this.drawTerrain(view, width, height, options.waterDraft);
+      this.drawTerrain(view, width, height, options.waterDraft, reliefLight);
       this.drawRelief(view, width, height, reliefLight);
       this.drawn = state;
-      this.terrainDirty = false;
+      // Programa de terreno ainda compilando: o terreno é refeito no próximo quadro.
+      this.terrainDirty = this.terrain.pending;
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
@@ -353,7 +356,8 @@ export class GroundRenderer {
     this.relief.drawLayer(view, width, height, scene, stone, stoneLight);
   }
 
-  private drawTerrain(view: GroundView, width: number, height: number, waterDraft: boolean) {
+  /** O terreno: uma passada por terreno presente, na ordem de `TERRAINS`, misturadas por cima (cor pré-multiplicada). */
+  private drawTerrain(view: GroundView, width: number, height: number, waterDraft: boolean, scene: SceneLight) {
     const { gl } = this;
     if (!this.terrainImage || !this.terrainFramebuffer) return;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.terrainFramebuffer);
@@ -361,27 +365,39 @@ export class GroundRenderer {
     gl.viewport(0, 0, width, height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
+    this.terrain.beginDraw();
     const weights = this.weights;
-    if (!weights || this.watercolors.length !== TERRAINS.length || this.details.length !== DETAIL_KINDS.length) return;
-    const program = this.terrain;
-    gl.useProgram(program.program);
-    useVertices(gl, this.triangle);
-    bindTextures(gl, program, [
-      ["uWeightsA", weights.first],
-      ["uWeightsB", weights.second],
-      ["uWeightsC", weights.third],
-      ...this.watercolors.map((texture, index): [string, WebGLTexture] => [`uWatercolor${index}`, texture]),
-      ...this.details.map((texture, index): [string, WebGLTexture] => [`uDetail${index}`, texture]),
-    ]);
-    gl.uniform2f(uniformOf(gl, program, "uWeightsOrigin"), weights.bounds.cx * CHUNK_SIDE - 1, weights.bounds.cy * CHUNK_SIDE - 1);
-    gl.uniform2f(uniformOf(gl, program, "uWeightsSize"), weights.bounds.cols * CHUNK_SIDE + 2, weights.bounds.rows * CHUNK_SIDE + 2);
-    gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
-    gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
-    gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
-    gl.uniform2f(uniformOf(gl, program, "uCanvas"), width, height);
-    gl.uniform1f(uniformOf(gl, program, "uWaterDraft"), waterDraft ? 1 : 0);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    if (!weights || this.watercolors.length !== TERRAINS.length) return;
+    const light = faceLight(scene);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    TERRAINS.forEach((terrain, index) => {
+      if (!this.present.has(terrain)) return;
+      if ((terrain === "water" || terrain === "waterDark") && !waterDraft) return;
+      const program = this.terrain.get(terrain, () => terrainLayerFragment(terrain));
+      if (!program) return;
+      gl.useProgram(program.program);
+      useVertices(gl, this.triangle);
+      bindTextures(gl, program, [
+        ["uWeights", [weights.first, weights.second, weights.third][index >> 2]],
+        ["uWatercolor", this.watercolors[index]],
+      ]);
+      gl.uniform2f(uniformOf(gl, program, "uWeightsOrigin"), weights.bounds.cx * CHUNK_SIDE - 1, weights.bounds.cy * CHUNK_SIDE - 1);
+      gl.uniform2f(uniformOf(gl, program, "uWeightsSize"), weights.bounds.cols * CHUNK_SIDE + 2, weights.bounds.rows * CHUNK_SIDE + 2);
+      gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
+      gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
+      gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
+      gl.uniform2f(uniformOf(gl, program, "uCanvas"), width, height);
+      gl.uniform1f(uniformOf(gl, program, "uWaterDraft"), waterDraft ? 1 : 0);
+      gl.uniform3f(uniformOf(gl, program, "uLightDir"), ...light.direction);
+      gl.uniform1f(uniformOf(gl, program, "uLightAmount"), light.amount);
+      gl.uniform1f(uniformOf(gl, program, "uAmbientLum"), light.ambientLum);
+      gl.uniform1f(uniformOf(gl, program, "uSunLum"), light.sunLum);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    });
+    gl.disable(gl.BLEND);
   }
+
 
   dispose() {
     const { gl } = this;
@@ -390,7 +406,8 @@ export class GroundRenderer {
     this.relief.dispose();
     this.walls.dispose();
     this.releaseWeights();
-    for (const texture of [...this.watercolors, ...this.details]) gl.deleteTexture(texture);
+    for (const texture of this.watercolors) gl.deleteTexture(texture);
+    this.terrain.dispose();
     if (this.terrainImage) gl.deleteTexture(this.terrainImage);
     if (this.reliefImage) gl.deleteTexture(this.reliefImage);
     gl.getExtension("WEBGL_lose_context")?.loseContext();

@@ -9,16 +9,14 @@ import {
 import {
   bindTextures,
   createTexture,
-  finishProgram,
-  startProgram,
+  ProgramCache,
   uniformOf,
   useVertices,
   vertexBuffer,
   type GroundView,
-  type PendingProgram,
   type Program,
 } from "./glKit";
-import type { SceneLight } from "./sceneLight";
+import { faceLight, type SceneLight } from "./sceneLight";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
 import {
   OPENING_FRAGMENT,
@@ -34,10 +32,6 @@ import {
  * no máximo um programa por desenho (a tela trava um instante, não vários segundos seguidos). Cada programa corta a tela na caixa das suas peças. Portas e
  * janelas: uma passada por peça, cortada na caixa dela.
  */
-
-/** Sombra do sol: um nível tem 1,4 casa e sobe 1/(sombra × 1,6) por casa, como o relevo. */
-const LEVEL_SHADOW = 1.6;
-const LEVEL_HEIGHT = 1.4;
 
 interface Box {
   x0: number;
@@ -55,16 +49,8 @@ interface Uploaded {
 
 export class WallPass {
   private readonly triangle: WebGLBuffer;
-  /** Programas por desenho e o das aberturas (`"opening"`): prontos ou ainda compilando. */
-  private readonly programs = new Map<
-    WallStyle | "opening",
-    { ready: Program } | { pending: PendingProgram }
-  >();
-  private readonly parallel: KHR_parallel_shader_compile | null;
-  /** Algum programa em uso ainda compilando no último desenho. */
-  private compiling = false;
-  /** Sem a extensão: já compilou (esperando) um programa neste desenho; os outros ficam para os próximos quadros. */
-  private compiledThisDraw = false;
+  /** Programas por desenho e o das aberturas (`"opening"`), compilados em paralelo. */
+  private readonly programs: ProgramCache<WallStyle | "opening">;
   private uploaded: Uploaded | null = null;
   /** Caixa (casas) das paredes de cada desenho. */
   private styleBoxes = new Map<WallStyle, Box>();
@@ -73,12 +59,12 @@ export class WallPass {
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
-    this.parallel = gl.getExtension("KHR_parallel_shader_compile");
+    this.programs = new ProgramCache(gl, FULLSCREEN_VERTEX);
   }
 
   /** Há desenho esperando programa compilar: precisa de mais quadros. */
   get pending(): boolean {
-    return this.compiling;
+    return this.programs.pending;
   }
 
   get empty(): boolean {
@@ -209,26 +195,9 @@ export class WallPass {
 
   /** O programa pronto, ou `null` enquanto compila (começa a compilar na primeira vez). */
   private programFor(key: WallStyle | "opening"): Program | null {
-    const known = this.programs.get(key);
-    if (known && "ready" in known) return known.ready;
-    if (!known && !this.parallel && this.compiledThisDraw) {
-      this.compiling = true;
-      return null;
-    }
-    const pending =
-      known?.pending ??
-      startProgram(
-        this.gl,
-        FULLSCREEN_VERTEX,
-        key === "opening" ? OPENING_FRAGMENT : wallStyleFragment(key),
-        "aPos",
-      );
-    if (!this.parallel) this.compiledThisDraw = true;
-    const ready = finishProgram(this.gl, pending, this.parallel);
-    this.programs.set(key, ready ? { ready } : { pending });
-    if (!ready) this.compiling = true;
-    return ready;
+    return this.programs.get(key, () => (key === "opening" ? OPENING_FRAGMENT : wallStyleFragment(key)));
   }
+
 
   /** Caixa no mapa (casas) em pixels do canvas, já virada para o `scissor` (origem embaixo); `null` fora da tela. */
   private scissorOf(
@@ -288,30 +257,12 @@ export class WallPass {
     );
     gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
     gl.uniform2f(uniformOf(gl, program, "uCanvas"), width, height);
-    // A mesma luz da face do relevo (sem sol: uma luz fraca de mentira, só para o volume se ler).
-    const sunny = scene.shadowCells > 0.01;
-    const [dx, dy] = sunny ? scene.sunDirection : [0.6, 0.8];
-    const lift = sunny
-      ? (1 / (scene.shadowCells * LEVEL_SHADOW)) * LEVEL_HEIGHT
-      : 1;
-    const length = Math.hypot(dx, dy, lift) || 1;
-    gl.uniform3f(
-      uniformOf(gl, program, "uLightDir"),
-      -dx / length,
-      -dy / length,
-      lift / length,
-    );
-    gl.uniform1f(uniformOf(gl, program, "uLightAmount"), sunny ? 1 : 0.4);
-    const luminance = (rgb: [number, number, number]) =>
-      rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11;
-    gl.uniform1f(
-      uniformOf(gl, program, "uAmbientLum"),
-      luminance(scene.ambient),
-    );
-    gl.uniform1f(
-      uniformOf(gl, program, "uSunLum"),
-      sunny ? luminance(scene.sun) : luminance(scene.ambient) * 0.5,
-    );
+    // A mesma luz da face do relevo e do chão.
+    const light = faceLight(scene);
+    gl.uniform3f(uniformOf(gl, program, "uLightDir"), ...light.direction);
+    gl.uniform1f(uniformOf(gl, program, "uLightAmount"), light.amount);
+    gl.uniform1f(uniformOf(gl, program, "uAmbientLum"), light.ambientLum);
+    gl.uniform1f(uniformOf(gl, program, "uSunLum"), light.sunLum);
   }
 
   /** Desenha a camada no framebuffer ligado (já limpo), na tela inteira; cor pré-multiplicada. */
@@ -324,8 +275,7 @@ export class WallPass {
     stoneLight: WebGLTexture,
   ) {
     const { gl } = this;
-    this.compiling = false;
-    this.compiledThisDraw = false;
+    this.programs.beginDraw();
     if (!this.uploaded) return;
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -359,10 +309,7 @@ export class WallPass {
   dispose() {
     const { gl } = this;
     this.release();
-    for (const entry of this.programs.values())
-      gl.deleteProgram(
-        "ready" in entry ? entry.ready.program : entry.pending.program,
-      );
+    this.programs.dispose();
     gl.deleteBuffer(this.triangle);
   }
 }

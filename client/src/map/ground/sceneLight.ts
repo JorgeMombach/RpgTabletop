@@ -43,3 +43,25 @@ export function blendSceneLight(from: SceneLight, to: SceneLight, k: number): Sc
     torch: mix(from.torch, to.torch, k),
   };
 }
+
+/** Sombra do sol: um nível tem 1,4 casa e sobe 1/(sombra × 1,6) por casa (como o relevo). */
+const LEVEL_SHADOW = 1.6;
+const LEVEL_HEIGHT = 1.4;
+
+/**
+ * Luz da face para o relevo fino, as paredes e o chão (relativa ao chão plano): de onde vem a luz (z = altura), quanto
+ * ela marca e o brilho do ambiente e do sol. Sem sol, uma luz fraca de mentira, só para o volume se ler.
+ */
+export function faceLight(scene: SceneLight): { direction: [number, number, number]; amount: number; ambientLum: number; sunLum: number } {
+  const sunny = scene.shadowCells > 0.01;
+  const [dx, dy] = sunny ? scene.sunDirection : [0.6, 0.8];
+  const lift = sunny ? (1 / (scene.shadowCells * LEVEL_SHADOW)) * LEVEL_HEIGHT : 1;
+  const length = Math.hypot(dx, dy, lift) || 1;
+  const luminance = (rgb: [number, number, number]) => rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11;
+  return {
+    direction: [-dx / length, -dy / length, lift / length],
+    amount: sunny ? 1 : 0.4,
+    ambientLum: luminance(scene.ambient),
+    sunLum: sunny ? luminance(scene.sun) : luminance(scene.ambient) * 0.5,
+  };
+}

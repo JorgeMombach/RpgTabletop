@@ -137,3 +137,48 @@ export function finishProgram(gl: WebGL2RenderingContext, pending: PendingProgra
   }
   return { program: pending.program, uniforms: new Map() };
 }
+
+/**
+ * Programas por chave, compilados em paralelo (docs/design/relevo.md): `get` devolve o pronto ou `null` enquanto
+ * compila (começa na primeira vez). Sem a extensão, compila esperando, mas no máximo um programa por desenho
+ * (`beginDraw` a cada desenho); `pending` diz que algum programa pedido ainda não ficou pronto (precisa de mais quadros).
+ */
+export class ProgramCache<Key> {
+  private readonly entries = new Map<Key, { ready: Program } | { pending: PendingProgram }>();
+  private readonly parallel: KHR_parallel_shader_compile | null;
+  private compiledThisDraw = false;
+  /** Algum programa pedido neste desenho ainda compilando. */
+  pending = false;
+
+  constructor(
+    private readonly gl: WebGL2RenderingContext,
+    private readonly vertexSource: string,
+  ) {
+    this.parallel = gl.getExtension("KHR_parallel_shader_compile");
+  }
+
+  beginDraw() {
+    this.pending = false;
+    this.compiledThisDraw = false;
+  }
+
+  get(key: Key, fragmentSource: () => string): Program | null {
+    const known = this.entries.get(key);
+    if (known && "ready" in known) return known.ready;
+    if (!known && !this.parallel && this.compiledThisDraw) {
+      this.pending = true;
+      return null;
+    }
+    const pending = known?.pending ?? startProgram(this.gl, this.vertexSource, fragmentSource(), "aPos");
+    if (!this.parallel) this.compiledThisDraw = true;
+    const ready = finishProgram(this.gl, pending, this.parallel);
+    this.entries.set(key, ready ? { ready } : { pending });
+    if (!ready) this.pending = true;
+    return ready;
+  }
+
+  dispose() {
+    for (const entry of this.entries.values()) this.gl.deleteProgram("ready" in entry ? entry.ready.program : entry.pending.program);
+    this.entries.clear();
+  }
+}
