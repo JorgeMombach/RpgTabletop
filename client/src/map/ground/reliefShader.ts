@@ -149,7 +149,7 @@ float reliefShadowAt(vec2 texel) {
 }
 `;
 
-const SCREEN = `
+export const SCREEN = `
 uniform vec4 uMapGrid;   // offsetX, offsetY, cellPx do mapa e 0
 uniform vec3 uStage;     // x, y e escala do palco (mapa -> tela)
 uniform vec2 uScreen;    // tela (px CSS)

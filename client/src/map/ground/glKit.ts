@@ -97,3 +97,43 @@ export function vertexBuffer(gl: WebGL2RenderingContext, points: number[]): WebG
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(points), gl.STATIC_DRAW);
   return buffer;
 }
+
+/** Programa ainda compilando em paralelo (`KHR_parallel_shader_compile`): a página não trava esperando. */
+export interface PendingProgram {
+  program: WebGLProgram;
+  vertex: WebGLShader;
+  fragment: WebGLShader;
+}
+
+/** Começa a compilar e ligar um programa, sem perguntar o resultado (perguntar antes da hora trava a página). */
+export function startProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string, attribute: string): PendingProgram {
+  const compile = (type: number, source: string) => {
+    const shader = gl.createShader(type);
+    if (!shader) throw new Error("shader");
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    return shader;
+  };
+  const program = gl.createProgram();
+  if (!program) throw new Error("programa");
+  const vertex = compile(gl.VERTEX_SHADER, vertexSource);
+  const fragment = compile(gl.FRAGMENT_SHADER, fragmentSource);
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.bindAttribLocation(program, VERTEX_ATTRIBUTE, attribute);
+  gl.linkProgram(program);
+  return { program, vertex, fragment };
+}
+
+/**
+ * O programa pronto, ou `null` enquanto compila (com a extensão de compilação em paralelo; sem ela, espera aqui). Erro
+ * de compilação vira exceção, como em `linkProgram`.
+ */
+export function finishProgram(gl: WebGL2RenderingContext, pending: PendingProgram, parallel: KHR_parallel_shader_compile | null): Program | null {
+  if (parallel && !gl.getProgramParameter(pending.program, parallel.COMPLETION_STATUS_KHR)) return null;
+  if (!gl.getProgramParameter(pending.program, gl.LINK_STATUS)) {
+    const log = gl.getShaderInfoLog(pending.fragment) || gl.getShaderInfoLog(pending.vertex) || gl.getProgramInfoLog(pending.program);
+    throw new Error(log ?? "programa");
+  }
+  return { program: pending.program, uniforms: new Map() };
+}
