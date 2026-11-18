@@ -1,4 +1,4 @@
-import { decodeLayer, LIMITS, paintRelief, RELIEF_LEVELS, validReliefByte, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
+import { decodeLayer, LIMITS, paintRelief, RELIEF_DUNE, RELIEF_LEVELS, validReliefByte, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
 import type { Store } from "../store";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
@@ -46,12 +46,18 @@ function parseStroke(raw: unknown): ReliefStroke {
   const level = requireNumber(stroke.level, "Nível do relevo", RELIEF_LEVELS.min, RELIEF_LEVELS.max);
   if (!Number.isInteger(level)) fail("Relevo inválido.");
   if (typeof stroke.soft !== "boolean") fail("Relevo inválido.");
+  // Dunas: só a altura delas (0 apaga, 1 a 3); sem o campo, a passada é de nível.
+  let dune: number | undefined;
+  if (stroke.dune !== undefined) {
+    dune = requireNumber(stroke.dune, "Altura das dunas", 0, RELIEF_DUNE.max);
+    if (!Number.isInteger(dune)) fail("Relevo inválido.");
+  }
   const radius = requireNumber(stroke.radius, "Tamanho do pincel", LIMITS.terrainRadius.min, LIMITS.terrainRadius.max);
   const points = stroke.points;
   if (!Array.isArray(points) || points.length < 2 || points.length % 2 !== 0) fail("Relevo inválido.");
   if (points.length > LIMITS.terrainStrokePoints * 2) fail("Pincelada longa demais: solte e continue pintando.");
   if (!points.every((n): n is number => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord)) fail("Relevo inválido.");
-  return { level, soft: stroke.soft, radius, points };
+  return { level, soft: stroke.soft, ...(dune !== undefined && { dune }), radius, points };
 }
 
 /** Guarda o relevo novo da cena (sem campo quando vazio) depois de conferir o limite de pedaços. */

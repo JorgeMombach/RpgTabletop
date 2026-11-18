@@ -227,6 +227,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Relevo inválido.": ["Invalid relief.", "Relieve no válido."],
   "Limite de relevo na cena: aplaine uma parte antes de pintar mais.": ["Relief limit for this scene: flatten part of it before painting more.", "Límite de relieve en la escena: aplana una parte antes de pintar más."],
   "Nível do relevo": ["Relief level", "Nivel del relieve"],
+  "Altura das dunas": ["Dune height", "Altura de las dunas"],
   "Jogador não encontrado.": ["Player not found.", "Jugador no encontrado."],
   "Limite de {n} ataques.": ["Limit of {n} attacks.", "Límite de {n} ataques."],
   "Limite de {n} cenas.": ["Limit of {n} scenes.", "Límite de {n} escenas."],

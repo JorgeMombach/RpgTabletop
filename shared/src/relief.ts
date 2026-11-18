@@ -11,10 +11,14 @@ export const RELIEF_LEVELS = { min: -2, max: 3 };
 /** Pedaços com relevo de uma cena, pela chave `"cx,cy"`: os 1024 bytes em base64. */
 export type ReliefChunks = Record<string, string>;
 
-/** Uma passada do pincel: nível e tipo pintados, raio em casas e os pontos do traço (`x, y` achatados, em casas). */
+/**
+ * Uma passada do pincel: nível e tipo pintados, raio em casas e os pontos do traço (`x, y` achatados, em casas). Com
+ * `dune` (0 apaga, 1 a 3), a passada pinta só a altura das dunas e deixa o nível e o tipo como estavam.
+ */
 export interface ReliefStroke {
   level: number;
   soft: boolean;
+  dune?: number;
   radius: number;
   points: number[];
 }
@@ -22,24 +26,35 @@ export interface ReliefStroke {
 export interface ReliefPoint {
   level: number;
   soft: boolean;
+  /** Altura das dunas: 0 (sem) a 3. */
+  dune: number;
 }
 
+/** Dunas (docs/design/relevo.md, etapa 3; teste aprovado em docs/design/chao-hd-teste.html). */
+export const RELIEF_DUNE = {
+  max: 3,
+  /** Altura da onda (níveis) na duna de altura 2. */
+  amplitude: 0.55,
+};
+
 const SOFT_BIT = 8;
+const DUNE_SHIFT = 4;
+const DUNE_MASK = 3 << DUNE_SHIFT;
 /** O byte do chão (nível 0, escarpa): o que vale onde não há pedaço. */
 export const RELIEF_GROUND = 2;
 
 export function encodeReliefPoint(point: ReliefPoint): number {
-  return (point.level + 2) | (point.soft ? SOFT_BIT : 0);
+  return (point.level + 2) | (point.soft ? SOFT_BIT : 0) | (point.dune << DUNE_SHIFT);
 }
 
 export function decodeReliefPoint(value: number): ReliefPoint {
-  return { level: (value & 7) - 2, soft: (value & SOFT_BIT) !== 0 };
+  return { level: (value & 7) - 2, soft: (value & SOFT_BIT) !== 0, dune: (value & DUNE_MASK) >> DUNE_SHIFT };
 }
 
-/** Byte válido: nível de −2 a +3, com ou sem o bit de suave, e nada mais. */
+/** Byte válido: nível de −2 a +3, com ou sem o bit de suave, altura das dunas de 0 a 3, e nada mais. */
 export function validReliefByte(value: number): boolean {
   const level = (value & 7) - 2;
-  return (value & ~(7 | SOFT_BIT)) === 0 && level >= RELIEF_LEVELS.min && level <= RELIEF_LEVELS.max;
+  return (value & ~(7 | SOFT_BIT | DUNE_MASK)) === 0 && level >= RELIEF_LEVELS.min && level <= RELIEF_LEVELS.max;
 }
 
 /** Nível e tipo no ponto da grade fina `fineX, fineY` (4 por casa). */
@@ -57,7 +72,10 @@ export function reliefAt(chunks: ReliefChunks, fineX: number, fineY: number): Re
  * dentro do raio de algum ponto do traço fica com o nível e o tipo pintados (pincel duro: o patamar tem borda).
  */
 export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke): string[] {
-  const value = encodeReliefPoint({ level: stroke.level, soft: stroke.soft });
+  const dunes = stroke.dune !== undefined;
+  // O que a passada troca no byte: só a duna, ou só o nível e o tipo (o resto fica).
+  const value = dunes ? (stroke.dune ?? 0) << DUNE_SHIFT : encodeReliefPoint({ level: stroke.level, soft: stroke.soft, dune: 0 });
+  const kept = dunes ? ~DUNE_MASK & 0xff : DUNE_MASK;
   const working = new Map<string, Uint8Array>();
   for (let p = 0; p + 1 < stroke.points.length; p += 2) {
     const x = stroke.points[p];
@@ -70,12 +88,13 @@ export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke): string[
         const key = chunkKey(cx, cy);
         let bytes = working.get(key);
         if (!bytes) {
-          // Aplainar onde nem há relevo: nada a mudar (e não cria pedaço).
-          if (value === RELIEF_GROUND && !chunks[key]) continue;
+          // Aplainar (ou tirar duna) onde nem há relevo: nada a mudar (e não cria pedaço).
+          if ((dunes ? value === 0 : value === RELIEF_GROUND) && !chunks[key]) continue;
           bytes = (chunks[key] ? decodeLayer(chunks[key]) : null) ?? new Uint8Array(TERRAIN_CHUNK_SIDE * TERRAIN_CHUNK_SIDE).fill(RELIEF_GROUND);
           working.set(key, bytes);
         }
-        bytes[(j - cy * TERRAIN_CHUNK_SIDE) * TERRAIN_CHUNK_SIDE + (i - cx * TERRAIN_CHUNK_SIDE)] = value;
+        const at = (j - cy * TERRAIN_CHUNK_SIDE) * TERRAIN_CHUNK_SIDE + (i - cx * TERRAIN_CHUNK_SIDE);
+        bytes[at] = (bytes[at] & kept) | value;
       }
     }
   }
@@ -262,7 +281,92 @@ export function reliefFields(chunks: ReliefChunks, key: string): { heights: Floa
       }
     }
   }
-  return smoothSoft(height, softWeight, side);
+  const smoothed = smoothSoft(height, softWeight, side);
+  addDunes(smoothed, fineValues, fineSide, side, originX, originY);
+  return smoothed;
+}
+
+/** Ruído de valor determinístico pela posição no mapa (casas): a mesma onda em qualquer janela. */
+function latticeHash(x: number, y: number): number {
+  let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function valueNoise(x: number, y: number): number {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = latticeHash(x0, y0);
+  const b = latticeHash(x0 + 1, y0);
+  const c = latticeHash(x0, y0 + 1);
+  const d = latticeHash(x0 + 1, y0 + 1);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+
+/** Onda das dunas (0 a 1) no ponto do mapa (casas): crista mais aguda que o vale, direção variando de leve. */
+export function duneWave(x: number, y: number): number {
+  const phase = (x * 0.79 + y * 0.33) * 0.55 + valueNoise(x * 0.15, y * 0.15) * 5;
+  return Math.pow(0.5 + 0.5 * Math.sin(phase), 1.6);
+}
+
+/** Meia largura (casas) de cada média móvel que amacia a altura das dunas (borda sem degrau). */
+const DUNE_BLUR = 1.25;
+
+/**
+ * Soma a ondulação das dunas na altura (e marca como encosta suave: sem rocha). A altura pintada (0 a 3) é amaciada
+ * na grade fina por duas médias móveis em cada eixo (a borda sobe aos poucos, sem degrau, e some a 2,5 casas).
+ */
+function addDunes(fields: { heights: Float32Array; soft: Float32Array }, fineValues: Uint8Array, fineSide: number, side: number, originX: number, originY: number) {
+  const fineCount = fineSide * fineSide;
+  let amount = new Float32Array(fineCount);
+  let any = false;
+  for (let index = 0; index < fineCount; index++) {
+    const dune = (fineValues[index] & DUNE_MASK) >> DUNE_SHIFT;
+    amount[index] = dune / 2;
+    if (dune > 0) any = true;
+  }
+  if (!any) return;
+  const radius = Math.round(DUNE_BLUR * TERRAIN_FINE);
+  const box = (source: Float32Array<ArrayBuffer>, horizontal: boolean): Float32Array<ArrayBuffer> => {
+    const out = new Float32Array(fineCount);
+    for (let y = 0; y < fineSide; y++) {
+      for (let x = 0; x < fineSide; x++) {
+        let sum = 0;
+        for (let offset = -radius; offset <= radius; offset++) {
+          const sx = horizontal ? Math.min(fineSide - 1, Math.max(0, x + offset)) : x;
+          const sy = horizontal ? y : Math.min(fineSide - 1, Math.max(0, y + offset));
+          sum += source[sy * fineSide + sx];
+        }
+        out[y * fineSide + x] = sum / (radius * 2 + 1);
+      }
+    }
+    return out;
+  };
+  amount = box(box(box(box(amount, true), false), true), false);
+  const { heights, soft } = fields;
+  for (let gy = 0; gy < side; gy++) {
+    for (let gx = 0; gx < side; gx++) {
+      // Ponto da altura -> grade fina (2 pontos da altura por ponto fino), com interpolação.
+      const fx = Math.min(fineSide - 1, gx / 2);
+      const fy = Math.min(fineSide - 1, gy / 2);
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = Math.min(fineSide - 1, x0 + 1);
+      const y1 = Math.min(fineSide - 1, y0 + 1);
+      const tx = fx - x0;
+      const ty = fy - y0;
+      const top = amount[y0 * fineSide + x0] * (1 - tx) + amount[y0 * fineSide + x1] * tx;
+      const bottom = amount[y1 * fineSide + x0] * (1 - tx) + amount[y1 * fineSide + x1] * tx;
+      const strength = top * (1 - ty) + bottom * ty;
+      if (strength <= 0) continue;
+      const index = gy * side + gx;
+      heights[index] += duneWave(originX + gx / RELIEF_PER_CELL, originY + gy / RELIEF_PER_CELL) * RELIEF_DUNE.amplitude * strength;
+      soft[index] = Math.max(soft[index], Math.min(1, strength * 4));
+    }
+  }
 }
 
 /**

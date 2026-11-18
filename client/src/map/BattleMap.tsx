@@ -46,6 +46,7 @@ import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
 import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { reliefStrokeOf } from "./terrain/ReliefOptions";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -553,7 +554,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { points } = draft;
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintRelief(draft.local, { ...brush, points: [x, y] });
+    paintRelief(draft.local, reliefStrokeOf(brush, [x, y]));
     useApp.setState({ reliefPreview: { ...draft.local } });
   }
   function finishRelief() {
@@ -561,7 +562,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     reliefRef.current = null;
     if (!draft || draft.points.length === 0) return;
     // A prévia fica até o servidor responder (o relevo novo chega antes da resposta: sem piscar).
-    void paintReliefStroke({ ...useApp.getState().reliefBrush, points: draft.points }).then(() => useApp.setState({ reliefPreview: null }));
+    void paintReliefStroke(reliefStrokeOf(useApp.getState().reliefBrush, draft.points)).then(() => useApp.setState({ reliefPreview: null }));
   }
 
   // Correnteza (água animada, mestre): risca a linha no sentido em que a água corre; ou, na borracha de correnteza,
