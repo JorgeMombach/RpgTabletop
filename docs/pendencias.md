@@ -89,6 +89,12 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Sombra do relevo só alcança 8 casas (a margem da janela): no entardecer, a de um patamar de 2+ níveis termina numa linha quase reta (`reliefShader.ts`).
 - [ ] Altura de um pedaço leva 7 a ~35 ms (no Worker); o alvo era 5 ms (`relief.ts`).
 - [ ] Calibrar o comprimento da sombra (um nível = 1,6 × a sombra de uma parede) e a força da luz das encostas à noite.
+- [ ] Com o atlas cheio nas três resoluções, pedaço sem lugar fica plano; um lugar que se liberta depois não recalcula sozinho, e a resolução não volta a subir quando o relevo diminui (só recarregando) (`reliefPass.ts`).
+- [ ] Trocar a luz de novo no meio da mistura da sombra pula para a anterior; pedaço pintado durante a troca mostra a sombra antiga até todos ficarem prontos (`reliefPass.ts`).
+- [ ] Aplainar com *Suave* ligado (nível 0 suave) não apaga o pedaço (conta no limite de 400); a dica poderia dizer "aplainar = 0 Escarpa".
+- [ ] `actions/relief.ts`: `(raw ?? {}) as Partial<…>` ao ler a pincelada (mesmo padrão do terreno).
+- [ ] A sombra do relevo é cara de calcular (256² × 80 passos); numa troca de luz grande em placa integrada, os quadros lentos podem ligar o detector de aparelho lento e parar água e plantas.
+- [ ] Memória das alturas no processador: ~109 KB por pedaço (até ~50 MB no limite de pedaços).
 
 ### Paredes emendadas ([docs/design/paredes.md](design/paredes.md))
 - [ ] Mapa com mais de ~700 cadeias (muitos cruzamentos de desenhos diferentes) pode refazer as imagens a todo quadro (`wallChainArt.ts`: o teto é de pixels, mas o que está na tela pode passar dele).

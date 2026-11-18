@@ -17,3 +17,4 @@ export * from "./light";
 export * from "./wallJoin";
 export * from "./wallCut";
 export * from "./relief";
+export * from "./reliefQueue";

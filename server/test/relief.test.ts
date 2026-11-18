@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { distanceField, encodeLayer, paintRelief, reliefFields, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
+import { distanceField, encodeLayer, paintRelief, ReliefQueue, reliefFields, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
 import { act, join, nextState, useServer, type Client } from "./helpers";
 
 // Relevo (docs/design/relevo.md): níveis de −2 a +3 e tipo de borda (escarpa ou suave) na grade fina do terreno.
@@ -225,5 +225,35 @@ describe("relevo: altura por pedaço", () => {
 
   it("pedaços afetados: o tocado e os vizinhos até a margem", () => {
     assert.deepEqual(new Set(reliefAffected(["0,0"])), new Set(["-1,-1", "0,-1", "1,-1", "-1,0", "0,0", "1,0", "-1,1", "0,1", "1,1"]));
+  });
+});
+
+describe("relevo: fila de pedidos ao Worker", () => {
+  it("um pedido por vez: o que muda durante o pedido se junta e vai no próximo, junto", () => {
+    const queue = new ReliefQueue();
+    queue.mark(["0,0"]);
+    const first = queue.take();
+    assert.deepEqual(first?.keys, ["0,0"]);
+    queue.mark(["1,0"]);
+    queue.mark(["2,0", "1,0"]);
+    assert.equal(queue.take(), null, "ainda tem um pedido em andamento");
+    assert.equal(queue.accept(first?.id ?? -1), true);
+    assert.deepEqual(queue.take()?.keys.sort(), ["1,0", "2,0"]);
+  });
+
+  it("resposta de antes de recomeçar (aplainar tudo, outra cena) é ignorada", () => {
+    const queue = new ReliefQueue();
+    queue.mark(["0,0"]);
+    const old = queue.take();
+    queue.reset();
+    queue.mark(["5,5"]);
+    assert.equal(queue.accept(old?.id ?? -1), false, "resposta velha não vale");
+    assert.deepEqual(queue.take()?.keys, ["5,5"], "e o pedido novo sai em seguida");
+  });
+
+  it("nada marcado: nada a pedir; resposta desconhecida não destrava nada", () => {
+    const queue = new ReliefQueue();
+    assert.equal(queue.take(), null);
+    assert.equal(queue.accept(99), false);
   });
 });

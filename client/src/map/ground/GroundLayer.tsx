@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { FrameWatch, reliefAffected, TERRAINS, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type WaterCurrent } from "@rpg/shared";
+import { FrameWatch, reliefAffected, ReliefQueue, TERRAINS, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
 import { detailTile, filteredWatercolor, loadTerrainImages, TERRAIN_ART, type DetailKind } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
@@ -87,7 +87,10 @@ export const GroundLayer = memo(function GroundLayer({
   const renderer = engine?.renderer ?? null;
   const worker = engine?.worker ?? null;
   const reliefWorker = engine?.reliefWorker ?? null;
-  const reliefJob = useRef(0);
+  // Relevo: um pedido ao Worker por vez (o que muda durante ele vai junto no próximo), sempre com o relevo mais novo.
+  const reliefQueue = useRef(new ReliefQueue());
+  const reliefLatest = useRef(relief);
+  reliefLatest.current = relief;
   const reliefSent = useRef<{ chunks: ReliefChunks; epoch: number } | null>(null);
   const smallScreenRef = useRef(smallScreen);
   smallScreenRef.current = smallScreen;
@@ -142,9 +145,12 @@ export const GroundLayer = memo(function GroundLayer({
     createdWorker.onerror = fail;
     // Relevo: a altura de cada pedaço é calculada no Worker (7 a ~35 ms por pedaço).
     const createdReliefWorker = new Worker(new URL("./reliefWorker.ts", import.meta.url), { type: "module" });
+    const queue = new ReliefQueue();
+    reliefQueue.current = queue;
     createdReliefWorker.onmessage = (event: MessageEvent<ReliefResult>) => {
-      if (event.data.id !== reliefJob.current) return;
-      created.setReliefWindows(event.data.windows);
+      // Resposta de antes de recomeçar (outra cena, aplainar tudo): não vale, mas destrava o próximo pedido.
+      if (queue.accept(event.data.id)) created.setReliefWindows(event.data.windows);
+      sendRelief(createdReliefWorker, queue);
       setVersion((value) => value + 1);
     };
     createdReliefWorker.onerror = fail;
@@ -220,18 +226,29 @@ export const GroundLayer = memo(function GroundLayer({
     setVersion((value) => value + 1);
   }, [renderer, chunks, epoch]);
 
-  // Relevo: pede ao Worker a altura dos pedaços afetados pelo que mudou (relevo inteiro novo: todos, do zero).
+  /** Manda o próximo pedido da fila (se não há um em andamento), com o relevo mais novo. */
+  function sendRelief(target: Worker, queue: ReliefQueue) {
+    const next = queue.take();
+    if (!next) return;
+    const job: ReliefJob = { id: next.id, chunks: reliefLatest.current, keys: next.keys };
+    target.postMessage(job);
+  }
+
+  // Relevo: marca os pedaços afetados pelo que mudou (relevo inteiro novo: recomeça do zero e redesenha na hora).
   useEffect(() => {
     if (!renderer || !reliefWorker) return;
+    const queue = reliefQueue.current;
     const before = reliefSent.current;
     const fresh = !before || before.epoch !== reliefEpoch;
-    if (fresh) renderer.forgetRelief("all");
+    if (fresh) {
+      queue.reset();
+      renderer.forgetRelief("all");
+      setVersion((value) => value + 1);
+    }
     const changed = fresh ? Object.keys(relief) : changedChunks(before.chunks, relief);
     reliefSent.current = { chunks: relief, epoch: reliefEpoch };
-    if (changed.length === 0) return;
-    reliefJob.current += 1;
-    const job: ReliefJob = { id: reliefJob.current, chunks: relief, keys: reliefAffected(changed) };
-    reliefWorker.postMessage(job);
+    if (changed.length > 0) queue.mark(reliefAffected(changed));
+    sendRelief(reliefWorker, queue);
   }, [renderer, reliefWorker, relief, reliefEpoch]);
 
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
@@ -317,6 +334,22 @@ export const GroundLayer = memo(function GroundLayer({
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [renderer, animate]);
+
+  // Com a animação desligada (Reduzir efeitos, aparelho lento), o relevo ainda precisa de quadros para ser calculado:
+  // um quadro por vez até acabar (só cálculo e desenho, sem água animando).
+  useEffect(() => {
+    if (!renderer || animate) return;
+    let frame = 0;
+    const tick = () => {
+      if (!renderer.reliefPending) return;
+      renderer.render(viewRef.current, timeRef.current, { waterDraft: waterDraftRef.current });
+      imageRef.current?.getLayer()?.batchDraw();
+      notifyGroundDrawn();
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [renderer, animate, version]);
 
   // Quadro na hora: quando a visão, o tamanho, o terreno ou a água mudam (com a água parada, é o único desenho).
   useEffect(() => {

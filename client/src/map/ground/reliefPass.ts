@@ -1,4 +1,4 @@
-import { RELIEF_MARGIN, TERRAIN_CHUNK_CELLS } from "@rpg/shared";
+import { RELIEF_LEVELS, RELIEF_MARGIN, TERRAIN_CHUNK_CELLS } from "@rpg/shared";
 import { bindTextures, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BAKE_FIELDS_FRAGMENT, BAKE_SHADOW_FRAGMENT, RELIEF_DRAW_FRAGMENT, RELIEF_SHADOW_MASK_FRAGMENT } from "./reliefShader";
 import type { ReliefWindow } from "./reliefTypes";
@@ -34,6 +34,26 @@ export interface ReliefSlotIndex {
   texture: WebGLTexture;
 }
 
+/** Altura guardada (16 bits, de −2 a +3) e suavidade (8 bits) de uma janela. */
+interface StoredWindow {
+  key: string;
+  side: number;
+  height: Uint16Array;
+  soft: Uint8Array;
+}
+
+const HEIGHT_RANGE = RELIEF_LEVELS.max - RELIEF_LEVELS.min;
+
+function compact(window: ReliefWindow): StoredWindow {
+  const height = new Uint16Array(window.heights.length);
+  const soft = new Uint8Array(window.soft.length);
+  for (let index = 0; index < height.length; index++) {
+    height[index] = Math.round(Math.min(1, Math.max(0, (window.heights[index] - RELIEF_LEVELS.min) / HEIGHT_RANGE)) * 65535);
+    soft[index] = Math.round(Math.min(1, Math.max(0, window.soft[index])) * 255);
+  }
+  return { key: window.key, side: window.side, height, soft };
+}
+
 export class ReliefPass {
   private readonly fields: Program;
   private readonly shadow: Program;
@@ -50,9 +70,16 @@ export class ReliefPass {
   shadowPrevious: WebGLTexture;
   private windowTexture: WebGLTexture | null = null;
   private windowSide = 0;
-  /** Altura de cada pedaço com relevo por perto (cópia na memória: a sombra é refeita quando a luz muda). */
-  private readonly windows = new Map<string, ReliefWindow>();
+  /**
+   * Altura de cada pedaço com relevo por perto, compacta (16 bits a altura, 8 a suavidade): fica na memória porque a
+   * sombra é refeita quando a luz muda.
+   */
+  private readonly windows = new Map<string, StoredWindow>();
   private readonly slots = new Map<string, number>();
+  /** Pedaços já calculados (campos e sombra): só eles aparecem (um lugar novo ou mudado de lugar tem lixo). */
+  private readonly ready = new Set<string>();
+  /** Memória reaproveitada para mandar a janela à placa. */
+  private upload = new Float32Array(0);
   private free: number[] = [];
   private tier = 0;
   private readonly fieldsQueue = new Set<string>();
@@ -103,6 +130,7 @@ export class ReliefPass {
 
   private resetSlots() {
     this.slots.clear();
+    this.ready.clear();
     this.free = Array.from({ length: this.slotsPerRow * this.slotsPerRow }, (_, slot) => slot);
   }
 
@@ -117,7 +145,7 @@ export class ReliefPass {
         this.removeKey(window.key);
         continue;
       }
-      this.windows.set(window.key, window);
+      this.windows.set(window.key, compact(window));
       this.fieldsQueue.add(window.key);
     }
     this.allocate();
@@ -131,6 +159,7 @@ export class ReliefPass {
 
   private removeKey(key: string) {
     this.windows.delete(key);
+    this.ready.delete(key);
     this.fieldsQueue.delete(key);
     this.shadowQueue.delete(key);
     const slot = this.slots.get(key);
@@ -178,6 +207,7 @@ export class ReliefPass {
     const rows = maxY - minY + 1;
     const data = new Uint8Array(cols * rows * 4);
     for (const [key, slot] of this.slots) {
+      if (!this.ready.has(key)) continue;
       const [cx, cy] = key.split(",").map(Number);
       const at = ((cy - minY) * cols + (cx - minX)) * 4;
       data[at] = slot & 255;
@@ -232,6 +262,7 @@ export class ReliefPass {
   bake(): boolean {
     const { gl } = this;
     let done = 0;
+    let newlyReady = false;
     for (const key of this.fieldsQueue) {
       if (done >= BAKE_PER_FRAME) break;
       this.fieldsQueue.delete(key);
@@ -253,24 +284,31 @@ export class ReliefPass {
       this.uploadWindow(window);
       this.bakeShadow(slot);
       done++;
+      if (!this.ready.has(key)) {
+        this.ready.add(key);
+        newlyReady = true;
+      }
     }
+    if (newlyReady) this.rebuildIndex();
     // Todos prontos depois de uma troca de luz: começa a mistura.
     if (this.fadeStart === Infinity && this.shadowQueue.size === 0 && this.fieldsQueue.size === 0) this.fadeStart = performance.now();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return done > 0;
   }
 
-  private uploadWindow(window: ReliefWindow) {
+  private uploadWindow(window: StoredWindow) {
     const { gl } = this;
     if (!this.windowTexture || this.windowSide !== window.side) {
       if (this.windowTexture) gl.deleteTexture(this.windowTexture);
       this.windowSide = window.side;
       this.windowTexture = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, window.side, window.side, 0, gl.RG, gl.FLOAT, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
     }
-    const data = new Float32Array(window.side * window.side * 2);
-    for (let index = 0; index < window.heights.length; index++) {
-      data[index * 2] = window.heights[index];
-      data[index * 2 + 1] = window.soft[index];
+    const count = window.side * window.side;
+    if (this.upload.length !== count * 2) this.upload = new Float32Array(count * 2);
+    const data = this.upload;
+    for (let index = 0; index < count; index++) {
+      data[index * 2] = (window.height[index] / 65535) * HEIGHT_RANGE + RELIEF_LEVELS.min;
+      data[index * 2 + 1] = window.soft[index] / 255;
     }
     gl.bindTexture(gl.TEXTURE_2D, this.windowTexture);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
