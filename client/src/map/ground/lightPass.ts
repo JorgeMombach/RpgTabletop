@@ -1,4 +1,4 @@
-import { blockersNear, lightPolygon, stopAtWall, sunShadows, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
+import { blockersNear, lightPolygon, stopAtWall, sunShadows, triangulate, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
 import { bindTextures, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
 import { blendSceneLight, INDOOR_SUN, SCENE_LIGHT, type SceneLight } from "./sceneLight";
@@ -153,13 +153,10 @@ export class LightPass {
     return changed;
   }
 
-  /** Cômodos em leque a partir do primeiro ponto: desenhados invertendo a máscara, o que fica dentro sai ímpar (preenchido). */
+  /** Cômodos em triângulos (`triangulate`): cada um cobre só o seu chão, e um cômodo dentro de outro continua coberto. */
   private rebuildRooms(rooms: number[][]) {
     if (this.roofs.rooms) this.gl.deleteBuffer(this.roofs.rooms.buffer);
-    const vertices: number[] = [];
-    for (const room of rooms) {
-      for (let index = 2; index + 3 < room.length; index += 2) vertices.push(room[0], room[1], room[index], room[index + 1], room[index + 2], room[index + 3]);
-    }
+    const vertices = rooms.flatMap((room) => triangulate(room));
     this.roofs.rooms = vertices.length > 0 ? { buffer: vertexBuffer(this.gl, vertices), count: vertices.length / 2 } : null;
   }
 
@@ -309,19 +306,16 @@ export class LightPass {
       gl.drawArrays(gl.TRIANGLES, 0, this.shadows.count);
       gl.disable(gl.BLEND);
     }
-    // 1b. Telhado invisível: cômodos (invertendo: dentro fica 1) e o sol das janelas por cima (0).
+    // 1b. Telhado invisível: cômodos (1) e o sol das janelas por cima (0).
     this.drawInto(this.roofTexture, lightWidth, lightHeight);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(this.shadow.program);
     this.setView(this.shadow, view);
     if (this.roofs.rooms) {
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE_MINUS_DST_COLOR, gl.ZERO);
       gl.uniform1f(uniformOf(gl, this.shadow, "uWeight"), 1);
       useVertices(gl, this.roofs.rooms.buffer);
       gl.drawArrays(gl.TRIANGLES, 0, this.roofs.rooms.count);
-      gl.disable(gl.BLEND);
     }
     if (this.roofs.patches) {
       gl.uniform1f(uniformOf(gl, this.shadow, "uWeight"), 0);

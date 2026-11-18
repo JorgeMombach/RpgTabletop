@@ -37,7 +37,9 @@ Hoje cada parede é um traço solto (`from` → `to`), desenhado no próprio eix
 ### Etapas
 
 1. **Emenda e telhado** (com os desenhos de hoje adaptados para desenhar ao longo da cadeia) e **janela** (com um desenho provisório simples).
-2. **Texturas**, em lotes com página de teste e aprovação do dono a cada lote: (a) sólidas: rocha (a mais urgente), pedra lavrada, tijolo, madeira; (b) paliçada e muralha; (c) vazadas e portões: cerca, grade, arame, sebe, muro baixo; (d) portas (todos os estados: aberta, trancada e secreta para o mestre) e janela (aberta e fechada).
+2. **Texturas** *(passou para o projeto do relevo, ver abaixo)*, em lotes com página de teste e aprovação do dono a cada lote: (a) sólidas: rocha (a mais urgente), pedra lavrada, tijolo, madeira; (b) paliçada e muralha; (c) vazadas e portões: cerca, grade, arame, sebe, muro baixo; (d) portas (todos os estados: aberta, trancada e secreta para o mestre) e janela (aberta e fechada).
+
+**Decisão de 2026-11-17 (teste do lote a, `docs/design/paredes-texturas-a.html`):** das versões testadas, as melhores foram as do teste aprovado da emenda (pedra lavrada A, tijolo A, madeira A), mas o dono não gostou do nível em geral, e a rocha (três versões) ficou "de Paint", longe de algo comercializável. O desenho à mão no canvas (formas, degradês e granulado) tem teto baixo para material natural. As texturas de todas as paredes, portas e janela sobem de nível **junto com o relevo**: o penhasco vai ser desenhado na placa de vídeo, com altura e luz por pixel (e/ou arte pintada à mão como textura), e a parede de rocha é um penhasco fino, com a mesma cara. Até lá, as paredes ficam com os desenhos de hoje, emendados.
 
 ### Emenda (do teste aprovado)
 

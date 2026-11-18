@@ -17,6 +17,11 @@ export interface WallChain {
   style: WallStyle;
   thickness: number;
   ends: [ChainEnd, ChainEnd];
+  /**
+   * Quanto cada ponta passa do nó (casas): numa quina sem parede seguindo reto (desenhos ou espessuras diferentes, porta
+   * no canto), meia espessura da mais grossa das outras, para o canto de fora não ficar com um dente; senão 0.
+   */
+  extend: [number, number];
   /** Paredes guardadas que formam a cadeia (os cliques continuam por parede). */
   wallIds: string[];
 }
@@ -166,6 +171,13 @@ export function wallChains(walls: Wall[], sceneStyle: WallStyle): WallChain[] {
   const seen = new Set<Edge>();
   const chains: WallChain[] = [];
   const endOf = (point: LightPoint): ChainEnd => ((nodes.get(nodeKey(point))?.edges.length ?? 0) > 1 ? "butt" : "free");
+  const extendAt = (point: LightPoint, own: Edge): number => {
+    const key = nodeKey(point);
+    const others = (nodes.get(key)?.edges ?? []).filter((edge) => edge !== own);
+    // Alguém segue reto pelo nó: a ponta termina por baixo dele.
+    if (others.length === 0 || others.some((edge) => paired.has(`${key}|${edge.index}`))) return 0;
+    return Math.max(...others.map((edge) => edge.thickness)) / 2;
+  };
   const walk = (start: Edge, from: LightPoint): WallChain => {
     const points = [from];
     const ids = new Set<string>();
@@ -181,7 +193,8 @@ export function wallChains(walls: Wall[], sceneStyle: WallStyle): WallChain[] {
         const closed = follow === start && next === points[0];
         const shape = closed ? points.slice(0, -1) : points;
         const ends: [ChainEnd, ChainEnd] = closed ? ["closed", "closed"] : [endOf(shape[0]), endOf(shape[shape.length - 1])];
-        return { points: shape, closed, style: start.style, thickness: start.thickness, ends, wallIds: [...ids] };
+        const extend: [number, number] = closed ? [0, 0] : [extendAt(shape[0], start), extendAt(shape[shape.length - 1], current)];
+        return { points: shape, closed, style: start.style, thickness: start.thickness, ends, extend, wallIds: [...ids] };
       }
       current = follow;
       at = next;
@@ -249,4 +262,58 @@ export function wallRooms(walls: Wall[]): number[][] {
     if (area / 2 < -0.01) rooms.push(polygon);
   }
   return rooms;
+}
+
+/**
+ * Triângulos de um cômodo (pares x, y, três pontos por triângulo), para o telhado ser desenhado por cima sem depender
+ * dos outros cômodos (um cômodo dentro de outro continua coberto). O contorno pode ir e voltar por uma parede em T
+ * por dentro: esses vai-e-vem saem antes.
+ */
+export function triangulate(polygon: number[]): number[] {
+  let points: LightPoint[] = [];
+  for (let index = 0; index < polygon.length; index += 2) points.push({ x: polygon[index], y: polygon[index + 1] });
+  const same = (a: LightPoint, b: LightPoint) => Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
+  const turn = (a: LightPoint, b: LightPoint, c: LightPoint) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  // Tira pontos repetidos, idas e voltas (a ponta do T) e pontos no meio de uma reta, até não sobrar nenhum.
+  for (let changed = true; changed && points.length >= 3; ) {
+    changed = false;
+    for (let index = 0; index < points.length && points.length >= 3; index++) {
+      const previous = points[(index - 1 + points.length) % points.length];
+      const current = points[index];
+      const next = points[(index + 1) % points.length];
+      if (same(previous, current) || same(previous, next) || Math.abs(turn(previous, current, next)) < 1e-9) {
+        points = same(previous, next) && !same(previous, current) ? points.filter((_, at) => at !== index && at !== (index + 1) % points.length) : points.filter((_, at) => at !== index);
+        changed = true;
+        break;
+      }
+    }
+  }
+  if (points.length < 3) return [];
+  let area = 0;
+  for (let index = 0; index < points.length; index++) {
+    const next = points[(index + 1) % points.length];
+    area += points[index].x * next.y - next.x * points[index].y;
+  }
+  const sign = Math.sign(area);
+  const inside = (p: LightPoint, a: LightPoint, b: LightPoint, c: LightPoint) => turn(a, b, p) * sign >= 0 && turn(b, c, p) * sign >= 0 && turn(c, a, p) * sign >= 0;
+  // Corta "orelhas" (canto convexo sem outro ponto dentro) até sobrar um triângulo.
+  const triangles: number[] = [];
+  const remaining = [...points];
+  for (let guard = 0; remaining.length > 3 && guard < points.length * points.length; guard++) {
+    let cut = false;
+    for (let index = 0; index < remaining.length; index++) {
+      const a = remaining[(index - 1 + remaining.length) % remaining.length];
+      const b = remaining[index];
+      const c = remaining[(index + 1) % remaining.length];
+      if (turn(a, b, c) * sign <= 0) continue;
+      if (remaining.some((p) => p !== a && p !== b && p !== c && inside(p, a, b, c))) continue;
+      triangles.push(a.x, a.y, b.x, b.y, c.x, c.y);
+      remaining.splice(index, 1);
+      cut = true;
+      break;
+    }
+    if (!cut) break;
+  }
+  if (remaining.length === 3) triangles.push(remaining[0].x, remaining[0].y, remaining[1].x, remaining[1].y, remaining[2].x, remaining[2].y);
+  return triangles;
 }

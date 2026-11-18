@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { wallChains, wallRooms, type Wall } from "@rpg/shared";
+import { triangulate, wallChains, wallRooms, type Wall } from "@rpg/shared";
 
 // Paredes emendadas (docs/design/paredes.md): cadeias para o desenho e cômodos para o telhado invisível.
 let nextId = 0;
@@ -65,6 +65,23 @@ describe("paredes: emenda", () => {
     assert.deepEqual(chains.map((chain) => chain.style).sort(), ["stone", "wood"]);
   });
 
+  it("quina de desenhos diferentes: as duas pontas passam meia espessura da outra (sem dente no canto)", () => {
+    const chains = wallChains([wall([0, 0], [4, 0], { style: "stone" }), wall([4, 0], [4, 4], { style: "wood", thickness: 0.4 })], "stone");
+    const stone = chains.find((chain) => chain.style === "stone");
+    const wood = chains.find((chain) => chain.style === "wood");
+    assert.ok(stone && wood);
+    const atCorner = (chain: typeof stone) => (chain.points[0].x === 4 && chain.points[0].y === 0 ? chain.extend[0] : chain.extend[1]);
+    assert.ok(Math.abs(atCorner(stone) - 0.2) < 1e-9, "pedra passa metade da madeira (0,4)");
+    assert.ok(Math.abs(atCorner(wood) - 0.09) < 1e-9, "madeira passa metade da pedra (0,18)");
+  });
+
+  it("T: o pé termina embaixo da que segue, sem passar", () => {
+    const chains = wallChains([wall([0, 0], [6, 0]), wall([3, 0], [3, 4])], "stone");
+    const stem = chains.find((chain) => chain.points.some((point) => point.y === 4));
+    assert.ok(stem);
+    assert.deepEqual(stem.extend, [0, 0]);
+  });
+
   it("pontas a 0,0004 casa uma da outra emendam", () => {
     const chains = wallChains([wall([0, 0], [4, 0]), wall([4.0004, 0], [4, 4])], "stone");
     assert.equal(chains.length, 1);
@@ -95,5 +112,34 @@ describe("paredes: cômodos", () => {
 
   it("parede em T por dentro não divide o cômodo", () => {
     assert.equal(wallRooms([...square(), wall([3, 0], [3, 4])]).length, 1);
+  });
+
+  it("cômodo dentro de cômodo: os dois aparecem (a casa dentro do pátio não perde o telhado)", () => {
+    const inner = [wall([3, 3], [5, 3]), wall([5, 3], [5, 5]), wall([5, 5], [3, 5]), wall([3, 5], [3, 3])];
+    const rooms = wallRooms([...square(), ...inner]);
+    assert.equal(rooms.length, 2);
+  });
+});
+
+describe("paredes: triângulos dos cômodos (telhado)", () => {
+  const area = (triangles: number[]) => {
+    let sum = 0;
+    for (let index = 0; index < triangles.length; index += 6) {
+      const [ax, ay, bx, by, cx, cy] = triangles.slice(index, index + 6);
+      sum += Math.abs((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)) / 2;
+    }
+    return sum;
+  };
+  it("quadrado: 2 triângulos, área 49", () => {
+    const triangles = triangulate([0, 0, 7, 0, 7, 7, 0, 7]);
+    assert.equal(triangles.length, 12);
+    assert.ok(Math.abs(area(triangles) - 49) < 1e-9);
+  });
+  it("cômodo em L (côncavo): a área é a do L, sem cobrir o canto de fora", () => {
+    assert.ok(Math.abs(area(triangulate([0, 0, 4, 0, 4, 2, 2, 2, 2, 4, 0, 4])) - 12) < 1e-9);
+  });
+  it("cômodo com parede em T por dentro (vai e volta no contorno): a área não muda", () => {
+    const [room] = wallRooms([...square(), wall([3, 0], [3, 4])]);
+    assert.ok(Math.abs(area(triangulate(room)) - 49) < 1e-9);
   });
 });

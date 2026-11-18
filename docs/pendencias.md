@@ -72,6 +72,18 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ## Pendências pequenas
 
+### Paredes emendadas ([docs/design/paredes.md](design/paredes.md))
+- [ ] **Decidir:** pátio murado, muralha de castelo ou cercado de paliçada fechado conta como cômodo (ganha o telhado invisível: sem sombra e luz de dentro). Ideia: muralha e paliçada não fecham cômodo, como as vazadas.
+- [ ] Mapa com mais de ~700 cadeias (muitos cruzamentos de desenhos diferentes) pode refazer as imagens a todo quadro (`wallChainArt.ts`: o teto é de pixels, mas o que está na tela pode passar dele).
+- [ ] Quina muito fechada no traço livre (ângulo interno abaixo de ~35°): o lado de dentro do contorno se cruza (`wallChainArt.ts`, chanfrar em vez de limitar o bico).
+- [ ] Emenda por arredondamento (0,001 casa), não por distância: traço livre que quase encosta (0,01) não emenda; sobreposição quase alinhada vira um X raso (`wallJoin.ts`).
+- [ ] Janela: o *Cômodo* da névoa conta toda janela, mas o telhado ignora janela com desenho vazado, e janela com desenho vazado nunca bloqueia mesmo fechada (`fog.ts`/`wallJoin.ts`: ignorar o desenho na janela).
+- [ ] A textura de um cômodo pode "pular" depois de *Desfazer* (a cadeia começa noutro ponto conforme a ordem das paredes; `wallJoin.ts`: começar pelo menor ponto).
+- [ ] O passo da luz compara cômodos e janelas por texto a cada atualização, inclusive arrastando tocha (`lightPass.ts`: comparar pela referência, já memorizada).
+- [ ] `parseWall`: `raw` da janela repete o nome do parâmetro e lê antes de conferir o tipo (mesmo padrão da porta); `getContext("2d")!` em `wallChainArt.ts` (já trocado na reescrita; conferir `wallArt.ts`).
+- [ ] A conta da emenda (O(n²)) roda duas vezes por mudança de paredes (cadeias e cômodos) e de novo na prévia de *Trocar desenho*.
+- [ ] Montar as imagens das paredes ao trocar de degrau de zoom ficou mais lento (600 paredes: ~0,8 s; antes ~0,14 s), porque cada pedaço de tira pinta o trecho inteiro.
+
 ### Luz ([docs/design/luz.md](design/luz.md))
 - [ ] O corpo da tocha fixa é desenhado por cima da chama nova (a camada das chamas fica embaixo de `MapTorchLayer`): conferir de olho, principalmente a bacia do braseiro (`BattleMap.tsx`).
 - [ ] Chuva e neve escurecem pela luz de destino, não pela que está no meio da troca: pulam enquanto o mapa escurece devagar (`weatherDim` em `BattleMap.tsx`).
