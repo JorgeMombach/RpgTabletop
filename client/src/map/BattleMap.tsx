@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, lightBlockers, paintTerrain, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { brushCells, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -45,7 +45,7 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -87,7 +87,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", fog: "F" };
+export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
@@ -120,7 +120,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reduceFx } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, groundFailed } = useApp();
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
@@ -183,7 +183,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Ctrl+Z (fora de campos de texto): nas ferramentas Paredes, Desenho e Tochas, desfaz o último dela; nas
   // outras, o último que esta pessoa fez no mapa.
   useEffect(() => {
-    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : undefined;
+    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : tool === "relief" ? "relief" : undefined;
     const down = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
       const el = e.target as HTMLElement | null;
@@ -533,6 +533,37 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     void paintTerrainStroke({ ...brushSize, terrain: brushTerrain, points: draft.points }).then(() => setTerrainPreview(null));
   }
 
+  // Pincel de relevo (mestre, docs/design/relevo.md): como o do terreno, a passada é pintada numa cópia local na hora
+  // (a mesma conta do servidor; prévia em `reliefPreview`, no estado do app) e vai inteira ao soltar. O contorno do
+  // pincel anda sob o mouse sem redesenhar o mapa.
+  const reliefRef = useRef<{ points: number[]; local: ReliefChunks } | null>(null);
+  const reliefCursor = useRef<Konva.Circle>(null);
+  function reliefAt(p: Point) {
+    const cursor = reliefCursor.current;
+    if (cursor) {
+      cursor.position(p);
+      cursor.visible(true);
+      cursor.getLayer()?.batchDraw();
+    }
+    const draft = reliefRef.current;
+    if (!draft) return;
+    const brush = useApp.getState().reliefBrush;
+    const x = (p.x - grid.offsetX) / grid.cellPx;
+    const y = (p.y - grid.offsetY) / grid.cellPx;
+    const { points } = draft;
+    if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
+    points.push(x, y);
+    paintRelief(draft.local, { ...brush, points: [x, y] });
+    useApp.setState({ reliefPreview: { ...draft.local } });
+  }
+  function finishRelief() {
+    const draft = reliefRef.current;
+    reliefRef.current = null;
+    if (!draft || draft.points.length === 0) return;
+    // A prévia fica até o servidor responder (o relevo novo chega antes da resposta: sem piscar).
+    void paintReliefStroke({ ...useApp.getState().reliefBrush, points: draft.points }).then(() => useApp.setState({ reliefPreview: null }));
+  }
+
   // Correnteza (água animada, mestre): risca a linha no sentido em que a água corre; ou, na borracha de correnteza,
   // apaga as linhas tocadas. As linhas aparecem só com a ferramenta Terreno aberta.
   const currentRef = useRef<{ points: number[] } | null>(null);
@@ -788,6 +819,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       fogAt(cell);
       return;
     }
+    if (tool === "relief" && gm) {
+      reliefRef.current = { points: [], local: { ...useApp.getState().relief } };
+      reliefAt(p);
+      return;
+    }
     if (tool === "terrain" && gm) {
       const mode = useApp.getState().terrainBrush.terrain;
       if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
@@ -843,6 +879,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       else terrainAt(p);
       return;
     }
+    if (tool === "relief") {
+      reliefAt(p);
+      return;
+    }
     if (tool === "paint" || (tool === "props" && useApp.getState().propMode !== "place")) {
       const cell = cellAt(p, grid);
       setPaintHover((h) => (h && sameCell(h, cell) ? h : cell));
@@ -894,6 +934,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     finishFog();
     finishPaint();
     finishTerrain();
+    finishRelief();
     finishPropBrush();
     finishRestyle();
     calibStart.current = null;
@@ -1079,7 +1120,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -1271,6 +1312,13 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                 strokeWidth={1.5 / view.scale}
                 dash={[6 / view.scale, 4 / view.scale]}
               />
+            </Layer>
+          )}
+
+          {/* Pincel de relevo: o contorno do pincel sob o mouse (posto direto no Konva, em reliefAt). */}
+          {gm && tool === "relief" && (
+            <Layer listening={false}>
+              <Circle ref={reliefCursor} visible={false} radius={reliefBrush.radius * grid.cellPx} stroke="#b9a27a" strokeWidth={1.5 / view.scale} dash={[6 / view.scale, 4 / view.scale]} />
             </Layer>
           )}
 

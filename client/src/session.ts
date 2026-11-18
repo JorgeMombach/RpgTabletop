@@ -188,6 +188,18 @@ socket.on("handout", (handout) => useApp.setState({ handout }));
 // Diário da campanha (Passo 14): fora do estado, só quando muda e ao entrar.
 socket.on("journal", receiveJournal);
 
+// Relevo: como o terreno, o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram.
+socket.on("relief", ({ reset, chunks }) => {
+  useApp.setState((s) => {
+    const relief = reset ? {} : { ...s.relief };
+    for (const [key, chunk] of Object.entries(chunks)) {
+      if (chunk) relief[key] = chunk;
+      else delete relief[key];
+    }
+    return reset ? { relief, reliefEpoch: s.reliefEpoch + 1 } : { relief };
+  });
+});
+
 // Terreno pintado: o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram (`null` = apagado).
 socket.on("terrain", ({ reset, chunks }) => {
   useApp.setState((s) => {

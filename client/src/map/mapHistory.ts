@@ -1,4 +1,4 @@
-import { cutUnder, paintTerrain, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent } from "@rpg/shared";
+import { cutUnder, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -10,7 +10,7 @@ import { useApp } from "../store";
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props" | "terrain";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props" | "terrain" | "relief";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
@@ -33,7 +33,8 @@ type Step =
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
   | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
   | { scope: "terrain"; kind: "currentAdded"; id: string }
-  | { scope: "terrain"; kind: "currentsRemoved"; currents: WaterCurrent[] };
+  | { scope: "terrain"; kind: "currentsRemoved"; currents: WaterCurrent[] }
+  | { scope: "relief"; kind: "painted"; before: Record<string, string | null>; after: Record<string, string | null> };
 
 /** Casas tiradas de uma pintura (para pôr de volta no desfazer). */
 interface PaintGroup {
@@ -46,7 +47,7 @@ const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0, terrain: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0, terrain: 0, relief: 0 }));
 
 function sync() {
   useMapUndo.setState({
@@ -57,6 +58,7 @@ function sync() {
     paint: steps.filter((s) => s.scope === "paint").length,
     props: steps.filter((s) => s.scope === "props").length,
     terrain: steps.filter((s) => s.scope === "terrain").length,
+    relief: steps.filter((s) => s.scope === "relief").length,
   });
 }
 
@@ -324,6 +326,33 @@ export async function erasePaint(cells: number[]): Promise<ActionResult> {
 // ---------- Terreno ----------
 
 /**
+ * Uma passada do pincel de relevo (do apertar ao soltar), em envios de até 2000 pontos, como o terreno: o passo do
+ * desfazer guarda os pedaços de antes e de depois, e desfazer só repõe o que ainda está como a passada deixou.
+ */
+export async function paintReliefStroke(stroke: ReliefStroke): Promise<ActionResult> {
+  const base = useApp.getState().relief;
+  const applied: ReliefChunks = { ...base };
+  const touched = new Set<string>();
+  let result: ActionResult = { ok: true };
+  for (let start = 0; start < stroke.points.length; start += LIMITS.terrainStrokePoints * 2) {
+    const slice: ReliefStroke = { ...stroke, points: stroke.points.slice(start, start + LIMITS.terrainStrokePoints * 2) };
+    result = await act("relief:paint", slice);
+    if (!result.ok) break;
+    for (const key of paintRelief(applied, slice)) touched.add(key);
+  }
+  if (touched.size > 0) {
+    const before: Record<string, string | null> = {};
+    const after: Record<string, string | null> = {};
+    for (const key of touched) {
+      before[key] = base[key] ?? null;
+      after[key] = applied[key] ?? null;
+    }
+    push({ scope: "relief", kind: "painted", before, after });
+  }
+  return result;
+}
+
+/**
  * Uma passada do pincel de terreno (do apertar ao soltar), em envios de até 2000 pontos. O passo do desfazer guarda
  * os pedaços de antes e os de depois (a mesma conta do servidor, só com os envios aceitos): desfazer só repõe o
  * pedaço que ainda está como a passada deixou (depois de *Limpar campo* ou de *Apagar todo o terreno*, não volta nada).
@@ -415,6 +444,11 @@ export async function undo(scope?: UndoScope) {
     if (has(battle?.currents, step.id)) await act("current:remove", { ids: [step.id] });
   } else if (step.scope === "terrain" && step.kind === "currentsRemoved") {
     for (const current of step.currents) await act("current:add", { points: current.points });
+  } else if (step.scope === "relief") {
+    const now = useApp.getState().relief;
+    const chunks: Record<string, string | null> = {};
+    for (const [key, after] of Object.entries(step.after)) if ((now[key] ?? null) === after) chunks[key] = step.before[key] ?? null;
+    if (Object.keys(chunks).length > 0) await act("relief:restore", { chunks });
   } else if (step.scope === "terrain") {
     const now = useApp.getState().terrain;
     const chunks: Record<string, TerrainChunk | null> = {};

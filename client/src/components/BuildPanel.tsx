@@ -1,11 +1,12 @@
 import { Button, SimpleGrid, Text, Tooltip } from "@mantine/core";
-import { IconBox, IconBrush, IconFlame, IconTexture, IconTree, IconWall } from "@tabler/icons-react";
+import { IconBox, IconBrush, IconFlame, IconMountain, IconTexture, IconTree, IconWall } from "@tabler/icons-react";
 import { useT, type MessageKey } from "../i18n";
 import { TOOL_KEYS } from "../map/BattleMap";
 import { MapChestOptions } from "../map/MapChests";
 import { PropOptions } from "../map/MapProps";
 import { MapTorchOptions } from "../map/MapTorches";
 import { PaintOptions } from "../map/PaintOptions";
+import { ReliefOptions } from "../map/terrain/ReliefOptions";
 import { TerrainOptions } from "../map/terrain/TerrainOptions";
 import { WallOptions } from "../map/WallShape";
 import { setTool, useApp, type MapTool } from "../store";
@@ -13,7 +14,7 @@ import { TipTitle } from "./TipTitle";
 import { Panel } from "./Panel";
 
 /** Ferramentas de construção do mapa (passo 4 do cenário): saíram da barra do mapa e ficam neste painel. */
-export const BUILD_TOOLS = ["walls", "torches", "chests", "props", "paint", "terrain"] as const satisfies readonly MapTool[];
+export const BUILD_TOOLS = ["walls", "torches", "chests", "props", "paint", "terrain", "relief"] as const satisfies readonly MapTool[];
 export type BuildTool = (typeof BUILD_TOOLS)[number];
 export const isBuildTool = (tool: MapTool): tool is BuildTool => (BUILD_TOOLS as readonly MapTool[]).includes(tool);
 
@@ -24,6 +25,7 @@ const TOOLS: Record<BuildTool, { text: MessageKey; tip: MessageKey; icon: typeof
   props: { text: "props.tool", tip: "props.toolTip", icon: IconTree },
   paint: { text: "paint.tool", tip: "paint.toolTip", icon: IconBrush },
   terrain: { text: "terrain.tool", tip: "terrain.toolTip", icon: IconTexture },
+  relief: { text: "relief.tool", tip: "relief.toolTip", icon: IconMountain },
 };
 
 /**
@@ -71,6 +73,7 @@ export function BuildPanel() {
       {tool === "props" && <PropOptions selected={selectedProp} />}
       {tool === "paint" && <PaintOptions />}
       {tool === "terrain" && <TerrainOptions />}
+      {tool === "relief" && <ReliefOptions />}
       {!isBuildTool(tool) && (
         <Text size="xs" c="dimmed">
           {t("build.hint")}
