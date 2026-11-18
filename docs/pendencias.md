@@ -60,6 +60,16 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Reserva: com WebGL desligado no navegador, véu e brilho de antes.
 - [ ] Desempenho: mapa com muitas paredes e tochas (arrastar e zoom fluidos); editar parede em cena enorme dá um tranco de ~0,4 s (aceito).
 
+### Paredes emendadas, janela e telhado
+- [ ] Emenda: quadrado de 4 paredes, T, cruzamento, traço sobreposto, diagonais e paredes no grid hex viram uma peça só; desenhos ou espessuras diferentes só se encostam.
+- [ ] Mapas antigos (arquivo de sessão de antes) abrem emendados.
+- [ ] Ferramenta *Paredes*: os 5 ícones dos modos (parede, porta, janela, trocar desenho, borracha) cabem com a coluna na largura mínima; dica com o nome em cada um.
+- [ ] Janela: traçar por cima de parede abre o vão; *Desfazer* volta a parede inteira; escolher e fechar a persiana; clique com *Mover* abre e fecha; apagar.
+- [ ] Porta traçada por cima de parede: com a porta aberta, o jogador vê pelo vão (antes não via).
+- [ ] Jogador com névoa: janela aberta deixa ver, fechada corta; *Cômodo* da névoa para na janela.
+- [ ] Telhado invisível: de dia, cômodo fechado sem sombra e um pouco mais escuro (bem de leve); cercado com cerca continua com sombra; sol pela janela aberta no chão (comprido no entardecer, azulado no luar); jogador só ganha o telhado depois de ver todas as paredes do cômodo.
+- [ ] Desempenho: pan e zoom com muitas paredes; trocar de degrau de zoom numa cena enorme dá um tranco de ~0,3 s a mais que antes (montagem das imagens das paredes).
+
 ## Pendências pequenas
 
 ### Luz ([docs/design/luz.md](design/luz.md))
