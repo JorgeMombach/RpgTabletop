@@ -116,3 +116,34 @@ export function sunShadows(blockers: Segment[], direction: LightPoint, length: n
     return [segment.x1, segment.y1, segment.x2, segment.y2, segment.x2 + dx, segment.y2 + dy, segment.x1 + dx, segment.y1 + dy];
   });
 }
+
+/** Ponto dentro do polígono (pares x, y), pela regra par-ímpar. */
+function insidePolygon(point: LightPoint, polygon: number[]): boolean {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 2; index < polygon.length; previous = index, index += 2) {
+    const [x1, y1, x2, y2] = [polygon[index], polygon[index + 1], polygon[previous], polygon[previous + 1]];
+    if (y1 > point.y !== y2 > point.y && point.x < ((x2 - x1) * (point.y - y1)) / (y2 - y1) + x1) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Sol pela janela (docs/design/paredes.md): retângulo de cada janela aberta para dentro do cômodo, na direção da
+ * sombra, do comprimento `length` (a sombra de uma parede). Só quando o sol está do lado de fora: dentro do cômodo de
+ * um lado e fora de qualquer cômodo do outro.
+ */
+export function windowSunPatches(windows: Segment[], rooms: number[][], direction: LightPoint, length: number): number[][] {
+  const probe = 0.05;
+  const inRoom = (point: LightPoint) => rooms.some((room) => insidePolygon(point, room));
+  const patches: number[][] = [];
+  for (const window of windows) {
+    const middle = { x: (window.x1 + window.x2) / 2, y: (window.y1 + window.y2) / 2 };
+    const inward = { x: middle.x + direction.x * probe, y: middle.y + direction.y * probe };
+    const outward = { x: middle.x - direction.x * probe, y: middle.y - direction.y * probe };
+    if (!inRoom(inward) || inRoom(outward)) continue;
+    const dx = direction.x * length;
+    const dy = direction.y * length;
+    patches.push([window.x1, window.y1, window.x2, window.y2, window.x2 + dx, window.y2 + dy, window.x1 + dx, window.y1 + dy]);
+  }
+  return patches;
+}

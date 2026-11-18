@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { blockersNear, lightBlockers, lightPolygon, stopAtWall, sunShadows, type Segment, type Wall } from "@rpg/shared";
+import { blockersNear, lightBlockers, lightPolygon, stopAtWall, sunShadows, windowSunPatches, type Segment, type Wall } from "@rpg/shared";
 
 // Luz (docs/design/luz.md): o que segura a luz, o recorte de cada tocha pelas paredes e a sombra do sol.
 const wall = (from: [number, number], to: [number, number], extra: Partial<Wall> = {}): Wall => ({ id: `${from}-${to}`, from: { col: from[0], row: from[1] }, to: { col: to[0], row: to[1] }, ...extra });
@@ -72,5 +72,25 @@ describe("luz: geometria", () => {
     const far: Segment = { x1: 20, y1: 0, x2: 21, y2: 0, seeThrough: false };
     const long: Segment = { x1: -30, y1: 3, x2: 30, y2: 3, seeThrough: false };
     assert.deepEqual(blockersNear({ x: 0, y: 0 }, 4, [near, far, long]), [near, long]);
+  });
+
+  it("sol pela janela: entra no cômodo do lado oposto ao sol, com o comprimento pedido", () => {
+    const room = [0, 0, 4, 0, 4, 4, 0, 4];
+    const window: Segment = { x1: 1, y1: 0, x2: 2, y2: 0, seeThrough: false };
+    // Sombras caem para o sul (sol ao norte): a luz entra pela janela de cima.
+    assert.deepEqual(windowSunPatches([window], [room], { x: 0, y: 1 }, 1.5), [[1, 0, 2, 0, 2, 1.5, 1, 1.5]]);
+  });
+
+  it("sol do lado de dentro: nenhum retângulo", () => {
+    const room = [0, 0, 4, 0, 4, 4, 0, 4];
+    assert.deepEqual(windowSunPatches([{ x1: 1, y1: 0, x2: 2, y2: 0, seeThrough: false }], [room], { x: 0, y: -1 }, 1.5), []);
+  });
+
+  it("janela sem cômodo de um lado só (sem cômodo, ou entre dois cômodos): nenhum retângulo", () => {
+    const window: Segment = { x1: 1, y1: 0, x2: 2, y2: 0, seeThrough: false };
+    assert.deepEqual(windowSunPatches([window], [], { x: 0, y: 1 }, 1.5), []);
+    const north = [0, -4, 4, -4, 4, 0, 0, 0];
+    const south = [0, 0, 4, 0, 4, 4, 0, 4];
+    assert.deepEqual(windowSunPatches([window], [north, south], { x: 0, y: 1 }, 1.5), []);
   });
 });

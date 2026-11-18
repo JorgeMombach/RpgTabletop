@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, lightBlockers, paintTerrain, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch } from "@rpg/shared";
+import { brushCells, lightBlockers, paintTerrain, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -974,19 +974,28 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const lightIds = groundLit ? new Set([...state.battle.torches.map((torch) => torch.id), ...tokens.filter((c) => c.torch).map((c) => c.id)]) : null;
   const dragging = useTokenDrag((drag) => (drag.id !== null && lightIds?.has(drag.id) ? drag : NO_DRAG));
   const blockers = useMemo(() => lightBlockers(state.battle.walls), [state.battle.walls]);
+  // Telhado invisível (docs/design/paredes.md): cômodos com as paredes que este jogador tem (o mestre, todas).
+  const roofs = useMemo(
+    () => ({
+      rooms: wallRooms(state.battle.walls),
+      windows: state.battle.walls.filter((w) => w.window && !w.window.closed).map((w) => ({ x1: w.from.col, y1: w.from.row, x2: w.to.col, y2: w.to.row, seeThrough: false })),
+    }),
+    [state.battle.walls],
+  );
   const lighting = useMemo<LightingInput | null>(
     () =>
       groundLit
         ? {
             blockers,
             sources: lightSources(tokens, state.battle.torches, grid, dragging, blockers),
+            ...roofs,
             scene: state.battle.weather.light,
             // O mestre nunca fica no breu (dá para trabalhar); quem vê como jogador (outra visão) vê o breu deles.
             floor: gm ? GM_FLOOR : null,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `torchKey` resume o que importa dos tokens
-    [groundLit, blockers, state.battle.torches, torchKey, state.battle.weather.light, gm, dragging, grid],
+    [groundLit, blockers, roofs, state.battle.torches, torchKey, state.battle.weather.light, gm, dragging, grid],
   );
   // Chuva, neve e afins escurecem com a luz da cena (sem sombra de parede); o que brilha sozinho não muda.
   const sceneLight = SCENE_LIGHT[state.battle.weather.light];

@@ -22,6 +22,9 @@ export const SCENE_LIGHT: Record<LightId, SceneLight> = {
   moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], sunDirection: [0.45, 0.89], shadowCells: 60 / 48, torch: 1 },
 };
 
+/** Luz de dentro dos cômodos fechados (docs/design/paredes.md): a parte do sol que entra ("bem de leve"). */
+export const INDOOR_SUN = 0.45;
+
 /** Brilho mínimo do mestre (docs/design/luz.md): o ambiente do luar, para dar para trabalhar à noite. */
 export const GM_FLOOR: [number, number, number] = SCENE_LIGHT.moon.ambient;
 

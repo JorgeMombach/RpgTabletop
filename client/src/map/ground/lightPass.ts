@@ -1,7 +1,7 @@
-import { blockersNear, lightPolygon, stopAtWall, sunShadows, type LightId, type Segment } from "@rpg/shared";
+import { blockersNear, lightPolygon, stopAtWall, sunShadows, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
 import { bindTextures, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
-import { blendSceneLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
+import { blendSceneLight, INDOOR_SUN, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
 
 /**
@@ -27,6 +27,10 @@ export interface LightingInput {
   scene: LightId;
   /** Brilho mínimo (mestre); `null` = escuridão de verdade. */
   floor: [number, number, number] | null;
+  /** Cômodos fechados (`wallRooms`): o telhado invisível (docs/design/paredes.md). */
+  rooms: number[][];
+  /** Janelas abertas: o sol entra por elas no cômodo. */
+  windows: Segment[];
 }
 
 /** Origens deslocadas de cada tocha (a chama tem tamanho: a sombra sai macia). */
@@ -80,6 +84,11 @@ export class LightPass {
   private readonly framebuffer: WebGLFramebuffer | null;
   private lightTexture: WebGLTexture | null = null;
   private shadowTexture: WebGLTexture | null = null;
+  /** Máscara do telhado invisível: 1 dentro dos cômodos, 0 fora e onde o sol entra pela janela. */
+  private roofTexture: WebGLTexture | null = null;
+  private roofs: { rooms: { buffer: WebGLBuffer; count: number } | null; patches: { buffer: WebGLBuffer; count: number } | null } = { rooms: null, patches: null };
+  private roomsJson = "";
+  private roofVersion = 0;
   private size = { width: 0, height: 0 };
   private input: LightingInput | null = null;
   private torches: TorchMesh[] = [];
@@ -133,8 +142,25 @@ export class LightPass {
         changed = true;
       }
     }
+    const roomsJson = JSON.stringify([input.rooms, input.windows]);
+    if (roomsJson !== this.roomsJson) {
+      this.roomsJson = roomsJson;
+      this.roofVersion++;
+      this.rebuildRooms(input.rooms);
+      changed = true;
+    }
     if (this.rebuildTorches(input)) changed = true;
     return changed;
+  }
+
+  /** Cômodos em leque a partir do primeiro ponto: desenhados invertendo a máscara, o que fica dentro sai ímpar (preenchido). */
+  private rebuildRooms(rooms: number[][]) {
+    if (this.roofs.rooms) this.gl.deleteBuffer(this.roofs.rooms.buffer);
+    const vertices: number[] = [];
+    for (const room of rooms) {
+      for (let index = 2; index + 3 < room.length; index += 2) vertices.push(room[0], room[1], room[index], room[index + 1], room[index + 2], room[index + 3]);
+    }
+    this.roofs.rooms = vertices.length > 0 ? { buffer: vertexBuffer(this.gl, vertices), count: vertices.length / 2 } : null;
   }
 
   private releaseMesh(mesh: TorchMesh) {
@@ -201,12 +227,18 @@ export class LightPass {
   private ensureShadows(scene: SceneLight) {
     const input = this.input;
     if (!input) return;
-    const key = `${this.blockersVersion}|${scene.sunDirection.map((value) => value.toFixed(3)).join(",")}|${scene.shadowCells.toFixed(3)}`;
+    const key = `${this.blockersVersion}|${this.roofVersion}|${scene.sunDirection.map((value) => value.toFixed(3)).join(",")}|${scene.shadowCells.toFixed(3)}`;
     if (key === this.shadowsFor) return;
     this.shadowsFor = key;
     if (this.shadows) this.gl.deleteBuffer(this.shadows.buffer);
     this.shadows = null;
+    if (this.roofs.patches) this.gl.deleteBuffer(this.roofs.patches.buffer);
+    this.roofs.patches = null;
     if (scene.shadowCells <= 0.01) return;
+    // Sol pela janela: o retângulo de cada janela aberta, do comprimento da sombra de uma parede.
+    const patches = windowSunPatches(input.windows, input.rooms, { x: scene.sunDirection[0], y: scene.sunDirection[1] }, scene.shadowCells);
+    const patchVertices = patches.flatMap((quad) => [quad[0], quad[1], quad[2], quad[3], quad[4], quad[5], quad[0], quad[1], quad[4], quad[5], quad[6], quad[7]]);
+    if (patchVertices.length > 0) this.roofs.patches = { buffer: vertexBuffer(this.gl, patchVertices), count: patchVertices.length / 2 };
     const vertices: number[] = [];
     for (let sample = 0; sample < SUN_SAMPLES; sample++) {
       const spread = (sample - (SUN_SAMPLES - 1) / 2) * 0.06;
@@ -222,8 +254,8 @@ export class LightPass {
 
   private target(width: number, height: number) {
     const { gl } = this;
-    if (this.size.width === width && this.size.height === height && this.lightTexture && this.shadowTexture) return;
-    for (const texture of [this.lightTexture, this.shadowTexture]) if (texture) gl.deleteTexture(texture);
+    if (this.size.width === width && this.size.height === height && this.lightTexture && this.shadowTexture && this.roofTexture) return;
+    for (const texture of [this.lightTexture, this.shadowTexture, this.roofTexture]) if (texture) gl.deleteTexture(texture);
     const make = () => createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
     // Mapa de luz em meia precisão quando o aparelho deixa desenhar nela (sem anéis na queda da luz); senão, 8 bits.
     const precise = gl.getExtension("EXT_color_buffer_float") !== null;
@@ -231,6 +263,7 @@ export class LightPass {
       ? createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, null), gl.LINEAR, gl.CLAMP_TO_EDGE)
       : createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.LINEAR, gl.CLAMP_TO_EDGE);
     this.shadowTexture = make();
+    this.roofTexture = make();
     this.size = { width, height };
   }
 
@@ -276,14 +309,34 @@ export class LightPass {
       gl.drawArrays(gl.TRIANGLES, 0, this.shadows.count);
       gl.disable(gl.BLEND);
     }
-    // 2. Ambiente + sol fora da sombra.
+    // 1b. Telhado invisível: cômodos (invertendo: dentro fica 1) e o sol das janelas por cima (0).
+    this.drawInto(this.roofTexture, lightWidth, lightHeight);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this.shadow.program);
+    this.setView(this.shadow, view);
+    if (this.roofs.rooms) {
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE_MINUS_DST_COLOR, gl.ZERO);
+      gl.uniform1f(uniformOf(gl, this.shadow, "uWeight"), 1);
+      useVertices(gl, this.roofs.rooms.buffer);
+      gl.drawArrays(gl.TRIANGLES, 0, this.roofs.rooms.count);
+      gl.disable(gl.BLEND);
+    }
+    if (this.roofs.patches) {
+      gl.uniform1f(uniformOf(gl, this.shadow, "uWeight"), 0);
+      useVertices(gl, this.roofs.patches.buffer);
+      gl.drawArrays(gl.TRIANGLES, 0, this.roofs.patches.count);
+    }
+    // 2. Ambiente + sol fora da sombra (dentro dos cômodos, a luz de dentro).
     this.drawInto(this.lightTexture, lightWidth, lightHeight);
     gl.useProgram(this.ambient.program);
     useVertices(gl, this.triangle);
     gl.uniform2f(uniformOf(gl, this.ambient, "uCanvas"), lightWidth, lightHeight);
     gl.uniform3f(uniformOf(gl, this.ambient, "uAmbient"), ...scene.ambient);
     gl.uniform3f(uniformOf(gl, this.ambient, "uSun"), ...scene.sun);
-    if (this.shadowTexture) bindTextures(gl, this.ambient, [["uShadow", this.shadowTexture]]);
+    gl.uniform1f(uniformOf(gl, this.ambient, "uIndoor"), INDOOR_SUN);
+    if (this.shadowTexture && this.roofTexture) bindTextures(gl, this.ambient, [["uShadow", this.shadowTexture], ["uRoof", this.roofTexture]]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     // 3. Tochas: cada recorte, somado.
     gl.enable(gl.BLEND);
@@ -350,6 +403,7 @@ export class LightPass {
   dispose() {
     this.releaseTorches();
     if (this.shadows) this.gl.deleteBuffer(this.shadows.buffer);
-    for (const texture of [this.lightTexture, this.shadowTexture]) if (texture) this.gl.deleteTexture(texture);
+    for (const roof of [this.roofs.rooms, this.roofs.patches]) if (roof) this.gl.deleteBuffer(roof.buffer);
+    for (const texture of [this.lightTexture, this.shadowTexture, this.roofTexture]) if (texture) this.gl.deleteTexture(texture);
   }
 }

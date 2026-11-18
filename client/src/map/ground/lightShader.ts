@@ -41,16 +41,22 @@ out vec4 outColor;
 uniform float uWeight;
 void main() { outColor = vec4(uWeight, 0.0, 0.0, 1.0); }`;
 
-/** Ambiente + sol fora da sombra (guardado pela metade). */
+/**
+ * Ambiente + sol fora da sombra (guardado pela metade). Debaixo do telhado invisível (cômodo fechado,
+ * docs/design/paredes.md): sem sombra e só uma parte do sol (`uIndoor`).
+ */
 export const AMBIENT_FRAGMENT = `#version 300 es
 precision highp float;
 out vec4 outColor;
-uniform sampler2D uShadow;
+uniform sampler2D uShadow, uRoof;
 uniform vec2 uCanvas;
 uniform vec3 uAmbient, uSun;
+uniform float uIndoor;
 void main() {
-  float shadow = clamp(texture(uShadow, gl_FragCoord.xy / uCanvas).r, 0.0, 1.0);
-  outColor = vec4((uAmbient + uSun * (1.0 - shadow)) * 0.5, 1.0);
+  vec2 at = gl_FragCoord.xy / uCanvas;
+  float shadow = clamp(texture(uShadow, at).r, 0.0, 1.0);
+  float roof = clamp(texture(uRoof, at).r, 0.0, 1.0);
+  outColor = vec4((uAmbient + uSun * mix(1.0 - shadow, uIndoor, roof)) * 0.5, 1.0);
 }`;
 
 /** Luz de uma tocha dentro do recorte dela: cai devagar, tremula e tem a cor da chama (somada, pela metade). */
