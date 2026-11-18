@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { encodeLayer, paintRelief, reliefAt, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
+import { distanceField, encodeLayer, paintRelief, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
 import { act, join, nextState, useServer, type Client } from "./helpers";
 
 // Relevo (docs/design/relevo.md): níveis de −2 a +3 e tipo de borda (escarpa ou suave) na grade fina do terreno.
@@ -135,5 +135,83 @@ describe("relevo: servidor", () => {
     // limpar campo
     await act(g, "battle:clear", { keepTemplates: true });
     assert.equal(battle().relief, undefined);
+  });
+});
+
+describe("relevo: altura por pedaço", () => {
+  /** Altura (em níveis) no ponto `x, y` (casas), lida da janela do pedaço com interpolação linear. */
+  const heightAt = (chunks: ReliefChunks, key: string, x: number, y: number) => {
+    const [cx, cy] = key.split(",").map(Number);
+    const heights = reliefHeights(chunks, key);
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    const gx = (x - (cx * 8 - RELIEF_MARGIN)) * RELIEF_PER_CELL;
+    const gy = (y - (cy * 8 - RELIEF_MARGIN)) * RELIEF_PER_CELL;
+    const x0 = Math.floor(gx);
+    const y0 = Math.floor(gy);
+    const fx = gx - x0;
+    const fy = gy - y0;
+    const at = (i: number, j: number) => heights[j * side + i];
+    return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
+  };
+
+  it("tamanho da janela: o pedaço e a margem, 8 pontos por casa", () => {
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    assert.equal(reliefHeights({}, "0,0").length, side * side);
+  });
+
+  it("escarpa: no topo do patamar a altura é 1; a 1,15 casa da borda, do lado de baixo, é 0", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, false, [4, 4], 3));
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 4, 4) - 1) < 1e-6);
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 6.5, 4) - 1) < 1e-6, "dentro do patamar");
+    assert.ok(heightAt(chunks, "0,0", 7 + 1.3, 4) < 0.02, "pé da face");
+    const middle = heightAt(chunks, "0,0", 7.5, 4);
+    assert.ok(middle > 0.2 && middle < 0.8, `meio da face: ${middle}`);
+  });
+
+  it("suave: na borda pintada a altura fica no meio; 1,25 casa para fora, perto de 0; para dentro, perto de 1", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, true, [4, 4], 3));
+    const edge = heightAt(chunks, "0,0", 7, 4);
+    assert.ok(edge > 0.35 && edge < 0.65, `borda: ${edge}`);
+    assert.ok(heightAt(chunks, "0,0", 8.4, 4) < 0.1);
+    assert.ok(heightAt(chunks, "0,0", 5.6, 4) > 0.9);
+  });
+
+  it("suave: um monte de raio 1 casa não chega a 1 (topo arredondado)", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, true, [4, 4], 1));
+    const top = heightAt(chunks, "0,0", 4, 4);
+    assert.ok(top > 0.5 && top < 0.99, `topo: ${top}`);
+  });
+
+  it("distância exata (não por chanfro): de um ponto até (6, 8) e (8, 6) é 10, e até (0, 10) também", () => {
+    const side = 41;
+    const mask = new Uint8Array(side * side);
+    mask[20 * side + 20] = 1;
+    const distance = distanceField(mask, side, side);
+    for (const [dx, dy] of [[6, 8], [8, 6], [0, 10], [-6, -8], [10, 0]]) assert.ok(Math.abs(distance[(20 + dy) * side + 20 + dx] - 10) < 1e-6, `${dx},${dy}`);
+    assert.equal(distance[20 * side + 20], 0);
+  });
+
+  it("dois níveis: a face desce de 2 a 1, fica em 1 e depois desce de 1 a 0", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, false, [4, 4], 4));
+    paintRelief(chunks, stroke(2, false, [4, 4], 1.5));
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 4, 4) - 2) < 1e-6);
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 7, 4) - 1) < 1e-6, "patamar do meio");
+    assert.ok(heightAt(chunks, "0,0", 8 + 1.3, 4) < 0.02, "chão");
+  });
+
+  it("pedaço vizinho sem relevo próprio tem a face do vizinho na margem", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, false, [4, 4], 3.8));
+    assert.equal(chunks["1,0"], undefined);
+    const face = heightAt(chunks, "1,0", 8.2, 4);
+    assert.ok(face > 0.1 && face < 0.9, `face no vizinho: ${face}`);
+  });
+
+  it("pedaços afetados: o tocado e os vizinhos até a margem", () => {
+    assert.deepEqual(new Set(reliefAffected(["0,0"])), new Set(["-1,-1", "0,-1", "1,-1", "-1,0", "0,0", "1,0", "-1,1", "0,1", "1,1"]));
   });
 });
