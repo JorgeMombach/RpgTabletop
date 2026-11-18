@@ -1,6 +1,6 @@
 import { RELIEF_MARGIN, TERRAIN_CHUNK_CELLS } from "@rpg/shared";
-import { createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type Program } from "./glKit";
-import { BAKE_FIELDS_FRAGMENT, BAKE_SHADOW_FRAGMENT } from "./reliefShader";
+import { bindTextures, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
+import { BAKE_FIELDS_FRAGMENT, BAKE_SHADOW_FRAGMENT, RELIEF_DRAW_FRAGMENT, RELIEF_SHADOW_MASK_FRAGMENT } from "./reliefShader";
 import type { ReliefWindow } from "./reliefTypes";
 import type { SceneLight } from "./sceneLight";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
@@ -19,6 +19,8 @@ const TIERS = [32, 16, 8];
 const BAKE_PER_FRAME = 4;
 /** Altura de um nível na conta da sombra: um nível faz sombra de `shadowCells × LEVEL_SHADOW` casas. */
 const LEVEL_SHADOW = 1.6;
+/** Um nível tem 1,4 casa de altura (para a luz da face). */
+const LEVEL_HEIGHT = 1.4;
 /** Troca de sombra ao mudar a luz da cena (s), depois de todos os pedaços prontos. */
 const SHADOW_FADE = 0.5;
 
@@ -35,6 +37,9 @@ export interface ReliefSlotIndex {
 export class ReliefPass {
   private readonly fields: Program;
   private readonly shadow: Program;
+  /** Desenho de cada quadro: a camada do relevo e a sombra na máscara do passo da luz. */
+  private readonly draw: Program;
+  private readonly shadowMask: Program;
   private readonly triangle: WebGLBuffer;
   private readonly fieldsFramebuffer: WebGLFramebuffer | null;
   private readonly shadowFramebuffer: WebGLFramebuffer | null;
@@ -63,6 +68,8 @@ export class ReliefPass {
   ) {
     this.fields = linkProgram(gl, FULLSCREEN_VERTEX, BAKE_FIELDS_FRAGMENT, "aPos");
     this.shadow = linkProgram(gl, FULLSCREEN_VERTEX, BAKE_SHADOW_FRAGMENT, "aPos");
+    this.draw = linkProgram(gl, FULLSCREEN_VERTEX, RELIEF_DRAW_FRAGMENT, "aPos");
+    this.shadowMask = linkProgram(gl, FULLSCREEN_VERTEX, RELIEF_SHADOW_MASK_FRAGMENT, "aPos");
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
     const rgba = () => createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, ATLAS, ATLAS, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.LINEAR, gl.CLAMP_TO_EDGE);
     const single = () => createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, ATLAS, ATLAS, 0, gl.RED, gl.UNSIGNED_BYTE, null), gl.LINEAR, gl.CLAMP_TO_EDGE);
@@ -323,6 +330,68 @@ export class ReliefPass {
     gl.uniform2f(uniformOf(gl, this.shadow, "uSunDir"), this.sun.dir[0], this.sun.dir[1]);
     gl.uniform1f(uniformOf(gl, this.shadow, "uRise"), this.sun.rise);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /** Tem relevo guardado para desenhar. */
+  get drawable(): boolean {
+    return this.index !== null;
+  }
+
+  /** Uniformes do atlas (`RELIEF_SAMPLE`) e da tela, com as texturas a partir de `extra` (as do programa vêm antes). */
+  private bindSample(program: Program, view: GroundView, width: number, height: number, extra: [string, WebGLTexture][]) {
+    const { gl } = this;
+    const index = this.index;
+    if (!index) return;
+    gl.useProgram(program.program);
+    useVertices(gl, this.triangle);
+    bindTextures(gl, program, [...extra, ["uReliefIndex", index.texture], ["uReliefA", this.atlasA], ["uReliefB", this.atlasB], ["uReliefShadow", this.shadowCurrent], ["uReliefShadowPrevious", this.shadowPrevious]]);
+    gl.uniform4f(uniformOf(gl, program, "uReliefRect"), index.cx, index.cy, index.cols, index.rows);
+    gl.uniform1f(uniformOf(gl, program, "uReliefPerRow"), this.slotsPerRow);
+    gl.uniform1f(uniformOf(gl, program, "uReliefSlot"), this.slotSize);
+    gl.uniform1f(uniformOf(gl, program, "uReliefAtlas"), ATLAS);
+    gl.uniform1f(uniformOf(gl, program, "uReliefShadowMix"), this.shadowMix);
+    gl.uniform1f(uniformOf(gl, program, "uReliefSunless"), this.sun ? 0 : 1);
+    gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
+    gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
+    gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
+    gl.uniform2f(uniformOf(gl, program, "uCanvas"), width, height);
+  }
+
+  /**
+   * A camada do relevo (no alvo já ligado, do tamanho `width × height`): rocha e luz das encostas. A luz vem da cena:
+   * `scene` dá a direção e a altura do sol (a mesma conta da sombra); sem sol, uma luz fraca de cima à esquerda.
+   */
+  drawLayer(view: GroundView, width: number, height: number, scene: SceneLight, stone: WebGLTexture, stoneLight: WebGLTexture) {
+    const { gl } = this;
+    if (!this.index) return;
+    this.bindSample(this.draw, view, width, height, [
+      ["uStone", stone],
+      ["uStoneLight", stoneLight],
+    ]);
+    const sunny = scene.shadowCells > 0.01;
+    const [dx, dy] = sunny ? scene.sunDirection : [0.6, 0.8];
+    // Altura do sol como na sombra: sobe 1/(sombra × 1,6) níveis por casa, um nível tem 1,4 casa.
+    const lift = sunny ? (1 / (scene.shadowCells * LEVEL_SHADOW)) * LEVEL_HEIGHT : 1;
+    const length = Math.hypot(dx, dy, lift) || 1;
+    gl.uniform3f(uniformOf(gl, this.draw, "uLightDir"), -dx / length, -dy / length, lift / length);
+    gl.uniform1f(uniformOf(gl, this.draw, "uLightAmount"), sunny ? 1 : 0.4);
+    const luminance = (rgb: [number, number, number]) => rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11;
+    // Sem sol, uma luz fraca de mentira (metade do ambiente) só para a encosta se ler.
+    gl.uniform1f(uniformOf(gl, this.draw, "uAmbientLum"), luminance(scene.ambient));
+    gl.uniform1f(uniformOf(gl, this.draw, "uSunLum"), sunny ? luminance(scene.sun) : luminance(scene.ambient) * 0.5);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /** A sombra do relevo na máscara de sombra do passo da luz (alvo já ligado), pela maior. */
+  drawShadowMask(view: GroundView, width: number, height: number) {
+    const { gl } = this;
+    if (!this.index || !this.sun) return;
+    this.bindSample(this.shadowMask, view, width, height, []);
+    gl.enable(gl.BLEND);
+    gl.blendEquation(gl.MAX);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.blendEquation(gl.FUNC_ADD);
+    gl.disable(gl.BLEND);
   }
 
   dispose() {

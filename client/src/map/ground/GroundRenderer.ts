@@ -5,7 +5,7 @@ import { BLIT_FRAGMENT, DETAIL_KINDS, FULLSCREEN_VERTEX, TERRAIN_FRAGMENT } from
 import { LightPass, type LightingInput } from "./lightPass";
 import { ReliefPass } from "./reliefPass";
 import type { ReliefWindow } from "./reliefTypes";
-import type { SceneLight } from "./sceneLight";
+import { SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
 
@@ -43,9 +43,13 @@ export class GroundRenderer {
   readonly flameImage = document.createElement("canvas");
   private readonly terrainFramebuffer: WebGLFramebuffer | null;
   private terrainImage: WebGLTexture | null = null;
+  /** Camada do relevo (rocha e luz das encostas), guardada como o terreno e posta por cima da água. */
+  private reliefImage: WebGLTexture | null = null;
   private weights: { bounds: ChunkRect; first: WebGLTexture; second: WebGLTexture } | null = null;
   private watercolors: WebGLTexture[] = [];
   private details: WebGLTexture[] = [];
+  /** Luz da cena do último desenho do relevo (a face muda com ela). */
+  private reliefLightKey = "";
   /** O que estava valendo no último desenho do terreno (redesenha só se mudar). */
   private drawn = "";
   private terrainDirty = true;
@@ -186,7 +190,7 @@ export class GroundRenderer {
 
   /** Tem algo para desenhar (terreno ou água). */
   get empty(): boolean {
-    return !this.weights && this.water.empty;
+    return !this.weights && this.water.empty && !this.relief.drawable;
   }
 
   render(view: GroundView, time: number, options: { waterDraft: boolean }) {
@@ -200,7 +204,9 @@ export class GroundRenderer {
       canvas.width = width;
       canvas.height = height;
       if (this.terrainImage) gl.deleteTexture(this.terrainImage);
+      if (this.reliefImage) gl.deleteTexture(this.reliefImage);
       this.terrainImage = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
+      this.reliefImage = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
       this.terrainDirty = true;
     }
     const state = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, options.waterDraft].join("|");
@@ -208,8 +214,16 @@ export class GroundRenderer {
     gl.disable(gl.BLEND);
     // Relevo: alguns pedaços por quadro; o que mudou faz o terreno redesenhar.
     if (this.relief.bake()) this.terrainDirty = true;
+    // A luz da face do relevo segue a luz da cena: mudando, a camada do relevo é refeita.
+    const reliefLight = this.light.active ? this.light.scene : SCENE_LIGHT.day;
+    const lightKey = [reliefLight.sunDirection.join(), reliefLight.shadowCells.toFixed(3), this.relief.shadowMix.toFixed(2)].join("|");
+    if (lightKey !== this.reliefLightKey) {
+      this.reliefLightKey = lightKey;
+      this.terrainDirty = true;
+    }
     if (this.terrainDirty) {
       this.drawTerrain(view, width, height, options.waterDraft);
+      this.drawRelief(view, width, height, reliefLight);
       this.drawn = state;
       this.terrainDirty = false;
     }
@@ -228,11 +242,19 @@ export class GroundRenderer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     this.water.render(view, time);
+    // Relevo por cima da água: a face do penhasco cobre a água (docs/design/relevo.md).
+    if (this.relief.drawable && this.reliefImage) {
+      gl.useProgram(this.blit.program);
+      useVertices(gl, this.triangle);
+      gl.uniform2f(uniformOf(gl, this.blit, "uCanvas"), width, height);
+      bindTextures(gl, this.blit, [["uImage", this.reliefImage]]);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
     gl.disable(gl.BLEND);
     this.copyTo(this.groundImage);
     if (!this.light.active) return;
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
-    this.light.renderLight(view, time, width, height);
+    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight));
     this.copyTo(this.lightImage);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
@@ -273,6 +295,20 @@ export class GroundRenderer {
     return this.light.hasTorches || this.light.settling;
   }
 
+  private drawRelief(view: GroundView, width: number, height: number, scene: SceneLight) {
+    const { gl } = this;
+    if (!this.reliefImage || !this.terrainFramebuffer) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.terrainFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.reliefImage, 0);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const stone = this.watercolors[TERRAINS.indexOf("stone")];
+    const stoneLight = this.watercolors[TERRAINS.indexOf("stoneLight")];
+    if (!stone || !stoneLight) return;
+    this.relief.drawLayer(view, width, height, scene, stone, stoneLight);
+  }
+
   private drawTerrain(view: GroundView, width: number, height: number, waterDraft: boolean) {
     const { gl } = this;
     if (!this.terrainImage || !this.terrainFramebuffer) return;
@@ -310,6 +346,7 @@ export class GroundRenderer {
     this.releaseWeights();
     for (const texture of [...this.watercolors, ...this.details]) gl.deleteTexture(texture);
     if (this.terrainImage) gl.deleteTexture(this.terrainImage);
+    if (this.reliefImage) gl.deleteTexture(this.reliefImage);
     gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 }

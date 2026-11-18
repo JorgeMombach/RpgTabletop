@@ -279,7 +279,7 @@ export class LightPass {
   }
 
   /** Mapa de luz no canvas (já ligado e do tamanho certo). `time` em segundos. */
-  renderLight(view: GroundView, time: number, width: number, height: number) {
+  renderLight(view: GroundView, time: number, width: number, height: number, extraShadow?: (width: number, height: number) => void) {
     const { gl } = this;
     const input = this.input;
     if (!input) return;
@@ -306,6 +306,8 @@ export class LightPass {
       gl.drawArrays(gl.TRIANGLES, 0, this.shadows.count);
       gl.disable(gl.BLEND);
     }
+    // Sombra do relevo (docs/design/relevo.md), na mesma máscara.
+    extraShadow?.(lightWidth, lightHeight);
     // 1b. Telhado invisível: cômodos (1) e o sol das janelas por cima (0).
     this.drawInto(this.roofTexture, lightWidth, lightHeight);
     gl.clearColor(0, 0, 0, 1);
@@ -379,6 +381,11 @@ export class LightPass {
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     gl.disable(gl.BLEND);
+  }
+
+  /** Luz da cena agora (no meio de uma troca, a misturada). */
+  get scene(): SceneLight {
+    return this.current;
   }
 
   get active(): boolean {
