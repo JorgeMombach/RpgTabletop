@@ -70,7 +70,25 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Telhado invisível: de dia, cômodo fechado sem sombra e um pouco mais escuro (bem de leve); cercado com cerca continua com sombra; sol pela janela aberta no chão (comprido no entardecer, azulado no luar); jogador só ganha o telhado depois de ver todas as paredes do cômodo.
 - [ ] Desempenho: pan e zoom com muitas paredes; trocar de degrau de zoom numa cena enorme dá um tranco de ~0,3 s a mais que antes (montagem das imagens das paredes).
 
+### Relevo (etapa 1)
+- [ ] Ferramenta *Relevo* (N): níveis −2..+3, *Escarpa* e *Suave*, tamanho, *Desfazer*, *Aplainar tudo*; cabe na coluna na largura mínima.
+- [ ] Penhasco de escarpa: rocha em camadas, borda clara, contorno fino de perto e de longe; patamar dentro de patamar; baixada (−1, −2).
+- [ ] Encosta suave: morro arredondado, sem anéis nem raios; colina com um lado em escarpa e o outro suave, sem risco no meio.
+- [ ] Luz: dia, entardecer (sombra comprida), luar e noite; trocar a luz troca a sombra devagar; dentro de cômodo fechado, sem sombra.
+- [ ] Relevo atravessando vários pedaços (8 × 8 casas): a face e a sombra emendam sem costura.
+- [ ] Sobre a imagem do mapa (sem terreno pintado): a face aparece, o topo continua a imagem. Face sobre a água animada (rio no fundo do cânion).
+- [ ] Pintar relevo num mapa grande e arrastar logo depois: sem engasgo; o relevo aparece uma fração de segundo depois (cálculo no Worker).
+- [ ] Muitos pedaços com relevo (mais de 64): fica menos nítido de perto, sem sumir.
+- [ ] Celular/tablet (jogador pelo IP da rede): o relevo aparece, com menos detalhe.
+- [ ] Jogador vê o relevo (sob a névoa como o resto do chão); troca de cena e arquivo de sessão.
+- [ ] Sem WebGL: chão plano, sem erro.
+
 ## Pendências pequenas
+
+### Relevo ([docs/design/relevo.md](design/relevo.md))
+- [ ] Sombra do relevo só alcança 8 casas (a margem da janela): no entardecer, a de um patamar de 2+ níveis termina numa linha quase reta (`reliefShader.ts`).
+- [ ] Altura de um pedaço leva 7 a ~35 ms (no Worker); o alvo era 5 ms (`relief.ts`).
+- [ ] Calibrar o comprimento da sombra (um nível = 1,6 × a sombra de uma parede) e a força da luz das encostas à noite.
 
 ### Paredes emendadas ([docs/design/paredes.md](design/paredes.md))
 - [ ] Mapa com mais de ~700 cadeias (muitos cruzamentos de desenhos diferentes) pode refazer as imagens a todo quadro (`wallChainArt.ts`: o teto é de pixels, mas o que está na tela pode passar dele).
