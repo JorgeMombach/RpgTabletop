@@ -566,8 +566,15 @@ export interface Wall {
   /** Espessura do desenho, em casas (0,1 a 1; L5). Ausente = a de sempre (`WALL_THICKNESS`). Bloqueia pela linha do meio. */
   thickness?: number;
   door?: Door;
+  /** Janela (docs/design/paredes.md); uma parede é porta, janela ou nenhuma das duas. */
+  window?: WallWindow;
   /** Desenho desta parede; sem ele, o da cena. */
   style?: WallStyle;
+}
+
+/** Janela: deixa ver e passar a luz; com a persiana fechada (`closed`), não. Não impede passar (registro, ADR-06). */
+export interface WallWindow {
+  closed?: boolean;
 }
 
 /** Desenhos de tocha fixa que o mestre escolhe: fincada, de ferro ou braseiro. */

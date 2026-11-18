@@ -178,6 +178,8 @@ export function cellsWithCenterIn(a: CellPoint, b: CellPoint, kind: GridKind): G
 export function blocks(w: Wall): boolean {
   // Cerca, grade, arame, sebe e muro baixo deixam ver, mesmo com o portão fechado.
   if (seeThrough(w.style)) return false;
+  // Janela: só com a persiana fechada (docs/design/paredes.md).
+  if (w.window) return !!w.window.closed;
   return !w.door || !w.door.open;
 }
 
@@ -243,7 +245,8 @@ export function canPass(a: GridPos, b: GridPos, walls: Wall[], kind?: GridKind):
  * (andando para os lados, não na diagonal). `null` se passar de `max` casas: a área não fecha.
  */
 export function roomCells(start: GridPos, walls: Wall[], max: number, kind?: GridKind): GridPos[] | null {
-  const solid = walls.filter(blocks);
+  // Janela, aberta ou fechada, segura o cômodo como a parede (o mesmo cômodo do telhado invisível).
+  const solid = walls.filter((w) => blocks(w) || !!w.window);
   const key = (c: GridPos) => `${c.col},${c.row}`;
   const seen = new Set([key(start)]);
   const out: GridPos[] = [start];

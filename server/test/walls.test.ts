@@ -170,3 +170,56 @@ describe("paredes e portas", () => {
     assert.ok(!game().battle.walls.some((w) => w.door));
   });
 });
+
+describe("porta e janela por cima de parede (docs/design/paredes.md)", () => {
+  const at = (id: string) => game().battle.walls.find((w) => w.id === id);
+  const spans = () => game().battle.walls.filter((w) => !w.door && !w.window).map((w) => [w.from.col, w.to.col].sort((a, b) => a - b).join("-")).sort();
+
+  it("porta traçada no meio de uma parede corta a parede, com o mesmo desenho e espessura", async () => {
+    const { g } = await setup();
+    await act(g, "wall:clear", {});
+    idsOf(await act(g, "wall:add", { from: { col: 0, row: 0 }, to: { col: 6, row: 0 }, thickness: 0.4, style: "wood" }));
+    const [porta, ...pedacos] = idsOf(await act(g, "wall:add", { from: { col: 2, row: 0 }, to: { col: 3, row: 0 }, door: true }));
+    assert.deepEqual(at(porta)?.door, { open: false });
+    assert.equal(pedacos.length, 2);
+    assert.deepEqual(spans(), ["0-2", "3-6"]);
+    for (const id of pedacos) {
+      assert.equal(at(id)?.thickness, 0.4);
+      assert.equal(at(id)?.style, "wood");
+    }
+  });
+
+  it("janela por cima de duas paredes alinhadas corta as duas; pedaço menor que 0,1 casa some", async () => {
+    const { g } = await setup();
+    await act(g, "wall:clear", {});
+    idsOf(await act(g, "wall:add", { from: { col: 0, row: 2 }, to: { col: 3, row: 2 } }));
+    idsOf(await act(g, "wall:add", { from: { col: 3, row: 2 }, to: { col: 6, row: 2 } }));
+    const [janela] = idsOf(await act(g, "wall:add", { from: { col: 2, row: 2.03 }, to: { col: 5.95, row: 2 }, window: true }));
+    assert.deepEqual(at(janela)?.window, {});
+    assert.deepEqual(spans(), ["0-2"]);
+  });
+
+  it("porta fora de parede fica solta; porta existente nunca é cortada", async () => {
+    const { g } = await setup();
+    await act(g, "wall:clear", {});
+    const [porta] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 4 }, to: { col: 2, row: 4 }, door: true }));
+    const [, ...nada] = idsOf(await act(g, "wall:add", { from: { col: 1, row: 4 }, to: { col: 3, row: 4 }, window: true }));
+    assert.equal(nada.length, 0);
+    assert.ok(at(porta));
+    assert.equal(game().battle.walls.length, 2);
+  });
+
+  it("persiana: só o mestre abre e fecha; porta e janela juntas são recusadas", async () => {
+    const { g, ana } = await setup();
+    await act(g, "wall:clear", {});
+    const [janela] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 6 }, to: { col: 1, row: 6 }, window: true }));
+    idsOf(await act(g, "window:set", { id: janela, closed: true }));
+    assert.deepEqual(at(janela)?.window, { closed: true });
+    idsOf(await act(g, "window:set", { id: janela, closed: false }));
+    assert.deepEqual(at(janela)?.window, {});
+    assert.equal((await act(ana, "window:set", { id: janela, closed: true })).ok, false);
+    const [parede] = idsOf(await act(g, "wall:add", { from: { col: 0, row: 8 }, to: { col: 1, row: 8 } }));
+    assert.match(errorOf(await act(g, "window:set", { id: parede, closed: true })), /não uma janela/);
+    assert.match(errorOf(await act(g, "wall:add", { from: { col: 0, row: 9 }, to: { col: 1, row: 9 }, door: true, window: true })), /porta ou janela/);
+  });
+});

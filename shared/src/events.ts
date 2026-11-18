@@ -382,7 +382,10 @@ export interface ActionPayloads {
   "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
   /** Mestre: avança a hora do jogo (descanso, viagem). */
   "clock:advance": { minutes: number };
-  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number; style?: WallStyle };
+  /** Mestre: traça parede, porta ou janela; porta e janela por cima de paredes alinhadas cortam essas paredes (docs/design/paredes.md). */
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean; window?: boolean; thickness?: number; style?: WallStyle };
+  /** Mestre: fecha ou abre a persiana da janela. */
+  "window:set": { id: string; closed: boolean };
   /** Mestre: troca o desenho das paredes (e portas); `null` volta ao desenho da cena. */
   "wall:style": { ids: string[]; style: WallStyle | null };
   "wall:remove": { id: string };

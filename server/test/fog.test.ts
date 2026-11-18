@@ -89,6 +89,10 @@ describe("névoa de guerra", () => {
     assert.equal(roomCells({ col: 1, row: 1 }, [...room, door(false)], 100)?.length, 9);
     assert.equal(roomCells({ col: 1, row: 1 }, [...room, door(true)], 100), null, "porta aberta: vaza para fora");
     assert.equal(roomCells({ col: 1, row: 1 }, room, 100), null, "sem porta: vão aberto");
+    // Janela (docs/design/paredes.md): aberta ou fechada, segura o cômodo como a parede.
+    const janela = (closed: boolean): Wall => ({ ...wall("janela", [3, 1], [3, 2]), window: closed ? { closed } : {} });
+    assert.equal(roomCells({ col: 1, row: 1 }, [...room, janela(false)], 100)?.length, 9, "janela aberta segura o cômodo");
+    assert.equal(roomCells({ col: 1, row: 1 }, [...room, janela(true)], 100)?.length, 9);
 
     // Triângulo: as casas abaixo da diagonal (col + row ≤ 2).
     const tri = [wall("a", [0, 0], [4, 0]), wall("b", [0, 0], [0, 4]), wall("d", [0, 4], [4, 0])];
@@ -117,6 +121,14 @@ describe("névoa de guerra", () => {
     assert.equal(isRevealed(ctx.server.store.game.battle.fog, 23, 21), false, "fora da sala continua coberto");
 
     assert.equal((await act(g, "fog:room", { cell: { col: 0, row: 0 }, reveal: true })).ok, false, "área aberta");
+  });
+
+  it("janela aberta deixa ver; com a persiana fechada, não", () => {
+    const janela = (closed: boolean): Wall => ({ id: "j", from: { col: -5, row: 2 }, to: { col: 5, row: 2 }, window: closed ? { closed } : {} });
+    const viewer = [{ pos: { col: 0, row: 0 }, span: 1, feet: 30 }];
+    const beyond = (cells: { col: number; row: number }[]) => cells.some((cell) => cell.col === 0 && cell.row === 4);
+    assert.equal(beyond(sightCells(viewer, [janela(false)], 5)), true);
+    assert.equal(beyond(sightCells(viewer, [janela(true)], 5)), false);
   });
 
   it("visão: raio em volta do token e parede bloqueia", () => {
@@ -270,6 +282,41 @@ describe("névoa de guerra", () => {
     await act(duda, "door:set", { id: door.id, open: false });
     await act(g, "combatant:setHidden", { id: orc, hidden: true });
     assert.equal(ctx.server.store.game.battle.fog.lastSeen.length, 0);
+  });
+
+  it("janela: fechar a persiana tira da vista quem estava do outro lado; abrir devolve", async () => {
+    const g = await client();
+    await join(g, "Mestre");
+    await act(g, "battle:clear", { keepTemplates: false });
+    const eli = await client("10.50.0.7");
+    await join(eli, "Eli");
+    // Sala nas colunas 6–11, linhas 0–5; a parede da esquerda inteira, com a janela traçada por cima (linha 2).
+    const w = (a: [number, number], b: [number, number], window?: boolean) => act(g, "wall:add", { from: { col: a[0], row: a[1] }, to: { col: b[0], row: b[1] }, window });
+    await w([6, 0], [12, 0]);
+    await w([6, 6], [12, 6]);
+    await w([12, 0], [12, 6]);
+    await w([6, 0], [6, 6]);
+    await w([6, 2], [6, 3], true);
+    const janela = ctx.server.store.game.battle.walls.find((x) => x.window)!;
+    const [orc] = idsOf(await act(g, "mob:add", { name: "Orc", hpMax: 15, dexMod: 0 }));
+    await act(g, "token:move", { id: orc, pos: { col: 9, row: 2 } });
+    await act(g, "torch:set", { id: orc, lit: true });
+    const [rui] = idsOf(await act(eli, "ally:create", { name: "Rui", hpMax: 20, dexMod: 0, ac: 14 }));
+    await act(eli, "token:move", { id: rui, pos: { col: 2, row: 2 } });
+    await act(g, "weather:set", { light: "night" });
+    await act(g, "fog:set", { enabled: true });
+    let ready = stateWhere(eli, (st) => st.battle.fog.vision && st.battle.mobs.length === 1);
+    await act(g, "fog:vision", { enabled: true });
+    await ready;
+
+    ready = stateWhere(eli, (st) => st.battle.mobs.length === 0);
+    await act(g, "window:set", { id: janela.id, closed: true });
+    const s = await ready;
+    assert.ok(!inRows(s.battle.sight, 9, 2), "persiana fechada: não vê mais a sala");
+
+    ready = stateWhere(eli, (st) => st.battle.mobs.length === 1);
+    await act(g, "window:set", { id: janela.id, closed: false });
+    await ready;
   });
 
   it("cobrir tudo esconde os inimigos de uma vez, sem deixar \"?\"; alcance por cena limita a visão", async () => {

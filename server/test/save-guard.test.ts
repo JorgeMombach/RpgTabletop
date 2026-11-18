@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { encodeLayer } from "@rpg/shared";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock, JournalEntry, WaterCurrent } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, WallWindow, RollTable, TableLoot, GameClock, JournalEntry, WaterCurrent } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -153,7 +153,8 @@ function fullGame(playerId: string, gmId: string): GameState {
     ],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
-      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door>, style: "iron" } satisfies Required<Wall>,
+      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door>, style: "iron" } satisfies Omit<Required<Wall>, "window">,
+      { id: "w3", from: { col: 4, row: 1 }, to: { col: 4, row: 2 }, thickness: 0.3, window: { closed: true } satisfies Required<WallWindow>, style: "brick" } satisfies Omit<Required<Wall>, "door">,
     ],
     props: [{ id: "pr1", kind: "tree", col: 6.25, row: 3.5, size: 1.4, rotation: 30, seed: 1234, above: true, blocks: false } satisfies Required<MapProp>],
     currents: [{ id: "c1", points: [1, 2.5, 3.25, 4] } satisfies Required<WaterCurrent>],

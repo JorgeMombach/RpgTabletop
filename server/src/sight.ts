@@ -18,7 +18,7 @@ function keyOf(store: Store): string {
     game.allies.map((a) => (a.pos ? [a.pos.col, a.pos.row, a.size ?? "", a.darkvision ? 1 : 0] : 0)),
     lightsOf(store).map((c) => [c.pos!.col, c.pos!.row, c.size ?? ""]),
     battle.torches.map((t) => [t.col, t.row]),
-    battle.walls.map((w) => [w.from.col, w.from.row, w.to.col, w.to.row, w.door ? (w.door.open ? 1 : 2) : 0, w.style ?? ""]),
+    battle.walls.map((w) => [w.from.col, w.from.row, w.to.col, w.to.row, w.door ? (w.door.open ? 1 : 2) : 0, w.window ? (w.window.closed ? 2 : 1) : 0, w.style ?? ""]),
     battle.props.filter((p) => p.blocks).map((p) => [p.kind, p.col, p.row, p.size]),
   ]);
 }

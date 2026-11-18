@@ -1,4 +1,4 @@
-import { paintTerrain, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent } from "@rpg/shared";
+import { cutUnder, paintTerrain, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -102,9 +102,15 @@ function diff<T extends { id: string }>(before: T[], after: T[]) {
 
 // ---------- Paredes ----------
 
-export async function addWall(from: GridPos, to: GridPos, door: boolean, thickness: number, style?: WallStyle): Promise<ActionResult> {
-  const res = await act("wall:add", { from, to, door, thickness, ...(style && { style }) });
-  if (res.ok && res.ids?.[0]) push({ scope: "walls", kind: "added", id: res.ids[0] });
+/** `opening`: porta ou janela; por cima de paredes alinhadas, corta essas paredes (desfazer volta tudo num passo). */
+export async function addWall(from: GridPos, to: GridPos, opening: "door" | "window" | null, thickness: number, style?: WallStyle): Promise<ActionResult> {
+  // As paredes que o servidor vai cortar (a mesma conta dele), para o desfazer pôr de volta.
+  const walls = useApp.getState().state?.battle.walls ?? [];
+  const { cut } = opening ? cutUnder({ from, to }, walls) : { cut: [] };
+  const res = await act("wall:add", { from, to, door: opening === "door", window: opening === "window", thickness, ...(style && { style }) });
+  if (!res.ok || !res.ids?.[0]) return res;
+  if (cut.length > 0) push({ scope: "walls", kind: "erased", removed: cut.map(copyWall), added: res.ids });
+  else push({ scope: "walls", kind: "added", id: res.ids[0] });
   return res;
 }
 
@@ -114,7 +120,7 @@ export async function removeWall(w: Wall): Promise<ActionResult> {
   return res;
 }
 
-const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to }, door: w.door && { ...w.door } });
+const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to }, door: w.door && { ...w.door }, window: w.window && { ...w.window } });
 
 /**
  * Uma passada da borracha (do apertar ao soltar) é um passo só: compara as paredes de antes e de depois.
@@ -127,14 +133,15 @@ export function recordWallErase(before: Wall[], after: Wall[]) {
 
 /** Põe de volta uma parede apagada (com o estado da porta). */
 async function restoreWall(wall: Wall) {
-  const { from, to, door, thickness, style } = wall;
-  const res = await act("wall:add", { from, to, door: !!door, thickness, ...(style && { style }) });
+  const { from, to, door, window, thickness, style } = wall;
+  const res = await act("wall:add", { from, to, door: !!door, window: !!window, thickness, ...(style && { style }) });
   const id = res.ok ? res.ids?.[0] : undefined;
   if (!id) return;
   renamed("walls", wall.id, id);
   if (door && (door.open || door.locked || door.secret)) {
     await act("door:set", { id, open: door.open, locked: !!door.locked, secret: !!door.secret });
   }
+  if (window?.closed) await act("window:set", { id, closed: true });
 }
 
 // ---------- Desenhos ----------

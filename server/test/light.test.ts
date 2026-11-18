@@ -49,6 +49,13 @@ describe("luz: geometria", () => {
     assert.deepEqual(sunShadows([fence], { x: 0, y: 1 }, 3), [[0, 0, 2, 0, 2, 1, 0, 1]]);
   });
 
+  it("janela: aberta fica de fora do que segura a luz; fechada é sólida", () => {
+    const blockers = lightBlockers([wall([0, 0], [2, 0], { window: {} }), wall([2, 0], [4, 0], { window: { closed: true } })]);
+    assert.equal(blockers.length, 1);
+    assert.equal(blockers[0].x1, 2);
+    assert.equal(blockers[0].seeThrough, false);
+  });
+
   it("tocha encostada na parede: a luz sai do lado da base, um tico antes da parede", () => {
     const wallAbove: Segment = { x1: 0, y1: 1, x2: 5, y2: 1, seeThrough: false };
     // Base logo abaixo da parede; a chama (desenho) fica acima dela.

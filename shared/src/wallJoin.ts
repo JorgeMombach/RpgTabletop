@@ -85,7 +85,7 @@ function splitWalls(walls: Wall[], sceneStyle: WallStyle): Edge[] {
       if (along > -EPSILON && along < 1 + EPSILON && across > -EPSILON && across < 1 + EPSILON) cuts.push(Math.min(1, Math.max(0, along)));
     });
     cuts.sort((first, second) => first - second);
-    const kind = wall.door ? "door" : "wall";
+    const kind = wall.door ? "door" : wall.window ? "window" : "wall";
     for (let index = 0; index < cuts.length - 1; index++) {
       if (cuts[index + 1] - cuts[index] < EPSILON) continue;
       const a = snap({ x: px + rx * cuts[index], y: py + ry * cuts[index] });

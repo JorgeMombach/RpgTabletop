@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, WALL_STYLES, WALL_THICKNESS, type Door, type GridPos, type Wall, type WallStyle } from "@rpg/shared";
+import { cutUnder, LIMITS, WALL_STYLES, WALL_THICKNESS, type Door, type GridPos, type Wall, type WallStyle, type WallWindow } from "@rpg/shared";
 import { eraseWall, pathOf } from "../erase";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
@@ -45,6 +45,12 @@ export function parseWall(raw: unknown): Omit<Wall, "id"> {
     if (d.locked === true) out.door.locked = true;
     if (d.secret === true) out.door.secret = true;
   }
+  if (w.window !== undefined) {
+    if (out.door) fail("Escolha porta ou janela, não as duas.");
+    const raw = w.window as Partial<WallWindow>;
+    if (typeof raw !== "object" || raw === null || (raw.closed !== undefined && typeof raw.closed !== "boolean")) fail("Janela inválida.");
+    out.window = raw.closed ? { closed: true } : {};
+  }
   if (w.style !== undefined) out.style = styleOf(w.style);
   return out;
 }
@@ -57,11 +63,16 @@ export const wallHandlers: HandlerMap = {
   "wall:add": (store, player, payload) => {
     requireGm(player);
     const { battle } = store.game;
+    if (payload?.door === true && payload.window === true) fail("Escolha porta ou janela, não as duas.");
     const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to, thickness: payload?.thickness, style: payload?.style }) };
     if (payload.door === true) wall.door = { open: false };
-    if (battle.walls.length >= LIMITS.walls) fail("Limite de {n} paredes e portas no mapa.", { n: LIMITS.walls });
-    battle.walls.push(wall);
-    return [wall.id];
+    if (payload.window === true) wall.window = {};
+    // Porta e janela por cima de paredes alinhadas cortam essas paredes (docs/design/paredes.md).
+    const { cut, pieces } = wall.door || wall.window ? cutUnder(wall, battle.walls) : { cut: [], pieces: [] };
+    const placed = pieces.map((piece): Wall => ({ id: randomUUID(), ...piece }));
+    if (battle.walls.length - cut.length + placed.length + 1 > LIMITS.walls) fail("Limite de {n} paredes e portas no mapa.", { n: LIMITS.walls });
+    battle.walls = [...battle.walls.filter((w) => !cut.includes(w)), ...placed, wall];
+    return [wall.id, ...placed.map((piece) => piece.id)];
   },
 
   "wall:remove": (store, player, payload) => {
@@ -116,6 +127,14 @@ export const wallHandlers: HandlerMap = {
   "wall:clear": (store, player) => {
     requireGm(player);
     store.game.battle.walls = [];
+  },
+
+  "window:set": (store, player, payload) => {
+    requireGm(player);
+    const target = findWall(store.game.battle.walls, payload?.id);
+    if (!target.window) fail("Isso é uma parede, não uma janela.");
+    if (typeof payload.closed !== "boolean") fail("Valor inválido.");
+    target.window = payload.closed ? { closed: true } : {};
   },
 
   "door:set": (store, player, payload) => {

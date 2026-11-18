@@ -438,7 +438,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const w = wallRef.current;
     wallRef.current = null;
     setWallDraft(null);
-    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door", useApp.getState().wallThick, wallDrawStyle ?? undefined);
+    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door" ? "door" : null, useApp.getState().wallThick, wallDrawStyle ?? undefined);
   }
 
   // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
