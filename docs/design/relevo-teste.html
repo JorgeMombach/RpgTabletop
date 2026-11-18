@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relevo: teste</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="tech"><b>Técnica</b><button data-v="0">A. Calculado</button><button data-v="1">B. Pintado</button><button data-v="2" class="on">C. Mistura</button></div>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="quality"><b>Qualidade</b><button data-v="1" class="on">Tela</button><button data-v="2">Alta (2×)</button></div>
+  <span id="ms" style="color:#a8987c"></span>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2">Perto</button></div>
+</header>
+<p>Novo: monte suave (centro-direita), colina com o lado oeste em escarpa e o leste suave (alto à direita) e dunas na areia (embaixo à esquerda). Patamares em três alturas, um rio no fundo do cânion, uma parede de rocha (penhasco fino, no alto) e uma parede de pedra lavrada (embaixo, à direita). Arraste para mover.</p>
+<canvas id="view" width="1024" height="640"></canvas>
+<script>
+const COLS = 32, ROWS = 20, RES = 16; // casas e texels de altura por casa
+const W = COLS * RES, H = ROWS * RES;
+
+// ---------- níveis (o que o pincel pintaria) ----------
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function vnoise(x, y) { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy); const a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+function fbm(x, y) { return vnoise(x, y) * 0.55 + vnoise(x * 2.1, y * 2.1) * 0.3 + vnoise(x * 4.3, y * 4.3) * 0.15; }
+const level = new Int8Array(W * H);
+// Tipo de borda de cada ponto (1 = suave: morro, monte, duna) e areia (só para o teste das dunas).
+const soft = new Uint8Array(W * H), sand = new Float32Array(W * H);
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+  const cx = x / RES, cy = y / RES, wob = (fbm(cx * 0.35, cy * 0.35) - 0.5) * 3;
+  let l = 0;
+  // mesa grande à esquerda (nível 1) com um topo mais alto (nível 2)
+  if (Math.hypot((cx - 8) / 1.25, cy - 7) + wob < 6.5) l = 1;
+  if (Math.hypot(cx - 7, cy - 6) + wob * 0.8 < 3.2) l = 2;
+  // colina à direita: lado oeste em escarpa, lado leste suave
+  if (Math.hypot((cx - 25) / 1.4, cy - 6) + wob < 5) { l = 1; if (cx > 25) soft[y * W + x] = 1; }
+  // monte suave (nível 1, com um topo 2 também suave) entre a colina e o muro
+  if (Math.hypot(cx - 22, cy - 12) + wob * 0.6 < 2.6) { l = 1; soft[y * W + x] = 1; }
+  if (Math.hypot(cx - 22, cy - 12) + wob * 0.4 < 1.0) { l = 2; soft[y * W + x] = 1; }
+  // dunas no canto de baixo à esquerda: cristas suaves de nível 1 em ondas, na areia
+  if (cx < 12 && cy > 14.2 && l === 0) {
+    sand[y * W + x] = Math.min(1, (12 - cx) / 1.5, (cy - 14.2) / 1.2);
+    // cristas estreitas em onda: o resto da duna é a rampa suave dos dois lados
+    const crest = Math.sin(cx * 0.8 + cy * 0.3 + (fbm(cx * 0.3, cy * 0.3) - 0.5) * 3);
+
+  }
+  // cânion com rio (nível -1), serpenteando de cima para baixo no meio
+  const riverX = 16 + Math.sin(cy * 0.35) * 2.5 + (fbm(cy * 0.3, 7) - 0.5) * 2;
+  if (Math.abs(cx - riverX) < 1.6 + (fbm(cy * 0.5, 3) - 0.5)) l = -1;
+  level[y * W + x] = l;
+}
+// Distância (texels) até a região com nível ≥ k (do tipo pedido), por chanfro em duas passadas.
+function distanceTo(k, wantSoft, inside = false) {
+  const d = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) d[i] = (inside ? level[i] < k : level[i] >= k && soft[i] === wantSoft) ? 0 : 1e9;
+  for (let i = 0; i < W * H; i++) d[i] = d[i] === 0 ? 0 : 1e12;
+  // Distância exata (Felzenszwalb): distância ao quadrado em linhas, depois em colunas.
+  const line = (get, set, n) => { const f = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1); for (let q = 0; q < n; q++) f[q] = get(q); let k = 0; v[0] = 0; z[0] = -Infinity; z[1] = Infinity; for (let q = 1; q < n; q++) { let s; do { const p = v[k]; s = (f[q] + q * q - (f[p] + p * p)) / (2 * q - 2 * p); } while (s <= z[k] && --k >= 0); k++; v[k] = q; z[k] = s; z[k + 1] = Infinity; } k = 0; for (let q = 0; q < n; q++) { while (z[k + 1] < q) k++; set(q, (q - v[k]) * (q - v[k]) + f[v[k]]); } };
+  for (let y = 0; y < H; y++) line((x) => d[y * W + x], (x, val) => (d[y * W + x] = val), W);
+  for (let x = 0; x < W; x++) line((y) => d[y * W + x], (y, val) => (d[y * W + x] = val), H);
+  for (let i = 0; i < W * H; i++) d[i] = Math.sqrt(d[i]);
+  return d;
+}
+// Altura: cada patamar desce para o vizinho baixo do lado de baixo da borda. Escarpa: face de FACE casas, rocha.
+// Suave: rampa de SOFT casas, arredondada, sem rocha (quem decide é o lado de cima).
+const FACE = 1.15 * RES, SOFT = 2.5 * RES;
+const height = new Float32Array(W * H), softness = new Float32Array(W * H * 2);
+for (let i = 0; i < W * H; i++) height[i] = level[i];
+const ease = (t) => t * t * (3 - 2 * t);
+for (const k of [0, 1, 2]) {
+  const cliff = distanceTo(k, 0), gentle = distanceTo(k, 1);
+  for (let i = 0; i < W * H; i++) {
+    if (level[i] >= k) continue;
+    const x = i % W, y = Math.floor(i / W), jag = (fbm(x / RES * 2.2, y / RES * 2.2) - 0.5) * RES * 0.35;
+    const tc = Math.max(0, cliff[i] + jag) / FACE;
+    if (tc < 1) height[i] = Math.max(height[i], k - Math.pow(tc, 0.85));
+  }
+  // Suave: rampa centrada na borda pintada (metade fora, metade dentro), com o topo levemente abaulado. Monte
+  // pequeno nunca fica plano em cima (topo arredondado); crista fina de duna vira lombada.
+  const inner = distanceTo(k, 1, true);
+  for (let i = 0; i < W * H; i++) {
+    const member = level[i] >= k && soft[i] === 1;
+    const signed = member ? inner[i] : -gentle[i];
+    const ts = 0.5 + signed / SOFT;
+    if (ts <= 0) continue;
+    const hs = k - 1 + ease(Math.min(1, ts));
+    if (member) { if (level[i] === k) { height[i] = hs; softness[i * 2] = 1; } }
+    else if (hs > height[i]) { height[i] = hs; softness[i * 2] = 1; }
+  }
+}
+for (let i = 0; i < W * H; i++) { if (soft[i]) softness[i * 2] = 1; softness[i * 2 + 1] = sand[i]; }
+
+// ---------- WebGL ----------
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; out vec2 vUv; void main() { vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0, 1); }`;
+const FS = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 outColor;
+uniform sampler2D uHeight, uGrass, uDirt, uStone, uStone2, uWater, uSoftSand;
+uniform vec2 uCells, uCanvas, uPan; uniform float uZoom, uTech, uTime, uPxPerCell;
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uElev;
+uniform vec4 uWalls[4]; uniform float uWallKind[4];
+uniform sampler2D uShadowMap; uniform vec2 uShadowSize;
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+// Voronoi: id da célula (bloco de rocha) e distância até a borda dela (racha).
+vec3 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec3(id, sqrt(d2) - sqrt(d1)); }
+// Paredes: distância ao trecho e posição ao longo dele.
+vec2 segment(vec2 p, vec4 s) { vec2 a = s.xy, b = s.zw, ab = b - a; float t = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, 1.0); return vec2(length(p - (a + ab * t)), t * length(ab)); }
+// Altura do mundo (em níveis) num ponto (em casas): patamares + relevo fino nas faces + paredes.
+float quickHeight(vec2 c) { return texture(uHeight, c / uCells).r; }
+// Altura com curva cúbica (B-spline, 4 leituras): a inclinação varia sem degraus entre os pontos guardados.
+float baseHeight(vec2 c) {
+  vec2 size = vec2(textureSize(uHeight, 0));
+  vec2 uv = c / uCells * size - 0.5;
+  vec2 i = floor(uv), f = uv - i;
+  vec2 f2 = f * f, f3 = f2 * f;
+  vec2 w0 = (-f3 + 3.0 * f2 - 3.0 * f + 1.0) / 6.0, w1 = (3.0 * f3 - 6.0 * f2 + 4.0) / 6.0;
+  vec2 w2 = (-3.0 * f3 + 3.0 * f2 + 3.0 * f + 1.0) / 6.0, w3 = f3 / 6.0;
+  vec2 g0 = w0 + w1, g1 = w2 + w3;
+  vec2 p0 = (i - 1.0 + w1 / g0 + 0.5) / size, p1 = (i + 1.0 + w3 / g1 + 0.5) / size;
+  float a = texture(uHeight, p0).r, b = texture(uHeight, vec2(p1.x, p0.y)).r;
+  float cc = texture(uHeight, vec2(p0.x, p1.y)).r, d = texture(uHeight, p1).r;
+  return g0.y * (g0.x * a + g1.x * b) + g1.y * (g0.x * cc + g1.x * d);
+}
+float heightAt(vec2 c, float detail, out float wallId, out float along, out float wallDist) {
+  // Curva cúbica só onde ela muda a luz (detalhe); a sombra usa a leitura simples.
+  float h = detail > 0.5 ? baseHeight(c) : quickHeight(c);
+  // Rugosidade e relevo fino só para a luz (a sombra não precisa deles, e o shader fica menor).
+  if (detail > 0.5) {
+    float slope = length(vec2(quickHeight(c + vec2(0.1, 0)) - quickHeight(c - vec2(0.1, 0)), quickHeight(c + vec2(0, 0.1)) - quickHeight(c - vec2(0, 0.1)))) * 5.0;
+    float rocky = clamp(slope, 0.0, 1.0) * (1.0 - texture(uSoftSand, c / uCells).r);
+    h += (fbm(c * 3.0) - 0.5) * 0.18 * rocky;
+    h += ((fbm(c * 9.0) - 0.5) * 0.06 + (noise(c * 27.0) - 0.5) * 0.022) * rocky + (noise(c * 15.0) - 0.5) * 0.006;
+  }
+  // dunas: ondas contínuas na areia, cristas mais agudas que os vales, com a direção variando de leve
+  float sandMask = texture(uSoftSand, c / uCells).g;
+  if (sandMask > 0.0) {
+    float wave = dot(c, vec2(0.79, 0.33)) * 0.55 + noise(c * 0.15) * 5.0;
+    h += pow(0.5 + 0.5 * sin(wave), 1.6) * 0.55 * sandMask;
+  }
+  wallId = -1.0; along = 0.0; wallDist = 9.0;
+  for (int i = 0; i < 4; i++) {
+    if (uWalls[i].x < 0.0) continue;
+    vec2 sd = segment(c, uWalls[i]);
+    float top;
+    if (uWallKind[i] < 0.5) {
+      // rocha: crista irregular (penhasco fino dos dois lados)
+      float w = 0.42 + (fbm(vec2(sd.y * 1.3, float(i))) - 0.5) * 0.3;
+      top = quickHeight(c) + 0.75 * pow(clamp(1.0 - sd.x / w, 0.0, 1.0), 0.6) * (0.8 + fbm(c * 2.5) * 0.4);
+    } else {
+      // pedra lavrada: muro reto, topo plano
+      top = quickHeight(c) + 0.7 * (1.0 - smoothstep(0.16, 0.2, sd.x));
+    }
+    if (top > h + 0.001) { h = top; wallId = float(i); along = sd.y; wallDist = sd.x; }
+  }
+  return h;
+}
+float heightOnly(vec2 c) { float a, b, d; return heightAt(c, 1.0, a, b, d); }
+float heightShadow(vec2 c) { float a, b, d; return heightAt(c, 0.0, a, b, d); }
+void main() {
+  vec2 px = vec2(vUv.x, 1.0 - vUv.y) * uCanvas;
+  vec2 c = (px - uPan) / uZoom / (uCanvas.x / uCells.x);
+  if (c.x < 0.0 || c.y < 0.0 || c.x > uCells.x || c.y > uCells.y) { outColor = vec4(0.09, 0.075, 0.06, 1); return; }
+  float wallId, along, wallDist;
+  float h = heightAt(c, 1.0, wallId, along, wallDist);
+  float e = 0.6 / uPxPerCell;
+  float hx = heightOnly(c + vec2(e, 0)) - heightOnly(c - vec2(e, 0));
+  float hy = heightOnly(c + vec2(0, e)) - heightOnly(c - vec2(0, e));
+  const float S = 1.4; // um nível tem 1,4 casa de altura (para a luz)
+  // encosta suave um pouco mais marcada pela luz (senão quase não se lê)
+  float lift = mix(1.0, 1.8, texture(uSoftSand, c / uCells).r);
+  vec3 n = normalize(vec3(-hx / (2.0 * e) * S * lift, -hy / (2.0 * e) * S * lift, 1.0));
+  float slope = length(vec2(hx, hy)) / (2.0 * e);
+  vec2 softSand = texture(uSoftSand, c / uCells).rg;
+  float rock = smoothstep(0.3, 0.8, slope) * (1.0 - softSand.x);
+  // Rocha em blocos: cada bloco inclina a face um pouco (luz diferente) e as bordas viram rachas.
+  vec3 cellA = voronoi(c * vec2(1.5, 1.5) + vec2(0.0, h * 1.2));
+  vec2 tilt = (hash2(cellA.xy) - 0.5) * 1.1;
+  n = normalize(n + vec3(tilt, 0.0) * rock);
+  float crack = rock * (1.0 - smoothstep(0.01, 0.05, cellA.z)) * smoothstep(0.45, 0.65, fbm(c * 1.7 + 9.0));
+  // Camadas: borda de cima de cada camada pega luz, a de baixo escurece.
+  float layer = fract(h * 2.5 + fbm(c * 0.8) * 0.35);
+  float ledge = rock * (1.0 - smoothstep(0.0, 0.1, layer));
+  float underLedge = rock * smoothstep(0.75, 1.0, layer);
+  // ---- material
+  vec2 tuv = c / 8.0;
+  vec3 grass = texture(uGrass, tuv).rgb, dirt = texture(uDirt, tuv * 1.3).rgb;
+  vec3 ground = mix(grass, dirt, smoothstep(0.7, 0.85, fbm(c * 0.25)) * 0.25);
+  // topo mais alto um pouco mais seco
+  ground = mix(ground, dirt * 1.05, clamp(floor(h + 0.02) - 0.0, 0.0, 2.0) * 0.18);
+  // folhas de grama: riscos curtos em direções variadas
+  float bladeAngle = noise(c * 1.3) * 3.14;
+  vec2 bladeUv = mat2(cos(bladeAngle), -sin(bladeAngle), sin(bladeAngle), cos(bladeAngle)) * c;
+  ground *= 0.9 + 0.2 * noise(bladeUv * vec2(42.0, 9.0)) + 0.06 * (noise(c * 22.0) - 0.5);
+  // areia (só no teste das dunas): cor de areia com ondinhas finas do vento
+  vec3 sandCol = vec3(0.86, 0.74, 0.52) * (0.93 + 0.1 * noise(c * 30.0)) * (0.97 + 0.04 * sin(c.x * 9.0 + c.y * 3.0 + noise(c * 2.0) * 4.0));
+  ground = mix(ground, sandCol, softSand.y);
+  float strata = fract(h * 4.0 + fbm(c * vec2(0.6, 1.4)) * 0.9);
+  vec3 rockCalc = mix(vec3(0.58, 0.5, 0.42), vec3(0.42, 0.36, 0.31), smoothstep(0.3, 0.7, strata)) * (0.85 + fbm(c * 6.0) * 0.3);
+  vec3 painted = texture(uStone, c * vec2(0.22, 0.22) + vec2(0.0, h * 0.35)).rgb;
+  painted = mix(painted, texture(uStone2, c * 0.31).rgb, 0.35) * vec3(1.02, 0.95, 0.86);
+  vec3 rockCol = uTech < 0.5 ? rockCalc : uTech < 1.5 ? painted : painted * (0.82 + 0.3 * smoothstep(0.2, 0.6, strata));
+  // grão fino da rocha: manchas, pontinhos claros (mica) e escuros
+  rockCol *= 0.84 + 0.32 * fbm(c * 13.0);
+  rockCol = mix(rockCol, rockCol * 1.35, step(0.95, hash(floor(c * 52.0))) * 0.7);
+  rockCol *= 1.0 - step(0.965, hash(floor(c * 37.0) + 3.0)) * 0.35;
+  vec3 base = mix(ground, rockCol, rock);
+  // água no fundo do cânion
+  float water = smoothstep(-0.55, -0.75, h);
+  vec3 waterCol = mix(vec3(0.16, 0.42, 0.45), texture(uWater, c / 6.0 + vec2(uTime * 0.02, 0)).rgb * vec3(0.7, 1.0, 1.0), 0.45);
+  // pedra lavrada: blocos no topo do muro
+  if (wallId >= 0.0 && uWallKind[int(wallId)] > 0.5 && wallDist < 0.16) {
+    float row = step(0.0, dot(c - uWalls[int(wallId)].xy, vec2(-(uWalls[int(wallId)].w - uWalls[int(wallId)].y), uWalls[int(wallId)].z - uWalls[int(wallId)].x)));
+    float x = along * 2.6 + row * 0.5 + hash(vec2(floor(along * 2.6 + row * 0.5), row)) * 0.3;
+    float joint = min(fract(x), 1.0 - fract(x));
+    vec3 block = (uTech < 0.5 ? vec3(0.66, 0.63, 0.57) : texture(uStone, c * 0.5).rgb * 1.15) * (0.85 + hash(vec2(floor(x), row)) * 0.25);
+    base = mix(vec3(0.24, 0.21, 0.18), block, smoothstep(0.02, 0.06, joint) * smoothstep(0.0, 0.03, 0.16 - wallDist) * smoothstep(0.0, 0.025, abs(wallDist - 0.0) + 0.01));
+    n = normalize(vec3(n.xy * 0.2, 1.0));
+    rock = 0.0;
+  }
+  // ---- luz: sol (direção da sombra uSunDir, altura uElev) e sombra projetada pelo relevo
+  vec3 L = normalize(vec3(-uSunDir, uElev));
+  float diffuse = max(dot(n, L), 0.0);
+  // sombra do relevo: calculada uma vez (quando a luz muda) numa textura do mapa
+  float shadow = texture(uShadowMap, c / uCells).r;
+  float flatLit = max(dot(vec3(0, 0, 1), L), 0.0);
+  vec3 light = uAmbient + uSun * diffuse / max(flatLit, 0.35) * 0.8 * shadow;
+  vec3 col = base * light;
+  // oclusão no pé do penhasco e aresta clara no topo, contorno de tinta (técnicas A e C)
+  float below = ceil(h - 0.001) - h;
+  float topEdge = rock * (1.0 - smoothstep(0.0, 0.08, below));
+  float foot = rock * smoothstep(0.65, 1.0, below);
+  col *= 1.0 - foot * 0.35;
+  col += topEdge * 0.22 * uSun;
+  col *= 1.0 - crack * 0.35;
+  col += ledge * 0.16 * (uSun + uAmbient * 0.3);
+  col *= 1.0 - underLedge * 0.18;
+  if (uTech != 1.0) {
+    // contorno de tinta na aresta de cima, com largura fixa em pixels (fino em qualquer zoom)
+    float rim = rock * (1.0 - smoothstep(0.0, max(fwidth(below) * 1.8, 0.0015), below));
+    col = mix(col, vec3(0.1, 0.075, 0.06), rim * 0.9);
+  }
+  col = mix(col, waterCol * (uAmbient + uSun * 0.7 * shadow), water);
+  // grade fraca
+  vec2 g = abs(fract(c) - 0.5);
+  col *= 1.0 - (1.0 - smoothstep(0.47, 0.5, max(g.x, g.y))) * 0.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.12;
+  outColor = vec4(col, 1.0);
+}`;
+const COMMON = FS.slice(0, FS.indexOf("void main() {"));
+const FS_SHADOW = COMMON + `
+void main() {
+  vec2 c = gl_FragCoord.xy / uShadowSize * uCells;
+  const float S = 1.4;
+  float shadow = 1.0;
+  vec2 stepDir = -uSunDir * 0.1;
+  float rise = uElev / length(uSunDir) * 0.1 / S;
+  float ray = heightShadow(c) + 0.02 + rise;
+  for (int i = 2; i < 48; i++) {
+    vec2 q = c + stepDir * float(i);
+    ray += rise;
+    float diff = heightShadow(q) - ray;
+    shadow = min(shadow, clamp(1.0 - (diff - 0.03) * 3.0, 0.0, 1.0));
+    if (ray > 3.5) break;
+  }
+  outColor = vec4(shadow, 0.0, 0.0, 1.0);
+}`;
+function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function link(fs) { const p = gl.createProgram(); gl.attachShader(p, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, "aPos"); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+const prog = link(FS), shadowProg = link(FS_SHADOW);
+gl.useProgram(prog);
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const U = (name) => gl.getUniformLocation(prog, name);
+const both = (fn) => { for (const p of [shadowProg, prog]) { gl.useProgram(p); fn((name) => gl.getUniformLocation(p, name)); } };
+function texture(unit, setup) { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); setup(); return t; }
+texture(7, () => { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, W, H, 0, gl.RG, gl.FLOAT, softness); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); });
+both((u) => gl.uniform1i(u("uSoftSand"), 7));
+gl.getExtension("OES_texture_float_linear");
+texture(0, () => { gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, W, H, 0, gl.RED, gl.FLOAT, height); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); });
+both((u) => gl.uniform1i(u("uHeight"), 0));
+// textura da sombra: 16 pontos por casa, refeita quando a luz muda
+const SHADOW_RES = 16, shadowSize = [COLS * SHADOW_RES, ROWS * SHADOW_RES];
+const shadowTex = texture(6, () => { gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, shadowSize[0], shadowSize[1], 0, gl.RED, gl.UNSIGNED_BYTE, null); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); });
+const shadowFbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, shadowTex, 0); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+gl.useProgram(prog); gl.uniform1i(U("uShadowMap"), 6);
+let shadowFor = "";
+const images = ["grass_01.webp", "dirt_02.webp", "stone_01.webp", "stone_02.webp", "water_01.webp"], names = ["uGrass", "uDirt", "uStone", "uStone2", "uWater"];
+let loaded = 0;
+images.forEach((src, i) => { const img = new Image(); img.onload = () => { texture(i + 1, () => { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); }); gl.uniform1i(U(names[i]), i + 1); if (++loaded === images.length) draw(); }; img.src = src; });
+
+const walls = [[3.5, 10.5, 9.5, 12.8, 0], [9.5, 12.8, 12.5, 11.2, 0], [21, 15, 28, 15, 1], [28, 15, 28, 18.5, 1]];
+both((u) => { gl.uniform4fv(u("uWalls"), walls.flatMap((w) => w.slice(0, 4))); gl.uniform1fv(u("uWallKind"), walls.map((w) => w[4])); gl.uniform2f(u("uCells"), COLS, ROWS); });
+gl.useProgram(prog);
+const LIGHTS = {
+  day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], elev: 1.1 },
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], elev: 0.35 },
+  moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], dir: [0.45, 0.89], elev: 0.7 },
+};
+const state = { tech: 2, light: "day", zoom: 1, pan: [0, 0], quality: 1 };
+function resize() {
+  const scale = (window.devicePixelRatio || 1) * state.quality;
+  canvas.style.width = "1024px"; canvas.style.height = "640px";
+  canvas.width = Math.round(1024 * scale); canvas.height = Math.round(640 * scale);
+}
+function draw() {
+  const L = LIGHTS[state.light], n = Math.hypot(...L.dir);
+  let bakeMs = 0;
+  if (shadowFor !== state.light) {
+    shadowFor = state.light;
+    const started = performance.now();
+    gl.useProgram(shadowProg);
+    const u = (name) => gl.getUniformLocation(shadowProg, name);
+    gl.uniform2f(u("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(u("uElev"), L.elev); gl.uniform2f(u("uShadowSize"), ...shadowSize);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo); gl.viewport(0, 0, ...shadowSize); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    bakeMs = performance.now() - started;
+    gl.useProgram(prog);
+  }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(U("uCells"), COLS, ROWS); gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), ...state.pan); gl.uniform1f(U("uZoom"), state.zoom);
+  gl.uniform1f(U("uTech"), state.tech); gl.uniform1f(U("uTime"), performance.now() / 1000);
+  gl.uniform3f(U("uAmbient"), ...L.ambient); gl.uniform3f(U("uSun"), ...L.sun); gl.uniform2f(U("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(U("uElev"), L.elev);
+  gl.uniform1f(U("uPxPerCell"), canvas.width / COLS * state.zoom);
+  const started = performance.now();
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${canvas.width}×${canvas.height} px · ${(performance.now() - started).toFixed(0)} ms por quadro` + (bakeMs ? ` · sombra refeita em ${bakeMs.toFixed(0)} ms` : "");
+}
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); draw(); })); }
+wire("tech", (v) => (state.tech = +v));
+wire("quality", (v) => { state.quality = +v; resize(); });
+wire("light", (v) => (state.light = v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "2" ? [-canvas.width * 0.15, -canvas.height * 0.25] : [0, 0]; });
+resize();
+setTimeout(draw, 800);
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; const k = canvas.width / 1024; state.pan = [(e.clientX - drag[0]) * k, (e.clientY - drag[1]) * k]; draw(); };
+</script>
+</body>
+</html>
