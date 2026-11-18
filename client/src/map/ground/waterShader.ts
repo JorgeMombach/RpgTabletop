@@ -4,8 +4,10 @@
  * de ruído, larguras e alturas do teste, em qualquer zoom). Diferença do teste: o barranco entra na água pintada (a
  * crista, altura 0, fica na borda pintada; fora dela nada é desenhado).
  *
- * Dois passos: o que não se mexe (barranco, fundo, luz, sombra, profundidade) é "assado" numa textura por grupo quando
- * a água muda (`BAKE_FRAGMENT`); a cada quadro só a superfície da água é calculada (`WATER_FRAGMENT`).
+ * Dois passos: o que não se mexe (barranco, fundo, luz, sombra, profundidade) é "assado" em texturas do tamanho da
+ * tela quando a visão ou a água mudam (`BAKE_FRAGMENT`, nítido em qualquer zoom: etapa 3 do relevo, teste aprovado em
+ * `docs/design/agua-hd-teste.html`); a cada quadro só a superfície da água é calculada (`WATER_FRAGMENT`), lendo o
+ * assado pela posição na tela.
  */
 
 /** Pedras por grupo de água que o shader considera (as demais ficam sem espuma). */
@@ -31,6 +33,9 @@ float noise(vec2 p) {
 }
 float fbm(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 5; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v; }
 float fbm4(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 4; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v / 0.9375; }
+vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+// Voronoi: id, distância ao ponto mais perto e folga até a borda (pedrinhas do barranco, bolhas da espuma).
+vec4 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1)); }
 
 // Posição (px do teste) -> coordenada da textura do grupo; px do campo -> px do teste.
 vec2 fieldUv(vec2 px) { return (px / UNIT - uRectCells.xy) / uRectCells.zw; }
@@ -97,10 +102,17 @@ float heightAt(vec2 px) {
   float w = s - bw;
   return -BANK - DEEP * (1.0 + texture(uSdfDeep, fieldUv(px)).g) * (1.0 - exp(-w / 28.0));
 }
+// Relevo fino do barranco e do fundo: pedrinhas achatadas e grão, só para a luz.
+float detailHeight(vec2 px) {
+  vec4 v = voronoi(px / 3.0 + fbm(px / 2.0) * 0.6);
+  float r = 0.18 + 0.14 * hash(v.xy + 1.0);
+  float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) * 0.6 : 0.0;
+  return pebble * 1.4 + (noise(px / 1.6) - 0.5) * 0.25 + (fbm(px / 6.0) - 0.5) * 0.6;
+}
 vec3 terrainNormal(vec2 px) {
-  float e = 1.5;
-  float hx = heightAt(px + vec2(e, 0)) - heightAt(px - vec2(e, 0));
-  float hy = heightAt(px + vec2(0, e)) - heightAt(px - vec2(0, e));
+  float e = 0.4;
+  float hx = heightAt(px + vec2(e, 0)) + detailHeight(px + vec2(e, 0)) - heightAt(px - vec2(e, 0)) - detailHeight(px - vec2(e, 0));
+  float hy = heightAt(px + vec2(0, e)) + detailHeight(px + vec2(0, e)) - heightAt(px - vec2(0, e)) - detailHeight(px - vec2(0, e));
   return normalize(vec3(-hx / (2.0 * e), -hy / (2.0 * e), 1.0));
 }
 // Sombra: anda na direção da luz; se o terreno sobe acima do raio, está na sombra (suave).
@@ -116,12 +128,20 @@ float shadowAt(vec2 px, float h0) {
   return lit;
 }
 // Terra do barranco e do fundo: tons quentes em camadas suaves seguindo a curva de nível; lama perto da água.
-vec3 earthMaterial(vec2 px, float h) {
-  vec3 dirt = texture(uDirt, px / 300.0).rgb;
+vec3 earthMaterial(vec2 px, float h, float s, float bw) {
+  vec3 dirt = textureLod(uDirt, px / 300.0, 0.0).rgb;
   float x = clamp(-h / BANK, 0.0, 1.2);
   float strata = 0.94 + 0.06 * sin(h * 0.9 + fbm(px / 18.0) * 9.0);
   vec3 earth = mix(vec3(0.42, 0.31, 0.2), vec3(0.6, 0.48, 0.32), fbm(px / 40.0)) * (0.7 + 0.6 * dot(dirt, vec3(0.33))) * strata;
-  return mix(earth, vec3(0.3, 0.26, 0.2), smoothstep(0.75, 1.0, x));
+  earth = mix(earth, vec3(0.3, 0.26, 0.2), smoothstep(0.75, 1.0, x));
+  // Grão, pedrinhas e a faixa de terra molhada logo acima da água.
+  earth *= 0.92 + 0.16 * noise(px / 1.3);
+  vec4 v = voronoi(px / 3.0 + fbm(px / 2.0) * 0.6);
+  float r = 0.18 + 0.14 * hash(v.xy + 1.0);
+  float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.75, v.z) : 0.0;
+  earth = mix(earth, earth * mix(vec3(1.25, 1.2, 1.12), vec3(0.85, 0.82, 0.8), hash(v.xy + 5.0)) * (0.9 + 0.2 * noise(px * 1.5)), pebble * 0.8);
+  float wet = smoothstep(bw - 7.0, bw, s) * step(s, bw + 1.0);
+  return mix(earth, earth * vec3(0.62, 0.6, 0.58), wet);
 }
 
 void main() {
@@ -135,7 +155,7 @@ void main() {
   float sh = shadowAt(px, w > 0.0 ? -BANK : h);
   float crest = 1.0 - smoothstep(0.0, 3.5, abs(s - 2.5));
   float foot = smoothstep(bw - 6.0, bw, s) * (1.0 - smoothstep(bw, bw + 6.0, s));
-  vec3 terrain = earthMaterial(px, h) * (0.38 + 0.62 * lambert(terrainNormal(px)) * mix(0.45, 1.0, sh)) * (1.0 - 0.18 * foot) * (1.0 - 0.25 * crest);
+  vec3 terrain = earthMaterial(px, h, s, bw) * (0.38 + 0.62 * lambert(terrainNormal(px)) * mix(0.45, 1.0, sh)) * (1.0 - 0.18 * foot) * (1.0 - 0.25 * crest);
   outTerrain = vec4(terrain, alpha);
   outData = vec4(clamp(max(-BANK - h, 0.0) / ${DEPTH_RANGE}, 0.0, 1.0), sh, clamp((w + ${WATER_OFFSET}) / ${WATER_RANGE}, 0.0, 1.0), 1.0);
 }`;
@@ -145,8 +165,10 @@ export const WATER_FRAGMENT = `#version 300 es
 precision highp float;
 in vec2 vCell;
 out vec4 outColor;
-uniform sampler2D uBakedTerrain, uBakedData;
+uniform sampler2D uBakedTerrain, uBakedData;   // do tamanho da tela
 uniform float uTime;
+uniform vec2 uCanvas;       // canvas (px do aparelho)
+uniform float uCellDevice;  // px do aparelho por casa
 uniform vec3 uRocks[${MAX_ROCKS}];
 uniform int uRockCount;
 ${COMMON}
@@ -162,9 +184,10 @@ float riverProfile(vec4 r) { return 1.0 - pow(clamp(abs(r.y) / 52.0, 0.0, 1.0), 
 void main() {
   vec2 px = vCell * UNIT;
   vec2 uv = fieldUv(px);
-  vec4 baked = texture(uBakedTerrain, uv);
+  vec2 screenUv = gl_FragCoord.xy / uCanvas;
+  vec4 baked = texture(uBakedTerrain, screenUv);
   if (baked.a <= 0.0) { outColor = vec4(0.0); return; }
-  vec4 data = texture(uBakedData, uv);
+  vec4 data = texture(uBakedData, screenUv);
   vec3 color = baked.rgb;
   float w = data.b * ${WATER_RANGE} - ${WATER_OFFSET};
   if (w > -1.0) {
@@ -179,22 +202,30 @@ void main() {
     vec2 drift = px + vec2(uTime * 3.0, uTime * 2.0);
     float still = fbm4(drift / 40.0) * 0.6 + fbm4(drift / 14.0 + 3.0) * 0.4;
     float w0 = mix(still, flowing, smoothstep(0.0, 1.0, strength));
+    // Ondinhas finas por cima (somem quando ficariam menores que um pixel).
+    float pxUnits = UNIT / uCellDevice;
+    float fine = (fbm4(px / 6.0 + vec2(uTime * 1.1, -uTime * 0.8)) - 0.5) * 0.12 + (noise(px / 2.6 - uTime * 1.6) - 0.5) * 0.04 * smoothstep(2.0, 0.6, pxUnits);
+    float wd = w0 + fine * smoothstep(3.0, 1.0, pxUnits);
     // Inclinação da superfície pelas derivadas da tela (uma conta só por pixel).
     vec2 stepX = dFdx(px), stepY = dFdy(px);
-    float slopeX = dFdx(w0) / max(length(stepX), 1e-3);
-    float slopeY = dFdy(w0) / max(length(stepY), 1e-3);
+    float slopeX = dFdx(wd) / max(length(stepX), 1e-3);
+    float slopeY = dFdy(wd) / max(length(stepY), 1e-3);
     vec3 wn = normalize(vec3(-slopeX * 12.0, -slopeY * 12.0, 1.0));
     // Fundo visto pela água (o terreno assado, torto pela ondulação): escurece e esverdeia com a profundidade.
     vec2 refr = wn.xy * 6.0 * smoothstep(0.0, 6.0, depth);
-    vec3 bottom = texture(uBakedTerrain, fieldUv(px + refr)).rgb;
+    vec3 bottom = texture(uBakedTerrain, screenUv + vec2(refr.x, -refr.y) / UNIT * uCellDevice / uCanvas).rgb;
     vec3 absorb = exp(-depth * vec3(0.13, 0.04, 0.035));
     vec3 col = bottom * absorb + vec3(0.04, 0.3, 0.36) * (1.0 - absorb);
-    float caustic = pow(1.0 - abs(fbm4(px / 14.0 + uTime * 0.25) - fbm4(px / 19.0 - uTime * 0.2)) * 2.0, 7.0);
-    col += caustic * exp(-depth / 8.0) * 0.18;
+    // Base nunca negativa (potência de número negativo dá conta inválida: manchas pretas).
+    float caustic = pow(max(0.0, 1.0 - abs(fbm4(px / 14.0 + uTime * 0.25) - fbm4(px / 19.0 - uTime * 0.2)) * 2.0), 10.0);
+    col += caustic * exp(-depth / 8.0) * 0.26;
     float fres = 0.08 + 0.25 * (1.0 - wn.z) * 8.0;
     col = mix(col, vec3(0.5, 0.85, 0.86), clamp(fres, 0.0, 0.35) * smoothstep(0.0, 5.0, depth));
     col *= 0.92 + (w0 - 0.5) * 0.3;
-    col += smoothstep(0.975, 0.995, dot(wn, normalize(LIGHT + vec3(0, 0, 1)))) * 0.3;
+    float spec = dot(wn, normalize(LIGHT + vec3(0, 0, 1)));
+    col += smoothstep(0.975, 0.995, spec) * 0.3;
+    // Brilhos miúdos do sol nas cristas das ondinhas.
+    col += smoothstep(0.996, 0.9995, spec) * 0.45 * smoothstep(0.0, 4.0, depth);
     col *= mix(0.55, 1.0, sh);
 
     // Espuma do rio: riscos que correm com a água, mais perto das margens.
@@ -224,7 +255,13 @@ void main() {
     foam = max(foam, (1.0 - strength) * gate * smoothstep(0.9, 1.0, ripple) * smoothstep(2.0, 8.0, w) * (1.0 - smoothstep(10.0, 55.0, w)) * 0.5);
     // Beira: espuma fina onde a água encosta.
     foam = max(foam, (1.0 - smoothstep(0.0, 3.5, w)) * smoothstep(0.45, 0.62, fbm4(px / 7.0 + uTime * 0.2)) * 0.6);
-    col = mix(col, vec3(0.88, 0.95, 0.93), clamp(foam, 0.0, 1.0) * 0.8);
+    // A espuma vira bolhas (células claras com borda) em vez de mancha lisa.
+    vec4 bubble = voronoi(px / 1.6 + vec2(uTime * 0.4, 0.0));
+    float bubbles = 0.55 + 0.6 * smoothstep(0.02, 0.14, bubble.w);
+    vec3 foamColor = vec3(0.88, 0.95, 0.93) * (0.9 + 0.15 * smoothstep(0.25, 0.0, bubble.z));
+    col = mix(col, foamColor, clamp(foam * bubbles, 0.0, 1.0) * 0.8);
+    // Linha fina e clara onde a água encosta na terra.
+    col += (1.0 - smoothstep(0.0, max(pxUnits * 1.5, 0.6), abs(w))) * 0.12;
     color = mix(baked.rgb, col, smoothstep(-1.0, 2.5, w));
   }
   color = pow(color, vec3(0.95));

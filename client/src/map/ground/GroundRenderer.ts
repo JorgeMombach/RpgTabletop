@@ -252,6 +252,8 @@ export class GroundRenderer {
       // Programa de terreno ainda compilando: o terreno é refeito no próximo quadro.
       this.terrainDirty = this.terrain.pending;
     }
+    // Barranco e fundo da água na resolução da tela (só refaz quando a visão ou a água mudam).
+    this.water.bakeView(view, width, height);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
     gl.clearColor(0, 0, 0, 0);
@@ -266,7 +268,7 @@ export class GroundRenderer {
     // Água por cima do terreno (cor pré-multiplicada).
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    this.water.render(view, time);
+    this.water.render(view, time, width, height);
     // Relevo por cima da água: a face do penhasco cobre a água (docs/design/relevo.md).
     if (this.relief.drawable && this.reliefImage) {
       gl.useProgram(this.blit.program);
