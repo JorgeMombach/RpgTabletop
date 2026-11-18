@@ -1,13 +1,15 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { FrameWatch, TERRAINS, type MapConfig, type MapProp, type TerrainChunks, type WaterCurrent } from "@rpg/shared";
+import { FrameWatch, reliefAffected, TERRAINS, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
 import { detailTile, filteredWatercolor, loadTerrainImages, TERRAIN_ART, type DetailKind } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
 import { notifyGroundDrawn, useGroundOutputs } from "./groundOutputs";
 import type { LightingInput } from "./lightPass";
+import type { ReliefJob, ReliefResult } from "./reliefTypes";
+import { SCENE_LIGHT } from "./sceneLight";
 import type { WaterJob, WaterResult, WaterRock } from "./waterTypes";
 
 /**
@@ -36,7 +38,7 @@ interface StageView {
 }
 
 /** Pedaços diferentes entre dois terrenos (o objeto do pedaço muda quando ele muda). */
-function changedChunks(before: TerrainChunks, after: TerrainChunks): string[] {
+function changedChunks<Chunk>(before: Record<string, Chunk>, after: Record<string, Chunk>): string[] {
   const keys = new Set<string>();
   for (const key of Object.keys(after)) if (before[key] !== after[key]) keys.add(key);
   for (const key of Object.keys(before)) if (!(key in after)) keys.add(key);
@@ -54,7 +56,16 @@ export const GroundLayer = memo(function GroundLayer({
   view,
   size,
   lighting,
+  relief,
+  reliefEpoch,
+  smallScreen,
 }: {
+  /** Tela pequena (celular, tablet): o relevo guardado começa com menos detalhe (vale ao criar o motor). */
+  smallScreen: boolean;
+  /** Relevo a desenhar (com a prévia da pincelada, se houver). */
+  relief: ReliefChunks;
+  /** Sobe a cada relevo inteiro novo (outra cena, arquivo carregado). */
+  reliefEpoch: number;
   /** Paredes, luzes e luz da cena (docs/design/luz.md); `null` = sem luz na placa (fica a película de antes). */
   lighting: LightingInput | null;
   /** O terreno a desenhar (com a prévia da passada do pincel, se houver). */
@@ -72,9 +83,14 @@ export const GroundLayer = memo(function GroundLayer({
 }) {
   // Canvas, renderizador e Worker nascem e morrem juntos, dentro do efeito (no modo estrito do React o efeito roda,
   // limpa e roda de novo: cada vez com os seus).
-  const [engine, setEngine] = useState<{ renderer: GroundRenderer; worker: Worker } | null>(null);
+  const [engine, setEngine] = useState<{ renderer: GroundRenderer; worker: Worker; reliefWorker: Worker } | null>(null);
   const renderer = engine?.renderer ?? null;
   const worker = engine?.worker ?? null;
+  const reliefWorker = engine?.reliefWorker ?? null;
+  const reliefJob = useRef(0);
+  const reliefSent = useRef<{ chunks: ReliefChunks; epoch: number } | null>(null);
+  const smallScreenRef = useRef(smallScreen);
+  smallScreenRef.current = smallScreen;
   const imageRef = useRef<Konva.Image>(null);
   const [version, setVersion] = useState(0);
   // Sobe quando o navegador devolve o contexto WebGL perdido: o motor é refeito do zero.
@@ -105,7 +121,7 @@ export const GroundLayer = memo(function GroundLayer({
     const canvas = document.createElement("canvas");
     let created: GroundRenderer;
     try {
-      created = new GroundRenderer(canvas);
+      created = new GroundRenderer(canvas, smallScreenRef.current);
     } catch {
       fail();
       return;
@@ -124,6 +140,15 @@ export const GroundLayer = memo(function GroundLayer({
       setVersion((value) => value + 1);
     };
     createdWorker.onerror = fail;
+    // Relevo: a altura de cada pedaço é calculada no Worker (7 a ~35 ms por pedaço).
+    const createdReliefWorker = new Worker(new URL("./reliefWorker.ts", import.meta.url), { type: "module" });
+    createdReliefWorker.onmessage = (event: MessageEvent<ReliefResult>) => {
+      if (event.data.id !== reliefJob.current) return;
+      created.setReliefWindows(event.data.windows);
+      setVersion((value) => value + 1);
+    };
+    createdReliefWorker.onerror = fail;
+    reliefSent.current = null;
     const lost = (event: Event) => {
       // Sem isso o navegador nunca devolve o contexto.
       event.preventDefault();
@@ -140,11 +165,12 @@ export const GroundLayer = memo(function GroundLayer({
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
-    setEngine({ renderer: created, worker: createdWorker });
+    setEngine({ renderer: created, worker: createdWorker, reliefWorker: createdReliefWorker });
     return () => {
       canvas.removeEventListener("webglcontextlost", lost);
       canvas.removeEventListener("webglcontextrestored", restored);
       createdWorker.terminate();
+      createdReliefWorker.terminate();
       created.dispose();
       useGroundOutputs.setState({ light: null, flame: null });
       setEngine(null);
@@ -194,6 +220,20 @@ export const GroundLayer = memo(function GroundLayer({
     setVersion((value) => value + 1);
   }, [renderer, chunks, epoch]);
 
+  // Relevo: pede ao Worker a altura dos pedaços afetados pelo que mudou (relevo inteiro novo: todos, do zero).
+  useEffect(() => {
+    if (!renderer || !reliefWorker) return;
+    const before = reliefSent.current;
+    const fresh = !before || before.epoch !== reliefEpoch;
+    if (fresh) renderer.forgetRelief("all");
+    const changed = fresh ? Object.keys(relief) : changedChunks(before.chunks, relief);
+    reliefSent.current = { chunks: relief, epoch: reliefEpoch };
+    if (changed.length === 0) return;
+    reliefJob.current += 1;
+    const job: ReliefJob = { id: reliefJob.current, chunks: relief, keys: reliefAffected(changed) };
+    reliefWorker.postMessage(job);
+  }, [renderer, reliefWorker, relief, reliefEpoch]);
+
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
   const lastCommitted = useRef<TerrainChunks | null>(null);
   useEffect(() => {
@@ -240,6 +280,14 @@ export const GroundLayer = memo(function GroundLayer({
     if (renderer.setLighting(lighting, animate)) setVersion((value) => value + 1);
   }, [renderer, lighting, animate]);
 
+  // Sombra do relevo: segue a luz da cena (sem luz na placa, fica a de dia).
+  const sceneId = lighting?.scene ?? "day";
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setReliefSun(SCENE_LIGHT[sceneId]);
+    setVersion((value) => value + 1);
+  }, [renderer, sceneId]);
+
   // Relógio da água: no máximo 30 quadros por segundo, só com água na tela. Cada quadro passa pelo detector (o mesmo
   // do vento): aparelho que não aguenta para a água e as plantas. Aba oculta: o navegador já pausa.
   useEffect(() => {
@@ -259,7 +307,7 @@ export const GroundLayer = memo(function GroundLayer({
         return;
       }
       // Anima com água na tela, com tocha tremulando ou com a luz da cena ainda trocando.
-      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering)) return;
+      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering || renderer.reliefPending)) return;
       lastDraw = now;
       timeRef.current = now / 1000;
       renderer.render(viewRef.current, timeRef.current, { waterDraft: waterDraftRef.current });

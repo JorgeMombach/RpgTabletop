@@ -122,7 +122,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
-  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, groundFailed } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, groundFailed } = useApp();
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
   const smallScreen = useSmallScreen();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
@@ -1237,6 +1237,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               view={stageView}
               size={stageSize}
               lighting={lighting}
+              relief={reliefPreview ?? relief}
+              reliefEpoch={reliefEpoch}
+              smallScreen={smallScreen}
             />
           )}
 

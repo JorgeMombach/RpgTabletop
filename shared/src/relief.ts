@@ -151,6 +151,11 @@ const ease = (t: number) => t * t * (3 - 2 * t);
  * (smoothstep), suavizada no fim. A borda irregular (ruído) fica no shader.
  */
 export function reliefHeights(chunks: ReliefChunks, key: string): Float32Array {
+  return reliefFields(chunks, key).heights;
+}
+
+/** Altura (como `reliefHeights`) e, em cada ponto, o quanto a encosta é suave (0 a 1): onde é suave não há rocha. */
+export function reliefFields(chunks: ReliefChunks, key: string): { heights: Float32Array; soft: Float32Array } {
   const [cx, cy] = key.split(",").map(Number);
   const cells = TERRAIN_CHUNK_SIDE / TERRAIN_FINE;
   const side = (cells + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
@@ -264,7 +269,7 @@ export function reliefHeights(chunks: ReliefChunks, key: string): Float32Array {
  * Desfoque gaussiano separável só onde a altura veio do suave (a escarpa fica intacta): numa caixa em volta da
  * encosta suave, misturando pelo peso desfocado (a passagem do suave para a escarpa também fica sem degrau).
  */
-function smoothSoft(height: Float32Array, weight: Float32Array, side: number): Float32Array {
+function smoothSoft(height: Float32Array, weight: Float32Array, side: number): { heights: Float32Array; soft: Float32Array } {
   let minX = side;
   let minY = side;
   let maxX = -1;
@@ -278,7 +283,7 @@ function smoothSoft(height: Float32Array, weight: Float32Array, side: number): F
       maxY = Math.max(maxY, y);
     }
   }
-  if (maxX < 0) return height;
+  if (maxX < 0) return { heights: height, soft: weight };
   const sigma = SOFT_BLUR * RELIEF_PER_CELL;
   const radius = Math.ceil(sigma * 2.5);
   const kernel = new Float32Array(radius * 2 + 1);
@@ -313,14 +318,16 @@ function smoothSoft(height: Float32Array, weight: Float32Array, side: number): F
   const smooth = pass(pass(height, true), false);
   const reach = pass(pass(weight, true), false);
   const out = new Float32Array(height);
+  const soft = new Float32Array(height.length);
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const index = y * side + x;
       const k = Math.min(1, reach[index] * 2);
       out[index] = height[index] + (smooth[index] - height[index]) * k;
+      soft[index] = k;
     }
   }
-  return out;
+  return { heights: out, soft };
 }
 
 /** Pedaços cujo desenho muda quando `changed` muda: eles e os vizinhos até a margem (um pedaço em volta). */

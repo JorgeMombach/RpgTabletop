@@ -3,6 +3,9 @@ import type { DetailKind } from "../terrain/terrainArt";
 import { bindTextures, createTexture, imageTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, DETAIL_KINDS, FULLSCREEN_VERTEX, TERRAIN_FRAGMENT } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
+import { ReliefPass } from "./reliefPass";
+import type { ReliefWindow } from "./reliefTypes";
+import type { SceneLight } from "./sceneLight";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
 
@@ -29,6 +32,8 @@ export class GroundRenderer {
   private readonly triangle: WebGLBuffer;
   private readonly water: WaterPass;
   private readonly light: LightPass;
+  /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
+  readonly relief: ReliefPass;
   /**
    * As três saídas, copiadas do canvas WebGL em sequência a cada desenho (docs/design/luz.md): o chão (terreno e água),
    * o mapa de luz (a camada que multiplica) e as chamas com o brilho (a camada que soma).
@@ -57,7 +62,11 @@ export class GroundRenderer {
     }
   }
 
-  constructor(readonly canvas: HTMLCanvasElement) {
+  constructor(
+    readonly canvas: HTMLCanvasElement,
+    /** Tela pequena (celular, tablet): o relevo guardado começa com menos detalhe. */
+    smallScreen = false,
+  ) {
     const gl = canvas.getContext("webgl2", { premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false, alpha: true });
     if (!gl) throw new Error("WebGL 2 indisponível");
     this.gl = gl;
@@ -67,6 +76,32 @@ export class GroundRenderer {
     this.terrainFramebuffer = gl.createFramebuffer();
     this.water = new WaterPass(gl);
     this.light = new LightPass(gl);
+    this.relief = new ReliefPass(gl, smallScreen);
+  }
+
+  /** Alturas novas do relevo (do Worker). */
+  setReliefWindows(windows: ReliefWindow[]) {
+    if (this.gl.isContextLost()) return;
+    this.relief.setWindows(windows);
+    this.terrainDirty = true;
+  }
+
+  /** Esquece pedaços do relevo (`"all"`: troca de cena, relevo apagado). */
+  forgetRelief(keys: string[] | "all") {
+    if (this.gl.isContextLost()) return;
+    this.relief.forget(keys);
+    this.terrainDirty = true;
+  }
+
+  /** Luz da cena para a sombra do relevo. */
+  setReliefSun(scene: SceneLight) {
+    if (this.gl.isContextLost()) return;
+    this.relief.setSun(scene);
+  }
+
+  /** Ainda há relevo a calcular (precisa de mais quadros). */
+  get reliefPending(): boolean {
+    return this.relief.pending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor), ladrilhos de detalhe e a terra do barranco da água. */
@@ -171,6 +206,8 @@ export class GroundRenderer {
     const state = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, options.waterDraft].join("|");
     if (state !== this.drawn) this.terrainDirty = true;
     gl.disable(gl.BLEND);
+    // Relevo: alguns pedaços por quadro; o que mudou faz o terreno redesenhar.
+    if (this.relief.bake()) this.terrainDirty = true;
     if (this.terrainDirty) {
       this.drawTerrain(view, width, height, options.waterDraft);
       this.drawn = state;
@@ -269,6 +306,7 @@ export class GroundRenderer {
     const { gl } = this;
     this.water.dispose();
     this.light.dispose();
+    this.relief.dispose();
     this.releaseWeights();
     for (const texture of [...this.watercolors, ...this.details]) gl.deleteTexture(texture);
     if (this.terrainImage) gl.deleteTexture(this.terrainImage);

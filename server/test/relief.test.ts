@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { distanceField, encodeLayer, paintRelief, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
+import { distanceField, encodeLayer, paintRelief, reliefFields, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
 import { act, join, nextState, useServer, type Client } from "./helpers";
 
 // Relevo (docs/design/relevo.md): níveis de −2 a +3 e tipo de borda (escarpa ou suave) na grade fina do terreno.
@@ -209,6 +209,18 @@ describe("relevo: altura por pedaço", () => {
     assert.equal(chunks["1,0"], undefined);
     const face = heightAt(chunks, "1,0", 8.2, 4);
     assert.ok(face > 0.1 && face < 0.9, `face no vizinho: ${face}`);
+  });
+
+  it("campos: a encosta suave sai marcada como suave; a escarpa e o chão longe, não", () => {
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    const at = (x: number, y: number) => (y + RELIEF_MARGIN) * RELIEF_PER_CELL * side + (x + RELIEF_MARGIN) * RELIEF_PER_CELL;
+    const gentle: ReliefChunks = {};
+    paintRelief(gentle, stroke(1, true, [4, 4], 2));
+    assert.ok(reliefFields(gentle, "0,0").soft[at(6, 4)] > 0.9, "na borda do monte suave");
+    const cliff: ReliefChunks = {};
+    paintRelief(cliff, stroke(1, false, [4, 4], 2));
+    assert.equal(reliefFields(cliff, "0,0").soft[at(6, 4)], 0);
+    assert.equal(reliefFields(gentle, "0,0").soft[at(-6, -6)], 0, "longe do monte");
   });
 
   it("pedaços afetados: o tocado e os vizinhos até a margem", () => {
