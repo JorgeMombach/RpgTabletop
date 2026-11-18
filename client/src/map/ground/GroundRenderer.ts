@@ -18,7 +18,7 @@ import type { WaterGpuField } from "./waterTypes";
  */
 
 /** Densidade máxima da tela para o chão (acima disso o ganho não paga o peso). */
-const MAX_PIXEL_RATIO = 1.5;
+const MAX_PIXEL_RATIO = 2;
 /** Pontos finos por pedaço (lado). */
 const CHUNK_SIDE = 32;
 
@@ -233,7 +233,8 @@ export class GroundRenderer {
       this.reliefImage = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
       this.terrainDirty = true;
     }
-    const state = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, options.waterDraft].join("|");
+    // O tamanho em pixels do aparelho entra na chave: mudando a densidade, o terreno e as paredes são refeitos.
+    const state = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, width, height, options.waterDraft].join("|");
     if (state !== this.drawn) this.terrainDirty = true;
     gl.disable(gl.BLEND);
     // Relevo: alguns pedaços por quadro; o que mudou faz o terreno redesenhar.

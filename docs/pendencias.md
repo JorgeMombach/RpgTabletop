@@ -83,6 +83,15 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Jogador vê o relevo (sob a névoa como o resto do chão); troca de cena e arquivo de sessão.
 - [ ] Sem WebGL: chão plano, sem erro.
 
+### Chão, água, areia e dunas em Full HD (relevo, etapa 3)
+- [ ] Os nove terrenos de perto (zoom máximo) e de longe: folhas, grão, pedrinhas, lajes e calçamento nítidos, sem chiado ao arrastar; borda entre terrenos como antes.
+- [ ] Areia: botão no *Terreno* (cor do botão), pintar, apagar, desfazer; sem WebGL, a aquarela cor de areia.
+- [ ] Dunas: *Relevo › Dunas*, alturas 1 a 3 e 0 apaga; não muda o nível; dia, entardecer (sombra comprida) e luar; duna atravessando pedaços sem costura; desfazer.
+- [ ] Água: lago e rio com correnteza e pedras, de perto e de longe; barranco nítido, faixa molhada, brilhos, bolhas; sem manchas pretas; arrastar e dar zoom sem engasgo.
+- [ ] Primeira vez de cada terreno na cena: aparece um instante depois (programa compilando), sem travar.
+- [ ] Tela de alta densidade (Retina, celular): chão, água e paredes nítidos; desempenho ok.
+- [ ] Mapa antigo (arquivo de sessão de antes): abre igual, com o chão novo.
+
 ### Paredes, portas e janela na placa de vídeo (relevo, etapa 2)
 - [ ] Os 11 desenhos em quina (L), T, diagonal e ponta solta: sem emenda nem dente; de longe e bem de perto (zoom máximo), nítidos.
 - [ ] Parede de desenhos diferentes encostando (pedra com tijolo, madeira com paliçada): sem buraco no canto.
@@ -103,8 +112,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Tinta do lado do chão às vezes com 0 a 1 px (vem das derivadas em grupos de 2 × 2 pixels); a borda de dentro da parede é que garante o contorno.
 - [ ] Porta aberta escolhida: o contorno branco marca o vão, não a folha.
 - [ ] Casa com mais de 8 paredes por perto: ficam as 8 mais próximas do centro; uma nona pode sumir num canto da casa.
-- [ ] A chave de redesenho das paredes não inclui a densidade da tela: levar a janela para um monitor com outra densidade, com tudo parado, deixa as paredes borradas até mexer na visão (`GroundRenderer.ts`).
-- [ ] As paredes saem com no máximo 1,5 × a densidade da tela (`MAX_PIXEL_RATIO`, o mesmo do chão); em tela Retina ou celular (densidade 2–3), o desenho antigo no canvas usava a densidade inteira e era mais nítido.
+- [ ] Densidade da tela acima de 2 (alguns celulares, 3): chão, água e paredes saem a 2 × (`MAX_PIXEL_RATIO`).
 - [ ] Os shaders compilados não são apagados depois de ligados (`glKit.ts`, também no `linkProgram` de antes); o contexto morre junto com o renderizador.
 - [ ] Porta secreta vista pelo mestre aparece como uma lasca fina de pedra (a espessura da folha, não a da parede).
 - [ ] Sem compilação em paralelo no navegador, a tela trava um instante (1–2 s) a cada desenho de parede novo que aparece.
