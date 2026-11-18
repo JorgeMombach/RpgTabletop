@@ -9,7 +9,7 @@ import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { toCellUnits, type Point } from "./geometry";
-import { drawDoor, drawWindow, wallArt } from "./wallArt";
+import { drawDoor, drawOpeningSelection, drawWindow, wallArt } from "./wallArt";
 import { removeWall, restyleWalls, undo, useMapUndo } from "./mapHistory";
 
 /** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder), trocar o desenho ou apagar. */
@@ -71,6 +71,7 @@ export function WallShape({
   selected,
   onClick,
   standalone,
+  gpu,
 }: {
   w: Pick<Wall, "from" | "to" | "door" | "window" | "thickness">;
   grid: MapConfig;
@@ -81,6 +82,8 @@ export function WallShape({
   onClick?: () => void;
   /** Parede comum desenhada sozinha (prévia do traço); no mapa, quem desenha é `WallChains`. */
   standalone?: boolean;
+  /** Portas e janelas vêm da placa de vídeo: aqui, só a área de clique e o contorno de escolhida. */
+  gpu?: boolean;
 }) {
   const a = cornerPx(w.from, grid);
   const b = cornerPx(w.to, grid);
@@ -110,7 +113,9 @@ export function WallShape({
         ctx.save();
         ctx.translate(h.x, h.y);
         ctx.rotate(Math.atan2(e.y - h.y, e.x - h.x));
-        if (w.window) {
+        if (gpu && (w.window || door)) {
+          if (selected) drawOpeningSelection(ctx, L, thick);
+        } else if (w.window) {
           drawWindow(ctx, L, thick, { closed: !!w.window.closed, selected: !!selected, style });
         } else if (door) {
           drawDoor(ctx, L, thick, seed, {

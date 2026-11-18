@@ -1,12 +1,12 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { FrameWatch, reliefAffected, ReliefQueue, TERRAINS, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type WaterCurrent } from "@rpg/shared";
+import { FrameWatch, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
 import { detailTile, filteredWatercolor, loadTerrainImages, TERRAIN_ART, type DetailKind } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
-import { notifyGroundDrawn, useGroundOutputs } from "./groundOutputs";
+import { notifyGroundDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
 import type { LightingInput } from "./lightPass";
 import type { ReliefJob, ReliefResult } from "./reliefTypes";
 import { SCENE_LIGHT } from "./sceneLight";
@@ -59,7 +59,15 @@ export const GroundLayer = memo(function GroundLayer({
   relief,
   reliefEpoch,
   smallScreen,
+  walls,
+  sceneStyle,
+  gm,
 }: {
+  /** Paredes, portas e janelas (com a prévia de *Trocar desenho* já aplicada): desenhadas na placa de vídeo. */
+  walls: Wall[];
+  sceneStyle: WallStyle;
+  /** Mestre vê a marca de trancada e de secreta. */
+  gm: boolean;
   /** Tela pequena (celular, tablet): o relevo guardado começa com menos detalhe (vale ao criar o motor). */
   smallScreen: boolean;
   /** Relevo a desenhar (com a prévia da pincelada, se houver). */
@@ -167,7 +175,7 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
-    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage });
+    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage });
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
@@ -178,7 +186,7 @@ export const GroundLayer = memo(function GroundLayer({
       createdWorker.terminate();
       createdReliefWorker.terminate();
       created.dispose();
-      useGroundOutputs.setState({ light: null, flame: null });
+      useGroundOutputs.setState({ light: null, flame: null, walls: null });
       setEngine(null);
     };
   }, [generation]);
@@ -251,6 +259,14 @@ export const GroundLayer = memo(function GroundLayer({
     sendRelief(reliefWorker, queue);
   }, [renderer, reliefWorker, relief, reliefEpoch]);
 
+  // Paredes: peças novas a cada mudança (porta aberta, desenho trocado, parede nova); a camada é refeita no desenho.
+  const pieces = useMemo(() => wallPieces(walls, sceneStyle, { gm }), [walls, sceneStyle, gm]);
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setWalls(pieces);
+    setVersion((value) => value + 1);
+  }, [renderer, pieces]);
+
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
   const lastCommitted = useRef<TerrainChunks | null>(null);
   useEffect(() => {
@@ -291,6 +307,16 @@ export const GroundLayer = memo(function GroundLayer({
   const groundFailed = useApp((state) => state.groundFailed);
   const animate = !reduceFx && !windStalled;
 
+  /** Um desenho do chão: a camada da imagem, as outras saídas e, se mudou, a das paredes. */
+  const paint = (target: GroundRenderer, frameView: GroundView, time: number, frameDraft: boolean) => {
+    target.render(frameView, time, { waterDraft: frameDraft });
+    imageRef.current?.getLayer()?.batchDraw();
+    notifyGroundDrawn();
+    if (target.wallsFresh) notifyWallsDrawn();
+  };
+  const paintRef = useRef(paint);
+  paintRef.current = paint;
+
   // Luz: paredes, tochas e luz da cena (a geometria só é refeita, e o chão redesenhado, quando algo muda de fato).
   useEffect(() => {
     if (!renderer || !lighting) return;
@@ -324,27 +350,23 @@ export const GroundLayer = memo(function GroundLayer({
         return;
       }
       // Anima com água na tela, com tocha tremulando ou com a luz da cena ainda trocando.
-      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering || renderer.reliefPending)) return;
+      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering || renderer.busy)) return;
       lastDraw = now;
       timeRef.current = now / 1000;
-      renderer.render(viewRef.current, timeRef.current, { waterDraft: waterDraftRef.current });
-      imageRef.current?.getLayer()?.batchDraw();
-      notifyGroundDrawn();
+      paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [renderer, animate]);
 
-  // Com a animação desligada (Reduzir efeitos, aparelho lento), o relevo ainda precisa de quadros para ser calculado:
-  // um quadro por vez até acabar (só cálculo e desenho, sem água animando).
+  // Com a animação desligada (Reduzir efeitos, aparelho lento), o relevo ainda precisa de quadros para ser calculado
+  // (e as paredes, para o programa compilar): um quadro por vez até acabar (só cálculo e desenho, sem água animando).
   useEffect(() => {
     if (!renderer || animate) return;
     let frame = 0;
     const tick = () => {
-      if (!renderer.reliefPending) return;
-      renderer.render(viewRef.current, timeRef.current, { waterDraft: waterDraftRef.current });
-      imageRef.current?.getLayer()?.batchDraw();
-      notifyGroundDrawn();
+      if (!renderer.busy) return;
+      paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -354,9 +376,7 @@ export const GroundLayer = memo(function GroundLayer({
   // Quadro na hora: quando a visão, o tamanho, o terreno ou a água mudam (com a água parada, é o único desenho).
   useEffect(() => {
     if (!renderer) return;
-    renderer.render(groundView, timeRef.current, { waterDraft });
-    imageRef.current?.getLayer()?.batchDraw();
-    notifyGroundDrawn();
+    paint(renderer, groundView, timeRef.current, waterDraft);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- groundView é refeito a cada render a partir destes valores
   }, [renderer, version, waterDraft, view.x, view.y, view.scale, size.width, size.height, grid.cellPx, grid.offsetX, grid.offsetY]);
 

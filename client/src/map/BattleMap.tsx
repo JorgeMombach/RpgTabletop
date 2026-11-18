@@ -22,7 +22,7 @@ import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
-import { GroundOutputLayer } from "./ground/GroundOutputLayer";
+import { GroundOutputLayer, GroundWallsImage } from "./ground/GroundOutputLayer";
 import { useTokenDrag } from "./dragFollow";
 import { lightSources, type Dragging } from "./ground/lightSources";
 import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
@@ -1240,6 +1240,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               relief={reliefPreview ?? relief}
               reliefEpoch={reliefEpoch}
               smallScreen={smallScreen}
+              walls={chainWalls}
+              sceneStyle={wallStyle}
+              gm={gm}
             />
           )}
 
@@ -1378,9 +1381,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
             {stroke && myDrawMode !== "erase" && <DrawingShape d={{ kind: myDrawMode, points: stroke, color: drawColor, width: drawWidth, hidden: gm && drawHidden }} />}
           </Layer>
 
-          {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga. */}
+          {/* Paredes e portas: acima dos desenhos. Porta abre com um clique (Mover); a ferramenta Paredes escolhe ou apaga.
+              Com o chão em WebGL, paredes, portas e janelas vêm da placa de vídeo (docs/design/relevo.md, etapa 2). */}
           <Layer listening={tool === "move" || (gm && tool === "walls")}>
-            <WallChains walls={chainWalls} grid={grid} sceneStyle={wallStyle} />
+            {groundLit ? <GroundWallsImage view={stageView} size={stageSize} /> : <WallChains walls={chainWalls} grid={grid} sceneStyle={wallStyle} />}
             {state.battle.walls.map((w) => (
               <WallShape
                 key={w.id}
@@ -1390,6 +1394,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                 style={restyleIds?.has(w.id) ? (wallDrawStyle ?? wallStyle) : (w.style ?? wallStyle)}
                 layout={doors.get(w.id)}
                 selected={w.id === selectedDoorId}
+                gpu={groundLit}
                 onClick={() => onWallClick(w)}
               />
             ))}

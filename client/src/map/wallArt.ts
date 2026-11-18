@@ -420,6 +420,13 @@ export interface WindowLook {
  * Janela vista de cima, no eixo dela (de 0 a L), entre batentes (docs/design/paredes.md): parapeito fino com vidro e
  * travessa; com a persiana fechada, tábuas por cima. Desenho provisório (o definitivo vem no lote das portas).
  */
+/** Contorno branco da porta ou janela escolhida, no vão (quando o desenho vem da placa de vídeo). */
+export function drawOpeningSelection(ctx: CanvasRenderingContext2D, L: number, t: number) {
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = t * 0.09;
+  ctx.strokeRect(0, -t * 0.6, L, t * 1.2);
+}
+
 export function drawWindow(ctx: CanvasRenderingContext2D, L: number, t: number, look: WindowLook) {
   const wood = look.style === "wood" || look.style === "palisade";
   const sill = new Path2D();

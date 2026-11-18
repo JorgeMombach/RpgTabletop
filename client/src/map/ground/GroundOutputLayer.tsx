@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { useEffect, useRef } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { onGroundDrawn, useGroundOutputs } from "./groundOutputs";
+import { onGroundDrawn, onWallsDrawn, useGroundOutputs } from "./groundOutputs";
 
 /**
  * Uma saída do chão numa camada do mapa (docs/design/luz.md): `light` multiplica tudo o que está embaixo (a luz da
@@ -25,4 +25,18 @@ export function GroundOutputLayer({ which, view, size }: { which: "light" | "fla
       <KImage image={image} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />
     </Layer>
   );
+}
+
+/**
+ * As paredes, portas e janelas da placa de vídeo (docs/design/relevo.md, etapa 2) dentro da camada das paredes, presas
+ * à tela, com mistura normal. A camada só redesenha quando a imagem das paredes muda (não a cada quadro da água).
+ */
+export function GroundWallsImage({ view, size }: { view: { x: number; y: number; scale: number }; size: { width: number; height: number } }) {
+  const image = useGroundOutputs((state) => state.walls);
+  const imageRef = useRef<Konva.Image>(null);
+
+  useEffect(() => onWallsDrawn(() => imageRef.current?.getLayer()?.batchDraw()), [image]);
+
+  if (!image) return null;
+  return <KImage ref={imageRef} listening={false} image={image} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />;
 }

@@ -1,4 +1,4 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks } from "@rpg/shared";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type WallPiece } from "@rpg/shared";
 import type { DetailKind } from "../terrain/terrainArt";
 import { bindTextures, createTexture, imageTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, DETAIL_KINDS, FULLSCREEN_VERTEX, TERRAIN_FRAGMENT } from "./terrainShader";
@@ -6,6 +6,7 @@ import { LightPass, type LightingInput } from "./lightPass";
 import { ReliefPass } from "./reliefPass";
 import type { ReliefWindow } from "./reliefTypes";
 import { SCENE_LIGHT, type SceneLight } from "./sceneLight";
+import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
 
@@ -32,6 +33,8 @@ export class GroundRenderer {
   private readonly triangle: WebGLBuffer;
   private readonly water: WaterPass;
   private readonly light: LightPass;
+  /** Paredes, portas e janelas (docs/design/relevo.md, etapa 2). */
+  private readonly walls: WallPass;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
   readonly relief: ReliefPass;
   /**
@@ -41,6 +44,13 @@ export class GroundRenderer {
   readonly groundImage = document.createElement("canvas");
   readonly lightImage = document.createElement("canvas");
   readonly flameImage = document.createElement("canvas");
+  /** As paredes, portas e janelas: copiadas só quando a camada muda (visão, paredes, luz da cena). */
+  readonly wallImage = document.createElement("canvas");
+  /** A imagem das paredes mudou no último desenho (a camada das paredes precisa redesenhar). */
+  wallsFresh = false;
+  /** Sobe a cada `setWalls`; com a visão e a luz, decide se a camada é refeita. */
+  private wallsVersion = 0;
+  private wallsDrawn = "";
   private readonly terrainFramebuffer: WebGLFramebuffer | null;
   private terrainImage: WebGLTexture | null = null;
   /** Camada do relevo (rocha e luz das encostas), guardada como o terreno e posta por cima da água. */
@@ -81,6 +91,14 @@ export class GroundRenderer {
     this.water = new WaterPass(gl);
     this.light = new LightPass(gl);
     this.relief = new ReliefPass(gl, smallScreen);
+    this.walls = new WallPass(gl);
+  }
+
+  /** Peças das paredes, portas e janelas (`wallPieces`): a camada é refeita no próximo desenho. */
+  setWalls(pieces: WallPiece[]) {
+    if (this.gl.isContextLost()) return;
+    this.walls.setPieces(pieces);
+    this.wallsVersion++;
   }
 
   /** Alturas novas do relevo (do Worker). */
@@ -103,9 +121,9 @@ export class GroundRenderer {
     this.relief.setSun(scene);
   }
 
-  /** Ainda há relevo a calcular (precisa de mais quadros). */
-  get reliefPending(): boolean {
-    return this.relief.pending;
+  /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
+  get busy(): boolean {
+    return this.relief.pending || this.walls.pending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor), ladrilhos de detalhe e a terra do barranco da água. */
@@ -190,7 +208,7 @@ export class GroundRenderer {
 
   /** Tem algo para desenhar (terreno ou água). */
   get empty(): boolean {
-    return !this.weights && this.water.empty && !this.relief.drawable;
+    return !this.weights && this.water.empty && !this.relief.drawable && this.walls.empty;
   }
 
   render(view: GroundView, time: number, options: { waterDraft: boolean }) {
@@ -252,6 +270,7 @@ export class GroundRenderer {
     }
     gl.disable(gl.BLEND);
     this.copyTo(this.groundImage);
+    this.drawWalls(view, width, height, state, lightKey, reliefLight);
     if (!this.light.active) return;
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
     this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight));
@@ -293,6 +312,27 @@ export class GroundRenderer {
   /** Alguma tocha na cena, ou a luz da cena ainda trocando: precisa animar mesmo sem água na tela. */
   get flickering(): boolean {
     return this.light.hasTorches || this.light.settling;
+  }
+
+  /**
+   * A camada das paredes, no próprio canvas e copiada para `wallImage`, só quando algo mudou (ou um programa ainda
+   * compilava). A luz é relativa, como a do relevo: a cena vem do mapa de luz por cima.
+   */
+  private drawWalls(view: GroundView, width: number, height: number, state: string, lightKey: string, scene: SceneLight) {
+    const { gl } = this;
+    const stone = this.watercolors[TERRAINS.indexOf("stone")];
+    const stoneLight = this.watercolors[TERRAINS.indexOf("stoneLight")];
+    const key = [state, lightKey, this.wallsVersion, stone ? 1 : 0].join("|");
+    this.wallsFresh = false;
+    if (key === this.wallsDrawn && !this.walls.pending) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    if (stone && stoneLight) this.walls.draw(view, width, height, scene, stone, stoneLight);
+    this.copyTo(this.wallImage);
+    this.wallsDrawn = key;
+    this.wallsFresh = true;
   }
 
   private drawRelief(view: GroundView, width: number, height: number, scene: SceneLight) {
@@ -343,6 +383,7 @@ export class GroundRenderer {
     this.water.dispose();
     this.light.dispose();
     this.relief.dispose();
+    this.walls.dispose();
     this.releaseWeights();
     for (const texture of [...this.watercolors, ...this.details]) gl.deleteTexture(texture);
     if (this.terrainImage) gl.deleteTexture(this.terrainImage);
