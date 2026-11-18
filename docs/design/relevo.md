@@ -109,6 +109,13 @@ O material guardado tem cobertura (alfa): rocha onde há face, nada onde é plan
 - Lotes com página de teste e escolha do dono, como combinado nas paredes.
 - **Sem WebGL 2 ou com o chão desligado** *(chamada minha)*: as paredes continuam com o desenho de hoje no canvas (`wallChainArt.ts`), emendadas, sem as texturas novas. Esse desenho fica como reserva e não é retrabalhado.
 
+**Como ficou** (combinado em 2026-11-18; páginas aprovadas: `paredes-gpu-a.html` pedra, rocha, madeira e tijolo; `-b.html` os outros sete; `-c.html` portas e janela):
+- **Peças e índice por casa, não pedaços guardados.** O processador transforma as paredes em peças (trechos das cadeias, portas e janelas) e diz quais passam perto de cada casa (até 8, as mais perto do centro). Cada pixel acha a vencedora e calcula, exato, a posição ao longo e através: o veio e as juntas ficam nítidos em qualquer zoom (um campo guardado a 32 por casa tremeria numa cadeia longa).
+- **A camada é refeita só quando algo muda** (visão, paredes, luz da cena). Um programa pequeno por desenho e um para as aberturas, compilados em paralelo (cada um leva 1 a 2 s; esperando, a tela travaria); o desenho aparece quando o programa fica pronto.
+- **Luz relativa:** a camada só faz a luz da face (como o relevo). A sombra das paredes no chão continua a do passo da luz, com o telhado invisível e o sol pela janela.
+- **Normal e contorno pelas derivadas da placa:** calcular a altura em volta de cada pixel multiplicava o shader e travou a página. As aquarelas são lidas com o nível de detalhe pelo tamanho do pixel (a leitura automática dentro de condicional levava 24 s para compilar a rocha).
+- **Portas e janela (lote c revisado):** folha fina de espessura própria (0,11 casa), com dobradiças e puxador; batente com o material do desenho (madeira em madeira e paliçada, pedra no resto); portão nos desenhos vazados (ferro na grade); janela com peitoril baixo na espessura da parede, moldura fina com vidraças e persiana. Marca do mestre: contorno vermelho com cadeado (trancada) e violeta tracejado (secreta), por fora da folha.
+
 ### Chão e água (etapa 3)
 
 - **Dunas**: ondulação contínua da areia (ondas com crista mais aguda que o vale, direção variando de leve), altura regulável, no mesmo cálculo guardado do relevo.

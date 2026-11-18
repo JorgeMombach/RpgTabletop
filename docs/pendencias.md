@@ -83,7 +83,26 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Jogador vê o relevo (sob a névoa como o resto do chão); troca de cena e arquivo de sessão.
 - [ ] Sem WebGL: chão plano, sem erro.
 
+### Paredes, portas e janela na placa de vídeo (relevo, etapa 2)
+- [ ] Os 11 desenhos em quina (L), T, diagonal e ponta solta: sem emenda nem dente; de longe e bem de perto (zoom máximo), nítidos.
+- [ ] Parede de desenhos diferentes encostando (pedra com tijolo, madeira com paliçada): sem buraco no canto.
+- [ ] Porta fechada, aberta (clique com *Mover*), dupla; trancada e secreta (só o mestre vê as marcas); portão da cerca e da grade; janela aberta e com persiana.
+- [ ] Escolher porta/janela (contorno branco no vão) e mudar o estado no painel *Paredes*.
+- [ ] *Trocar desenho* (prévia ao passar) e *Desfazer*; apagar parede; desenhar parede nova (a prévia do traço continua no desenho antigo).
+- [ ] Luz: dia, entardecer, luar e noite; a sombra no chão continua a das paredes; dentro de cômodo fechado, sem sombra.
+- [ ] Primeira parede de um desenho na cena: aparece um instante depois (programa compilando), sem travar a tela.
+- [ ] Jogador: sem marcas do mestre, sem porta secreta; *Ver como jogador*.
+- [ ] Celular/tablet (jogador pelo IP da rede): paredes aparecem, sem engasgo.
+- [ ] Muitas paredes (masmorra grande) e água animada na tela: sem queda de quadros.
+- [ ] Sem WebGL: o desenho de antes, emendado, sem erro.
+
 ## Pendências pequenas
+
+### Paredes na placa de vídeo ([docs/design/relevo.md](design/relevo.md))
+- [ ] Grade de ferro na espessura padrão (0,18) fica fina de longe (barras com menos de 1 px a 40 px por casa).
+- [ ] Tinta do lado do chão às vezes com 0 a 1 px (vem das derivadas em grupos de 2 × 2 pixels); a borda de dentro da parede é que garante o contorno.
+- [ ] Porta aberta escolhida: o contorno branco marca o vão, não a folha.
+- [ ] Casa com mais de 8 paredes por perto: ficam as 8 mais próximas do centro; uma nona pode sumir num canto da casa.
 
 ### Relevo ([docs/design/relevo.md](design/relevo.md))
 - [ ] Sombra do relevo só alcança 8 casas (a margem da janela): no entardecer, a de um patamar de 2+ níveis termina numa linha quase reta (`reliefShader.ts`).
