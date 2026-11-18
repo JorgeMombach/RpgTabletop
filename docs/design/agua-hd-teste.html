@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Água em Full HD</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button><button data-v="6">Bem de perto</button></div>
+  <div class="group" id="mode"><b>Detalhe</b><button data-v="1" class="on">Full HD</button><button data-v="0">Hoje</button></div>
+  <span id="ms"></span>
+</header>
+<p>À esquerda, um <b>lago</b> (ondinhas que nascem na margem); à direita, um <b>rio</b> correndo, com duas pedras (espuma em volta e esteira). O barranco de terra desce da borda pintada até a água. "Hoje" mostra como o app desenha agora. Arraste para mover.</p>
+<canvas id="view"></canvas>
+<script>
+const COLS = 32, ROWS = 18;
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0, 1); }`;
+// O mesmo começo dos shaders do app (waterShader.ts), com a água desenhada à mão em vez do campo do Worker.
+const COMMON = `#version 300 es
+precision highp float;
+const float UNIT = 48.0;
+const vec3 LIGHT = normalize(vec3(-0.55, -0.62, 0.56));
+uniform vec2 uCanvas, uPan; uniform float uCellPx;
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 5; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v; }
+float fbm4(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 4; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v / 0.9375; }
+vec4 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1)); }
+float lambert(vec3 n) { return max(dot(n, LIGHT), 0.0) / LIGHT.z; }
+// Rio da cena: curva y = 9 + 2,2 sen(...), da casa 16 em diante; meia largura 2,2 casas.
+float riverY(float x) { return 9.0 + 2.2 * sin((x - 16.0) * 0.45); }
+// Coordenadas do rio (casas): ao longo, através (com sinal) e força (1 dentro).
+vec3 riverAt(vec2 c) {
+  float slope = 2.2 * 0.45 * cos((c.x - 16.0) * 0.45);
+  float across = (c.y - riverY(c.x)) / sqrt(1.0 + slope * slope);
+  return vec3(c.x * 1.25, across, c.x > 15.5 ? 1.0 : 0.0);
+}
+// Distância da borda pintada, em casas (+ dentro): lago à esquerda, rio à direita.
+float paintedSdf(vec2 c) {
+  vec2 d = c - vec2(8.0, 9.0);
+  float angle = atan(d.y, d.x);
+  float lake = 5.2 + 0.6 * sin(angle * 3.0) + 0.35 * sin(angle * 5.0 + 1.0) - length(d);
+  float river = min(2.2 - abs(riverAt(c).y), c.x - 16.5);
+  return max(lake, river);
+}
+`;
+// Assar (como BAKE_FRAGMENT do app): barranco, fundo, luz e sombra; e, no Full HD, o detalhe por pixel.
+const BAKE = COMMON + `
+in vec2 vCell;
+layout(location = 0) out vec4 outTerrain;
+layout(location = 1) out vec4 outData;
+uniform sampler2D uDirt;
+uniform float uDetail;
+uniform vec4 uBox;   // canto e tamanho em casas da área assada
+const float BANK = 14.0;
+const float DEEP = 22.0;
+float sdfAt(vec2 px) { return paintedSdf(px / UNIT) * UNIT + (fbm(px / 60.0) - 0.5) * 10.0 + (fbm(px / 9.0) - 0.5) * 2.5; }
+float bankWidth(vec2 px) { return mix(10.0, 30.0, fbm(px / 140.0 + 3.0)); }
+float heightAt(vec2 px) {
+  float s = sdfAt(px);
+  if (s <= 0.0) return 0.0;
+  float bw = bankWidth(px);
+  if (s < bw) { float x = s / bw; return -BANK * x * x * (3.0 - 2.0 * x); }
+  float w = s - bw;
+  return -BANK - DEEP * 1.3 * (1.0 - exp(-w / 28.0));
+}
+// Relevo fino do barranco e do fundo (só no Full HD): pedrinhas e grão, para a luz.
+float detailHeight(vec2 px) {
+  vec4 v = voronoi(px / 3.0 + fbm(px / 2.0) * 0.6);
+  float r = 0.18 + 0.14 * hash(v.xy + 1.0);
+  float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) * 0.6 : 0.0;
+  return (pebble * 1.4 + (noise(px / 1.6) - 0.5) * 0.25 + (fbm(px / 6.0) - 0.5) * 0.6) * uDetail;
+}
+vec3 terrainNormal(vec2 px) {
+  float e = 1.5 - uDetail * 1.1;
+  float hx = heightAt(px + vec2(e, 0)) + detailHeight(px + vec2(e, 0)) - heightAt(px - vec2(e, 0)) - detailHeight(px - vec2(e, 0));
+  float hy = heightAt(px + vec2(0, e)) + detailHeight(px + vec2(0, e)) - heightAt(px - vec2(0, e)) - detailHeight(px - vec2(0, e));
+  return normalize(vec3(-hx / (2.0 * e), -hy / (2.0 * e), 1.0));
+}
+float shadowAt(vec2 px, float h0) {
+  vec2 dir = normalize(LIGHT.xy); float rise = LIGHT.z / length(LIGHT.xy); float lit = 1.0;
+  for (int k = 1; k <= 10; k++) { float d = float(k) * 4.5; float over = heightAt(px + dir * d) - (h0 + d * rise); lit = min(lit, clamp(1.0 - over / 3.0, 0.0, 1.0)); }
+  return lit;
+}
+vec3 earthMaterial(vec2 px, float h, float s, float bw) {
+  vec3 dirt = textureLod(uDirt, px / 300.0, 0.0).rgb;
+  float x = clamp(-h / BANK, 0.0, 1.2);
+  float strata = 0.94 + 0.06 * sin(h * 0.9 + fbm(px / 18.0) * 9.0);
+  vec3 earth = mix(vec3(0.42, 0.31, 0.2), vec3(0.6, 0.48, 0.32), fbm(px / 40.0)) * (0.7 + 0.6 * dot(dirt, vec3(0.33))) * strata;
+  earth = mix(earth, vec3(0.3, 0.26, 0.2), smoothstep(0.75, 1.0, x));
+  if (uDetail > 0.5) {
+    // grão, pedrinhas e a faixa molhada logo acima da água
+    earth *= 0.92 + 0.16 * noise(px / 1.3);
+    vec4 v = voronoi(px / 3.0 + fbm(px / 2.0) * 0.6);
+    float r = 0.18 + 0.14 * hash(v.xy + 1.0);
+    float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.75, v.z) : 0.0;
+    earth = mix(earth, earth * mix(vec3(1.25, 1.2, 1.12), vec3(0.85, 0.82, 0.8), hash(v.xy + 5.0)) * (0.9 + 0.2 * noise(px * 1.5)), pebble * 0.8);
+    float wet = smoothstep(bw - 7.0, bw, s) * step(s, bw + 1.0);
+    earth = mix(earth, earth * vec3(0.62, 0.6, 0.58), wet);
+  }
+  return earth;
+}
+void main() {
+  vec2 px = vCell * UNIT;
+  float s = sdfAt(px);
+  float fringe = s + (fbm(px / 6.0) - 0.5) * 6.0 + (fbm(px / 23.0) - 0.5) * 5.0;
+  float alpha = smoothstep(0.0, 4.0, fringe);
+  float bw = bankWidth(px);
+  float h = heightAt(px);
+  float w = s - bw;
+  float sh = shadowAt(px, w > 0.0 ? -BANK : h);
+  float crest = 1.0 - smoothstep(0.0, 3.5, abs(s - 2.5));
+  float foot = smoothstep(bw - 6.0, bw, s) * (1.0 - smoothstep(bw, bw + 6.0, s));
+  vec3 terrain = earthMaterial(px, h, s, bw) * (0.38 + 0.62 * lambert(terrainNormal(px)) * mix(0.45, 1.0, sh)) * (1.0 - 0.18 * foot) * (1.0 - 0.25 * crest);
+  outTerrain = vec4(terrain, alpha);
+  outData = vec4(clamp(max(-BANK - h, 0.0) / 64.0, 0.0, 1.0), sh, clamp((w + 8.0) / 136.0, 0.0, 1.0), 1.0);
+}`;
+const BAKE_VS = `#version 300 es
+in vec2 aPos; out vec2 vCell; uniform vec4 uBox;
+void main() { vec2 k = aPos * 0.5 + 0.5; vCell = uBox.xy + k * uBox.zw; gl_Position = vec4(aPos, 0, 1); }`;
+// Superfície a cada quadro (como WATER_FRAGMENT do app), lendo o assado; no Full HD, ondinhas finas, brilhos e bolhas.
+const SURFACE = COMMON + `
+out vec4 outColor;
+uniform sampler2D uBakedTerrain, uBakedData, uGrass;
+uniform vec4 uBox;          // área assada (casas)
+uniform float uTime, uDetail;
+uniform vec3 uTint;         // luz da cena no plano (no app vem do mapa de luz)
+float riverLayer(vec3 r, float speed, float seed) {
+  vec2 q = vec2(r.x - uTime * speed, r.y) + seed;
+  float swirl = fbm4(q / 46.0) * 26.0;
+  return fbm4(vec2((q.x + swirl) / 40.0, (q.y - swirl * 0.4) / 17.0)) * 0.62 + fbm4(vec2((q.x + swirl * 0.5) / 15.0, q.y / 8.0) + 7.0) * 0.38;
+}
+float riverProfile(vec3 r) { return 1.0 - pow(clamp(abs(r.y) / 52.0, 0.0, 1.0), 2.0); }
+vec2 bakedUv(vec2 c) { return (c - uBox.xy) / uBox.zw; }
+void main() {
+  vec2 screen = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 c = (screen - uPan) / uCellPx;
+  vec2 px = c * UNIT;
+  vec2 uv = bakedUv(c);
+  vec3 grass = texture(uGrass, c / 8.0).rgb * 0.85;
+  vec4 baked = texture(uBakedTerrain, uv);
+  vec4 data = texture(uBakedData, uv);
+  vec3 color = baked.rgb;
+  float w = data.b * 136.0 - 8.0;
+  float depth = data.r * 64.0;
+  float sh = data.g;
+  vec3 r0 = riverAt(c);
+  vec3 riv = vec3(r0.x * UNIT, r0.y * UNIT, r0.z);
+  float strength = riv.z;
+  float strong = max(strength, 0.15);
+  float profile = riverProfile(riv);
+  float flowing = strength > 0.001 ? mix(riverLayer(riv, 26.0 * strong, 0.0), riverLayer(riv, 64.0 * strong, 31.0), profile) : 0.5;
+  vec2 drift = px + vec2(uTime * 3.0, uTime * 2.0);
+  float still = fbm4(drift / 40.0) * 0.6 + fbm4(drift / 14.0 + 3.0) * 0.4;
+  float w0 = mix(still, flowing, smoothstep(0.0, 1.0, strength));
+  // Full HD: ondinhas finas que andam por cima (somem quando ficam menores que um pixel).
+  float pxUnits = UNIT / uCellPx;
+  float fine = (fbm4(px / 6.0 + vec2(uTime * 1.1, -uTime * 0.8)) - 0.5) * 0.12 + (noise(px / 2.6 - uTime * 1.6) - 0.5) * 0.04 * smoothstep(2.0, 0.6, pxUnits);
+  float wd = w0 + fine * uDetail * smoothstep(3.0, 1.0, pxUnits);
+  vec2 stepX = dFdx(px), stepY = dFdy(px);
+  float slopeX = dFdx(wd) / max(length(stepX), 1e-3);
+  float slopeY = dFdy(wd) / max(length(stepY), 1e-3);
+  vec3 wn = normalize(vec3(-slopeX * 12.0, -slopeY * 12.0, 1.0));
+  if (w > -1.0) {
+    vec2 refr = wn.xy * 6.0 * smoothstep(0.0, 6.0, depth);
+    vec3 bottom = texture(uBakedTerrain, bakedUv((px + refr) / UNIT)).rgb;
+    vec3 absorb = exp(-depth * vec3(0.13, 0.04, 0.035));
+    vec3 col = bottom * absorb + vec3(0.04, 0.3, 0.36) * (1.0 - absorb);
+    float caustic = pow(max(0.0, 1.0 - abs(fbm4(px / 14.0 + uTime * 0.25) - fbm4(px / 19.0 - uTime * 0.2)) * 2.0), uDetail > 0.5 ? 10.0 : 7.0);
+    col += caustic * exp(-depth / 8.0) * (uDetail > 0.5 ? 0.26 : 0.18);
+    float fres = 0.08 + 0.25 * (1.0 - wn.z) * 8.0;
+    col = mix(col, vec3(0.5, 0.85, 0.86), clamp(fres, 0.0, 0.35) * smoothstep(0.0, 5.0, depth));
+    col *= 0.92 + (w0 - 0.5) * 0.3;
+    float spec = dot(wn, normalize(LIGHT + vec3(0, 0, 1)));
+    col += smoothstep(0.975, 0.995, spec) * 0.3;
+    // Full HD: brilhos miúdos do sol nas ondinhas
+    col += uDetail * smoothstep(0.996, 0.9995, spec) * 0.45 * smoothstep(0.0, 4.0, depth);
+    col *= mix(0.55, 1.0, sh);
+    vec2 q = vec2(riv.x - uTime * mix(26.0, 64.0, profile) * strong, riv.y);
+    float streak = strength > 0.001 ? fbm4(vec2(q.x / 46.0, q.y / 9.0) + 11.0) * 0.75 + fbm4(vec2(q.x / 12.0, q.y / 4.0)) * 0.25 : 0.0;
+    float foam = strength * smoothstep(0.64, 0.74, streak) * (1.0 - smoothstep(0.0, 18.0, w)) * 0.85;
+    vec2 downstream = vec2(1.0, 0.0);
+    for (int k = 0; k < 2; k++) {
+      vec2 rc = k == 0 ? vec2(24.0, riverY(24.0) + 0.3) : vec2(28.5, riverY(28.5) - 0.6);
+      float radius = (k == 0 ? 0.4 : 0.3) * UNIT;
+      vec2 offset = px - rc * UNIT;
+      float d = length(offset);
+      float ring = (1.0 - smoothstep(radius, radius + 8.0, d)) * smoothstep(radius * 0.7, radius, d);
+      foam = max(foam, ring * smoothstep(0.4, 0.6, fbm4(px / 5.0 + uTime * 0.8)) * 0.85);
+      float behind = dot(offset, downstream);
+      float side = abs(offset.y);
+      float wake = step(0.0, behind) * (1.0 - smoothstep(radius * 0.6, radius * 1.1, side)) * (1.0 - smoothstep(0.0, 70.0, behind));
+      foam = max(foam, strength * wake * smoothstep(0.45, 0.7, fbm4(vec2(q.x / 10.0, q.y / 3.0) + 5.0)));
+    }
+    float gate = smoothstep(0.55, 0.75, fbm4(px / 160.0 + vec2(uTime * 0.05, uTime * 0.03)));
+    float ripple = sin(w / 11.0 - uTime * 1.6);
+    foam = max(foam, (1.0 - strength) * gate * smoothstep(0.9, 1.0, ripple) * smoothstep(2.0, 8.0, w) * (1.0 - smoothstep(10.0, 55.0, w)) * 0.5);
+    foam = max(foam, (1.0 - smoothstep(0.0, 3.5, w)) * smoothstep(0.45, 0.62, fbm4(px / 7.0 + uTime * 0.2)) * 0.6);
+    // Full HD: a espuma vira bolhas (células claras com borda) em vez de mancha lisa
+    vec4 bubble = voronoi(px / 1.6 + vec2(uTime * 0.4, 0.0));
+    float bubbles = mix(1.0, 0.55 + 0.6 * smoothstep(0.02, 0.14, bubble.w), uDetail);
+    vec3 foamCol = vec3(0.88, 0.95, 0.93) * mix(1.0, 0.9 + 0.15 * smoothstep(0.25, 0.0, bubble.z), uDetail);
+    col = mix(col, foamCol, clamp(foam * bubbles, 0.0, 1.0) * 0.8);
+    // Full HD: linha fina e clara onde a água encosta na terra
+    col += uDetail * (1.0 - smoothstep(0.0, max(pxUnits * 1.5, 0.6), abs(w))) * 0.12;
+    color = mix(baked.rgb, col, smoothstep(-1.0, 2.5, w));
+  }
+  color = pow(color, vec3(0.95));
+  // Fora da água pintada: grama (só para a página)
+  color = mix(grass, color, baked.a);
+  vec2 g = abs(fract(c) - 0.5);
+  color *= 1.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.1;
+  outColor = vec4(color * uTint, 1.0);
+}`;
+function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function link(vs, fs) { const p = gl.createProgram(); gl.attachShader(p, compile(gl.VERTEX_SHADER, vs)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(p, 0, "aPos"); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+const bakeProg = link(BAKE_VS, BAKE), surfaceProg = link(VS, SURFACE);
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+function tex(w, h) { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); return t; }
+const fbo = gl.createFramebuffer();
+let baked = null; // { terrain, data, w, h, box, key }
+const images = {};
+["grass_01.webp", "dirt_01.webp"].forEach((src) => { const img = new Image(); img.onload = () => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); images[src] = t; }; img.src = src; });
+const LIGHTS = { day: [0.62 + 0.4, 0.62 + 0.384, 0.6 + 0.352], dusk: [0.36 + 0.62, 0.27 + 0.37, 0.32 + 0.19], moon: [0.16 + 0.14, 0.2 + 0.17, 0.33 + 0.26] };
+const state = { light: "day", zoom: 1, pan: [0, 0], detail: 1 };
+const CSS_W = 1280, CSS_H = 720;
+function resize() { const k = window.devicePixelRatio || 1; canvas.style.width = CSS_W + "px"; canvas.style.height = CSS_H + "px"; canvas.width = Math.round(CSS_W * k); canvas.height = Math.round(CSS_H * k); }
+function view() { const k = canvas.width / CSS_W; const cellPx = (CSS_W / COLS) * k * state.zoom; return { k, cellPx, pan: [state.pan[0] * k, state.pan[1] * k] }; }
+// Hoje: assado a 20 pontos por casa na cena inteira. Full HD: assado na resolução da tela, só a parte visível.
+function bake() {
+  const v = view();
+  let box, w, h;
+  if (state.detail > 0.5) {
+    box = [-v.pan[0] / v.cellPx, -v.pan[1] / v.cellPx, canvas.width / v.cellPx, canvas.height / v.cellPx];
+    w = canvas.width; h = canvas.height;
+  } else { box = [0, 0, COLS, ROWS]; w = COLS * 20; h = ROWS * 20; }
+  const key = [box.map((n) => n.toFixed(4)), w, h, state.detail, !!images["dirt_01.webp"]].join("|");
+  if (baked && baked.key === key) return;
+  if (baked) { gl.deleteTexture(baked.terrain); gl.deleteTexture(baked.data); }
+  baked = { terrain: tex(w, h), data: tex(w, h), w, h, box, key };
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, baked.terrain, 0);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, baked.data, 0);
+  gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+  gl.viewport(0, 0, w, h);
+  gl.useProgram(bakeProg);
+  const U = (n) => gl.getUniformLocation(bakeProg, n);
+  gl.uniform4f(U("uBox"), ...box); gl.uniform1f(U("uDetail"), state.detail);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, images["dirt_01.webp"] ?? null); gl.uniform1i(U("uDirt"), 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+function draw(time) {
+  const t0 = performance.now();
+  bake();
+  const v = view();
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.useProgram(surfaceProg);
+  const U = (n) => gl.getUniformLocation(surfaceProg, n);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, baked.terrain); gl.uniform1i(U("uBakedTerrain"), 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, baked.data); gl.uniform1i(U("uBakedData"), 1);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, images["grass_01.webp"] ?? null); gl.uniform1i(U("uGrass"), 2);
+  gl.uniform4f(U("uBox"), ...baked.box);
+  gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), ...v.pan); gl.uniform1f(U("uCellPx"), v.cellPx);
+  gl.uniform1f(U("uTime"), time); gl.uniform1f(U("uDetail"), state.detail);
+  // a luz da cena no plano (no app vem do mapa de luz, por cima), normalizada pelo dia
+  const tint = LIGHTS[state.light].map((value, index) => value / LIGHTS.day[index] * 1.0);
+  gl.uniform3f(U("uTint"), ...tint);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${(performance.now() - t0).toFixed(0)} ms por quadro`;
+}
+function loop(now) { draw(now / 1000); requestAnimationFrame(loop); }
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); })); }
+wire("light", (v) => (state.light = v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "1" ? [0, 0] : v === "2.5" ? [-1400, -700] : [-3800, -1900]; });
+wire("mode", (v) => (state.detail = +v));
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; state.pan = [e.clientX - drag[0], e.clientY - drag[1]]; };
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

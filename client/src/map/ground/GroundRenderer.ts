@@ -55,7 +55,7 @@ export class GroundRenderer {
   private terrainImage: WebGLTexture | null = null;
   /** Camada do relevo (rocha e luz das encostas), guardada como o terreno e posta por cima da água. */
   private reliefImage: WebGLTexture | null = null;
-  private weights: { bounds: ChunkRect; first: WebGLTexture; second: WebGLTexture } | null = null;
+  private weights: { bounds: ChunkRect; first: WebGLTexture; second: WebGLTexture; third: WebGLTexture } | null = null;
   private watercolors: WebGLTexture[] = [];
   private details: WebGLTexture[] = [];
   /** Luz da cena do último desenho do relevo (a face muda com ela). */
@@ -146,6 +146,7 @@ export class GroundRenderer {
     if (!this.weights) return;
     this.gl.deleteTexture(this.weights.first);
     this.gl.deleteTexture(this.weights.second);
+    this.gl.deleteTexture(this.weights.third);
     this.weights = null;
   }
 
@@ -174,7 +175,9 @@ export class GroundRenderer {
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 1, 1, all.width, all.height, gl.RGBA, gl.UNSIGNED_BYTE, all.first);
       const second = this.weightTexture(width, height);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 1, 1, all.width, all.height, gl.RGBA, gl.UNSIGNED_BYTE, all.second);
-      this.weights = { bounds, first, second };
+      const third = this.weightTexture(width, height);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 1, 1, all.width, all.height, gl.RGBA, gl.UNSIGNED_BYTE, all.third);
+      this.weights = { bounds, first, second, third };
       return;
     }
     if (changed.length === 0) return;
@@ -187,6 +190,7 @@ export class GroundRenderer {
       for (const [texture, data] of [
         [this.weights?.first, blocks.first],
         [this.weights?.second, blocks.second],
+        [this.weights?.third, blocks.third],
       ] as const) {
         if (!texture) continue;
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -365,6 +369,7 @@ export class GroundRenderer {
     bindTextures(gl, program, [
       ["uWeightsA", weights.first],
       ["uWeightsB", weights.second],
+      ["uWeightsC", weights.third],
       ...this.watercolors.map((texture, index): [string, WebGLTexture] => [`uWatercolor${index}`, texture]),
       ...this.details.map((texture, index): [string, WebGLTexture] => [`uDetail${index}`, texture]),
     ]);

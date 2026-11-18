@@ -20,7 +20,7 @@ const layer = (index: number) => {
   const terrain = TERRAINS[index];
   const detail = DETAIL_KINDS.indexOf(TERRAIN_ART[terrain].detail);
   const channel = "rgba"[index % 4];
-  const weights = index < 4 ? "first" : "second";
+  const weights = ["first", "second", "third"][index >> 2];
   const water = terrain === "water" || terrain === "waterDark";
   return `
   {
@@ -42,7 +42,7 @@ export const TERRAIN_FRAGMENT = `#version 300 es
 precision highp float;
 precision highp int;
 out vec4 outColor;
-uniform sampler2D uWeightsA, uWeightsB;
+uniform sampler2D uWeightsA, uWeightsB, uWeightsC;
 ${TERRAINS.map((_, index) => `uniform sampler2D uWatercolor${index};`).join("\n")}
 ${DETAIL_KINDS.map((_, index) => `uniform sampler2D uDetail${index};`).join("\n")}
 uniform vec2 uWeightsOrigin;  // ponto fino do primeiro texel (com a borda de um texel vazio)
@@ -90,7 +90,8 @@ void main() {
   vec2 uv = (cell * 4.0 - uWeightsOrigin + 0.5) / uWeightsSize;
   vec4 first = texture(uWeightsA, uv);
   vec4 second = texture(uWeightsB, uv);
-  float strongest = max(max(max(first.r, first.g), max(first.b, first.a)), max(max(second.r, second.g), max(second.b * uWaterDraft, second.a * uWaterDraft)));
+  vec4 third = texture(uWeightsC, uv);
+  float strongest = max(max(max(first.r, first.g), max(first.b, first.a)), max(max(second.r, second.g), max(second.b, max(second.a * uWaterDraft, third.r * uWaterDraft))));
   // Nada pintado perto: transparente (aparece a imagem do mapa ou a mesa).
   if (strongest <= 0.32 - 0.21) { outColor = vec4(0.0); return; }
   float noise = edgeNoise(cell) * 0.42;

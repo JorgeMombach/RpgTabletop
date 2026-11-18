@@ -123,6 +123,14 @@ O material guardado tem cobertura (alfa): rocha onde há face, nada onde é plan
 - O terreno pintado e a água ganham o grão fino e o relevo fino por pixel do teste, calculados no mesmo esquema (guardado quando dá, barato a cada quadro).
 - Página de teste antes, com o dono.
 
+**Como ficou** (combinado em 2026-11-18; páginas aprovadas: `chao-hd-teste.html`, lote a, os chãos; `agua-hd-teste.html`, lote b, a água):
+- **Chão por pixel:** a aquarela de cada terreno continua a de hoje (com o mesmo ajuste de cor); por cima, em vez dos ladrilhos de detalhe guardados a 40 pontos por casa, o detalhe é calculado por pixel: folhas de grama em tufos (deitadas para um lado que muda devagar pelo campo), palha e falhas de terra na grama seca, grão, pedrinhas e rachaduras na terra, torrões e musgo na terra escura, lajes inclinadas com aresta gasta e musgo nas juntas na pedra, calçamento arredondado na pedra clara, grãos soltos e ondinhas de vento na areia. O relevo fino pega a luz da cena (relativa, como o relevo).
+- **Um programa por terreno** *(chamada minha)*: as camadas são desenhadas em ordem, uma por passada, com a mesma mistura de hoje (borda irregular, borda escurecida). Um shader só com os nove terrenos ficaria grande demais (lição das paredes).
+- **Areia** é o nono terreno, entre a pedra clara e a água *(chamada minha)*: cor de areia calculada sobre a aquarela da terra. Sem WebGL 2, a aquarela da terra com um filtro de cor de areia.
+- **Dunas no Relevo** *(chamada minha)*: a ferramenta ganha *Pintar: Nível / Dunas*. No modo *Dunas*, o pincel pinta a altura das dunas (0 apaga, 1 a 3), sem mexer no nível; a ondulação (crista mais aguda que o vale, direção variando de leve) entra na altura guardada do relevo, com a luz e a sombra dele. Vale em qualquer terreno, mas foi pensada para a areia.
+- **Água:** o barranco e o fundo passam a ser assados na resolução da tela, quando a visão muda (hoje, 40 pontos por casa por grupo), com grão, pedrinhas e a faixa de terra molhada. A superfície ganha ondinhas finas (somem abaixo de um pixel), brilhos miúdos do sol, espuma em bolhas e a linha clara onde a água encosta. Correção: o brilho do fundo podia virar conta inválida e manchar a água de preto.
+- **Densidade da tela até 2** *(chamada minha)*: o chão, a água e as paredes deixam de parar em 1,5 × (Retina e celular ficavam menos nítidos).
+
 ## Fica para o construtor
 
 - Nomes dos campos, das ações e das chaves de texto. O ícone da ferramenta (Tabler) e o atalho.

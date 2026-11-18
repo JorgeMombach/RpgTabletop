@@ -1022,6 +1022,7 @@ export const es: Partial<Messages> = {
   "terrain.dirtDark": "Tierra oscura",
   "terrain.stone": "Piedra",
   "terrain.stoneLight": "Piedra clara",
+  "terrain.sand": "Arena",
   "terrain.water": "Agua",
   "terrain.waterDark": "Agua profunda",
   "terrain.eraser": "Borrador",

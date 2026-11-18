@@ -8,7 +8,7 @@
  */
 
 /** Terrenos (ids estáveis, vão no arquivo de sessão); o nome mostrado vem da tradução. A ordem é a do desenho. */
-export const TERRAINS = ["grass", "grassDry", "dirt", "dirtDark", "stone", "stoneLight", "water", "waterDark"] as const;
+export const TERRAINS = ["grass", "grassDry", "dirt", "dirtDark", "stone", "stoneLight", "sand", "water", "waterDark"] as const;
 export type TerrainId = (typeof TERRAINS)[number];
 
 /** Pontos da grade por casa (em cada eixo). */
@@ -183,6 +183,8 @@ export interface TerrainWeights {
   height: number;
   first: Uint8Array<ArrayBuffer>;
   second: Uint8Array<ArrayBuffer>;
+  /** Terrenos 9 a 12 (hoje só a areia, no canal r). */
+  third: Uint8Array<ArrayBuffer>;
 }
 
 /**
@@ -196,6 +198,8 @@ export function terrainWeights(chunks: TerrainChunks, bounds: ChunkRect, keys?: 
   const height = blocks ? blocks.length * TERRAIN_CHUNK_SIDE : bounds.rows * TERRAIN_CHUNK_SIDE;
   const first = new Uint8Array(width * height * 4);
   const second = new Uint8Array(width * height * 4);
+  const third = new Uint8Array(width * height * 4);
+  const targets = [first, second, third];
   const place = (key: string, originX: number, originY: number) => {
     const chunk = chunks[key];
     if (!chunk) return;
@@ -203,7 +207,7 @@ export function terrainWeights(chunks: TerrainChunks, bounds: ChunkRect, keys?: 
       const text = chunk[terrain];
       const bytes = text ? decodeLayer(text) : null;
       if (!bytes) return;
-      const target = layer < 4 ? first : second;
+      const target = targets[layer >> 2];
       const channel = layer % 4;
       for (let j = 0; j < TERRAIN_CHUNK_SIDE; j++) {
         for (let i = 0; i < TERRAIN_CHUNK_SIDE; i++) {
@@ -221,5 +225,5 @@ export function terrainWeights(chunks: TerrainChunks, bounds: ChunkRect, keys?: 
       place(key, (cx - bounds.cx) * TERRAIN_CHUNK_SIDE, (cy - bounds.cy) * TERRAIN_CHUNK_SIDE);
     }
   }
-  return { width, height, first, second };
+  return { width, height, first, second, third };
 }

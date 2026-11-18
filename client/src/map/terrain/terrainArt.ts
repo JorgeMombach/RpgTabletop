@@ -22,6 +22,8 @@ export const TERRAIN_ART: Record<TerrainId, TerrainArt> = {
   dirtDark: { image: "dirt_01", filter: "brightness(1.75) saturate(0.7)", detail: "dirt" },
   stone: { image: "stone_02", filter: "brightness(1.9) saturate(0.4)", detail: "stone" },
   stoneLight: { image: "stone_01", filter: "brightness(1.25) saturate(0.35)", detail: "stone" },
+  // Areia: a aquarela da terra puxada para cor de areia (na placa de vídeo, a cor é calculada; docs/design/relevo.md).
+  sand: { image: "dirt_02", filter: "sepia(1) saturate(0.55) brightness(1.75)", detail: "dirt" },
   water: { image: "water_01", filter: "saturate(0.7) brightness(0.8) contrast(1.1)", detail: "water" },
   waterDark: { image: "water_03", filter: "saturate(0.6) brightness(0.6) contrast(1.15)", detail: "water" },
 };

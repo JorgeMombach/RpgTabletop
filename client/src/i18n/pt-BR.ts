@@ -1029,6 +1029,7 @@ export const ptBR = {
   "terrain.dirtDark": "Terra escura",
   "terrain.stone": "Pedra",
   "terrain.stoneLight": "Pedra clara",
+  "terrain.sand": "Areia",
   "terrain.water": "Água",
   "terrain.waterDark": "Água funda",
   "terrain.eraser": "Borracha",

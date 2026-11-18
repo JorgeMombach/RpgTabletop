@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chão em Full HD</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button><button data-v="6">Bem de perto</button></div>
+  <div class="group" id="mode"><b>Detalhe</b><button data-v="1" class="on">Full HD</button><button data-v="0">Só aquarela</button></div>
+  <span id="ms"></span>
+</header>
+<p>Em cima: <b>grama</b>, <b>grama seca</b>, <b>terra</b>, <b>terra escura</b>. Embaixo: <b>pedra</b> (lajes), <b>pedra clara</b> (calçamento), <b>areia</b> (nova), <b>dunas</b> (areia com ondulação). Cada painel tem um pouco de grama no canto, para ver a borda. Arraste para mover.</p>
+<canvas id="view"></canvas>
+<script>
+const COLS = 32, ROWS = 18, PANEL = [8, 9];
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0, 1); }`;
+const COMMON = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform sampler2D uGrass, uGrassDry, uDirt, uDirtDark, uStone, uStoneLight;
+uniform vec2 uCanvas, uPan, uPanel; uniform float uCellPx, uDetail;
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uElev;
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+// Grão solto: ponto sorteado dentro de cada célula (não fica em fileira).
+float speck(vec2 c, float scale, float chance, float seed) { vec2 g = c * scale + seed; vec2 id = floor(g); vec2 at = 0.5 + (hash2(id) - 0.5) * 0.6; return hash(id + seed) > chance ? 1.0 - smoothstep(0.18, 0.32, length(fract(g) - at)) : 0.0; }
+// Voronoi: id, distância ao ponto mais perto e folga até a borda.
+vec4 voronoi(vec2 p) {
+  vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; }
+  return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1));
+}
+// Filtros de cor do app (canvas): brilho, saturação, sépia, contraste.
+vec3 saturate_(vec3 c, float s) { float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); return mix(vec3(l), c, s); }
+vec3 sepia(vec3 c, float a) { vec3 s = vec3(dot(c, vec3(0.393, 0.769, 0.189)), dot(c, vec3(0.349, 0.686, 0.168)), dot(c, vec3(0.272, 0.534, 0.131))); return mix(c, s, a); }
+// Folhas de grama: tufos (8 por casa de lado) com folhas finas saindo do meio, cada uma um risco que afina na ponta.
+// x = cobertura (anti-serrilhado pelo tamanho do pixel), y = onde na folha (0 base, 1 ponta), z = sorteio da folha.
+vec3 grassBlades(vec2 c, float density, int count) {
+  float px = 1.0 / uCellPx;
+  vec2 i = floor(c * 8.0);
+  vec3 best = vec3(0.0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 cell = i + vec2(x, y);
+    if (hash(cell + 11.0) > density) continue;
+    vec2 base = (cell + hash2(cell)) / 8.0;
+    // folhas deitadas mais ou menos para o mesmo lado, que muda devagar pelo campo
+    float a0 = noise(base * 0.6) * 6.283;
+    for (int k = 0; k < 5; k++) {
+      if (k >= count) break;
+      float fk = float(k);
+      float a = a0 + (hash(cell + fk * 7.0) - 0.5) * 1.6;
+      float len = 0.06 + 0.08 * hash(cell + fk + 5.0);
+      vec2 d = vec2(cos(a), sin(a));
+      vec2 rel = c - base;
+      float along = clamp(dot(rel, d) / len, 0.0, 1.0);
+      float dist = length(rel - d * along * len);
+      float width = 0.011 * (1.0 - along * 0.9);
+      float cover = 1.0 - smoothstep(width - px * 0.5, width + px * 0.5, dist);
+      // a de cima ganha (sorteio por folha)
+      float order = hash(cell + fk * 13.0);
+      if (cover > 0.02 && (best.x < 0.02 || order > best.z)) best = vec3(max(cover, best.x), along, order);
+    }
+  }
+  return best;
+}
+vec3 grassColor(vec2 c, vec3 w, float density, int count) {
+  vec3 blade = grassBlades(c, density, count);
+  vec3 mat = w * (0.74 + 0.14 * noise(c * 20.0)) * (0.92 + 0.12 * noise(c * 90.0));                                   // fundo entre as folhas
+  vec3 leaf = w * (0.88 + 0.28 * blade.y) * (0.88 + 0.26 * blade.z);                // ponta mais clara
+  leaf = mix(leaf, w * vec3(1.3, 1.32, 0.8), smoothstep(0.7, 1.0, blade.y) * 0.25 * step(0.5, blade.z));
+  vec3 col = mix(mat, leaf, blade.x);
+  return col * (0.9 + 0.2 * fbm(c * 0.7));                                           // tufos mais claros/escuros
+}
+`;
+// Cada chão: altura fina (casas) e cor. `w` = aquarela já com o filtro do app (lida uma vez, fora de condicional).
+const TERRAINS = [
+  { name: "grass", tex: "uGrass", filter: "w = saturate_(w, 0.75) * 0.85;", height: `
+    return fbm(c * 3.0) * 0.025;`, color: `
+    vec3 col = grassColor(c, w, 0.95, 5);
+    // flores miúdas, raras
+    vec2 f = fract(c * 6.0) - 0.5; float pick = hash(floor(c * 6.0));
+    if (pick > 0.985 && length(f) < 0.1) col = mix(col, pick > 0.993 ? vec3(0.95, 0.9, 0.6) : vec3(0.92, 0.92, 0.95), 0.8);
+    return col;` },
+  { name: "grassDry", tex: "uGrassDry", filter: "w = sepia(saturate_(w, 0.55) * 0.95, 0.45);", height: `
+    float bare = smoothstep(0.42, 0.3, fbm(c * 1.6 + 4.0));
+    return mix(fbm(c * 3.0) * 0.02, (fbm(c * 12.0) - 0.5) * 0.01, bare);`, color: `
+    float bare = smoothstep(0.42, 0.3, fbm(c * 1.6 + 4.0));
+    vec3 col = grassColor(c, w, 0.75 - bare * 0.6, 4);
+    vec3 soil = vec3(0.55, 0.43, 0.3) * (0.85 + 0.25 * fbm(c * 14.0)) * (0.94 + 0.12 * noise(c * 55.0));
+    return mix(col, soil, bare * 0.75);` },
+  { name: "dirt", tex: "uDirt", filter: "w = saturate_(w * 1.6, 0.9);", height: `
+    vec4 v = voronoi(c * 7.0); float r = 0.2 + 0.15 * hash(v.xy + 1.0);
+    float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) : 0.0;
+    float crack = 1.0 - smoothstep(0.0, 0.04, voronoi(c * 1.4 + 9.0).w);
+    return pebble * 0.035 + (fbm(c * 10.0) - 0.5) * 0.016 - crack * 0.012 * smoothstep(0.5, 0.7, fbm(c * 0.9));`, color: `
+    vec4 v = voronoi(c * 7.0); float r = 0.2 + 0.15 * hash(v.xy + 1.0);
+    float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.8, v.z) * 0.8 : 0.0;
+    vec3 col = w * (0.84 + 0.3 * fbm(c * 9.0));
+    col *= 0.94 + 0.12 * noise(c * 55.0);                                          // grão
+    vec3 stone = mix(w * 1.2, vec3(0.5, 0.45, 0.4), 0.3 + 0.25 * hash(v.xy + 7.0)) * (0.9 + 0.2 * noise(c * 60.0));
+    col = mix(col, stone, pebble);
+    float crack = 1.0 - smoothstep(0.0, 0.04, voronoi(c * 1.4 + 9.0).w);
+    col *= 1.0 - crack * 0.35 * smoothstep(0.5, 0.7, fbm(c * 0.9));
+    return col;` },
+  { name: "dirtDark", tex: "uDirtDark", filter: "w = saturate_(w * 1.75, 0.7);", height: `
+    float clod = fbm(c * 6.0);
+    vec4 v = voronoi(c * 5.0); float r = 0.16 + 0.1 * hash(v.xy + 1.0);
+    float pebble = hash(v.xy) > 0.86 ? sqrt(max(0.0, 1.0 - pow(v.z / r, 2.0))) : 0.0;
+    return clod * 0.03 + pebble * 0.03 + (noise(c * 30.0) - 0.5) * 0.006;`, color: `
+    float clod = fbm(c * 6.0);
+    vec4 v = voronoi(c * 5.0); float r = 0.16 + 0.1 * hash(v.xy + 1.0);
+    float pebble = hash(v.xy) > 0.86 ? smoothstep(r, r * 0.8, v.z) : 0.0;
+    vec3 col = w * (0.78 + 0.4 * clod);
+    col *= 0.93 + 0.14 * noise(c * 50.0);
+    col = mix(col, vec3(0.3, 0.38, 0.2), smoothstep(0.62, 0.75, fbm(c * 1.2 + 2.0)) * 0.35);  // musgo úmido
+    col = mix(col, vec3(0.42, 0.38, 0.33) * (0.9 + 0.2 * noise(c * 60.0)), pebble);
+    return col;` },
+  { name: "stone", tex: "uStone", filter: "w = saturate_(w * 1.9, 0.4);", height: `
+    vec4 v = voronoi(c * 1.1);
+    float slab = smoothstep(0.02, 0.07, v.w);
+    vec2 tilt = (hash2(v.xy) - 0.5) * 0.04;
+    vec2 inSlab = c * 1.1 - (v.xy + hash2(v.xy));
+    return slab * (0.05 + dot(inSlab, tilt)) + (fbm(c * 8.0) - 0.5) * 0.01 * slab;`, color: `
+    vec4 v = voronoi(c * 1.1);
+    float slab = smoothstep(0.02, 0.07, v.w);
+    vec3 col = w * (0.82 + 0.3 * hash(v.xy));
+    col *= 0.86 + 0.28 * fbm(c * 12.0);
+    col = mix(col, col * 1.18, (1.0 - smoothstep(0.07, 0.16, v.w)) * slab * 0.6);   // aresta gasta clara
+    col = mix(col, col * 1.35, step(0.96, hash(floor(c * 48.0))) * 0.6);             // mica
+    vec3 gap = vec3(0.3, 0.27, 0.22) * (0.8 + 0.3 * noise(c * 40.0));
+    gap = mix(gap, vec3(0.28, 0.36, 0.18), smoothstep(0.55, 0.7, fbm(c * 3.0)) * 0.6);  // musgo nas juntas
+    return mix(gap, col, slab);` },
+  { name: "stoneLight", tex: "uStoneLight", filter: "w = saturate_(w * 1.25, 0.35);", height: `
+    vec4 v = voronoi(c * 2.6);
+    float dome = smoothstep(0.0, 0.28, v.w);
+    return 0.045 * sqrt(dome) + (fbm(c * 14.0) - 0.5) * 0.006 * dome;`, color: `
+    vec4 v = voronoi(c * 2.6);
+    float dome = smoothstep(0.0, 0.28, v.w);
+    vec3 col = w * (0.78 + 0.38 * hash(v.xy)) * mix(vec3(1.0), vec3(1.05, 1.0, 0.92), hash(v.xy + 3.0));
+    col *= 0.88 + 0.24 * fbm(c * 16.0);
+    vec3 gap = vec3(0.42, 0.37, 0.29) * (0.8 + 0.3 * noise(c * 50.0));
+    return mix(gap, col, smoothstep(0.0, 0.08, v.w));` },
+  { name: "sand", tex: "uDirt", filter: "w = vec3(0.86, 0.74, 0.52) * (0.92 + 0.1 * (w.r - 0.3));", height: `
+    vec2 dir = normalize(vec2(1.0, 0.35 + (noise(c * 0.12) - 0.5) * 0.5));
+    float phase = dot(c, dir) * 12.0 + noise(c * 0.5) * 2.0;
+    float ripple = pow(0.5 + 0.5 * sin(phase), 2.2);
+    return ripple * 0.012 + (noise(c * 70.0) - 0.5) * 0.002;`, color: `
+    vec3 col = w * (0.93 + 0.1 * fbm(c * 2.0));
+    col *= 0.96 + 0.06 * noise(c * 80.0);
+    col = mix(col, col * 0.62, speck(c, 90.0, 0.97, 0.0));   // grãos escuros
+    col = mix(col, col * 1.18, speck(c, 90.0, 0.98, 5.0));   // grãos claros
+    return col;` },
+  { name: "dunes", tex: "uDirt", dunes: true, filter: "w = vec3(0.86, 0.74, 0.52) * (0.92 + 0.1 * (w.r - 0.3));", height: `
+    float wave = dot(c, vec2(0.79, 0.33)) * 0.55 + noise(c * 0.15) * 5.0;
+    float dune = pow(0.5 + 0.5 * sin(wave), 1.6) * 0.55 * 1.4;
+    vec2 dir = normalize(vec2(1.0, 0.35 + (noise(c * 0.12) - 0.5) * 0.5));
+    float phase = dot(c, dir) * 12.0 + noise(c * 0.5) * 2.0;
+    return dune + pow(0.5 + 0.5 * sin(phase), 2.2) * 0.01 + (noise(c * 70.0) - 0.5) * 0.002;`, color: `
+    vec3 col = w * (0.93 + 0.1 * fbm(c * 2.0));
+    col *= 0.96 + 0.06 * noise(c * 80.0);
+    col = mix(col, col * 0.62, speck(c, 90.0, 0.97, 0.0));
+    col = mix(col, col * 1.18, speck(c, 90.0, 0.98, 5.0));
+    return col;` },
+];
+const programs = TERRAINS.map((terrain) => {
+  const FS = COMMON + `
+float terrainHeight(vec2 c) { ${terrain.height} }
+vec3 terrainColor(vec2 c, vec3 w) { ${terrain.color} }
+float grassHeight(vec2 c) { return fbm(c * 3.0) * 0.025; }
+void main() {
+  vec2 px = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 world = (px - uPan) / uCellPx;
+  vec2 c = world;
+  vec2 local = world - uPanel;
+  // aquarela (repete a cada 8 casas), lida fora de condicional
+  vec3 w = texture(${terrain.tex}, c / 8.0).rgb;
+  ${terrain.filter}
+  vec3 grassW = saturate_(texture(uGrass, c / 8.0).rgb, 0.75) * 0.85;
+  // grama no canto de cima à esquerda, com a borda irregular do app
+  float edge = clamp((length(local - vec2(0.0, 0.0)) - 2.6 + (fbm(c * 1.82) - 0.5) * 0.84) / 0.5, 0.0, 1.0);
+  float own = edge * edge * (3.0 - 2.0 * edge);
+  float e = 0.5 / uCellPx;
+  float h = mix(grassHeight(c), terrainHeight(c), own) * uDetail;
+  float hx = mix(grassHeight(c + vec2(e, 0.0)), terrainHeight(c + vec2(e, 0.0)), own) * uDetail;
+  float hy = mix(grassHeight(c + vec2(0.0, e)), terrainHeight(c + vec2(0.0, e)), own) * uDetail;
+  vec3 n = normalize(vec3(-(hx - h) / e * ${terrain.dunes ? "1.8" : "1.0"}, -(hy - h) / e * ${terrain.dunes ? "1.8" : "1.0"}, 1.0));
+  vec3 L = normalize(vec3(-uSunDir, uElev));
+  float flatLit = max(L.z, 0.35);
+  float shadow = 1.0;
+  ${terrain.dunes ? `
+  // sombra da duna (no app, guardada como a do relevo)
+  float rise = uElev / length(uSunDir);
+  for (int i = 1; i <= 24; i++) {
+    if (own < 0.5) break;
+    float t = float(i) * 0.12;
+    float above = terrainHeight(c - uSunDir * t) - (h + rise * t);
+    shadow = min(shadow, clamp(1.0 - (above - 0.02) * 6.0, 0.0, 1.0));
+  }` : ""}
+  vec3 light = uAmbient + uSun * 0.8 * max(dot(n, L), 0.0) / flatLit * shadow;
+  vec3 detailed = mix(own < 0.999 ? grassColor(c, grassW, 0.95, 5) : grassW, terrainColor(c, w), own);
+  vec3 plain = mix(grassW, w, own);
+  vec3 col = mix(plain, detailed, uDetail);
+  // borda entre terrenos um pouco escurecida, como no app
+  col *= 1.0 - 0.32 * min(1.0, own * (1.0 - own) * 4.0);
+  col *= uDetail > 0.5 ? light : uAmbient + uSun * 0.8;
+  vec2 g = abs(fract(world) - 0.5);
+  col *= 1.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.1;
+  outColor = vec4(col, 1.0);
+}`;
+  const compile = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(terrain.name + ": " + gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram(); gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS)); gl.bindAttribLocation(prog, 0, "aPos"); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(terrain.name + ": " + gl.getProgramInfoLog(prog));
+  return prog;
+});
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const images = ["grass_01.webp", "grass_03.webp", "dirt_02.webp", "dirt_01.webp", "stone_02.webp", "stone_01.webp"], names = ["uGrass", "uGrassDry", "uDirt", "uDirtDark", "uStone", "uStoneLight"];
+let loaded = 0;
+images.forEach((src, i) => { const img = new Image(); img.onload = () => { const tx = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tx); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); if (++loaded === images.length) draw(); }; img.src = src; });
+const LIGHTS = {
+  day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], elev: 1.24 },
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], elev: 0.28 },
+  moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], dir: [0.45, 0.89], elev: 0.7 },
+};
+const state = { light: "day", zoom: 1, pan: [0, 0], detail: 1 };
+const CSS_W = 1280, CSS_H = 720;
+function resize() { const k = window.devicePixelRatio || 1; canvas.style.width = CSS_W + "px"; canvas.style.height = CSS_H + "px"; canvas.width = Math.round(CSS_W * k); canvas.height = Math.round(CSS_H * k); }
+function draw() {
+  const L = LIGHTS[state.light], n = Math.hypot(...L.dir);
+  const k = canvas.width / CSS_W;
+  const cellPx = (CSS_W / COLS) * k * state.zoom;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.09, 0.075, 0.06, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.SCISSOR_TEST);
+  const t0 = performance.now();
+  programs.forEach((prog, index) => {
+    const panel = [(index % 4) * PANEL[0], Math.floor(index / 4) * PANEL[1]];
+    const x0 = state.pan[0] * k + panel[0] * cellPx, y0 = state.pan[1] * k + panel[1] * cellPx;
+    gl.scissor(Math.round(x0), Math.round(canvas.height - (y0 + PANEL[1] * cellPx)), Math.round(PANEL[0] * cellPx), Math.round(PANEL[1] * cellPx));
+    gl.useProgram(prog);
+    const U = (name) => gl.getUniformLocation(prog, name);
+    names.forEach((name, unit) => gl.uniform1i(U(name), unit));
+    gl.uniform2f(U("uPanel"), panel[0], panel[1]);
+    gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), state.pan[0] * k, state.pan[1] * k);
+    gl.uniform1f(U("uCellPx"), cellPx); gl.uniform1f(U("uDetail"), state.detail);
+    gl.uniform3f(U("uAmbient"), ...L.ambient); gl.uniform3f(U("uSun"), ...L.sun); gl.uniform2f(U("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(U("uElev"), L.elev);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  });
+  gl.disable(gl.SCISSOR_TEST);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${(performance.now() - t0).toFixed(0)} ms por quadro`;
+}
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); draw(); })); }
+wire("light", (v) => (state.light = v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "1" ? [0, 0] : v === "2.5" ? [-160, -330] : [-640, -900]; });
+wire("mode", (v) => (state.detail = +v));
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; state.pan = [e.clientX - drag[0], e.clientY - drag[1]]; draw(); };
+resize();
+</script>
+</body>
+</html>

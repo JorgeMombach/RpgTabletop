@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { chunkKey, decodeLayer, encodeLayer, paintTerrain, terrainAt, terrainBounds, terrainWeights, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
+import { chunkKey, decodeLayer, encodeLayer, paintTerrain, terrainAt, terrainBounds, terrainWeights, TERRAINS, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
 
 // Terreno pintado (entrega 1 da criação de mapa): as contas do pincel e da mistura, puras.
 const stroke = (terrain: TerrainStroke["terrain"], points: number[], radius = 1, strength = 1): TerrainStroke => ({ terrain, radius, strength, points });
@@ -88,7 +88,7 @@ describe("terreno: pesos para a placa de vídeo", () => {
     assert.equal(weights.height, 32);
     const texel = (2 * weights.width + 3) * 4;
     assert.equal(weights.first[texel], 200);
-    assert.equal(weights.second[texel + 2], 55);
+    assert.equal(weights.second[texel + 3], 55, "água: depois da areia");
     assert.equal(weights.first.reduce((total, value) => total + value, 0), 200);
     assert.equal(weights.second.reduce((total, value) => total + value, 0), 55);
   });
@@ -107,5 +107,29 @@ describe("terreno: pesos para a placa de vídeo", () => {
     assert.equal(weights.height, 64);
     assert.equal(weights.first[7 * 4 + 3], 30, "primeiro bloco = 1,0");
     assert.equal(weights.first[(32 * 32 + 5) * 4 + 1], 120, "segundo bloco = 0,0");
+  });
+
+  it("areia pinta e fica no canal b da segunda textura; a água funda vai para a terceira", () => {
+    const chunks: TerrainChunks = {};
+    paintTerrain(chunks, { terrain: "sand", radius: 1, strength: 1, points: [4, 4] });
+    assert.ok((terrainAt(chunks, 4, 4).sand ?? 0) > 0);
+    const weights = terrainWeights(chunks, { cx: 0, cy: 0, cols: 1, rows: 1 });
+    const texel = (16 * weights.width + 16) * 4;
+    assert.ok(weights.second[texel + 2] > 0, "areia: sétimo terreno");
+    const deep: TerrainChunks = {};
+    paintTerrain(deep, { terrain: "waterDark", radius: 1, strength: 1, points: [4, 4] });
+    assert.ok(terrainWeights(deep, { cx: 0, cy: 0, cols: 1, rows: 1 }).third[texel] > 0, "água funda: nono terreno, terceira textura");
+  });
+
+  it("areia fica entre a pedra clara e a água", () => {
+    assert.equal(TERRAINS.indexOf("sand"), TERRAINS.indexOf("stoneLight") + 1);
+    assert.equal(TERRAINS.indexOf("water"), TERRAINS.indexOf("sand") + 1);
+  });
+
+  it("pedaço antigo sem areia: terceira textura vazia", () => {
+    const chunks: TerrainChunks = { "0,0": { grass: layerWith(10, 90) } };
+    const weights = terrainWeights(chunks, { cx: 0, cy: 0, cols: 1, rows: 1 });
+    assert.equal(weights.first[10 * 4], 90);
+    assert.equal(weights.third.reduce((total, value) => total + value, 0), 0);
   });
 });
