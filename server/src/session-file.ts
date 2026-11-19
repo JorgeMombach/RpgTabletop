@@ -55,6 +55,7 @@ import { parseDrawing } from "./actions/drawings";
 import { parseCurrent } from "./actions/currents";
 import { normalizeExpression } from "./dice";
 import { gridColorOf, gridKindOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { markFloors, parseFloorChunks } from "./actions/floor";
 import { markRelief, parseReliefChunks } from "./actions/relief";
 import { markTerrain, parseTerrainChunks } from "./actions/terrain";
 import { parseChest } from "./actions/chests";
@@ -711,6 +712,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     // Arquivos anteriores ao terreno pintado não têm.
     ...(b.terrain !== undefined && { terrain: parseTerrainChunks(b.terrain) }),
     ...(b.relief !== undefined && { relief: parseReliefChunks(b.relief) }),
+    // Arquivos anteriores aos pisos não têm.
+    ...(b.floors !== undefined && { floors: parseFloorChunks(b.floors) }),
   };
 }
 
@@ -814,6 +817,7 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   store.journalVersion++;
   markTerrain(store, "all");
   markRelief(store, "all");
+  markFloors(store, "all");
   // Disputa de loot não vai no arquivo: o baú volta aberto, no modo Pegar.
   store.lootCount = null;
   store.lootResults = null;

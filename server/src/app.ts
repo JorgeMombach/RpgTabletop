@@ -13,6 +13,7 @@ import {
   type JoinResult,
   type MapPoint,
   type Ruler,
+  type FloorBroadcast,
   type ReliefBroadcast,
   type TerrainBroadcast,
   type ServerToClientEvents,
@@ -167,6 +168,13 @@ export function createApp(opts: AppOptions) {
     return { reset: false, chunks: Object.fromEntries([...store.terrainDirty].map((key) => [key, terrain[key] ?? null])) };
   }
 
+  /** Piso: o inteiro ou só os pedaços que mudaram desde o último envio. */
+  function floorsPayload(reset: boolean): FloorBroadcast {
+    const floors = store.game.battle.floors ?? {};
+    if (reset || store.floorsDirty === "all") return { reset: true, chunks: { ...floors } };
+    return { reset: false, chunks: Object.fromEntries([...store.floorsDirty].map((key) => [key, floors[key] ?? null])) };
+  }
+
   /** Relevo: o inteiro ou só os pedaços que mudaram desde o último envio. */
   function reliefPayload(reset: boolean): ReliefBroadcast {
     const relief = store.game.battle.relief ?? {};
@@ -196,6 +204,10 @@ export function createApp(opts: AppOptions) {
     if (store.reliefDirty === "all" || store.reliefDirty.size > 0) {
       io.to(SESSION_ROOM).emit("relief", reliefPayload(false));
       store.reliefDirty = new Set();
+    }
+    if (store.floorsDirty === "all" || store.floorsDirty.size > 0) {
+      io.to(SESSION_ROOM).emit("floors", floorsPayload(false));
+      store.floorsDirty = new Set();
     }
     // Diário da campanha (Passo 14): fora do estado, só quando muda; cada um recebe o que pode ler.
     const journalChanged = store.journalVersion !== sentJournalVersion;
@@ -259,6 +271,7 @@ export function createApp(opts: AppOptions) {
     socket.emit("journal", journalFor(store, player));
     socket.emit("terrain", terrainPayload(true));
     socket.emit("relief", reliefPayload(true));
+    socket.emit("floors", floorsPayload(true));
     return { ok: true, self: toPublic(player), sessionToken: player.token };
   }
 

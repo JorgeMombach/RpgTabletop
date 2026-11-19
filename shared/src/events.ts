@@ -1,4 +1,5 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
+import type { FloorStroke } from "./floor";
 import type { ReliefStroke } from "./relief";
 import type { TerrainChunk, TerrainStroke } from "./terrain";
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
@@ -119,6 +120,12 @@ export interface TerrainBroadcast {
 
 /** Relevo: o inteiro (`reset`) ao entrar ou trocar de cena; depois, só os pedaços que mudaram (`null` = sem relevo). */
 export interface ReliefBroadcast {
+  reset: boolean;
+  chunks: Record<string, string | null>;
+}
+
+/** Piso: como o relevo (o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram). */
+export interface FloorBroadcast {
   reset: boolean;
   chunks: Record<string, string | null>;
 }
@@ -391,6 +398,12 @@ export interface ActionPayloads {
   "relief:restore": { chunks: Record<string, string | null> };
   /** Mestre: aplaina todo o relevo da cena. */
   "relief:clear": Record<string, never>;
+  /** Mestre: uma passada de piso (docs/design/pisos.md): pincel, retângulo ou cômodo. */
+  "floor:paint": FloorStroke;
+  /** Mestre: repõe pedaços do piso como estavam (`null` = apagar o pedaço); usado pelo Desfazer. */
+  "floor:restore": { chunks: Record<string, string | null> };
+  /** Mestre: apaga todo o piso da cena. */
+  "floor:clear": Record<string, never>;
   /** Mestre: liga, acerta ou desliga (`null`) a hora do jogo (Passo 15). */
   "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
   /** Mestre: avança a hora do jogo (descanso, viagem). */
@@ -533,6 +546,8 @@ export interface ServerToClientEvents {
   terrain: (payload: TerrainBroadcast) => void;
   /** Relevo: como o terreno, por evento próprio. */
   relief: (payload: ReliefBroadcast) => void;
+  /** Piso: como o relevo, por evento próprio. */
+  floors: (payload: FloorBroadcast) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;

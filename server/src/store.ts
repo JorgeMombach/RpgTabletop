@@ -90,6 +90,8 @@ export class Store {
   terrainDirty: Set<string> | "all" = new Set();
   /** Relevo a mandar no próximo envio (como o terreno). */
   reliefDirty: Set<string> | "all" = new Set();
+  /** Piso a mandar no próximo envio (como o relevo). */
+  floorsDirty: Set<string> | "all" = new Set();
   /** Arquivos de áudio da pasta (lista lida no começo e quando o mestre atualiza). */
   soundLibrary: string[] | null = null;
   /** Antispam dos jogadores (E26); os testes zeram para rolar em sequência. */

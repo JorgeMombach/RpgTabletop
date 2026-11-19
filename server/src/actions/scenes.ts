@@ -5,6 +5,7 @@ import type { Store } from "../store";
 import { fail } from "../validate";
 import { defaultWeather } from "../weather";
 import { requireGm } from "./combatants";
+import { markFloors } from "./floor";
 import { markRelief } from "./relief";
 import { markTerrain } from "./terrain";
 import type { HandlerMap } from "./types";
@@ -44,8 +45,8 @@ function storeActive(store: Store): StoredScene {
   const { battle, allies } = store.game;
   const allyPos: Record<string, GridPos> = {};
   for (const a of allies) if (a.pos) allyPos[a.id] = a.pos;
-  const { map, mobs, npcs, effects, drawings, walls, torches, chests, props, currents, weather, fog, terrain, relief } = battle;
-  return { map, mobs, npcs, effects, drawings, walls, torches, chests, props, currents, weather, fog, ...(terrain && { terrain }), ...(relief && { relief }), allyPos };
+  const { map, mobs, npcs, effects, drawings, walls, torches, chests, props, currents, weather, fog, terrain, relief, floors } = battle;
+  return { map, mobs, npcs, effects, drawings, walls, torches, chests, props, currents, weather, fog, ...(terrain && { terrain }), ...(relief && { relief }), ...(floors && { floors }), allyPos };
 }
 
 export const sceneHandlers: HandlerMap = {
@@ -99,8 +100,11 @@ export const sceneHandlers: HandlerMap = {
     else delete game.battle.terrain;
     if (content.relief) game.battle.relief = content.relief;
     else delete game.battle.relief;
+    if (content.floors) game.battle.floors = content.floors;
+    else delete game.battle.floors;
     markTerrain(store, "all");
     markRelief(store, "all");
+    markFloors(store, "all");
     for (const a of game.allies) a.pos = allyPos[a.id] ?? null;
     // O "Desfazer" de remoção é da cena que saiu.
     store.removedMobs.clear();

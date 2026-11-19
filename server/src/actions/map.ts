@@ -9,6 +9,7 @@ import { editable, requireGm } from "./combatants";
 import { moveFollowers } from "./effects";
 import { requireTurnFor } from "./rules";
 import { parseMapTorch } from "./mapTorches";
+import { markFloors } from "./floor";
 import { markRelief } from "./relief";
 import { markTerrain } from "./terrain";
 import type { HandlerMap } from "./types";
@@ -69,6 +70,9 @@ function changeGrid(store: Store, grid: GridKind | undefined) {
   if (grid) battle.map.grid = grid;
   else delete battle.map.grid;
   battle.walls = [];
+  // O piso acompanha os cômodos das paredes (docs/design/pisos.md): sai junto.
+  delete battle.floors;
+  markFloors(store, "all");
   battle.effects = battle.effects.filter((effect) => !effect.cells);
   // Área que andava com o token fica parada: o passo de quem segue é contado em casas do quadrado (Fase 2).
   for (const effect of battle.effects) delete effect.followId;
@@ -182,7 +186,9 @@ export const mapHandlers: HandlerMap = {
     // O terreno pintado também é do campo que se limpa.
     delete battle.terrain;
     delete battle.relief;
+    delete battle.floors;
     markRelief(store, "all");
+    markFloors(store, "all");
     markTerrain(store, "all");
     // A disputa de loot era da batalha que acabou.
     store.lootCount = null;

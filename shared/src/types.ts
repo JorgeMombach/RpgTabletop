@@ -1,6 +1,7 @@
 // Modelo de dados compartilhado entre servidor e cliente (ver SPEC.md §4).
 import type { Area } from "./events";
 import type { FogState } from "./fog";
+import type { FloorChunks } from "./floor";
 import type { ReliefChunks } from "./relief";
 import type { TerrainChunks } from "./terrain";
 
@@ -774,6 +775,8 @@ export interface SceneContent {
   terrain?: TerrainChunks;
   /** Relevo da cena (docs/design/relevo.md). Ausente = chão plano. */
   relief?: ReliefChunks;
+  /** Piso da cena (docs/design/pisos.md). Ausente = sem piso. */
+  floors?: FloorChunks;
 }
 
 /** Cena guardada (não ativa): o conteúdo dela e onde cada aliado estava nela. */
@@ -846,6 +849,8 @@ export interface GameState {
     terrain?: TerrainChunks;
     /** Relevo da cena. Ausente = chão plano. Vai por evento próprio, fora do estado. */
     relief?: ReliefChunks;
+    /** Piso da cena. Ausente = sem piso. Vai por evento próprio, fora do estado. */
+    floors?: FloorChunks;
   };
   log: LogEntry[];
   /** Cenas da sessão, na ordem do painel; a ativa é `sceneId` (o conteúdo dela está em `battle`). */
