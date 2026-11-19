@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { LIMITS, type ActionResult } from "@rpg/shared";
+import { currentEndNear, extendCurrent, LIMITS, type ActionResult } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { act, join, useServer, type Client } from "./helpers";
 
@@ -82,5 +82,37 @@ describe("correnteza da água", () => {
     delete file.game.battle.currents;
     importSession(store, store.createPlayer("Mestre antigo", "gm"), file);
     assert.deepEqual(game().battle.currents, []);
+  });
+  it("continuar uma linha: o mestre troca os pontos dela; jogador, linha que não existe e linha inválida são recusados", async () => {
+    const { g, ana } = await setup();
+    const [rio] = idsOf(await act(g, "current:add", { points: [1, 1, 4, 1] }));
+    await act(g, "current:update", { id: rio, points: [1, 1, 4, 1, 6.345, 3] });
+    assert.deepEqual(game().battle.currents, [{ id: rio, points: [1, 1, 4, 1, 6.35, 3] }]);
+    assert.match(errorOf(await act(ana, "current:update", { id: rio, points: [0, 0, 1, 1] })), /permissão/);
+    assert.match(errorOf(await act(g, "current:update", { id: "nenhuma", points: [0, 0, 1, 1] })), /Correnteza não encontrada/);
+    assert.match(errorOf(await act(g, "current:update", { id: rio, points: [1, 1] })), /Correnteza inválida/);
+    const long = Array.from({ length: LIMITS.currentNumbers + 2 }, (_, index) => index / 10);
+    assert.match(errorOf(await act(g, "current:update", { id: rio, points: long })), /longa demais/);
+    assert.deepEqual(game().battle.currents[0].points, [1, 1, 4, 1, 6.35, 3], "recusa não muda nada");
+  });
+});
+
+describe("pontas da correnteza (continuar uma linha)", () => {
+  const currents = [
+    { id: "rio", points: [0, 0, 2, 0, 4, 1] },
+    { id: "riacho", points: [10, 10, 12, 10] },
+  ];
+
+  it("acha a ponta mais perto do clique: o fim ou o começo de uma linha", () => {
+    assert.deepEqual(currentEndNear(currents, 4.2, 1.1, 0.4), { id: "rio", end: "end" });
+    assert.deepEqual(currentEndNear(currents, -0.1, 0.2, 0.4), { id: "rio", end: "start" });
+    assert.deepEqual(currentEndNear(currents, 10.1, 9.9, 0.4), { id: "riacho", end: "start" });
+    assert.equal(currentEndNear(currents, 2, 0.1, 0.4), null, "o meio da linha não é ponta");
+    assert.equal(currentEndNear(currents, 7, 7, 0.4), null);
+  });
+
+  it("emenda os pontos novos: no fim, na ordem; no começo, invertidos (a água continua no mesmo sentido)", () => {
+    assert.deepEqual(extendCurrent([0, 0, 2, 0], "end", [3, 0, 4, 1]), [0, 0, 2, 0, 3, 0, 4, 1]);
+    assert.deepEqual(extendCurrent([0, 0, 2, 0], "start", [-1, 0, -2, 1]), [-2, 1, -1, 0, 0, 0, 2, 0]);
   });
 });

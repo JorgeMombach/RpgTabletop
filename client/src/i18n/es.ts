@@ -1072,7 +1072,7 @@ export const es: Partial<Messages> = {
   "terrain.current": "Corriente",
   "terrain.currentTip": "Traza líneas sobre el agua en el sentido en que fluye (río). El agua sin línea cerca queda quieta (lago).",
   "terrain.currentEraser": "Borrar línea",
-  "terrain.currentHint": "Traza en el sentido en que fluye el agua. Las líneas solo las ves tú, con Terreno abierto.",
+  "terrain.currentHint": "Haz clic punto a punto en el sentido en que fluye el agua (o arrastra); doble clic o Enter termina, Esc cancela. Empieza en el extremo de una línea para continuarla. Las líneas solo las ves tú, con Terreno abierto.",
   "terrain.currentHintErase": "Pasa por encima de una línea de corriente para borrarla.",
   "paint.name": "{effect} (pintado)",
   "walls.styleBrick": "Ladrillo",

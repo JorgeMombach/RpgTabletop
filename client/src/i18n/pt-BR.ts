@@ -1079,7 +1079,7 @@ export const ptBR = {
   "terrain.current": "Correnteza",
   "terrain.currentTip": "Risque linhas na água no sentido em que ela corre (rio). Água sem linha por perto fica parada (lago).",
   "terrain.currentEraser": "Apagar linha",
-  "terrain.currentHint": "Risque no sentido em que a água corre. As linhas só aparecem para você, com o Terreno aberto.",
+  "terrain.currentHint": "Clique ponto a ponto no sentido em que a água corre (ou arraste); duplo clique ou Enter termina, Esc cancela. Comece na ponta de uma linha para continuá-la. As linhas só aparecem para você, com o Terreno aberto.",
   "terrain.currentHintErase": "Passe por cima de uma linha de correnteza para apagá-la.",
   "paint.name": "{effect} (pintado)",
   "walls.styleBrick": "Tijolo",

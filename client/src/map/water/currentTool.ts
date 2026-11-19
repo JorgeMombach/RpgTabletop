@@ -1,4 +1,4 @@
-import type { WaterCurrent } from "@rpg/shared";
+import type { CurrentEnd, LightPoint, WaterCurrent } from "@rpg/shared";
 
 /**
  * Ferramenta Correnteza (água animada, docs/design/agua.md): contas da linha que o mestre risca, em casas.
@@ -6,8 +6,28 @@ import type { WaterCurrent } from "@rpg/shared";
 
 /** Distância mínima (casas) entre dois pontos riscados: a linha não depende da velocidade do mouse. */
 export const CURRENT_STEP = 0.25;
+/** Começar o traço até essa distância (casas) da ponta de uma linha continua a linha. */
+export const CURRENT_CONTINUE = 0.4;
 /** Alcance da borracha de correnteza (casas). */
 export const CURRENT_ERASER = 0.4;
+
+/** Linha de correnteza sendo traçada (clique a clique ou arrastando). */
+export interface CurrentDraft {
+  /** Pontos novos, em casas (pares x, y). */
+  points: number[];
+  /** A ponta da linha continuada (o traço sai dela), ou `null` numa linha nova. */
+  anchor: [number, number] | null;
+  /** A linha que este traço continua e por qual ponta. */
+  continues: { id: string; end: CurrentEnd } | null;
+  /** Botão apertado agora. */
+  pressed: boolean;
+  /** Este aperto já virou traço à mão (andou mais que um passo). */
+  dragged: boolean;
+  /** Este aperto começou a linha (soltar depois de arrastar termina; clicar deixa aberta). */
+  startedNow: boolean;
+  /** Onde o botão foi apertado (casas). */
+  pressAt: LightPoint;
+}
 
 /** Reduz a linha a no máximo `maxNumbers` números (pares x, y), mantendo o começo e o fim. */
 export function simplifyCurrent(points: number[], maxNumbers: number): number[] {

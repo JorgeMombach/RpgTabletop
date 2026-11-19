@@ -33,6 +33,7 @@ type Step =
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
   | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
   | { scope: "terrain"; kind: "currentAdded"; id: string }
+  | { scope: "terrain"; kind: "currentChanged"; id: string; before: number[] }
   | { scope: "terrain"; kind: "currentsRemoved"; currents: WaterCurrent[] }
   | { scope: "relief"; kind: "painted"; before: Record<string, string | null>; after: Record<string, string | null> }
   | { scope: "floor"; kind: "painted"; before: Record<string, string | null>; after: Record<string, string | null> };
@@ -427,6 +428,13 @@ export async function addCurrent(points: number[]): Promise<ActionResult> {
   return result;
 }
 
+/** Linha de correnteza continuada pela ponta: desfazer volta aos pontos de antes. */
+export async function updateCurrent(current: WaterCurrent, points: number[]): Promise<ActionResult> {
+  const result = await act("current:update", { id: current.id, points });
+  if (result.ok) push({ scope: "terrain", kind: "currentChanged", id: current.id, before: current.points });
+  return result;
+}
+
 /** Linhas de correnteza apagadas pela borracha: desfazer risca de novo (com id novo). */
 export async function removeCurrents(currents: WaterCurrent[]): Promise<ActionResult> {
   const result = await act("current:remove", { ids: currents.map((current) => current.id) });
@@ -481,6 +489,8 @@ export async function undo(scope?: UndoScope) {
     } else await restoreProps(step.props);
   } else if (step.scope === "terrain" && step.kind === "currentAdded") {
     if (has(battle?.currents, step.id)) await act("current:remove", { ids: [step.id] });
+  } else if (step.scope === "terrain" && step.kind === "currentChanged") {
+    if (has(battle?.currents, step.id)) await act("current:update", { id: step.id, points: step.before });
   } else if (step.scope === "terrain" && step.kind === "currentsRemoved") {
     for (const current of step.currents) await act("current:add", { points: current.points });
   } else if (step.scope === "floor") {

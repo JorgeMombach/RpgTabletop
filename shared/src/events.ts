@@ -347,6 +347,8 @@ export interface ActionPayloads {
   "current:add": { points: number[] };
   /** Mestre: apaga linhas de correnteza. */
   "current:remove": { ids: string[] };
+  /** Troca os pontos de uma linha (continuar pela ponta; desfazer a continuação). */
+  "current:update": { id: string; points: number[] };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   /** Mestre: tocha fixa em qualquer ponto do mapa (em casas). */
   "maptorch:add": { col: number; row: number; style: MapTorchStyle };

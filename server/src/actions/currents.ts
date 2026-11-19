@@ -32,6 +32,14 @@ export const currentHandlers: HandlerMap = {
     return [current.id];
   },
 
+  "current:update": (store, player, payload) => {
+    requireGm(player);
+    const current = store.game.battle.currents.find((candidate) => candidate.id === payload?.id);
+    if (!current) fail("Correnteza não encontrada.");
+    // Valida tudo antes de trocar (a recusa não muda nada).
+    current.points = parseCurrent(payload).points;
+  },
+
   "current:remove": (store, player, payload) => {
     requireGm(player);
     const ids = payload?.ids;

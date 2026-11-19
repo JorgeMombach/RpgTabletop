@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, doorLayouts, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { brushCells, currentEndNear, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -28,7 +28,7 @@ import { lightSources, type Dragging } from "./ground/lightSources";
 import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
 import type { LightingInput } from "./ground/lightPass";
 import { CurrentLines } from "./water/CurrentLines";
-import { CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent } from "./water/currentTool";
+import { CURRENT_CONTINUE, CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent, type CurrentDraft } from "./water/currentTool";
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
 const WEBGL_GROUND = GroundRenderer.supported();
@@ -45,7 +45,7 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addChest, addCurrent, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { reliefStrokeOf } from "./terrain/ReliefOptions";
 import { FloorLayer } from "./floor/FloorLayer";
 import { floorStrokeOf } from "./floor/FloorOptions";
@@ -657,42 +657,107 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     void paintFloorStroke(floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: draft.points })).then(() => useApp.setState({ floorPreview: null }));
   }
 
-  // Correnteza (água animada, mestre): risca a linha no sentido em que a água corre; ou, na borracha de correnteza,
-  // apaga as linhas tocadas. As linhas aparecem só com a ferramenta Terreno aberta.
-  const currentRef = useRef<{ points: number[] } | null>(null);
+  // Correnteza (água animada, mestre): a linha vai no sentido em que a água corre. Clique a clique (cada clique põe
+  // um ponto; duplo clique ou Enter termina, Esc cancela) ou arrastando (risca à mão e termina ao soltar). Começar
+  // perto da ponta de uma linha continua essa linha. Na borracha de correnteza, apaga as linhas tocadas. As linhas
+  // aparecem só com a ferramenta Terreno aberta.
+  const currentRef = useRef<CurrentDraft | null>(null);
   const currentErasing = useRef(false);
   /** Linhas já apagadas nesta passada da borracha (o servidor ainda não respondeu: não apaga duas vezes). */
   const currentErased = useRef(new Set<string>());
+  /** A linha da prévia (a ponta da linha continuada, os pontos e, entre cliques, até o ponteiro). */
   const [currentDraft, setCurrentDraft] = useState<number[] | null>(null);
+  const cellsOf = (p: Point): LightPoint => ({ x: (p.x - grid.offsetX) / grid.cellPx, y: (p.y - grid.offsetY) / grid.cellPx });
+  function showCurrentDraft(hover: LightPoint | null) {
+    const draft = currentRef.current;
+    if (!draft) return setCurrentDraft(null);
+    const line = [...(draft.anchor ?? []), ...draft.points];
+    if (hover && !draft.pressed) line.push(hover.x, hover.y);
+    setCurrentDraft(line.length >= 4 ? line : null);
+  }
+  /** O último ponto da linha sendo traçada (ou a ponta da linha continuada). */
+  function lastCurrentPoint(draft: CurrentDraft): LightPoint | null {
+    const { points, anchor } = draft;
+    if (points.length >= 2) return { x: points[points.length - 2], y: points[points.length - 1] };
+    return anchor ? { x: anchor[0], y: anchor[1] } : null;
+  }
+  function pushCurrentPoint(draft: CurrentDraft, at: LightPoint) {
+    const last = lastCurrentPoint(draft);
+    if (last && Math.hypot(at.x - last.x, at.y - last.y) < CURRENT_STEP) return;
+    draft.points.push(at.x, at.y);
+  }
   function currentAt(p: Point) {
-    const x = (p.x - grid.offsetX) / grid.cellPx;
-    const y = (p.y - grid.offsetY) / grid.cellPx;
+    const at = cellsOf(p);
     if (currentErasing.current) {
-      const touched = currentsNear(useApp.getState().state?.battle.currents ?? [], x, y, CURRENT_ERASER).filter((current) => !currentErased.current.has(current.id));
+      const touched = currentsNear(useApp.getState().state?.battle.currents ?? [], at.x, at.y, CURRENT_ERASER).filter((current) => !currentErased.current.has(current.id));
       for (const current of touched) currentErased.current.add(current.id);
       if (touched.length > 0) void removeCurrents(touched);
       return;
     }
     const draft = currentRef.current;
     if (!draft) return;
-    const { points } = draft;
-    if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < CURRENT_STEP) return;
-    points.push(x, y);
-    setCurrentDraft([...points]);
+    if (draft.pressed) {
+      // Arrastando: risca à mão (a partir de um passo de distância do aperto, para um clique trêmulo não virar traço).
+      if (!draft.dragged && Math.hypot(at.x - draft.pressAt.x, at.y - draft.pressAt.y) < CURRENT_STEP) return;
+      draft.dragged = true;
+      pushCurrentPoint(draft, at);
+    }
+    showCurrentDraft(at);
   }
   function startCurrent(p: Point, erasing: boolean) {
     currentErasing.current = erasing;
     currentErased.current.clear();
-    currentRef.current = erasing ? null : { points: [] };
-    currentAt(p);
+    if (erasing) return currentAt(p);
+    const at = cellsOf(p);
+    const draft = currentRef.current;
+    if (draft) {
+      // Linha já aberta: este aperto é mais um clique (ou um trecho arrastado).
+      Object.assign(draft, { pressed: true, dragged: false, startedNow: false, pressAt: at });
+      return;
+    }
+    const currents = useApp.getState().state?.battle.currents ?? [];
+    const near = currentEndNear(currents, at.x, at.y, CURRENT_CONTINUE);
+    const line = near ? currents.find((current) => current.id === near.id) : undefined;
+    if (near && line) {
+      const anchor: [number, number] = near.end === "end" ? [line.points[line.points.length - 2], line.points[line.points.length - 1]] : [line.points[0], line.points[1]];
+      currentRef.current = { points: [], anchor, continues: near, pressed: true, dragged: false, startedNow: true, pressAt: at };
+    } else {
+      currentRef.current = { points: [at.x, at.y], anchor: null, continues: null, pressed: true, dragged: false, startedNow: true, pressAt: at };
+    }
+    showCurrentDraft(null);
   }
+  /** Soltou o botão: arrastou uma linha nova de uma vez, termina; clicou, põe o ponto e espera o próximo. */
   function finishCurrent() {
+    currentErasing.current = false;
+    const draft = currentRef.current;
+    if (!draft?.pressed) return;
+    draft.pressed = false;
+    if (draft.dragged && draft.startedNow) return commitCurrent();
+    if (!draft.dragged && !draft.startedNow) pushCurrentPoint(draft, draft.pressAt);
+    showCurrentDraft(null);
+  }
+  /** Termina a linha (duplo clique, Enter, outra ferramenta): nova, ou emendada na linha continuada. */
+  function commitCurrent() {
     const draft = currentRef.current;
     currentRef.current = null;
-    currentErasing.current = false;
     setCurrentDraft(null);
-    if (draft && draft.points.length >= 4) void addCurrent(simplifyCurrent(draft.points, LIMITS.currentNumbers));
+    if (!draft) return;
+    const line = draft.continues ? (useApp.getState().state?.battle.currents ?? []).find((current) => current.id === draft.continues?.id) : undefined;
+    if (draft.continues && line) {
+      if (draft.points.length >= 2) void updateCurrent(line, simplifyCurrent(extendCurrent(line.points, draft.continues.end, draft.points), LIMITS.currentNumbers));
+      return;
+    }
+    if (draft.points.length >= 4) void addCurrent(simplifyCurrent(draft.points, LIMITS.currentNumbers));
   }
+  function cancelCurrent() {
+    currentRef.current = null;
+    setCurrentDraft(null);
+  }
+  // Enter termina e Esc cancela a linha aberta (nos atalhos do mapa, antes do resto); trocar de ferramenta (ou de
+  // pincel) termina o que já foi traçado.
+  const commitCurrentRef = useRef(commitCurrent);
+  commitCurrentRef.current = commitCurrent;
+  useEffect(() => () => commitCurrentRef.current(), [tool, terrainBrush.terrain]);
 
   // Pincel de espalhar (ou de apagar objetos): as casas da passada aparecem de leve; ao soltar, vai tudo junto.
   const propBrushRef = useRef<Set<string> | null>(null);
@@ -1223,6 +1288,13 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       const gm = state.self.role === "gm";
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
       const done = () => e.preventDefault();
+      // Linha de correnteza aberta: Enter termina, Esc cancela (sem abrir menu nem sair da ferramenta).
+      if (currentRef.current && (key === "Enter" || key === "Escape")) {
+        done();
+        if (key === "Enter") commitCurrentRef.current();
+        else cancelCurrent();
+        return;
+      }
       // Visão do mapa.
       if (key === "+" || key === "=") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1.2);
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
@@ -1310,6 +1382,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           onPointerDown={readOnly ? undefined : onMouseDown}
           onPointerMove={onMouseMove}
           onPointerUp={onMouseUp}
+          // Duplo clique (mouse, toque ou caneta) termina a linha de correnteza aberta.
+          onPointerDblClick={() => currentRef.current && commitCurrent()}
           onPointerLeave={() => {
             onMouseUp();
             hideEffectTip();

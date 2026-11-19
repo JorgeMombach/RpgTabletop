@@ -1072,7 +1072,7 @@ export const en: Partial<Messages> = {
   "terrain.current": "Current",
   "terrain.currentTip": "Draw lines on the water in the direction it flows (river). Water with no line nearby stays still (lake).",
   "terrain.currentEraser": "Erase line",
-  "terrain.currentHint": "Draw in the direction the water flows. Lines are only shown to you, with Terrain open.",
+  "terrain.currentHint": "Click point by point in the direction the water flows (or drag); double-click or Enter finishes, Esc cancels. Start at the end of a line to continue it. Lines are only shown to you, with Terrain open.",
   "terrain.currentHintErase": "Drag over a current line to erase it.",
   "paint.name": "{effect} (painted)",
   "walls.styleBrick": "Brick",

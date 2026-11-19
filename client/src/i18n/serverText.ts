@@ -308,6 +308,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Correnteza inválida.": ["Invalid current.", "Corriente no válida."],
   "Correnteza longa demais: risque em partes.": ["Current too long: draw it in parts.", "Corriente demasiado larga: trázala por partes."],
   "Limite de correntezas da cena atingido.": ["This scene has reached its current limit.", "Se alcanzó el límite de corrientes de la escena."],
+  "Correnteza não encontrada.": ["Current not found.", "Corriente no encontrada."],
   "Um invocado não invoca outro (invoque a partir de quem lançou a magia).": ["A summon can't summon another (summon from whoever cast the spell).", "Un invocado no invoca a otro (invoca desde quien lanzó el conjuro)."],
   "Use a remoção de mob.": ["Use the mob removal.", "Usa la eliminación de mob."],
   "Use um arquivo de áudio (MP3, OGG, WAV, M4A, WEBM ou FLAC).": ["Use an audio file (MP3, OGG, WAV, M4A, WEBM or FLAC).", "Usa un archivo de audio (MP3, OGG, WAV, M4A, WEBM o FLAC)."],
