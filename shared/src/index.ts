@@ -19,3 +19,4 @@ export * from "./wallCut";
 export * from "./relief";
 export * from "./reliefQueue";
 export * from "./wallPieces";
+export * from "./floor";

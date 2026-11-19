@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pisos</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button><button data-v="6">Bem de perto</button></div>
+  <div class="group" id="dir"><b>Tábuas</b><button data-v="0" class="on">Horizontal</button><button data-v="1">Vertical</button></div>
+  <span id="ms"></span>
+</header>
+<p>Em cima: <b>tábua corrida</b> (com uma parede na diagonal), <b>tábua larga gasta</b>, <b>laje de pedra</b>. Embaixo: <b>ladrilho</b>, <b>mosaico</b>, <b>laje com tapete</b> no meio do salão (a barra segue a borda do tapete). Sujeira nos cantos, desgaste no meio. Arraste para mover.</p>
+<canvas id="view"></canvas>
+<script>
+const COLS = 30, ROWS = 18, PANEL = [10, 9];
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0, 1); }`;
+const COMMON = `#version 300 es
+precision highp float;
+precision highp int;
+out vec4 outColor;
+uniform sampler2D uGrass, uStone, uStone2;
+uniform vec2 uCanvas, uPan, uPanel; uniform float uCellPx, uDir;
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uElev;
+float hash(vec2 p) {
+  highp uvec2 q = floatBitsToUint(p);
+  highp uint h = (q.x * 1597334677u) ^ (q.y * 3812015801u);
+  h ^= h >> 16u; h *= 2246822519u; h ^= h >> 13u; h *= 3266489917u; h ^= h >> 16u;
+  return float(h) * (1.0 / 4294967296.0);
+}
+vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+float px() { return 1.0 / uCellPx; }
+/** Some (vira média) quando o detalhe fica menor que ~2 pixels. */
+float detail(float perCell) { return 1.0 - smoothstep(0.35, 0.8, px() * perCell); }
+// Quarto do quadro (8 × 7 casas, de 1 a 9 em x e de 1 a 8 em y); no primeiro, um canto cortado na diagonal.
+// Distância até a parede (+ dentro), em casas.
+float roomSdf(vec2 p, bool diagonal) {
+  vec2 d = min(p - vec2(1.0, 1.0), vec2(9.0, 8.0) - p);
+  float box = min(d.x, d.y);
+  if (diagonal) box = min(box, ((9.0 - p.x) + (8.0 - p.y) - 3.0) * 0.7071);
+  return box;
+}
+// Paredes do quadro (só para o contexto): faixa de pedra escura com contorno.
+vec3 wallsOver(vec3 col, float sdf) {
+  float t = 0.12;
+  float inWall = 1.0 - smoothstep(t - px(), t + px(), abs(sdf));
+  vec3 stone = vec3(0.42, 0.4, 0.37) * (0.85 + 0.3 * fbm(gl_FragCoord.xy * 0.05));
+  col = mix(col, stone, inWall);
+  float ink = 1.0 - smoothstep(0.0, px() * 1.5, abs(abs(sdf) - t));
+  return mix(col, vec3(0.1, 0.075, 0.06), ink * 0.9);
+}
+`;
+// Cada material: altura fina (relevo da luz) e cor. q = ponto no mapa (casas, alinhado ao grid); dir = 0 horizontal,
+// 1 vertical (as tábuas correm ao longo de x ou de y); edge = distância até a borda do piso (casas).
+const MATERIALS = [
+  { name: "tábua corrida", diagonal: true, body: `
+// Tábuas de 1/5 de casa, pontas desencontradas, comprimento variando.
+vec4 plank(vec2 q, float width, float minLen, float maxLen) {
+  vec2 r = uDir > 0.5 ? q.yx : q;      // r.x ao longo da tábua
+  float row = floor(r.y / width);
+  float offset = hash(vec2(row, 3.0)) * 4.0;
+  float len = minLen + (maxLen - minLen) * hash(vec2(row, 7.0));
+  float along = r.x + offset;
+  float id = floor(along / len);
+  float u = fract(along / len);           // ao longo, 0 a 1
+  float v = fract(r.y / width);           // através, 0 a 1
+  return vec4(u * len, v * width, id + row * 131.0, len);
+}
+float heightAt(vec2 q, float edge) {
+  vec4 k = plank(q, 0.2, 1.4, 2.6);
+  float across = k.y / 0.2;
+  float seam = min(across, 1.0 - across) * 0.2;
+  float endSeam = min(k.x, k.w - k.x);
+  float groove = smoothstep(0.0, 0.012, min(seam, endSeam));
+  return groove * (0.012 - pow(abs(across - 0.5) * 2.0, 4.0) * 0.004);
+}
+vec3 colorAt(vec2 q, float edge) {
+  vec4 k = plank(q, 0.2, 1.4, 2.6);
+  float tone = hash(vec2(k.z, 1.0));
+  vec3 wood = mix(vec3(0.62, 0.42, 0.22), vec3(0.48, 0.3, 0.16), tone);
+  wood = mix(wood, vec3(0.7, 0.52, 0.3), step(0.85, hash(vec2(k.z, 9.0))) * 0.5);
+  vec2 g = vec2(k.x * 3.0, k.y * 60.0 + k.z * 7.0);
+  wood *= 0.84 + 0.22 * fbm(g) ;
+  wood *= 0.93 + 0.1 * sin(k.y * 180.0 + fbm(vec2(k.x * 2.0, k.z)) * 9.0) * detail(30.0);
+  float across = k.y / 0.2;
+  float seam = min(across, 1.0 - across) * 0.2;
+  float endSeam = min(k.x, k.w - k.x);
+  wood = mix(wood * 0.35, wood, smoothstep(0.0, max(px() * 1.2, 0.006), min(seam, endSeam)));
+  // pregos nas pontas
+  float nail = 1.0 - smoothstep(0.012, 0.018, length(vec2(min(k.x, k.w - k.x) - 0.07, (across - 0.5) * 0.2)));
+  wood = mix(wood, vec3(0.18, 0.17, 0.17), nail * detail(40.0));
+  return wood;
+}` },
+  { name: "tábua larga gasta", body: `
+vec4 plank(vec2 q, float width, float minLen, float maxLen) {
+  vec2 r = uDir > 0.5 ? q.yx : q;
+  float row = floor(r.y / width);
+  float offset = hash(vec2(row, 3.0)) * 4.0;
+  float len = minLen + (maxLen - minLen) * hash(vec2(row, 7.0));
+  float along = r.x + offset;
+  float id = floor(along / len);
+  return vec4(fract(along / len) * len, fract(r.y / width) * width, id + row * 131.0, len);
+}
+float heightAt(vec2 q, float edge) {
+  vec4 k = plank(q, 0.34, 2.0, 3.6);
+  float across = k.y / 0.34;
+  float seam = min(min(across, 1.0 - across) * 0.34, min(k.x, k.w - k.x));
+  // tábua velha: um pouco empenada, rachaduras finas
+  float warp = (fbm(vec2(k.x * 0.8, k.z)) - 0.5) * 0.01;
+  float crack = 1.0 - smoothstep(0.0, 0.006, abs(fbm(vec2(k.x * 1.5, k.y * 30.0 + k.z)) - 0.5) * 0.05);
+  return smoothstep(0.0, 0.016, seam) * (0.012 + warp) - crack * 0.004 * detail(40.0);
+}
+vec3 colorAt(vec2 q, float edge) {
+  vec4 k = plank(q, 0.34, 2.0, 3.6);
+  float tone = hash(vec2(k.z, 1.0));
+  vec3 wood = mix(vec3(0.5, 0.39, 0.27), vec3(0.38, 0.28, 0.19), tone);
+  wood *= 0.82 + 0.25 * fbm(vec2(k.x * 2.5, k.y * 40.0 + k.z * 5.0));
+  wood *= 0.92 + 0.1 * sin(k.y * 120.0 + fbm(vec2(k.x * 1.5, k.z)) * 10.0) * detail(25.0);
+  // nós
+  vec2 knotAt = vec2(hash(vec2(k.z, 4.0)) * k.w, 0.17);
+  float knot = 1.0 - smoothstep(0.02, 0.05, length((k.xy - knotAt) * vec2(0.6, 1.0)));
+  wood = mix(wood, wood * 0.45, knot * step(0.6, hash(vec2(k.z, 5.0))));
+  // gasto no meio do cômodo (mais claro e liso), mais escuro na beira
+  float worn = smoothstep(0.8, 2.6, edge);
+  wood = mix(wood, wood * vec3(1.22, 1.18, 1.1) + 0.03, worn * 0.45 * smoothstep(0.3, 0.7, fbm(q * 0.6)));
+  float across = k.y / 0.34;
+  float seam = min(min(across, 1.0 - across) * 0.34, min(k.x, k.w - k.x));
+  return mix(wood * 0.3, wood, smoothstep(0.0, max(px() * 1.4, 0.008), seam));
+}` },
+  { name: "laje de pedra", body: `
+// Lajes alinhadas às casas: cada casa é uma laje inteira ou duas metades (sorteio), juntas com argamassa.
+vec4 slab(vec2 q) {
+  vec2 cell = floor(q);
+  float split = hash(cell + 2.0);
+  vec2 local = fract(q);
+  vec2 id = cell; vec2 size = vec2(1.0);
+  if (split > 0.55) { bool vertical = hash(cell + 5.0) > 0.5; float half_ = vertical ? step(0.5, local.x) : step(0.5, local.y); id = cell + vec2(half_ * 0.5, half_ * 0.37); if (vertical) { local.x = fract(local.x * 2.0); size.x = 0.5; } else { local.y = fract(local.y * 2.0); size.y = 0.5; } }
+  vec2 edgeDist = min(local, 1.0 - local) * size;
+  return vec4(id, min(edgeDist.x, edgeDist.y), 0.0);
+}
+float heightAt(vec2 q, float edge) {
+  vec4 s = slab(q);
+  vec2 tilt = (hash2(s.xy) - 0.5) * 0.03;
+  float joint = smoothstep(0.02, 0.05, s.z);
+  return joint * (0.03 + dot(fract(q) - 0.5, tilt)) + (fbm(q * 9.0) - 0.5) * 0.006 * joint;
+}
+vec3 colorAt(vec2 q, float edge) {
+  vec4 s = slab(q);
+  vec3 col = texture(uStone, q * 0.3 + s.xy * 0.37).rgb * vec3(1.05, 1.02, 0.96);
+  col *= 0.8 + 0.3 * hash(s.xy);
+  col *= 0.86 + 0.28 * fbm(q * 11.0);
+  col = mix(col, col * 1.2, (1.0 - smoothstep(0.03, 0.09, s.z)) * 0.5);               // quina gasta
+  col = mix(col, col * 1.3, step(0.965, hash(floor(q * 40.0))) * 0.5 * detail(40.0)); // mica
+  vec3 mortar = vec3(0.3, 0.28, 0.24) * (0.8 + 0.3 * noise(q * 40.0));
+  return mix(mortar, col, smoothstep(0.012, max(0.03, px() * 1.5), s.z));
+}` },
+  { name: "ladrilho", body: `
+// Ladrilho de barro de 1/2 casa, esmaltado, tons alternando de leve, rejunte claro.
+float heightAt(vec2 q, float edge) {
+  vec2 t = fract(q * 2.0);
+  float grout = min(min(t.x, 1.0 - t.x), min(t.y, 1.0 - t.y)) * 0.5;
+  return smoothstep(0.008, 0.022, grout) * 0.012 + (noise(q * 20.0) - 0.5) * 0.002;
+}
+vec3 colorAt(vec2 q, float edge) {
+  vec2 id = floor(q * 2.0);
+  vec2 t = fract(q * 2.0);
+  float grout = min(min(t.x, 1.0 - t.x), min(t.y, 1.0 - t.y)) * 0.5;
+  float tone = hash(id);
+  vec3 tile = mix(vec3(0.66, 0.34, 0.2), vec3(0.56, 0.27, 0.16), tone);
+  if (mod(id.x + id.y, 2.0) > 0.5) tile *= 0.9;
+  tile *= 0.88 + 0.22 * fbm(q * 7.0 + id);
+  // esmalte: reflexo suave no meio da peça, gasto nas pontas
+  tile += (1.0 - smoothstep(0.1, 0.45, length(t - 0.5))) * 0.05;
+  tile = mix(tile, tile * vec3(0.92, 0.88, 0.85), (1.0 - smoothstep(0.0, 0.08, grout)) * 0.5);
+  // lascado de vez em quando
+  float chip = step(0.93, hash(id + 9.0)) * (1.0 - smoothstep(0.03, 0.06, length(t - vec2(0.9, 0.12))));
+  tile = mix(tile, vec3(0.52, 0.4, 0.3), chip);
+  vec3 groutCol = vec3(0.72, 0.68, 0.6) * (0.85 + 0.2 * noise(q * 50.0));
+  return mix(groutCol, tile, smoothstep(0.006, max(0.014, px() * 1.2), grout));
+}` },
+  { name: "mosaico", body: `
+// Peças miúdas (1/8 de casa) formando losangos a cada 2 casas, numa faixa de grega na volta do losango.
+float heightAt(vec2 q, float edge) {
+  vec2 t = fract(q * 8.0);
+  float gap = min(min(t.x, 1.0 - t.x), min(t.y, 1.0 - t.y)) / 8.0;
+  return smoothstep(0.002, 0.008, gap) * 0.006 * detail(16.0);
+}
+vec3 colorAt(vec2 q, float edge) {
+  vec2 id = floor(q * 8.0) / 8.0 + 0.0625;
+  vec2 m = abs(fract(id / 2.0) - 0.5) * 2.0;     // 0 no meio do losango, 1 na volta
+  float diamond = m.x + m.y;
+  vec3 col = vec3(0.86, 0.82, 0.72);                                        // fundo creme
+  if (diamond < 0.55) col = vec3(0.24, 0.36, 0.42);                         // losango azul
+  if (diamond < 0.3) col = vec3(0.72, 0.52, 0.22);                          // miolo ocre
+  if (abs(diamond - 0.8) < 0.08) col = vec3(0.5, 0.2, 0.16);                // faixa vinho
+  col *= 0.86 + 0.24 * hash(floor(q * 8.0));
+  vec2 t = fract(q * 8.0);
+  float gap = min(min(t.x, 1.0 - t.x), min(t.y, 1.0 - t.y)) / 8.0;
+  col = mix(vec3(0.62, 0.58, 0.5), col, mix(0.85, smoothstep(0.0015, max(0.004, px()), gap), detail(16.0)));
+  return col;
+}` },
+  { name: "laje com tapete", carpet: true, body: `
+vec4 slab(vec2 q) {
+  vec2 cell = floor(q);
+  float split = hash(cell + 2.0);
+  vec2 local = fract(q);
+  vec2 id = cell; vec2 size = vec2(1.0);
+  if (split > 0.55) { bool vertical = hash(cell + 5.0) > 0.5; float half_ = vertical ? step(0.5, local.x) : step(0.5, local.y); id = cell + vec2(half_ * 0.5, half_ * 0.37); if (vertical) { local.x = fract(local.x * 2.0); size.x = 0.5; } else { local.y = fract(local.y * 2.0); size.y = 0.5; } }
+  vec2 edgeDist = min(local, 1.0 - local) * size;
+  return vec4(id, min(edgeDist.x, edgeDist.y), 0.0);
+}
+// Tapete: de 3 a 7 em x e de 3 a 6 em y (no quadro); a barra segue a borda dele.
+float carpetSdf(vec2 p) { vec2 d = min(p - vec2(3.0, 3.0), vec2(7.0, 6.0) - p); return min(d.x, d.y); }
+float heightAt(vec2 q, float edge) {
+  vec2 p = q - uPanel;
+  if (carpetSdf(p) > 0.0) return 0.02 + (noise(q * 60.0) - 0.5) * 0.002 * detail(60.0);
+  vec4 s = slab(q);
+  float joint = smoothstep(0.02, 0.05, s.z);
+  return joint * 0.03;
+}
+vec3 carpetColor(vec2 q, float d) {
+  // trama: fios cruzados miúdos
+  float weave = (sin(q.x * 220.0) * sin(q.y * 220.0)) * 0.5 + 0.5;
+  vec3 col = vec3(0.5, 0.12, 0.12);
+  // barra: duas faixas e um padrão de losangos entre elas
+  float band = d;
+  if (band < 0.12) col = vec3(0.68, 0.5, 0.2);
+  else if (band < 0.36) { vec2 r = abs(fract(vec2(q.x + q.y, q.x - q.y) * 2.5) - 0.5); col = (r.x + r.y) < 0.35 ? vec3(0.72, 0.56, 0.25) : vec3(0.22, 0.12, 0.14); }
+  else if (band < 0.44) col = vec3(0.68, 0.5, 0.2);
+  else {
+    // miolo: medalhão no meio
+    vec2 c = q - uPanel - vec2(5.0, 4.5);
+    float r = length(c * vec2(1.0, 1.35));
+    if (r < 0.9) col = mix(vec3(0.2, 0.22, 0.38), vec3(0.72, 0.56, 0.25), step(0.6, r));
+  }
+  col *= 0.88 + 0.16 * mix(0.5, weave, detail(110.0)) ;
+  col *= 0.9 + 0.15 * fbm(q * 5.0);
+  return col;
+}
+vec3 colorAt(vec2 q, float edge) {
+  vec2 p = q - uPanel;
+  float d = carpetSdf(p);
+  if (d > 0.0) return carpetColor(q, d);
+  vec4 s = slab(q);
+  vec3 col = texture(uStone, q * 0.3 + s.xy * 0.37).rgb * vec3(1.05, 1.02, 0.96);
+  col *= 0.8 + 0.3 * hash(s.xy);
+  col *= 0.86 + 0.28 * fbm(q * 11.0);
+  vec3 mortar = vec3(0.3, 0.28, 0.24) * (0.8 + 0.3 * noise(q * 40.0));
+  col = mix(mortar, col, smoothstep(0.012, max(0.03, px() * 1.5), s.z));
+  // sombra de contato do tapete na laje
+  col *= 1.0 - (1.0 - smoothstep(0.0, 0.08, -d)) * 0.25;
+  return col;
+}` },
+];
+const programs = MATERIALS.map((material) => {
+  const FS = COMMON + material.body + `
+void main() {
+  vec2 screen = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 q = (screen - uPan) / uCellPx;
+  vec2 p = q - uPanel;
+  vec3 grass = texture(uGrass, q / 8.0).rgb * 0.85;
+  float sdf = roomSdf(p, ${material.diagonal ? "true" : "false"});
+  float edge = max(sdf, 0.0);
+  float e = 0.5 * px();
+  float h = heightAt(q, edge);
+  vec3 n = normalize(vec3(-(heightAt(q + vec2(e, 0.0), edge) - h) / e, -(heightAt(q + vec2(0.0, e), edge) - h) / e, 1.0));
+  vec3 L = normalize(vec3(-uSunDir, uElev));
+  float flatLit = max(L.z, 0.35);
+  vec3 light = uAmbient + uSun * 0.8 * max(dot(n, L), 0.0) / flatLit;
+  vec3 floorCol = colorAt(q, edge);
+  // sujeira nos cantos (perto da parede), um pouco de poeira solta
+  float dirt = (1.0 - smoothstep(0.0, 0.6, edge)) * (0.5 + 0.5 * fbm(q * 3.0));
+  floorCol = mix(floorCol, floorCol * vec3(0.55, 0.5, 0.45), dirt * 0.6);
+  float cover = smoothstep(-px() * 0.5, px() * 0.5, sdf);
+  vec3 col = mix(grass * (uAmbient + uSun * 0.8), floorCol * light, cover);
+  col = wallsOver(col, sdf);
+  vec2 g = abs(fract(q) - 0.5);
+  col *= 1.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.08;
+  outColor = vec4(col, 1.0);
+}`;
+  const compile = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(material.name + ": " + gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram(); gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS)); gl.bindAttribLocation(prog, 0, "aPos"); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(material.name + ": " + gl.getProgramInfoLog(prog));
+  return prog;
+});
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const images = ["grass_01.webp", "stone_01.webp", "stone_02.webp"], names = ["uGrass", "uStone", "uStone2"];
+let loaded = 0;
+images.forEach((src, i) => { const img = new Image(); img.onload = () => { const tx = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tx); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); if (++loaded === images.length) draw(); }; img.src = src; });
+const LIGHTS = {
+  day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], elev: 1.24 },
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], elev: 0.28 },
+  moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], dir: [0.45, 0.89], elev: 0.7 },
+};
+const state = { light: "day", zoom: 1, pan: [0, 0], dir: 0 };
+const CSS_W = 1280, CSS_H = 768;
+function resize() { const k = window.devicePixelRatio || 1; canvas.style.width = CSS_W + "px"; canvas.style.height = CSS_H + "px"; canvas.width = Math.round(CSS_W * k); canvas.height = Math.round(CSS_H * k); }
+function draw() {
+  const L = LIGHTS[state.light], n = Math.hypot(...L.dir);
+  const k = canvas.width / CSS_W;
+  const cellPx = (CSS_W / COLS) * k * state.zoom;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.09, 0.075, 0.06, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.SCISSOR_TEST);
+  const t0 = performance.now();
+  programs.forEach((prog, index) => {
+    const panel = [(index % 3) * PANEL[0], Math.floor(index / 3) * PANEL[1]];
+    const x0 = state.pan[0] * k + panel[0] * cellPx, y0 = state.pan[1] * k + panel[1] * cellPx;
+    gl.scissor(Math.round(x0), Math.round(canvas.height - (y0 + PANEL[1] * cellPx)), Math.round(PANEL[0] * cellPx), Math.round(PANEL[1] * cellPx));
+    gl.useProgram(prog);
+    const U = (name) => gl.getUniformLocation(prog, name);
+    names.forEach((name, unit) => gl.uniform1i(U(name), unit));
+    gl.uniform2f(U("uPanel"), panel[0], panel[1]);
+    gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), state.pan[0] * k, state.pan[1] * k);
+    gl.uniform1f(U("uCellPx"), cellPx); gl.uniform1f(U("uDir"), state.dir);
+    gl.uniform3f(U("uAmbient"), ...L.ambient); gl.uniform3f(U("uSun"), ...L.sun); gl.uniform2f(U("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(U("uElev"), L.elev);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  });
+  gl.disable(gl.SCISSOR_TEST);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${(performance.now() - t0).toFixed(0)} ms por quadro`;
+}
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); draw(); })); }
+wire("light", (v) => (state.light = v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "1" ? [0, 0] : v === "2.5" ? [-200, -150] : [-700, -500]; });
+wire("dir", (v) => (state.dir = +v));
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; state.pan = [e.clientX - drag[0], e.clientY - drag[1]]; draw(); };
+resize();
+</script>
+</body>
+</html>

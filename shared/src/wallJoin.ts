@@ -214,10 +214,11 @@ const OPEN_AIR: readonly WallStyle[] = ["rampart", "palisade"];
 
 /**
  * Cômodos fechados (polígonos em casas, pares x, y): paredes, portas e janelas. Vazadas, muralha e paliçada não fecham
- * (pátio murado é ao ar livre). `sceneStyle` = desenho de quem não tem.
+ * (pátio murado é ao ar livre). `sceneStyle` = desenho de quem não tem. Com `allStyles` (o piso: docs/design/pisos.md),
+ * todos os desenhos fecham (o pátio murado ou cercado também é um lugar).
  */
-export function wallRooms(walls: Wall[], sceneStyle: WallStyle = "stone"): number[][] {
-  const edges = splitWalls(walls, sceneStyle).filter((edge) => !seeThrough(edge.ownStyle) && !OPEN_AIR.includes(edge.style));
+export function wallRooms(walls: Wall[], sceneStyle: WallStyle = "stone", options: { allStyles?: boolean } = {}): number[][] {
+  const edges = splitWalls(walls, sceneStyle).filter((edge) => options.allStyles || (!seeThrough(edge.ownStyle) && !OPEN_AIR.includes(edge.style)));
   interface HalfEdge {
     from: LightPoint;
     to: LightPoint;
