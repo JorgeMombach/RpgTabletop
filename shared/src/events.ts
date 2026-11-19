@@ -3,6 +3,7 @@ import type { FloorStroke } from "./floor";
 import type { ReliefStroke } from "./relief";
 import type { TerrainChunk, TerrainStroke } from "./terrain";
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
+import type { Bridge } from "./bridge";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
 import type { CatalogCollection, CatalogDetails, CatalogLang } from "./catalog";
@@ -347,6 +348,10 @@ export interface ActionPayloads {
   "current:add": { points: number[] };
   /** Mestre: apaga linhas de correnteza. */
   "current:remove": { ids: string[] };
+  /** Pontes (docs/design/pontes.md): pôr, mudar (pontas, largura ou tipo) e apagar. */
+  "bridge:add": Omit<Bridge, "id">;
+  "bridge:update": { id: string } & Partial<Omit<Bridge, "id">>;
+  "bridge:remove": { ids: string[] };
   /** Troca os pontos de uma linha (continuar pela ponta; desfazer a continuação). */
   "current:update": { id: string; points: number[] };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */

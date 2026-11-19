@@ -151,6 +151,8 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       chests,
       // Objeto do cenário coberto pela névoa nem chega.
       props: gm ? game.battle.props : game.battle.props.filter(sight.prop),
+      // Ponte vai para todos, como o chão (a névoa a cobre na tela do jogador).
+      bridges: game.battle.bridges,
       // Correnteza vai para todos, como o terreno (que não passa pela névoa): a água corre igual em cada tela.
       currents: game.battle.currents,
       // A disputa do loot vai para todos (o baú abre na tela de cada um).

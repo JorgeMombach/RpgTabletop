@@ -1,6 +1,7 @@
 // Modelo de dados compartilhado entre servidor e cliente (ver SPEC.md §4).
 import type { Area } from "./events";
 import type { FogState } from "./fog";
+import type { Bridge } from "./bridge";
 import type { FloorChunks } from "./floor";
 import type { ReliefChunks } from "./relief";
 import type { TerrainChunks } from "./terrain";
@@ -766,6 +767,8 @@ export interface SceneContent {
   torches: MapTorch[];
   chests: MapChest[];
   props: MapProp[];
+  /** Pontes (docs/design/pontes.md). */
+  bridges: Bridge[];
   /** Linhas de correnteza da água (água animada). */
   currents: WaterCurrent[];
   weather: WeatherState;
@@ -842,6 +845,8 @@ export interface GameState {
     torches: MapTorch[];
     chests: MapChest[];
     props: MapProp[];
+    /** Pontes (docs/design/pontes.md). */
+    bridges: Bridge[];
     currents: WaterCurrent[];
     weather: WeatherState;
     fog: FogState;
@@ -1028,6 +1033,8 @@ export interface ClientState {
     torches: MapTorch[];
     chests: MapChest[];
     props: MapProp[];
+    /** Pontes (docs/design/pontes.md). */
+    bridges: Bridge[];
     /** Linhas de correnteza: todos recebem (a água corre na tela de cada um; a linha só aparece para o mestre). */
     currents: WaterCurrent[];
     lootCount: LootCountView | null;
