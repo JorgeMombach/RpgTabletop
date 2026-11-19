@@ -1,3 +1,4 @@
+import { NO_UNROLL } from "./glKit";
 /**
  * Shaders da luz (docs/design/luz.md), do teste aprovado (`docs/design/luz-teste.html`). Em vez de testar cada parede
  * em cada pixel (o teste), o recorte de cada tocha e a sombra de cada parede são polígonos (contas de
@@ -37,6 +38,7 @@ void main() {
 /** Sombra do sol: soma a sua parte na máscara (5 sombras um pouco diferentes = borda macia). */
 export const SHADOW_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 out vec4 outColor;
 uniform float uWeight;
 void main() { outColor = vec4(uWeight, 0.0, 0.0, 1.0); }`;
@@ -47,6 +49,7 @@ void main() { outColor = vec4(uWeight, 0.0, 0.0, 1.0); }`;
  */
 export const AMBIENT_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 out vec4 outColor;
 uniform sampler2D uShadow, uRoof;
 uniform vec2 uCanvas;
@@ -62,6 +65,7 @@ void main() {
 /** Luz de uma tocha dentro do recorte dela: cai devagar, tremula e tem a cor da chama (somada, pela metade). */
 export const TORCH_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 in vec2 vCell;
 out vec4 outColor;
 uniform vec2 uCenter;
@@ -78,6 +82,7 @@ void main() {
 /** Mapa de luz para a tela: dobra de volta e aplica o brilho mínimo (o do mestre). */
 export const LIGHT_OUT_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 out vec4 outColor;
 uniform sampler2D uLight;
 uniform vec2 uCanvas;
@@ -95,6 +100,7 @@ void main() {
  */
 export const FLAME_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 in vec2 vCell;
 out vec4 outColor;
 uniform vec2 uFlame;      // base da chama (fixa) ou centro do token, em casas
@@ -131,7 +137,7 @@ void main() {
     vec3 flames = tongue.rgb * (1.0 - fire.a) + fire.rgb * mix(0.9, 1.15, flameShift(uSeed));
     cover = max(fire.a, tongue.a);
     color = color * (1.0 - cover) + flames;
-    for (int k = 0; k < 5; k++) {
+    for (int k = 0; k < 5 + uNoUnroll; k++) {
       float seed = uSeed * 17.0 + float(k) * 3.7;
       float life = fract(uTime * (0.55 + 0.25 * hash(vec2(seed, 1.0))) + hash(vec2(seed, 2.0)));
       vec2 spark = vec2((hash(vec2(seed, 3.0)) - 0.5) * 12.0 + sin(uTime * 3.0 + seed) * 4.0 * life, -14.0 - life * 46.0);

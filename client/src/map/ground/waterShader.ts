@@ -1,3 +1,4 @@
+import { NO_UNROLL } from "./glKit";
 /**
  * Shaders da água animada (docs/design/agua.md), portados do teste aprovado (`docs/design/agua-teste.html`). Os
  * números vêm do teste, feito a 48 px por casa: por isso as contas usam `px` = posição em casas × 48 (as mesmas escalas
@@ -37,11 +38,11 @@ float noise(vec2 p) {
   vec2 i = floor(p), f = fract(p); vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
   return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
 }
-float fbm(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 5; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v; }
-float fbm4(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 4; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v / 0.9375; }
+float fbm(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 5 + uNoUnroll; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v; }
+float fbm4(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 4 + uNoUnroll; k++) { v += a * noise(p); p = r * p * 2.02 + 17.1; a *= 0.5; } return v / 0.9375; }
 vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
 // Voronoi: id, distância ao ponto mais perto e folga até a borda (pedrinhas do barranco, bolhas da espuma).
-vec4 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1)); }
+vec4 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1 + uNoUnroll; y++) for (int x = -1; x <= 1 + uNoUnroll; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1)); }
 
 // Posição (px do teste) -> coordenada da textura do grupo; px do campo -> px do teste.
 vec2 fieldUv(vec2 px) { return (px / UNIT - uRectCells.xy) / uRectCells.zw; }
@@ -86,6 +87,7 @@ void main() {
  */
 export const BAKE_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 in vec2 vCell;
 layout(location = 0) out vec4 outTerrain;
 layout(location = 1) out vec4 outData;
@@ -120,8 +122,16 @@ float detailHeight(vec2 px) {
 }
 vec3 terrainNormal(vec2 px) {
   float e = 0.4;
-  float hx = heightAt(px + vec2(e, 0)) + detailHeight(px + vec2(e, 0)) - heightAt(px - vec2(e, 0)) - detailHeight(px - vec2(e, 0));
-  float hy = heightAt(px + vec2(0, e)) + detailHeight(px + vec2(0, e)) - heightAt(px - vec2(0, e)) - detailHeight(px - vec2(0, e));
+  // As quatro amostras num laço: uma cópia só da altura e do relevo fino no programa compilado (no Direct3D, as
+  // quatro chamadas soltas viravam quatro cópias e o bake levava ~4 s para compilar; assim, ~1,7 s).
+  float right = 0.0, left = 0.0, up = 0.0, down = 0.0;
+  for (int k = 0; k < 4 + uNoUnroll; k++) {
+    vec2 at = px + (k == 0 ? vec2(e, 0) : k == 1 ? vec2(-e, 0) : k == 2 ? vec2(0, e) : vec2(0, -e));
+    float height = heightAt(at) + detailHeight(at);
+    if (k == 0) right = height; else if (k == 1) left = height; else if (k == 2) up = height; else down = height;
+  }
+  float hx = right - left;
+  float hy = up - down;
   return normalize(vec3(-hx / (2.0 * e), -hy / (2.0 * e), 1.0));
 }
 // Sombra: anda na direção da luz; se o terreno sobe acima do raio, está na sombra (suave).
@@ -129,7 +139,7 @@ float shadowAt(vec2 px, float h0) {
   vec2 dir = normalize(LIGHT.xy);
   float rise = LIGHT.z / length(LIGHT.xy);
   float lit = 1.0;
-  for (int k = 1; k <= 10; k++) {
+  for (int k = 1; k <= 10 + uNoUnroll; k++) {
     float d = float(k) * 4.5;
     float over = heightAt(px + dir * d) - (h0 + d * rise);
     lit = min(lit, clamp(1.0 - over / 3.0, 0.0, 1.0));
@@ -172,6 +182,7 @@ void main() {
 /** Passo da água, a cada quadro: superfície, cor pela profundidade, espuma, pedras, ondinhas do lago. */
 export const WATER_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 in vec2 vCell;
 out vec4 outColor;
 uniform sampler2D uBakedTerrain, uBakedData;   // do tamanho da tela
@@ -244,7 +255,10 @@ void main() {
     // Pedras: anel de espuma em volta e esteira rio abaixo (direção = onde "ao longo" cresce).
     vec2 along = vec2(dFdx(riv.x), dFdy(riv.x));
     vec2 downstream = length(along) > 1e-4 ? normalize(vec2(along.x / max(length(stepX), 1e-3), along.y / max(length(stepY), 1e-3))) : vec2(0.0);
-    for (int k = 0; k < ${MAX_ROCKS}; k++) {
+    // Ruído da espuma das pedras: o mesmo para todas, calculado uma vez (e só se há pedra).
+    float rockFoam = uRockCount > 0 ? smoothstep(0.4, 0.6, fbm4(px / 5.0 + uTime * 0.8)) : 0.0;
+    float wakeFoam = uRockCount > 0 ? smoothstep(0.45, 0.7, fbm4(vec2(q.x / 10.0, q.y / 3.0) + 5.0)) : 0.0;
+    for (int k = 0; k < ${MAX_ROCKS} + uNoUnroll; k++) {
       if (k >= uRockCount) break;
       vec2 center = uRocks[k].xy * UNIT;
       float radius = uRocks[k].z * UNIT;
@@ -252,11 +266,11 @@ void main() {
       float d = length(offset);
       if (d > radius + 80.0) continue;
       float ring = (1.0 - smoothstep(radius, radius + 8.0, d)) * smoothstep(radius * 0.7, radius, d);
-      foam = max(foam, ring * smoothstep(0.4, 0.6, fbm4(px / 5.0 + uTime * 0.8)) * 0.85);
+      foam = max(foam, ring * rockFoam * 0.85);
       float behind = dot(offset, downstream);
       float side = abs(dot(offset, vec2(-downstream.y, downstream.x)));
       float wake = step(0.0, behind) * (1.0 - smoothstep(radius * 0.6, radius * 1.1, side)) * (1.0 - smoothstep(0.0, 70.0, behind));
-      foam = max(foam, strength * wake * smoothstep(0.45, 0.7, fbm4(vec2(q.x / 10.0, q.y / 3.0) + 5.0)));
+      foam = max(foam, strength * wake * wakeFoam);
     }
     // Lago: de vez em quando uma ondinha nasce na margem e entra.
     float gate = smoothstep(0.55, 0.75, fbm4(px / 160.0 + vec2(uTime * 0.05, uTime * 0.03)));

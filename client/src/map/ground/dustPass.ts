@@ -1,5 +1,5 @@
 import type { DuneMask } from "@rpg/shared";
-import { bindTextures, createTexture, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView } from "./glKit";
+import { bindTextures, createTexture, NO_UNROLL, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView } from "./glKit";
 import { SCREEN } from "./reliefShader";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
 
@@ -12,6 +12,7 @@ import { FULLSCREEN_VERTEX } from "./terrainShader";
 
 const DUST_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 precision highp int;
 out vec4 outColor;
 uniform sampler2D uMask;     // onde há duna (grade fina, 4 por casa)
@@ -28,7 +29,7 @@ float hash(vec2 p) {
 }
 vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
 float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
-float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4 + uNoUnroll; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
 float speck(vec2 c, float scale, float chance, float seed) { vec2 g = c * scale + seed; vec2 id = floor(g); vec2 at = 0.5 + (hash2(id) - 0.5) * 0.6; return hash(id + seed) > chance ? 1.0 - smoothstep(0.18, 0.32, length(fract(g) - at)) : 0.0; }
 // A mesma onda das dunas da altura do relevo (duneWave em relief.ts, com o mesmo sorteio de inteiros).
 float latticeHash(int x, int y) {
@@ -55,7 +56,7 @@ void main() {
   float across = dot(c, n);
   // cristas: um pouco mais de areia nelas e logo atrás (olhando contra o vento)
   float crest = 0.0;
-  for (int k = 0; k < 6; k++) {
+  for (int k = 0; k < 6 + uNoUnroll; k++) {
     float d = float(k) / 5.0 * 1.5;
     crest = max(crest, smoothstep(0.86, 0.99, duneWave(c - w * d)) * (1.0 - d / 1.5));
   }

@@ -123,6 +123,11 @@ export class FloorPass {
     this.carpetCount = boxes.length;
   }
 
+  /** Começa a compilar o material escolhido na ferramenta, antes da primeira passada. */
+  warm(material: FloorMaterial) {
+    this.programs.warm(material, () => floorFragment(material));
+  }
+
   /** Desenha os pisos no alvo ligado (já limpo), na tela inteira; cor pré-multiplicada. */
   draw(
     view: GroundView,

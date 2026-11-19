@@ -193,6 +193,11 @@ export class WallPass {
     });
   }
 
+  /** Começa a compilar o desenho (ou a porta/janela) antes do primeiro traço. */
+  warm(key: WallStyle | "opening") {
+    this.programs.warm(key, () => (key === "opening" ? OPENING_FRAGMENT : wallStyleFragment(key)));
+  }
+
   /** O programa pronto, ou `null` enquanto compila (começa a compilar na primeira vez). */
   private programFor(key: WallStyle | "opening"): Program | null {
     return this.programs.get(key, () => (key === "opening" ? OPENING_FRAGMENT : wallStyleFragment(key)));

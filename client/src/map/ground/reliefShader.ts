@@ -1,3 +1,4 @@
+import { NO_UNROLL } from "./glKit";
 /**
  * Shaders do relevo (docs/design/relevo.md; teste aprovado em docs/design/relevo-teste.html). Rodam uma vez por
  * pedaço, quando o relevo ou a luz da cena mudam, e o resultado fica guardado num atlas: o desenho de cada quadro só
@@ -23,7 +24,7 @@ vec2 windowCubic(vec2 cell) {
   vec2 w2 = (-3.0 * f3 + 3.0 * f2 + 3.0 * f + 1.0) / 6.0, w3 = f3 / 6.0;
   ivec2 base = ivec2(i) - 1;
   vec2 sum = vec2(0.0);
-  for (int y = 0; y < 4; y++) {
+  for (int y = 0; y < 4 + uNoUnroll; y++) {
     float wy = y == 0 ? w0.y : y == 1 ? w1.y : y == 2 ? w2.y : w3.y;
     vec2 row = fetchWindow(base + ivec2(0, y)) * w0.x + fetchWindow(base + ivec2(1, y)) * w1.x + fetchWindow(base + ivec2(2, y)) * w2.x + fetchWindow(base + ivec2(3, y)) * w3.x;
     sum += row * wy;
@@ -48,6 +49,7 @@ float valueNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.
  */
 export const BAKE_FIELDS_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 layout(location = 0) out vec4 outA;
 layout(location = 1) out vec4 outB;
 uniform vec2 uSlotOrigin;  // canto do lugar no atlas (px)
@@ -82,6 +84,7 @@ void main() {
  */
 export const BAKE_SHADOW_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 out vec4 outColor;
 uniform vec2 uSlotOrigin;
 uniform float uSlotSize;
@@ -93,7 +96,7 @@ void main() {
   const float STEP = 0.1;
   float ray = windowLinear(local) + 0.02;
   float shadow = 1.0;
-  for (int i = 1; i <= 80; i++) {
+  for (int i = 1; i <= 80 + uNoUnroll; i++) {
     float t = float(i) * STEP;
     if (t > uMargin) break;
     float diff = windowLinear(local - uSunDir * t) - (ray + uRise * t);
@@ -136,7 +139,7 @@ float reliefHeight(vec2 texel) {
   vec2 p = texel - 0.5;
   vec2 i = floor(p), f = p - i;
   float h[4];
-  for (int k = 0; k < 4; k++) {
+  for (int k = 0; k < 4 + uNoUnroll; k++) {
     vec4 a = texelFetch(uReliefA, ivec2(i) + ivec2(k % 2, k / 2), 0);
     h[k] = (floor(a.r * 255.0 + 0.5) * 256.0 + floor(a.g * 255.0 + 0.5)) / 65535.0 * 5.0 - 2.0;
   }
@@ -168,6 +171,7 @@ vec2 screenCell() {
  */
 export const RELIEF_DRAW_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 out vec4 outColor;
 uniform sampler2D uStone, uStoneLight;
 uniform vec3 uLightDir;      // de onde vem a luz (unitário; z = altura)
@@ -177,14 +181,14 @@ ${RELIEF_SAMPLE}
 ${SCREEN}
 float hashCell(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float valueNoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hashCell(i), hashCell(i + vec2(1, 0)), u.x), mix(hashCell(i + vec2(0, 1)), hashCell(i + vec2(1, 1)), u.x), u.y); }
-float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * valueNoise(p); p *= 2.03; a *= 0.5; } return s; }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5 + uNoUnroll; i++) { s += a * valueNoise(p); p *= 2.03; a *= 0.5; } return s; }
 vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
 // Blocos de rocha (Voronoi): id do bloco e distância até a borda (racha).
 vec3 voronoi(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   float d1 = 9.0, d2 = 9.0;
   vec2 id = vec2(0);
-  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+  for (int y = -1; y <= 1 + uNoUnroll; y++) for (int x = -1; x <= 1 + uNoUnroll; x++) {
     vec2 o = vec2(x, y), r = o + hash2(i + o) - f;
     float d = dot(r, r);
     if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d;
@@ -220,7 +224,13 @@ void main() {
   vec3 cellA = voronoi(c * 1.5 + vec2(0.0, h * 1.2));
   vec2 tilt = (hash2(cellA.xy) - 0.5) * 1.1;
   float e = 0.03;
-  vec2 bump = vec2(rockBumps(c + vec2(e, 0.0)) - rockBumps(c - vec2(e, 0.0)), rockBumps(c + vec2(0.0, e)) - rockBumps(c - vec2(0.0, e))) / (2.0 * e);
+  // as quatro amostras num laço: uma cópia só do relevo da rocha no programa compilado
+  float bumpRight = 0.0, bumpLeft = 0.0, bumpUp = 0.0, bumpDown = 0.0;
+  for (int k = 0; k < 4 + uNoUnroll; k++) {
+    float bumpAt = rockBumps(c + (k == 0 ? vec2(e, 0.0) : k == 1 ? vec2(-e, 0.0) : k == 2 ? vec2(0.0, e) : vec2(0.0, -e)));
+    if (k == 0) bumpRight = bumpAt; else if (k == 1) bumpLeft = bumpAt; else if (k == 2) bumpUp = bumpAt; else bumpDown = bumpAt;
+  }
+  vec2 bump = vec2(bumpRight - bumpLeft, bumpUp - bumpDown) / (2.0 * e);
   vec3 rn = normalize(n + vec3(tilt * rock - bump * 1.4, 0.0));
   float crack = rock * (1.0 - smoothstep(0.01, 0.05, cellA.z)) * smoothstep(0.45, 0.65, fbm(c * 1.7 + 9.0));
   float layer = fract(h * 2.5 + fbm(c * 0.8) * 0.35);
@@ -252,6 +262,7 @@ void main() {
 /** Sombra do relevo na máscara de sombra do passo da luz (mistura pelo maior): 1 − iluminado. */
 export const RELIEF_SHADOW_MASK_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 out vec4 outColor;
 ${RELIEF_SAMPLE}
 ${SCREEN}

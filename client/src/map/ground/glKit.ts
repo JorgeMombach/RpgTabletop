@@ -24,6 +24,15 @@ export interface Program {
 /** Atributo de vértice de todos os programas do chão (fica sempre no lugar 0). */
 export const VERTEX_ATTRIBUTE = 0;
 
+/**
+ * Uniform que nunca é preenchido (vale 0) para somar ao limite dos laços dos shaders: `k < 4 + uNoUnroll` dá as
+ * mesmas voltas, mas o compilador não sabe o limite e não desenrola o laço. No Direct3D (Windows, pelo ANGLE) o
+ * laço desenrolado copia o corpo a cada volta, e compilar a água levava ~13 s na placa integrada (medido em
+ * 2026-11-19: água 13,6 s → 1,1 s; paredes ~1,2 → ~0,35 s; pisos ~2 → ~1,1 s), com a placa parada no meio.
+ * Vai logo depois do `precision` de cada shader de fragmento.
+ */
+export const NO_UNROLL = "uniform int uNoUnroll;";
+
 export function linkProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string, attribute: string): Program {
   const compile = (type: number, source: string) => {
     const shader = gl.createShader(type);
@@ -153,6 +162,8 @@ export class ProgramCache<Key> {
   constructor(
     private readonly gl: WebGL2RenderingContext,
     private readonly vertexSource: string,
+    /** Atributo dos vértices (o do triângulo da tela inteira, por padrão). */
+    private readonly attribute = "aPos",
   ) {
     this.parallel = gl.getExtension("KHR_parallel_shader_compile");
   }
@@ -169,12 +180,21 @@ export class ProgramCache<Key> {
       this.pending = true;
       return null;
     }
-    const pending = known?.pending ?? startProgram(this.gl, this.vertexSource, fragmentSource(), "aPos");
+    const pending = known?.pending ?? startProgram(this.gl, this.vertexSource, fragmentSource(), this.attribute);
     if (!this.parallel) this.compiledThisDraw = true;
     const ready = finishProgram(this.gl, pending, this.parallel);
     this.entries.set(key, ready ? { ready } : { pending });
     if (!ready) this.pending = true;
     return ready;
+  }
+
+  /**
+   * Começa a compilar um programa que vai ser usado logo (escolheu um desenho na ferramenta): quando ele for
+   * desenhado, já está pronto ou quase. Só com a compilação em paralelo; sem ela, compilar aqui travaria a página.
+   */
+  warm(key: Key, fragmentSource: () => string) {
+    if (!this.parallel || this.entries.has(key)) return;
+    this.entries.set(key, { pending: startProgram(this.gl, this.vertexSource, fragmentSource(), this.attribute) });
   }
 
   dispose() {

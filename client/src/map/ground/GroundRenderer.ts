@@ -1,4 +1,4 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type FloorChunks, type TerrainId, type WallPiece } from "@rpg/shared";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type FloorChunks, type FloorMaterial, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
@@ -105,6 +105,22 @@ export class GroundRenderer {
     this.floor = new FloorPass(gl);
   }
 
+  /**
+   * Começa a compilar o que a ferramenta escolhida vai desenhar: o desenho de parede (ou a porta/janela), o material
+   * de piso ou o terreno do pincel (água: também a água animada). Compilar trava a placa um instante na primeira vez
+   * (Direct3D); assim isso acontece ao escolher, não no meio do traço.
+   */
+  warm(choice: { wall?: WallStyle | "opening"; floor?: FloorMaterial; terrain?: TerrainId }) {
+    if (this.gl.isContextLost()) return;
+    if (choice.wall) this.walls.warm(choice.wall);
+    if (choice.floor) this.floor.warm(choice.floor);
+    const terrain = choice.terrain;
+    if (terrain) {
+      this.terrain.warm(terrain, () => terrainLayerFragment(terrain));
+      if (terrain === "water" || terrain === "waterDark") this.water.warm();
+    }
+  }
+
   /** Piso da cena (`FloorChunks`): a camada é refeita no próximo desenho. */
   setFloors(chunks: FloorChunks) {
     if (this.gl.isContextLost()) return;
@@ -153,7 +169,7 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
@@ -264,8 +280,10 @@ export class GroundRenderer {
       this.reliefImage = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
       this.terrainDirty = true;
     }
+    // Água animada ainda compilando (primeira vez na cena): o terreno mostra a água em aquarela até ficar pronta.
+    const waterDraft = options.waterDraft || !this.water.prepare();
     // O tamanho em pixels do aparelho entra na chave: mudando a densidade, o terreno e as paredes são refeitos.
-    const state = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, width, height, options.waterDraft].join("|");
+    const state = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, width, height, waterDraft].join("|");
     if (state !== this.drawn) this.terrainDirty = true;
     gl.disable(gl.BLEND);
     // Relevo: alguns pedaços por quadro; o que mudou faz o terreno redesenhar.
@@ -278,7 +296,7 @@ export class GroundRenderer {
       this.terrainDirty = true;
     }
     if (this.terrainDirty) {
-      this.drawTerrain(view, width, height, options.waterDraft, reliefLight);
+      this.drawTerrain(view, width, height, waterDraft, reliefLight);
       this.drawFloors(view, width, height, reliefLight);
       this.drawRelief(view, width, height, reliefLight);
       this.drawn = state;

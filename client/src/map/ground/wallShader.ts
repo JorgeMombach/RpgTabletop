@@ -1,5 +1,6 @@
 import { WALL_STYLES, type WallStyle } from "@rpg/shared";
 import { SCREEN } from "./reliefShader";
+import { NO_UNROLL } from "./glKit";
 
 /**
  * Paredes, portas e janela na placa de vídeo (docs/design/relevo.md, etapa 2), portadas das páginas aprovadas
@@ -15,6 +16,7 @@ export const WALL_TEXTURE_WIDTH = 1024;
 
 const COMMON = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 precision highp int;
 precision highp usampler2D;
 // Peças em precisão cheia: o padrão do sampler no fragmento é baixo (no celular, viraria meia precisão).
@@ -33,13 +35,13 @@ const int CANDIDATES = 8;
 const vec3 INK = vec3(0.1, 0.075, 0.06);
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
-float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4 + uNoUnroll; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
 vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
 vec3 voronoi(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   float d1 = 9.0, d2 = 9.0;
   vec2 id = vec2(0);
-  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+  for (int y = -1; y <= 1 + uNoUnroll; y++) for (int x = -1; x <= 1 + uNoUnroll; x++) {
     vec2 o = vec2(x, y), r = o + hash2(i + o) - f;
     float d = dot(r, r);
     if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d;
@@ -107,7 +109,7 @@ Hit wallAt(vec2 p) {
   best.hw = 0.0;
   int start;
   int count = candidates(p, start);
-  for (int k = 0; k < CANDIDATES; k++) {
+  for (int k = 0; k < CANDIDATES + uNoUnroll; k++) {
     if (k >= count) break;
     Piece piece = pieceOf(listAt(start + k));
     if (piece.kind != 0) continue;
@@ -412,7 +414,7 @@ vec2 scene(vec2 q) {
     // Portão: esteios nas pontas, folha de travessas e ripas.
     float postHalf = t * 0.35;
     float material = O.style == 7 ? 4.0 : 7.0;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 2 + uNoUnroll; i++) {
       if (i == 1 && double_) break;
       vec2 d = abs(q - vec2(i == 0 ? 0.0 : LEN, 0.0));
       put(postHalf - max(d.x, d.y), 0.55, material);
@@ -426,7 +428,7 @@ vec2 scene(vec2 q) {
     return best;
   }
   float inset = t * 0.6;
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < 2 + uNoUnroll; i++) {
     if (i == 1 && double_) break;
     vec2 d = abs(q - vec2(i == 0 ? 0.0 : LEN, 0.0));
     put(inset - max(d.x, d.y), 0.72, jambMaterial());

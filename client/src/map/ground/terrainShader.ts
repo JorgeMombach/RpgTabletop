@@ -1,5 +1,6 @@
 import { TERRAINS, type TerrainId } from "@rpg/shared";
 import { SCREEN } from "./reliefShader";
+import { NO_UNROLL } from "./glKit";
 
 /**
  * Shaders do terreno pintado na placa de vídeo (docs/design/renderizador-chao.md; detalhe por pixel da etapa 3 do
@@ -17,6 +18,7 @@ void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
 const COMMON = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 precision highp int;
 out vec4 outColor;
 uniform sampler2D uWeights;   // a textura de pesos com a camada deste terreno
@@ -45,7 +47,7 @@ float cornerNoise(vec2 p) {
 // Ruído da borda (renderChunk.ts: edgeNoise), pela posição no mapa em casas.
 float edgeNoise(vec2 p) {
   float sum = 0.0, amplitude = 0.5, frequency = 1.82;
-  for (int octave = 0; octave < 4; octave++) {
+  for (int octave = 0; octave < 4 + uNoUnroll; octave++) {
     sum += amplitude * cornerNoise(p * frequency);
     frequency *= 2.03;
     amplitude *= 0.5;
@@ -68,7 +70,7 @@ float hash(vec2 p) {
 }
 vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
 float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
-float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4 + uNoUnroll; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
 /** Casas por pixel do aparelho. */
 float pixelCells() { return (uScreen.x / uCanvas.x) / (uStage.z * uMapGrid.z); }
 /** Quanto de um detalhe com perCell repetições por casa ainda aparece: some (vira a média) abaixo de ~2 pixels. */
@@ -80,7 +82,7 @@ float speck(vec2 c, float scale, float chance, float seed) { vec2 g = c * scale 
 // Voronoi: id, distância ao ponto mais perto e folga até a borda.
 vec4 voronoi(vec2 p) {
   vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0);
-  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; }
+  for (int y = -1; y <= 1 + uNoUnroll; y++) for (int x = -1; x <= 1 + uNoUnroll; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; }
   return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1));
 }
 /** Luz da face relativa ao chão plano (a do relevo): 1 no plano. */
@@ -100,13 +102,13 @@ vec3 grassBlades(vec2 c, float density, int count) {
   float px = pixelCells();
   vec2 i = floor(c * 8.0);
   vec3 best = vec3(0.0);
-  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+  for (int y = -1; y <= 1 + uNoUnroll; y++) for (int x = -1; x <= 1 + uNoUnroll; x++) {
     vec2 cell = i + vec2(x, y);
     if (hash(cell + 11.0) > density) continue;
     vec2 base = (cell + hash2(cell)) / 8.0;
     // folhas deitadas mais ou menos para o mesmo lado, que muda devagar pelo campo
     float a0 = noise(base * 0.6) * 6.283;
-    for (int k = 0; k < 5; k++) {
+    for (int k = 0; k < 5 + uNoUnroll; k++) {
       if (k >= count) break;
       float fk = float(k);
       float a = a0 + (hash(cell + fk * 7.0) - 0.5) * 1.6;
@@ -269,8 +271,13 @@ void main() {
   vec3 w = textureLod(uWatercolor, c / 8.0, max(0.0, log2(max(float(textureSize(uWatercolor, 0).x) / 8.0 * px, 1e-6)))).rgb;
   // Relevo fino pela luz (meio pixel para cada lado).
   float e = 0.5 * px;
-  float h = layerHeight(c);
-  vec3 n = normalize(vec3(-(layerHeight(c + vec2(e, 0.0)) - h) / e, -(layerHeight(c + vec2(0.0, e)) - h) / e, 1.0));
+  // as três alturas num laço: uma cópia só do desenho no programa compilado (compila bem mais rápido no Direct3D)
+  float h = 0.0, hx = 0.0, hy = 0.0;
+  for (int i = 0; i < 3 + uNoUnroll; i++) {
+    float height = layerHeight(c + (i == 1 ? vec2(e, 0.0) : i == 2 ? vec2(0.0, e) : vec2(0.0)));
+    if (i == 0) h = height; else if (i == 1) hx = height; else hy = height;
+  }
+  vec3 n = normalize(vec3(-(hx - h) / e, -(hy - h) / e, 1.0));
   vec3 texel = layerColor(c, w) * relativeShade(n);
   // Borda entre terrenos um pouco escurecida, como no desenho no processador.
   float shade = 1.0 - 0.32 * min(1.0, alpha * (1.0 - alpha) * 4.0);
@@ -281,6 +288,7 @@ void main() {
 /** Copia uma textura do tamanho da tela para a tela. */
 export const BLIT_FRAGMENT = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 out vec4 outColor;
 uniform sampler2D uImage;
 uniform vec2 uCanvas;

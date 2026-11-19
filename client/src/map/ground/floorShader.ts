@@ -1,5 +1,6 @@
 import { FLOOR_MATERIALS, type FloorMaterial } from "@rpg/shared";
 import { SCREEN } from "./reliefShader";
+import { NO_UNROLL } from "./glKit";
 
 /**
  * Pisos na placa de vídeo (docs/design/pisos.md; visual aprovado em docs/design/pisos-teste.html). Um programa por
@@ -16,6 +17,7 @@ export const MAX_CARPETS = 32;
 
 const COMMON = `#version 300 es
 precision highp float;
+${NO_UNROLL}
 precision highp int;
 precision highp usampler2D;
 out vec4 outColor;
@@ -37,7 +39,7 @@ float hash(vec2 p) {
 }
 vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + vec2(31.7, 17.3))); }
 float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
-float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4 + uNoUnroll; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
 /** Casas por pixel do aparelho. */
 float px() { return (uScreen.x / uCanvas.x) / (uStage.z * uMapGrid.z); }
 /** Quanto de um detalhe com perCell repetições por casa ainda aparece: some (vira a média) abaixo de ~2 pixels. */
@@ -75,17 +77,17 @@ bool insideFloor(vec2 c, int material) {
  */
 float edgeDistance(vec2 c, int material, float stepCells, int steps) {
   float best = stepCells * float(steps + 1);
-  for (int d = 0; d < 8; d++) {
+  for (int d = 0; d < 8 + uNoUnroll; d++) {
     float angle = float(d) * 0.7854;
     vec2 dir = vec2(cos(angle), sin(angle));
-    for (int k = 1; k <= 16; k++) {
+    for (int k = 1; k <= 16 + uNoUnroll; k++) {
       if (k > steps) break;
       float r = stepCells * float(k);
       if (r >= best) break;
       if (!insideFloor(c + dir * r, material)) {
         float lo = r - stepCells;
         float hi = r;
-        for (int s = 0; s < 4; s++) {
+        for (int s = 0; s < 4 + uNoUnroll; s++) {
           float mid = (lo + hi) * 0.5;
           if (insideFloor(c + dir * mid, material)) lo = mid; else hi = mid;
         }
@@ -244,7 +246,7 @@ vec3 colorAt(vec2 q, float edge) {
   else if (band < 0.44) col = vec3(0.68, 0.5, 0.2);
   else {
     // medalhão no meio do tapete (a caixa do tapete que contém o ponto)
-    for (int k = 0; k < ${MAX_CARPETS}; k++) {
+    for (int k = 0; k < ${MAX_CARPETS} + uNoUnroll; k++) {
       if (k >= uCarpetCount) break;
       vec4 box = uCarpets[k];
       if (q.x < box.x || q.y < box.y || q.x > box.z || q.y > box.w) continue;
@@ -309,8 +311,13 @@ void main() {
   // (a borda desenhada fica meio ponto para dentro do corte da cobertura)
   float edge = max(edgeDistance(c, -1, 0.3, 7) - 0.125, 0.0);
   float e = 0.5 * px();
-  float h = heightAt(c);
-  vec3 n = normalize(vec3(-(heightAt(c + vec2(e, 0.0)) - h) / e, -(heightAt(c + vec2(0.0, e)) - h) / e, 1.0));
+  // as três alturas num laço: uma cópia só do desenho no programa compilado (compila bem mais rápido no Direct3D)
+  float h = 0.0, hx = 0.0, hy = 0.0;
+  for (int i = 0; i < 3 + uNoUnroll; i++) {
+    float height = heightAt(c + (i == 1 ? vec2(e, 0.0) : i == 2 ? vec2(0.0, e) : vec2(0.0)));
+    if (i == 0) h = height; else if (i == 1) hx = height; else hy = height;
+  }
+  vec3 n = normalize(vec3(-(hx - h) / e, -(hy - h) / e, 1.0));
   vec3 col = colorAt(c, edge) * relativeShade(n);
   // sujeira nos cantos (perto da borda do piso inteiro)
   float dirt = (1.0 - smoothstep(0.0, 0.6, edge)) * (0.5 + 0.5 * fbm(c * 3.0));

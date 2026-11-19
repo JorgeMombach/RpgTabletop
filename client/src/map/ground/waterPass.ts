@@ -1,4 +1,4 @@
-import { bindTextures, createTexture, imageTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
+import { bindTextures, createTexture, imageTexture, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView } from "./glKit";
 import { BAKE_FRAGMENT, MAX_ROCKS, WATER_FRAGMENT, WATER_VERTEX } from "./waterShader";
 import type { WaterGpuField } from "./waterTypes";
 
@@ -9,6 +9,9 @@ import type { WaterGpuField } from "./waterTypes";
  * Dois passos: quando a visão ou a água mudam, o barranco, o fundo, a luz, a sombra e a profundidade dos grupos na tela
  * são "assados" em texturas do tamanho da tela (`bakeView`, nítido em qualquer zoom); a cada quadro só a superfície da
  * água é calculada, por cima do assado.
+ *
+ * Os dois programas só compilam com água na cena, em paralelo (na placa integrada pelo Direct3D, compilar trava a
+ * placa por ~1 a 2 s): até ficarem prontos, `prepare` devolve falso e o chão mostra a água em aquarela.
  */
 
 interface GpuGroup {
@@ -18,8 +21,7 @@ interface GpuGroup {
 }
 
 export class WaterPass {
-  private readonly bake: Program;
-  private readonly water: Program;
+  private readonly programs: ProgramCache<"bake" | "water">;
   private readonly framebuffer: WebGLFramebuffer | null;
   private readonly quad: WebGLBuffer;
   private groups: GpuGroup[] = [];
@@ -32,10 +34,32 @@ export class WaterPass {
   private version = 0;
 
   constructor(private readonly gl: WebGL2RenderingContext) {
-    this.bake = linkProgram(gl, WATER_VERTEX, BAKE_FRAGMENT, "aCorner");
-    this.water = linkProgram(gl, WATER_VERTEX, WATER_FRAGMENT, "aCorner");
+    this.programs = new ProgramCache(gl, WATER_VERTEX, "aCorner");
     this.framebuffer = gl.createFramebuffer();
     this.quad = vertexBuffer(gl, [0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]);
+  }
+
+  /**
+   * Começo de cada desenho: com água na cena, pede os dois programas (a primeira vez começa a compilar). Devolve se a
+   * água animada pode ser desenhada; sem água, não há o que esperar.
+   */
+  prepare(): boolean {
+    this.programs.beginDraw();
+    if (this.groups.length === 0) return true;
+    const bake = this.programs.get("bake", () => BAKE_FRAGMENT);
+    const water = this.programs.get("water", () => WATER_FRAGMENT);
+    return bake !== null && water !== null;
+  }
+
+  /** Começa a compilar a água animada antes da primeira água (pincel de água escolhido). */
+  warm() {
+    this.programs.warm("bake", () => BAKE_FRAGMENT);
+    this.programs.warm("water", () => WATER_FRAGMENT);
+  }
+
+  /** Algum programa da água ainda compilando. */
+  get pending(): boolean {
+    return this.programs.pending;
   }
 
   private halfTexture(data: Uint16Array, width: number, height: number): WebGLTexture {
@@ -105,6 +129,8 @@ export class WaterPass {
   bakeView(view: GroundView, width: number, height: number) {
     const { gl } = this;
     if (!this.dirt || !this.framebuffer) return;
+    const bake = this.programs.get("bake", () => BAKE_FRAGMENT);
+    if (!bake) return;
     const key = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, width, height, this.version].join("|");
     if (key === this.bakedFor && this.baked) return;
     this.bakedFor = key;
@@ -121,20 +147,20 @@ export class WaterPass {
     gl.disable(gl.BLEND);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.useProgram(this.bake.program);
+    gl.useProgram(bake.program);
     useVertices(gl, this.quad);
     // O retângulo de cada grupo vai para o lugar dele na tela (o mesmo da superfície).
-    gl.uniform1f(uniformOf(gl, this.bake, "uBake"), 0);
-    gl.uniform4f(uniformOf(gl, this.bake, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
-    gl.uniform3f(uniformOf(gl, this.bake, "uStage"), view.stageX, view.stageY, view.scale);
-    gl.uniform2f(uniformOf(gl, this.bake, "uScreen"), view.width, view.height);
-    gl.uniform1f(uniformOf(gl, this.bake, "uPxUnits"), 48 / Math.max(1e-6, view.cellPx * view.scale * (width / view.width)));
+    gl.uniform1f(uniformOf(gl, bake, "uBake"), 0);
+    gl.uniform4f(uniformOf(gl, bake, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
+    gl.uniform3f(uniformOf(gl, bake, "uStage"), view.stageX, view.stageY, view.scale);
+    gl.uniform2f(uniformOf(gl, bake, "uScreen"), view.width, view.height);
+    gl.uniform1f(uniformOf(gl, bake, "uPxUnits"), 48 / Math.max(1e-6, view.cellPx * view.scale * (width / view.width)));
     for (const group of this.groups) {
       if (!this.onScreen(group.field, view)) continue;
       const { rect } = group.field;
-      gl.uniform4f(uniformOf(gl, this.bake, "uRectCells"), rect.col, rect.row, rect.cols, rect.rows);
-      gl.uniform1f(uniformOf(gl, this.bake, "uPerCell"), group.field.perCell);
-      bindTextures(gl, this.bake, [
+      gl.uniform4f(uniformOf(gl, bake, "uRectCells"), rect.col, rect.row, rect.cols, rect.rows);
+      gl.uniform1f(uniformOf(gl, bake, "uPerCell"), group.field.perCell);
+      bindTextures(gl, bake, [
         ["uSdfDeep", group.sdfDeep],
         ["uRiver", group.river],
         ["uDirt", this.dirt],
@@ -168,7 +194,8 @@ export class WaterPass {
     const { gl } = this;
     const baked = this.baked;
     if (!baked) return;
-    const program = this.water;
+    const program = this.programs.get("water", () => WATER_FRAGMENT);
+    if (!program) return;
     gl.useProgram(program.program);
     useVertices(gl, this.quad);
     gl.uniform1f(uniformOf(gl, program, "uBake"), 0);
@@ -200,6 +227,7 @@ export class WaterPass {
   dispose() {
     this.release();
     this.releaseBaked();
+    this.programs.dispose();
     if (this.dirt) this.gl.deleteTexture(this.dirt);
   }
 }

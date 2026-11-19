@@ -265,6 +265,20 @@ export const GroundLayer = memo(function GroundLayer({
     setVersion((value) => value + 1);
   }, [renderer, pieces]);
 
+  // Pré-compilar o que a ferramenta escolhida vai desenhar (a primeira compilação trava a placa um instante): ao
+  // escolher o desenho de parede, o material de piso ou o terreno do pincel, não no meio do traço.
+  const tool = useApp((state) => state.tool);
+  const wallDrawStyle = useApp((state) => state.wallDrawStyle);
+  const floorMaterial = useApp((state) => state.floorBrush.material);
+  const brushTerrain = useApp((state) => TERRAINS.find((terrain) => terrain === state.terrainBrush.terrain));
+  useEffect(() => {
+    if (!renderer) return;
+    if (tool === "walls") renderer.warm({ wall: wallDrawStyle ?? sceneStyle });
+    if (tool === "walls") renderer.warm({ wall: "opening" });
+    if (tool === "floor") renderer.warm({ floor: floorMaterial });
+    if (tool === "terrain" && brushTerrain) renderer.warm({ terrain: brushTerrain });
+  }, [renderer, tool, wallDrawStyle, sceneStyle, floorMaterial, brushTerrain]);
+
   // Pisos: a camada é refeita no próximo desenho.
   useEffect(() => {
     if (!renderer) return;
