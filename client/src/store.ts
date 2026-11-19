@@ -4,12 +4,20 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain" | "relief";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain" | "relief" | "floor";
+
+/** Pincel do Piso (docs/design/pisos.md): material, sentido das tábuas, modo e raio (pincel e borracha), em casas. */
+export interface FloorBrush {
+  material: FloorMaterial;
+  vertical: boolean;
+  mode: "room" | "rect" | "brush" | "erase";
+  radius: number;
+}
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -118,9 +126,9 @@ interface AppStore extends DicePrefs {
   /** Ferramenta Terreno (mestre): terreno do pincel (ou borracha), raio em casas e força. */
   /** Pincel do Terreno: um terreno, a borracha, ou os modos da correnteza (riscar e apagar linhas). */
   terrainBrush: { terrain: TerrainId | "erase" | "current" | "currentErase"; radius: number; strength: number };
-  /** Ferramenta Relevo (mestre, docs/design/relevo.md): nível pintado (−2 a +3), escarpa ou suave, raio em casas. */
-  /** Pincel do Relevo: nível e borda, ou (modo `dunes`) só a altura das dunas, de 0 a 3. */
+  /** Pincel do Relevo (docs/design/relevo.md): nível e borda, ou (modo `dunes`) só a altura das dunas, de 0 a 3. */
   reliefBrush: { level: number; soft: boolean; radius: number; mode: "level" | "dunes"; dune: number };
+  floorBrush: FloorBrush;
   /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
   propKind: PropKind;
   selectedPropId: string | null;
@@ -148,6 +156,12 @@ interface AppStore extends DicePrefs {
   reliefEpoch: number;
   /** Prévia da pincelada de relevo do mestre (até o servidor responder); `null` = sem pincelada. */
   reliefPreview: ReliefChunks | null;
+  /** Piso da cena (vem por evento próprio, como o relevo). */
+  floors: FloorChunks;
+  /** Sobe quando o piso chega inteiro (troca de cena, entrada). */
+  floorEpoch: number;
+  /** Prévia da passada de piso do mestre (até o servidor responder); `null` = sem passada. */
+  floorPreview: FloorChunks | null;
   /** Sobe a cada terreno inteiro recebido (entrar, trocar de cena, carregar arquivo, apagar tudo, Limpar campo). */
   terrainEpoch: number;
   /** Este aparelho não aguentou as plantas balançando (vento nas plantas): ficam paradas até recarregar a página. */
@@ -207,6 +221,7 @@ export const useApp = create<AppStore>(() => ({
   paintSize: 3,
   terrainBrush: { terrain: "grass", radius: 1.5, strength: 0.5 },
   reliefBrush: { level: 1, soft: false, radius: 1.5, mode: "level", dune: 2 },
+  floorBrush: { material: "plank", vertical: false, mode: "room", radius: 1 },
   propKind: "tree",
   selectedPropId: null,
   propMode: "place",
@@ -225,6 +240,9 @@ export const useApp = create<AppStore>(() => ({
   relief: {},
   reliefEpoch: 0,
   reliefPreview: null,
+  floors: {},
+  floorEpoch: 0,
+  floorPreview: null,
   windStalled: false,
   groundFailed: false,
   ...readPrefs(),

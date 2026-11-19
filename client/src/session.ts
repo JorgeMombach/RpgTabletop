@@ -188,6 +188,18 @@ socket.on("handout", (handout) => useApp.setState({ handout }));
 // Diário da campanha (Passo 14): fora do estado, só quando muda e ao entrar.
 socket.on("journal", receiveJournal);
 
+// Piso: como o relevo, o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram.
+socket.on("floors", ({ reset, chunks }) => {
+  useApp.setState((s) => {
+    const floors = reset ? {} : { ...s.floors };
+    for (const [key, chunk] of Object.entries(chunks)) {
+      if (chunk) floors[key] = chunk;
+      else delete floors[key];
+    }
+    return reset ? { floors, floorEpoch: s.floorEpoch + 1 } : { floors };
+  });
+});
+
 // Relevo: como o terreno, o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram.
 socket.on("relief", ({ reset, chunks }) => {
   useApp.setState((s) => {

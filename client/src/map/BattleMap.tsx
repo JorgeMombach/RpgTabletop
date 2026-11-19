@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, doorLayouts, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { brushCells, doorLayouts, floorRoomAt, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -45,8 +45,9 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { reliefStrokeOf } from "./terrain/ReliefOptions";
+import { floorStrokeOf } from "./floor/FloorOptions";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
 import { PingShape } from "./PingShape";
@@ -88,7 +89,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", fog: "F" };
+export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", floor: "K", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
@@ -121,7 +122,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, reduceFx } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, floorBrush, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, groundFailed } = useApp();
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
@@ -184,7 +185,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Ctrl+Z (fora de campos de texto): nas ferramentas Paredes, Desenho e Tochas, desfaz o último dela; nas
   // outras, o último que esta pessoa fez no mapa.
   useEffect(() => {
-    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : tool === "relief" ? "relief" : undefined;
+    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : tool === "relief" ? "relief" : tool === "floor" ? "floor" : undefined;
     const down = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
       const el = e.target as HTMLElement | null;
@@ -565,6 +566,78 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     void paintReliefStroke(reliefStrokeOf(useApp.getState().reliefBrush, draft.points)).then(() => useApp.setState({ reliefPreview: null }));
   }
 
+  // Piso (mestre, docs/design/pisos.md). Pincel e borracha: como o relevo, a passada vai numa cópia local na hora
+  // (prévia em `floorPreview`) e inteira ao soltar. Retângulo: os cantos encaixam na casa (Shift: meia casa), contorno
+  // enquanto arrasta. Cômodo: o contorno do lugar fechado sob o mouse e, no clique, a passada.
+  const floorRef = useRef<{ points: number[]; local: FloorChunks } | null>(null);
+  const floorCursor = useRef<Konva.Circle>(null);
+  const [floorRect, setFloorRect] = useState<{ from: LightPoint; to: LightPoint } | null>(null);
+  const [floorHover, setFloorHover] = useState<{ key: string; outlines: number[][] } | null>(null);
+  const toCells = (p: Point): LightPoint => ({ x: (p.x - grid.offsetX) / grid.cellPx, y: (p.y - grid.offsetY) / grid.cellPx });
+  const snapFloor = (at: LightPoint, half: boolean): LightPoint => (half ? { x: Math.round(at.x * 2) / 2, y: Math.round(at.y * 2) / 2 } : { x: Math.round(at.x), y: Math.round(at.y) });
+  function floorBrushAt(p: Point) {
+    const cursor = floorCursor.current;
+    if (cursor) {
+      cursor.position(p);
+      cursor.visible(true);
+      cursor.getLayer()?.batchDraw();
+    }
+    const draft = floorRef.current;
+    if (!draft) return;
+    const brush = useApp.getState().floorBrush;
+    const { x, y } = toCells(p);
+    const { points } = draft;
+    if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.1, brush.radius * 0.3)) return;
+    points.push(x, y);
+    paintFloor(draft.local, floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: [x, y] }), [], "stone");
+    useApp.setState({ floorPreview: { ...draft.local } });
+  }
+  /** Contorno do lugar fechado sob o mouse (refeito só quando o mouse anda meia casa). */
+  function floorHoverAt(p: Point) {
+    const at = toCells(p);
+    const key = `${Math.floor(at.x * 2)},${Math.floor(at.y * 2)}`;
+    if (floorHover?.key === key) return;
+    const room = floorRoomAt(state.battle.walls, at, state.battle.map.wallStyle ?? "stone");
+    setFloorHover({ key, outlines: room ? [room.outer, ...room.holes] : [] });
+  }
+  function startFloor(p: Point) {
+    const brush = useApp.getState().floorBrush;
+    if (brush.mode === "room") {
+      void paintFloorStroke(floorStrokeOf(brush, { kind: "room", at: toCells(p) }));
+      return;
+    }
+    if (brush.mode === "rect") {
+      const corner = snapFloor(toCells(p), shiftHeld);
+      setFloorRect({ from: corner, to: corner });
+      return;
+    }
+    floorRef.current = { points: [], local: { ...useApp.getState().floors } };
+    floorBrushAt(p);
+  }
+  function moveFloor(p: Point) {
+    const mode = useApp.getState().floorBrush.mode;
+    if (mode === "room") return floorHoverAt(p);
+    if (mode === "rect") {
+      if (floorRect) setFloorRect({ from: floorRect.from, to: snapFloor(toCells(p), shiftHeld) });
+      return;
+    }
+    floorBrushAt(p);
+  }
+  function finishFloor() {
+    const brush = useApp.getState().floorBrush;
+    if (floorRect) {
+      const { from, to } = floorRect;
+      setFloorRect(null);
+      if (from.x !== to.x && from.y !== to.y) void paintFloorStroke(floorStrokeOf(brush, { kind: "rect", from, to }));
+      return;
+    }
+    const draft = floorRef.current;
+    floorRef.current = null;
+    if (!draft || draft.points.length === 0) return;
+    // A prévia fica até o servidor responder (o piso novo chega antes da resposta: sem piscar).
+    void paintFloorStroke(floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: draft.points })).then(() => useApp.setState({ floorPreview: null }));
+  }
+
   // Correnteza (água animada, mestre): risca a linha no sentido em que a água corre; ou, na borracha de correnteza,
   // apaga as linhas tocadas. As linhas aparecem só com a ferramenta Terreno aberta.
   const currentRef = useRef<{ points: number[] } | null>(null);
@@ -825,6 +898,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       reliefAt(p);
       return;
     }
+    if (tool === "floor" && gm) {
+      startFloor(p);
+      return;
+    }
     if (tool === "terrain" && gm) {
       const mode = useApp.getState().terrainBrush.terrain;
       if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
@@ -884,6 +961,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       reliefAt(p);
       return;
     }
+    if (tool === "floor") {
+      moveFloor(p);
+      return;
+    }
     if (tool === "paint" || (tool === "props" && useApp.getState().propMode !== "place")) {
       const cell = cellAt(p, grid);
       setPaintHover((h) => (h && sameCell(h, cell) ? h : cell));
@@ -936,6 +1017,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     finishPaint();
     finishTerrain();
     finishRelief();
+    finishFloor();
     finishPropBrush();
     finishRestyle();
     calibStart.current = null;
@@ -1125,7 +1207,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", k: "floor", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -1324,6 +1406,37 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                 strokeWidth={1.5 / view.scale}
                 dash={[6 / view.scale, 4 / view.scale]}
               />
+            </Layer>
+          )}
+
+          {/* Piso: o contorno do pincel sob o mouse, o retângulo enquanto arrasta e o lugar fechado sob o mouse. */}
+          {gm && tool === "floor" && (
+            <Layer listening={false}>
+              {(floorBrush.mode === "brush" || floorBrush.mode === "erase") && (
+                <Circle ref={floorCursor} visible={false} radius={floorBrush.radius * grid.cellPx} stroke="#b9a27a" strokeWidth={1.5 / view.scale} dash={[6 / view.scale, 4 / view.scale]} />
+              )}
+              {floorBrush.mode === "rect" && floorRect && (
+                <Rect
+                  x={grid.offsetX + Math.min(floorRect.from.x, floorRect.to.x) * grid.cellPx}
+                  y={grid.offsetY + Math.min(floorRect.from.y, floorRect.to.y) * grid.cellPx}
+                  width={Math.abs(floorRect.to.x - floorRect.from.x) * grid.cellPx}
+                  height={Math.abs(floorRect.to.y - floorRect.from.y) * grid.cellPx}
+                  stroke="#b9a27a"
+                  strokeWidth={2 / view.scale}
+                  dash={[6 / view.scale, 4 / view.scale]}
+                />
+              )}
+              {floorBrush.mode === "room" &&
+                floorHover?.outlines.map((outline, index) => (
+                  <Line
+                    key={index}
+                    points={outline.map((value, at) => (at % 2 === 0 ? grid.offsetX + value * grid.cellPx : grid.offsetY + value * grid.cellPx))}
+                    closed
+                    stroke={index === 0 ? "#b9a27a" : "#8a7a5c"}
+                    strokeWidth={2 / view.scale}
+                    dash={[6 / view.scale, 4 / view.scale]}
+                  />
+                ))}
             </Layer>
           )}
 

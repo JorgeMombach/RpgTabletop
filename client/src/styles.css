@@ -2967,3 +2967,13 @@ button[data-disabled] > .ability-cell {
 .journal-split.single .journal-row-main {
   padding: 10px 8px;
 }
+
+/* Amostra de material do Piso (docs/design/pisos.md): a escolhida ganha o contorno de bronze. */
+.floor-swatch {
+  display: block;
+  border-radius: var(--mantine-radius-sm);
+  outline-offset: 2px;
+}
+.floor-swatch[data-active] {
+  outline: 2px solid var(--mantine-color-bronze-5);
+}
