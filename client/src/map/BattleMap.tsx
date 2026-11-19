@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, doorLayouts, floorRoomAt, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { brushCells, doorLayouts, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -444,13 +444,23 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   }
 
   // Parede sendo traçada pelo mestre: de canto a canto do grid (ou livre); ao soltar vai para todos.
-  const wallRef = useRef<{ from: GridPos; to: GridPos } | null>(null);
+  // No traço livre, a ponta gruda na ponta ou no corpo de uma parede perto (ímã, `wallSnap.ts`), para emendar e
+  // fechar o cômodo; com Ctrl (Cmd no Mac) segurado, fica exatamente onde foi solta. Alt+clique já é o ping.
+  const wallRef = useRef<{ from: GridPos; to: GridPos; magnet: boolean } | null>(null);
   const [wallDraft, setWallDraft] = useState<{ from: GridPos; to: GridPos } | null>(null);
+  /** A ponta da parede sob o ponteiro: nos cantos, no grid; livre, com ímã (menos com Ctrl). */
+  function wallEndAt(p: Point, magnet: boolean): GridPos {
+    const point = wallPointAt(p, grid, wallSnap);
+    return !wallSnap && magnet ? magnetWallPoint(point, state.battle.walls) : point;
+  }
   function finishWall() {
     const w = wallRef.current;
     wallRef.current = null;
     setWallDraft(null);
-    if (w && wallSpan(w.from, w.to) >= 0.1) void addWall(w.from, w.to, wallMode === "door" || wallMode === "window" ? wallMode : null, useApp.getState().wallThick, wallDrawStyle ?? undefined);
+    if (!w) return;
+    // As duas pontas com ímã de novo, juntas: a que encosta no meio de uma parede inclinada passa um fio da linha.
+    const ends = !wallSnap && w.magnet ? magnetWallEnds(w.from, w.to, state.battle.walls) : w;
+    if (wallSpan(ends.from, ends.to) >= 0.1) void addWall(ends.from, ends.to, wallMode === "door" || wallMode === "window" ? wallMode : null, useApp.getState().wallThick, wallDrawStyle ?? undefined);
   }
 
   // Névoa sendo pintada pelo mestre: aparece na hora; ao soltar vai para o servidor.
@@ -888,8 +898,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       return;
     }
     if (tool === "walls") {
-      const c = wallPointAt(p, grid, wallSnap);
-      wallRef.current = { from: c, to: c };
+      const magnet = !(e.evt.ctrlKey || e.evt.metaKey);
+      const c = wallEndAt(p, magnet);
+      wallRef.current = { from: c, to: c, magnet };
       setWallDraft(wallRef.current);
       return;
     }
@@ -982,9 +993,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       return;
     }
     if (wallRef.current) {
-      const to = wallPointAt(p, grid, wallSnap);
-      if (!sameCell(to, wallRef.current.to)) {
-        wallRef.current = { ...wallRef.current, to };
+      const magnet = !(e?.evt.ctrlKey || e?.evt.metaKey);
+      const to = wallEndAt(p, magnet);
+      if (!sameCell(to, wallRef.current.to) || magnet !== wallRef.current.magnet) {
+        wallRef.current = { ...wallRef.current, to, magnet };
         setWallDraft(wallRef.current);
       }
       return;

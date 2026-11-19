@@ -769,6 +769,7 @@ export const ptBR = {
   "walls.snap": "Nos cantos",
   "walls.free": "Livre",
   "walls.snapLabel": "Como traçar",
+  "walls.freeHint": "A ponta gruda numa parede perto, para emendar e fechar o cômodo. Segure Ctrl para soltar onde quiser.",
   "walls.undo": "Desfazer",
   "walls.undoTip": "Desfaz a última parede ou porta colocada ou apagada (Ctrl+Z)",
   "walls.hintWallFree": "Arraste de um ponto a outro, em qualquer lugar do mapa, para traçar a parede.",

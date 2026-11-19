@@ -762,6 +762,7 @@ export const es: Partial<Messages> = {
   "walls.snap": "En las esquinas",
   "walls.free": "Libre",
   "walls.snapLabel": "Cómo trazar",
+  "walls.freeHint": "El extremo se pega a una pared cercana, para unirlas y cerrar la habitación. Mantén Ctrl para soltarlo donde quieras.",
   "walls.undo": "Deshacer",
   "walls.undoTip": "Deshace la última pared o puerta colocada o borrada (Ctrl+Z)",
   "walls.hintWallFree": "Arrastra de un punto a otro, en cualquier lugar del mapa, para trazar la pared.",

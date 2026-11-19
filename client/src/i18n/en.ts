@@ -762,6 +762,7 @@ export const en: Partial<Messages> = {
   "walls.snap": "On corners",
   "walls.free": "Free",
   "walls.snapLabel": "How to draw",
+  "walls.freeHint": "The end snaps to a nearby wall, so walls join and close the room. Hold Ctrl to drop it anywhere.",
   "walls.undo": "Undo",
   "walls.undoTip": "Undo the last wall or door placed or erased (Ctrl+Z)",
   "walls.hintWallFree": "Drag from one point to another, anywhere on the map, to draw the wall.",

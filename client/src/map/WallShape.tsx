@@ -212,6 +212,11 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
             aria-label={t("walls.snapLabel")}
           />
         )}
+        {tracing(wallMode) && !wallSnap && (
+          <Text size="xs" c="dimmed">
+            {t("walls.freeHint")}
+          </Text>
+        )}
         <Group gap={4} wrap="nowrap" justify="space-between">
           <Tooltip label={t("walls.undoTip")}>
             <Button size="compact-xs" variant="default" disabled={undoCount === 0} leftSection={<IconArrowBackUp size={12} />} onClick={() => void undo("walls")}>

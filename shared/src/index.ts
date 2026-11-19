@@ -15,6 +15,7 @@ export * from "./wind";
 export * from "./water";
 export * from "./light";
 export * from "./wallJoin";
+export * from "./wallSnap";
 export * from "./wallCut";
 export * from "./relief";
 export * from "./reliefQueue";

@@ -123,6 +123,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ## Pendências pequenas
 
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
+- [ ] Rente a uma parede livre inclinada, a borda do piso anda em degraus de 1/4 de casa (o piso segue a grade fina) e aparece um dentinho de chão entre o piso e a parede. Caminho: no *Cômodo*, incluir também os pontos até a meia espessura da parede para fora (`shapeCover` em `shared/src/floor.ts`), ou recortar a borda pela linha da parede no shader.
 - [ ] Retângulo ou pincel gigante forjado (só o mestre) varre a caixa inteira antes de conferir o limite de pedaços (`shared/src/floor.ts` `paintFloor`): abortar quando passar de `LIMITS.terrainChunks`.
 - [ ] A prévia do pincel reenvia a textura inteira e refaz as caixas dos tapetes a cada movimento (`floorPass.ts` `setChunks`; `FloorLayer.tsx`).
 - [ ] Piso pintado atrás de porta secreta mostra o formato da sala sem névoa (vai inteiro para os jogadores, como terreno e relevo).
