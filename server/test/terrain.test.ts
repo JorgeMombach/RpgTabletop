@@ -66,6 +66,45 @@ describe("terreno: contas do pincel", () => {
   });
 });
 
+// Terreno em retângulo: os cantos nas casas (ou meia casa), cada ponto de dentro recebe o terreno com a força do pincel.
+describe("terreno: retângulo", () => {
+  const rect = (terrain: TerrainStroke["terrain"], from: [number, number], to: [number, number], strength = 1): TerrainStroke => ({
+    terrain,
+    radius: 1,
+    strength,
+    points: [],
+    rect: { from: { x: from[0], y: from[1] }, to: { x: to[0], y: to[1] } },
+  });
+
+  it("força 1 cobre por inteiro de canto a canto, inclusive a borda; fora, nada", () => {
+    const chunks: TerrainChunks = {};
+    paintTerrain(chunks, rect("sand", [3, 2], [1, 4]));
+    assert.deepEqual(terrainAt(chunks, 1, 2), { sand: 255 }, "canto");
+    assert.deepEqual(terrainAt(chunks, 2, 3), { sand: 255 }, "meio");
+    assert.deepEqual(terrainAt(chunks, 3, 4), { sand: 255 }, "canto oposto (cantos em qualquer ordem)");
+    assert.deepEqual(terrainAt(chunks, 3.25, 3), {}, "um ponto para fora");
+    assert.deepEqual(terrainAt(chunks, 2, 1.75), {});
+  });
+
+  it("por cima de outro terreno, toma o lugar; com força menor, mistura", () => {
+    const chunks: TerrainChunks = {};
+    paintTerrain(chunks, rect("grass", [0, 0], [4, 4]));
+    paintTerrain(chunks, rect("dirt", [1, 1], [2, 2]));
+    assert.deepEqual(terrainAt(chunks, 1.5, 1.5), { dirt: 255 });
+    paintTerrain(chunks, rect("stone", [3, 3], [4, 4], 0.5));
+    const mixed = terrainAt(chunks, 3.5, 3.5);
+    assert.ok((mixed.stone ?? 0) > 100 && (mixed.grass ?? 0) > 100, JSON.stringify(mixed));
+  });
+
+  it("borracha em retângulo apaga só ali", () => {
+    const chunks: TerrainChunks = {};
+    paintTerrain(chunks, rect("grass", [0, 0], [4, 4]));
+    paintTerrain(chunks, rect("erase", [0, 0], [2, 4]));
+    assert.deepEqual(terrainAt(chunks, 1, 1), {});
+    assert.deepEqual(terrainAt(chunks, 3, 1), { grass: 255 });
+  });
+});
+
 // Terreno na placa de vídeo (docs/design/renderizador-chao.md): área pintada e pesos no formato das texturas.
 describe("terreno: pesos para a placa de vídeo", () => {
   const layerWith = (index: number, value: number) => {

@@ -1,4 +1,4 @@
-import { ActionIcon, Box, Button, Group, Image, SimpleGrid, Slider, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Box, Button, Group, Image, SegmentedControl, SimpleGrid, Slider, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconArrowWaveRightUp, IconEraser, IconTrash } from "@tabler/icons-react";
 import { LIMITS, TERRAINS, type TerrainId } from "@rpg/shared";
 import { memo } from "react";
@@ -96,7 +96,22 @@ export const TerrainOptions = memo(function TerrainOptions() {
         </Button>
       </Group>
       {!current && (
+        <SegmentedControl
+          size="xs"
+          fullWidth
+          mt={8}
+          data={[
+            { value: "brush", label: t("terrain.shapeBrush") },
+            { value: "rect", label: t("terrain.shapeRect") },
+          ]}
+          value={brush.shape}
+          onChange={(value) => setBrush({ shape: value === "rect" ? "rect" : "brush" })}
+          aria-label={t("terrain.shape")}
+        />
+      )}
+      {!current && (
         <>
+          {brush.shape === "brush" && (
           <Group gap={6} wrap="nowrap" mt={8}>
             <Text size="xs" c="dimmed" w={44} style={{ flex: "none" }}>
               {t("terrain.size")}
@@ -113,6 +128,7 @@ export const TerrainOptions = memo(function TerrainOptions() {
               aria-label={t("terrain.size")}
             />
           </Group>
+          )}
           <Group gap={6} wrap="nowrap" mt={4}>
             <Text size="xs" c="dimmed" w={44} style={{ flex: "none" }}>
               {t("terrain.strength")}

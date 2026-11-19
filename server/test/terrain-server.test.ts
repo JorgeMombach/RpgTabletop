@@ -67,9 +67,20 @@ describe("terreno: servidor", () => {
       { ...paint, points: Array.from({ length: 4002 }, () => 4) },
       { ...paint, points: [4, Number.NaN] },
       { ...paint, points: [4] },
+      // retângulo: cantos inválidos, lado grande demais (a conta não pode travar o servidor)
+      { ...paint, points: [], rect: { from: { x: 0, y: 0 }, to: { x: Number.NaN, y: 2 } } },
+      { ...paint, points: [], rect: { from: { x: 0, y: 0 }, to: { x: 500, y: 2 } } },
+      { ...paint, points: [], rect: { from: { x: 0, y: 0 } } as unknown as TerrainStroke["rect"] },
     ];
     for (const stroke of bad) assert.equal((await act(g, "terrain:paint", stroke)).ok, false, JSON.stringify(stroke).slice(0, 80));
     assert.deepEqual(battle().terrain, before);
+  });
+
+  it("retângulo: o mestre pinta de canto a canto, sem pontos de pincel", async () => {
+    const g = await gm();
+    await act(g, "terrain:clear", {});
+    assert.ok((await act(g, "terrain:paint", { ...paint, terrain: "sand", points: [], rect: { from: { x: 1, y: 1 }, to: { x: 3, y: 2 } } })).ok);
+    assert.ok(battle().terrain?.["0,0"]?.sand);
   });
 
   it("limite de pedaços", async () => {

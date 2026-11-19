@@ -125,7 +125,8 @@ interface AppStore extends DicePrefs {
   paintSize: number;
   /** Ferramenta Terreno (mestre): terreno do pincel (ou borracha), raio em casas e força. */
   /** Pincel do Terreno: um terreno, a borracha, ou os modos da correnteza (riscar e apagar linhas). */
-  terrainBrush: { terrain: TerrainId | "erase" | "current" | "currentErase"; radius: number; strength: number };
+  /** Pincel do Terreno; `shape`: pincel livre ou retângulo de canto a canto. */
+  terrainBrush: { terrain: TerrainId | "erase" | "current" | "currentErase"; radius: number; strength: number; shape: "brush" | "rect" };
   /** Pincel do Relevo (docs/design/relevo.md): nível e borda, ou (modo `dunes`) só a altura das dunas, de 0 a 3. */
   reliefBrush: { level: number; soft: boolean; radius: number; mode: "level" | "dunes"; dune: number };
   floorBrush: FloorBrush;
@@ -219,7 +220,7 @@ export const useApp = create<AppStore>(() => ({
   paintColor: "#d4a24c",
   paintErase: false,
   paintSize: 3,
-  terrainBrush: { terrain: "grass", radius: 1.5, strength: 0.5 },
+  terrainBrush: { terrain: "grass", radius: 1.5, strength: 0.5, shape: "brush" },
   reliefBrush: { level: 1, soft: false, radius: 1.5, mode: "level", dune: 2 },
   floorBrush: { material: "plank", vertical: false, mode: "room", radius: 1 },
   propKind: "tree",

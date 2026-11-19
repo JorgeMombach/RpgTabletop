@@ -52,10 +52,24 @@ function parseStroke(raw: unknown): TerrainStroke {
   if (terrain !== "erase" && !TERRAINS.includes(terrain as TerrainId)) fail("Terreno inválido.");
   const radius = requireNumber(stroke.radius, "Tamanho do pincel", LIMITS.terrainRadius.min, LIMITS.terrainRadius.max);
   const strength = requireNumber(stroke.strength, "Força do pincel", LIMITS.terrainStrength.min, LIMITS.terrainStrength.max);
+  const coord = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord;
+  if (stroke.rect !== undefined) {
+    // Retângulo de canto a canto: os pontos do pincel não contam.
+    const rect = stroke.rect;
+    const corner = (raw: unknown): { x: number; y: number } => {
+      if (typeof raw !== "object" || raw === null || !("x" in raw) || !("y" in raw) || !coord(raw.x) || !coord(raw.y)) fail("Terreno inválido.");
+      return { x: raw.x, y: raw.y };
+    };
+    if (typeof rect !== "object" || rect === null || !("from" in rect) || !("to" in rect)) fail("Terreno inválido.");
+    const from = corner(rect.from);
+    const to = corner(rect.to);
+    if (Math.abs(to.x - from.x) > LIMITS.terrainRectSide || Math.abs(to.y - from.y) > LIMITS.terrainRectSide) fail("Retângulo grande demais (máximo de {n} casas de lado): pinte em partes.", { n: LIMITS.terrainRectSide });
+    return { terrain: terrain as TerrainStroke["terrain"], radius, strength, points: [], rect: { from, to } };
+  }
   const points = stroke.points;
   if (!Array.isArray(points) || points.length < 2 || points.length % 2 !== 0) fail("Terreno inválido.");
   if (points.length > LIMITS.terrainStrokePoints * 2) fail("Pincelada longa demais: solte e continue pintando.");
-  if (!points.every((n): n is number => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord)) fail("Terreno inválido.");
+  if (!points.every(coord)) fail("Terreno inválido.");
   return { terrain: terrain as TerrainStroke["terrain"], radius, strength, points };
 }
 

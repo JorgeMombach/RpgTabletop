@@ -402,8 +402,11 @@ export async function paintTerrainStroke(stroke: TerrainStroke): Promise<ActionR
   const applied: TerrainChunks = { ...base };
   const touched = new Set<string>();
   let result: ActionResult = { ok: true };
-  for (let start = 0; start < stroke.points.length; start += LIMITS.terrainStrokePoints * 2) {
-    const slice: TerrainStroke = { ...stroke, points: stroke.points.slice(start, start + LIMITS.terrainStrokePoints * 2) };
+  // O retângulo vai de uma vez (sem pontos); o pincel, em fatias do tamanho que o servidor aceita.
+  const slices: TerrainStroke[] = [];
+  if (stroke.rect) slices.push(stroke);
+  else for (let start = 0; start < stroke.points.length; start += LIMITS.terrainStrokePoints * 2) slices.push({ ...stroke, points: stroke.points.slice(start, start + LIMITS.terrainStrokePoints * 2) });
+  for (const slice of slices) {
     result = await act("terrain:paint", slice);
     if (!result.ok) break;
     for (const key of paintTerrain(applied, slice)) touched.add(key);

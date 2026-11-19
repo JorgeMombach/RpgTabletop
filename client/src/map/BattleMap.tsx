@@ -521,6 +521,28 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Pincel de terreno (mestre): a passada é pintada numa cópia local na hora (a mesma conta do servidor) e vai
   // inteira ao soltar. O contorno do pincel anda sob o mouse sem redesenhar o mapa (mexe direto no Konva).
   const terrainRef = useRef<{ points: number[]; local: TerrainChunks } | null>(null);
+  // Retângulo de terreno: de canto a canto, nas casas (com Shift, na meia casa); a prévia mostra o terreno pintado.
+  const [terrainRect, setTerrainRect] = useState<{ from: LightPoint; to: LightPoint; base: TerrainChunks } | null>(null);
+  function terrainRectTo(p: Point) {
+    if (!terrainRect) return;
+    const to = snapFloor(toCells(p), shiftHeld);
+    if (to.x === terrainRect.to.x && to.y === terrainRect.to.y) return;
+    setTerrainRect({ ...terrainRect, to });
+    const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
+    if (brushTerrain === "current" || brushTerrain === "currentErase") return;
+    const local = { ...terrainRect.base };
+    paintTerrain(local, { ...brushSize, terrain: brushTerrain, points: [], rect: { from: terrainRect.from, to } });
+    setTerrainPreview(local);
+  }
+  function finishTerrainRect() {
+    const rect = terrainRect;
+    setTerrainRect(null);
+    if (!rect) return;
+    const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
+    // Sem área (só um clique): nada a pintar.
+    if (brushTerrain === "current" || brushTerrain === "currentErase" || rect.from.x === rect.to.x || rect.from.y === rect.to.y) return setTerrainPreview(null);
+    void paintTerrainStroke({ ...brushSize, terrain: brushTerrain, points: [], rect: { from: rect.from, to: rect.to } }).then(() => setTerrainPreview(null));
+  }
   const [terrainPreview, setTerrainPreview] = useState<TerrainChunks | null>(null);
   const terrainCursor = useRef<Konva.Circle>(null);
   function terrainAt(p: Point) {
@@ -546,6 +568,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   }
   function finishTerrain() {
     finishCurrent();
+    finishTerrainRect();
     const draft = terrainRef.current;
     terrainRef.current = null;
     const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
@@ -990,6 +1013,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (tool === "terrain" && gm) {
       const mode = useApp.getState().terrainBrush.terrain;
       if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
+      if (useApp.getState().terrainBrush.shape === "rect") {
+        const corner = snapFloor(toCells(p), shiftHeld);
+        setTerrainRect({ from: corner, to: corner, base: { ...useApp.getState().terrain } });
+        return;
+      }
       terrainRef.current = { points: [], local: { ...useApp.getState().terrain } };
       terrainAt(p);
       return;
@@ -1039,6 +1067,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     }
     if (tool === "terrain") {
       if (currentRef.current || currentErasing.current) currentAt(p);
+      else if (terrainRect) terrainRectTo(p);
       else terrainAt(p);
       return;
     }
@@ -1496,6 +1525,17 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           {/* Pincel de terreno: o contorno do pincel sob o mouse (posto direto no Konva, em terrainAt). */}
           {gm && tool === "terrain" && terrainBrush.terrain !== "current" && terrainBrush.terrain !== "currentErase" && (
             <Layer listening={false}>
+              {terrainRect && (
+                <Rect
+                  x={grid.offsetX + Math.min(terrainRect.from.x, terrainRect.to.x) * grid.cellPx}
+                  y={grid.offsetY + Math.min(terrainRect.from.y, terrainRect.to.y) * grid.cellPx}
+                  width={Math.abs(terrainRect.to.x - terrainRect.from.x) * grid.cellPx}
+                  height={Math.abs(terrainRect.to.y - terrainRect.from.y) * grid.cellPx}
+                  stroke={terrainBrush.terrain === "erase" ? "#e05a5a" : "#d8b47a"}
+                  strokeWidth={2 / view.scale}
+                  dash={[6 / view.scale, 4 / view.scale]}
+                />
+              )}
               <Circle
                 ref={terrainCursor}
                 visible={false}

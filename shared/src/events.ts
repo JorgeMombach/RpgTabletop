@@ -658,6 +658,8 @@ export const LIMITS = {
   /** Terreno pintado: pedaços de 8 × 8 casas por cena, pontos de traço por passada, raio (casas) e força do pincel. */
   terrainChunks: 400,
   terrainStrokePoints: 2000,
+  /** Lado máximo do retângulo de terreno (casas): a conta não pode travar o servidor. */
+  terrainRectSide: 64,
   terrainRadius: { min: 0.5, max: 6 },
   terrainStrength: { min: 0.1, max: 1 },
   /** Hora do jogo (Passo 15): maior dia e maior avanço de uma vez (30 dias, em minutos). */

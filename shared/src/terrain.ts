@@ -24,12 +24,16 @@ export type TerrainChunk = Partial<Record<TerrainId, string>>;
 /** Pedaços pintados de uma cena, pela chave `"cx,cy"`. */
 export type TerrainChunks = Record<string, TerrainChunk>;
 
-/** Uma passada do pincel: terreno (ou borracha), raio em casas, força (0,1–1) e os pontos do traço (`x, y` achatados, em casas). */
+/**
+ * Uma passada do pincel: terreno (ou borracha), raio em casas, força (0,1–1) e os pontos do traço (`x, y` achatados,
+ * em casas). Com `rect`, é um retângulo de canto a canto (em casas, em qualquer ordem) e os pontos não contam.
+ */
 export interface TerrainStroke {
   terrain: TerrainId | "erase";
   radius: number;
   strength: number;
   points: number[];
+  rect?: { from: { x: number; y: number }; to: { x: number; y: number } };
 }
 
 export function chunkKey(cx: number, cy: number): string {
@@ -74,6 +78,9 @@ function open(chunks: TerrainChunks, working: Working, key: string): Map<Terrain
 }
 
 /** Mistura num ponto: o terreno pintado sobe Δ; se a soma passar de 255, os outros cedem na proporção do que têm. */
+/** Folga para o canto que cai exatamente num ponto da grade entrar (conta em ponto flutuante). */
+const EDGE = 1e-6;
+
 function mixPoint(layers: Map<TerrainId, Uint8Array>, index: number, terrain: TerrainId | "erase", amount: number) {
   if (terrain === "erase") {
     let total = 0;
@@ -105,7 +112,24 @@ function mixPoint(layers: Map<TerrainId, Uint8Array>, index: number, terrain: Te
 export function paintTerrain(chunks: TerrainChunks, stroke: TerrainStroke): string[] {
   const working: Working = new Map();
   const { radius, strength, terrain } = stroke;
-  for (let p = 0; p + 1 < stroke.points.length; p += 2) {
+  const touch = (i: number, j: number, amount: number) => {
+    const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
+    const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
+    const key = chunkKey(cx, cy);
+    // Borracha num pedaço que nem existe: nada a apagar (e não cria pedaço vazio).
+    if (terrain === "erase" && !chunks[key] && !working.has(key)) return;
+    const index = (j - cy * TERRAIN_CHUNK_SIDE) * TERRAIN_CHUNK_SIDE + (i - cx * TERRAIN_CHUNK_SIDE);
+    mixPoint(open(chunks, working, key), index, terrain, amount);
+  };
+  if (stroke.rect) {
+    // Retângulo: cada ponto de dentro (com a borda) recebe o terreno com a força toda (força 1 cobre por inteiro).
+    const { from, to } = stroke.rect;
+    const amount = Math.round(strength * 255);
+    for (let j = Math.ceil(Math.min(from.y, to.y) * TERRAIN_FINE - EDGE); j <= Math.floor(Math.max(from.y, to.y) * TERRAIN_FINE + EDGE); j++) {
+      for (let i = Math.ceil(Math.min(from.x, to.x) * TERRAIN_FINE - EDGE); i <= Math.floor(Math.max(from.x, to.x) * TERRAIN_FINE + EDGE); i++) touch(i, j, amount);
+    }
+  }
+  for (let p = 0; !stroke.rect && p + 1 < stroke.points.length; p += 2) {
     const x = stroke.points[p];
     const y = stroke.points[p + 1];
     for (let j = Math.ceil((y - radius) * TERRAIN_FINE); j <= Math.floor((y + radius) * TERRAIN_FINE); j++) {
@@ -114,13 +138,7 @@ export function paintTerrain(chunks: TerrainChunks, stroke: TerrainStroke): stri
         if (d >= 1) continue;
         const amount = Math.round(strength * 128 * (1 - d) * (1 - d));
         if (amount === 0) continue;
-        const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
-        const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
-        const key = chunkKey(cx, cy);
-        // Borracha num pedaço que nem existe: nada a apagar (e não cria pedaço vazio).
-        if (terrain === "erase" && !chunks[key] && !working.has(key)) continue;
-        const index = (j - cy * TERRAIN_CHUNK_SIDE) * TERRAIN_CHUNK_SIDE + (i - cx * TERRAIN_CHUNK_SIDE);
-        mixPoint(open(chunks, working, key), index, terrain, amount);
+        touch(i, j, amount);
       }
     }
   }
