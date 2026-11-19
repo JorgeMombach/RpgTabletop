@@ -106,6 +106,16 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Muitas paredes (masmorra grande) e água animada na tela: sem queda de quadros.
 - [ ] Sem WebGL: o desenho de antes, emendado, sem erro.
 
+### Pontes e píer (estruturas, parte 2)
+- [ ] Ferramenta *Ponte* (U): os três tipos, largura 1/2/3, arrastar de margem a margem (meia casa; Shift livre), clicar para escolher, alças nas pontas, Delete, *Desfazer*; cabe na coluna na largura mínima.
+- [ ] Ponte sobre o rio pintado: pousa nas margens (cabeceira, caminho, contato), sombra só sobre a água; de perto e de longe.
+- [ ] Ponte de corda sobre um cânion do *Relevo*: sombra lá no fundo, seguindo a barriga; pontas em níveis diferentes (rampa); morro no meio (não corta o chão).
+- [ ] Luz: dia, entardecer, luar e noite; ponte dentro da sombra do penhasco escurece; tocha ilumina.
+- [ ] Primeira ponte de cada tipo (escolhido antes na ferramenta): sem trava; a pedra compila em ~3 s na placa integrada.
+- [ ] Píer: piso de tábuas da margem para a água (estacas e espuma só sobre a água), plataforma em T, laje sobre a água (cais), tapete sobre a água (sem mudança); mapa salvo antes ganha as estacas.
+- [ ] Jogador vê as pontes (sob a névoa); troca de cena; arquivo de sessão (e antigo sem pontes); *Limpar campo*; trocar o grid mantém.
+- [ ] Sem WebGL: ponte chapada com tábuas riscadas, sem erro.
+
 ### Pisos (estruturas, parte 1)
 - [ ] Ferramenta *Piso* (K): os seis materiais, sentido das tábuas, *Cômodo*, *Retângulo* (Shift: meia casa), *Pincel*, *Borracha*, *Desfazer*, *Apagar tudo*; cabe na coluna na largura mínima.
 - [ ] *Cômodo*: sala de pedra, de madeira, com canto diagonal, pátio de cerca/paliçada/muralha; clique fora de lugar fechado mostra o aviso; cômodo dentro de cômodo fica de fora.
