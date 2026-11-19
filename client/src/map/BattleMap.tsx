@@ -1521,6 +1521,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               gm={gm}
               dust={dust}
               floors={floorPreview ?? floors}
+              bridges={state.battle.bridges}
             />
           )}
 

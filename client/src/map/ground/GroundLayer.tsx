@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { duneMask, FrameWatch, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
+import { duneMask, FrameWatch, type Bridge, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
 import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
@@ -62,7 +62,10 @@ export const GroundLayer = memo(function GroundLayer({
   gm,
   dust,
   floors,
+  bridges,
 }: {
+  /** Pontes da cena (docs/design/pontes.md). */
+  bridges: Bridge[];
   /** Piso da cena (com a prévia da passada, se houver). */
   floors: FloorChunks;
   /** Vento do clima para a poeira das dunas: 0 = nada, 1 = vento, 2 = tempestade de areia; direção 1 = direita. */
@@ -270,6 +273,7 @@ export const GroundLayer = memo(function GroundLayer({
   const tool = useApp((state) => state.tool);
   const wallDrawStyle = useApp((state) => state.wallDrawStyle);
   const floorMaterial = useApp((state) => state.floorBrush.material);
+  const bridgeKind = useApp((state) => state.bridgeBrush.kind);
   const brushTerrain = useApp((state) => TERRAINS.find((terrain) => terrain === state.terrainBrush.terrain));
   useEffect(() => {
     if (!renderer) return;
@@ -277,7 +281,15 @@ export const GroundLayer = memo(function GroundLayer({
     if (tool === "walls") renderer.warm({ wall: "opening" });
     if (tool === "floor") renderer.warm({ floor: floorMaterial });
     if (tool === "terrain" && brushTerrain) renderer.warm({ terrain: brushTerrain });
-  }, [renderer, tool, wallDrawStyle, sceneStyle, floorMaterial, brushTerrain]);
+    if (tool === "bridge") renderer.warm({ bridge: bridgeKind });
+  }, [renderer, tool, wallDrawStyle, sceneStyle, floorMaterial, brushTerrain, bridgeKind]);
+
+  // Pontes: com o relevo (nível das pontas); a camada é refeita no próximo desenho.
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setBridges(bridges, relief);
+    setVersion((value) => value + 1);
+  }, [renderer, bridges, relief]);
 
   // Pisos: a camada é refeita no próximo desenho.
   useEffect(() => {

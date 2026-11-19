@@ -375,11 +375,14 @@ export class ReliefPass {
     return this.index !== null;
   }
 
-  /** Uniformes do atlas (`RELIEF_SAMPLE`) e da tela, com as texturas a partir de `extra` (as do programa vêm antes). */
-  private bindSample(program: Program, view: GroundView, width: number, height: number, extra: [string, WebGLTexture][]) {
+  /**
+   * Uniformes do atlas (`RELIEF_SAMPLE`) e da tela, com as texturas a partir de `extra` (as do programa vêm antes).
+   * Também para outros passos que leem a altura do relevo (as pontes). Sem relevo guardado, não liga nada (falso).
+   */
+  bindSample(program: Program, view: GroundView, width: number, height: number, extra: [string, WebGLTexture][]): boolean {
     const { gl } = this;
     const index = this.index;
-    if (!index) return;
+    if (!index) return false;
     gl.useProgram(program.program);
     useVertices(gl, this.triangle);
     bindTextures(gl, program, [...extra, ["uReliefIndex", index.texture], ["uReliefA", this.atlasA], ["uReliefB", this.atlasB], ["uReliefShadow", this.shadowCurrent], ["uReliefShadowPrevious", this.shadowPrevious]]);
@@ -393,6 +396,7 @@ export class ReliefPass {
     gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
     gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
     gl.uniform2f(uniformOf(gl, program, "uCanvas"), width, height);
+    return true;
   }
 
   /**

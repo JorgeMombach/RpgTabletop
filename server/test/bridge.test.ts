@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { bridgeAt, bridgeLength, snapBridgeEnd, type Bridge } from "@rpg/shared";
+import { bridgeAt, bridgeDeckHeight, bridgeLength, snapBridgeEnd, type Bridge } from "@rpg/shared";
 
 // Pontes (docs/design/pontes.md): pontas em casas, largura de 1 a 3, três tipos; as contas da ferramenta.
 const bridge = (id: string, from: [number, number], to: [number, number], width: Bridge["width"] = 2): Bridge => ({
@@ -33,5 +33,15 @@ describe("ponte: contas", () => {
 
   it("comprimento de ponta a ponta", () => {
     assert.equal(bridgeLength(bridge("a", [1, 1], [4, 5])), 5);
+  });
+
+  it("altura do tabuleiro (níveis): pousa em terra firme, sobe só sobre o vão; nunca corta o chão", () => {
+    assert.equal(bridgeDeckHeight(1, 0, false, "stone"), 1, "rampa um nível acima do chão");
+    assert.equal(bridgeDeckHeight(0, 0, true, "plank"), 0.3, "tábuas sobre a água");
+    assert.equal(bridgeDeckHeight(0, 0, true, "stone"), 0.55);
+    assert.equal(bridgeDeckHeight(0, 0, true, "rope"), 0.12);
+    assert.equal(bridgeDeckHeight(0, 0, false, "plank"), 0, "pousada na margem");
+    assert.equal(bridgeDeckHeight(0, 1, false, "plank"), 0, "morro no meio: acompanha o chão");
+    assert.ok(Math.abs(bridgeDeckHeight(2, -1, true, "rope") - 3.12) < 1e-9, "cânion com água no fundo");
   });
 });

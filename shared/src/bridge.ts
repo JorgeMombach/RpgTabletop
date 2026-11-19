@@ -49,3 +49,15 @@ export function bridgeAt(bridges: Bridge[], point: LightPoint): Bridge | null {
   }
   return null;
 }
+
+/** Folga do tabuleiro sobre a água (em níveis do relevo), por tipo: a ponte fica um pouco acima da água. */
+export const BRIDGE_WATER_LIFT: Record<BridgeKind, number> = { plank: 0.3, stone: 0.55, rope: 0.12 };
+
+/**
+ * Altura do tabuleiro sobre o chão embaixo dele, em níveis do relevo (a unidade da sombra do penhasco): a rampa entre
+ * as pontas menos o chão ali, nunca negativa (num morro no meio, a ponte acompanha o chão); sobre a água, mais a folga
+ * do tipo. A mesma regra roda no shader (bridgeShader.ts).
+ */
+export function bridgeDeckHeight(rampLevel: number, groundLevel: number, overWater: boolean, kind: BridgeKind): number {
+  return Math.max(0, rampLevel - groundLevel) + (overWater ? BRIDGE_WATER_LIFT[kind] : 0);
+}
