@@ -106,6 +106,20 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Muitas paredes (masmorra grande) e água animada na tela: sem queda de quadros.
 - [ ] Sem WebGL: o desenho de antes, emendado, sem erro.
 
+### Pisos (estruturas, parte 1)
+- [ ] Ferramenta *Piso* (K): os seis materiais, sentido das tábuas, *Cômodo*, *Retângulo* (Shift: meia casa), *Pincel*, *Borracha*, *Desfazer*, *Apagar tudo*; cabe na coluna na largura mínima.
+- [ ] *Cômodo*: sala de pedra, de madeira, com canto diagonal, pátio de cerca/paliçada/muralha; clique fora de lugar fechado mostra o aviso; cômodo dentro de cômodo fica de fora.
+- [ ] Materiais encostando (tábua com laje, tapete por cima da laje): sem emenda; barra do tapete e medalhão; sujeira na borda do piso.
+- [ ] De perto (zoom máximo) e bem de longe: nítido, sem chiado ao arrastar. *Não visto no app pelo agente.*
+- [ ] Piso sobre encosta suave (pega a luz) e encosto no penhasco (a face cobre); piso sobre a água. *Não visto no app pelo agente.*
+- [ ] Luz: dia, entardecer, luar e noite.
+- [ ] Retângulo solto: cantos levemente arredondados (cerca de 1/8 de casa) — conferir se agrada.
+- [ ] Primeira vez de cada material na cena: aparece um instante depois (programa compilando), sem travar.
+- [ ] Jogador vê o piso; troca de cena; arquivo de sessão (e arquivo antigo sem piso); *Limpar campo*; trocar o grid apaga (aviso na troca).
+- [ ] Hex: o piso pinta e desenha (padrão na grade quadrada).
+- [ ] Celular/tablet (jogador pelo IP da rede): o piso aparece.
+- [ ] Sem WebGL: cores chapadas, sem erro.
+
 ## Pendências pequenas
 
 ### Chão, água, areia e dunas ([docs/design/relevo.md](design/relevo.md))
