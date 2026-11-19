@@ -1,8 +1,9 @@
 import { Button, SimpleGrid, Text, Tooltip } from "@mantine/core";
-import { IconBox, IconBrush, IconFlame, IconLayoutBoardSplit, IconMountain, IconTexture, IconTree, IconWall } from "@tabler/icons-react";
+import { IconBox, IconBrush, IconBuildingBridge2, IconFlame, IconLayoutBoardSplit, IconMountain, IconTexture, IconTree, IconWall } from "@tabler/icons-react";
 import { useT, type MessageKey } from "../i18n";
 import { TOOL_KEYS } from "../map/BattleMap";
 import { FloorOptions } from "../map/floor/FloorOptions";
+import { BridgeOptions } from "../map/bridge/BridgeOptions";
 import { MapChestOptions } from "../map/MapChests";
 import { PropOptions } from "../map/MapProps";
 import { MapTorchOptions } from "../map/MapTorches";
@@ -15,7 +16,7 @@ import { TipTitle } from "./TipTitle";
 import { Panel } from "./Panel";
 
 /** Ferramentas de construção do mapa (passo 4 do cenário): saíram da barra do mapa e ficam neste painel. */
-export const BUILD_TOOLS = ["walls", "torches", "chests", "props", "paint", "terrain", "relief", "floor"] as const satisfies readonly MapTool[];
+export const BUILD_TOOLS = ["walls", "torches", "chests", "props", "paint", "terrain", "relief", "floor", "bridge"] as const satisfies readonly MapTool[];
 export type BuildTool = (typeof BUILD_TOOLS)[number];
 export const isBuildTool = (tool: MapTool): tool is BuildTool => (BUILD_TOOLS as readonly MapTool[]).includes(tool);
 
@@ -28,6 +29,7 @@ const TOOLS: Record<BuildTool, { text: MessageKey; tip: MessageKey; icon: typeof
   terrain: { text: "terrain.tool", tip: "terrain.toolTip", icon: IconTexture },
   relief: { text: "relief.tool", tip: "relief.toolTip", icon: IconMountain },
   floor: { text: "floor.tool", tip: "floor.toolTip", icon: IconLayoutBoardSplit },
+  bridge: { text: "bridge.tool", tip: "bridge.toolTip", icon: IconBuildingBridge2 },
 };
 
 /**
@@ -42,6 +44,7 @@ export function BuildPanel() {
   const sceneStyle = useApp((s) => s.state?.battle.map.wallStyle ?? "stone");
   const torchCount = useApp((s) => s.state?.battle.torches.length ?? 0);
   const selectedProp = useApp((s) => s.state?.battle.props.find((p) => p.id === s.selectedPropId) ?? null);
+  const selectedBridge = useApp((s) => s.state?.battle.bridges.find((bridge) => bridge.id === s.selectedBridgeId) ?? null);
 
   return (
     <Panel title={t("build.title")} anchor="build">
@@ -77,6 +80,7 @@ export function BuildPanel() {
       {tool === "terrain" && <TerrainOptions />}
       {tool === "relief" && <ReliefOptions />}
       {tool === "floor" && <FloorOptions />}
+      {tool === "bridge" && <BridgeOptions selected={selectedBridge} />}
       {!isBuildTool(tool) && (
         <Text size="xs" c="dimmed">
           {t("build.hint")}

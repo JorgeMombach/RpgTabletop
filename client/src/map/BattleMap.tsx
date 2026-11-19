@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, currentEndNear, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { type Bridge, bridgeAt, bridgeLength, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -28,6 +28,7 @@ import { lightSources, type Dragging } from "./ground/lightSources";
 import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
 import type { LightingInput } from "./ground/lightPass";
 import { CurrentLines } from "./water/CurrentLines";
+import { BridgeLayer } from "./bridge/BridgeLayer";
 import { CURRENT_CONTINUE, CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent, type CurrentDraft } from "./water/currentTool";
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
@@ -45,7 +46,7 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addChest, addCurrent, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addBridge, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { reliefStrokeOf } from "./terrain/ReliefOptions";
 import { FloorLayer } from "./floor/FloorLayer";
 import { floorStrokeOf } from "./floor/FloorOptions";
@@ -91,7 +92,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", floor: "K", fog: "F" };
+export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", floor: "K", bridge: "U", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
@@ -126,6 +127,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, floorBrush, reduceFx } = useApp(useShallow((s) => ({ drawMode: s.drawMode, drawColor: s.drawColor, drawWidth: s.drawWidth, drawHidden: s.drawHidden, wallMode: s.wallMode, wallSnap: s.wallSnap, selectedDoorId: s.selectedDoorId, wallDrawStyle: s.wallDrawStyle, fogReveal: s.fogReveal, fogShape: s.fogShape, fogBrush: s.fogBrush, paintPreset: s.paintPreset, paintColor: s.paintColor, paintErase: s.paintErase, paintSize: s.paintSize, terrainBrush: s.terrainBrush, reliefBrush: s.reliefBrush, floorBrush: s.floorBrush, reduceFx: s.reduceFx })));
   const selectedPropId = useApp((s) => s.selectedPropId);
+  const selectedBridgeId = useApp((s) => s.selectedBridgeId);
   // Lidos no desenho da prévia do pincel dos objetos.
   const { propMode: propBrushMode, scatterSize: propBrushSize } = useApp(useShallow((s) => ({ propMode: s.propMode, scatterSize: s.scatterSize })));
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, floors, floorPreview, groundFailed } = useApp(useShallow((s) => ({ tool: s.tool, selectedId: s.selectedId, hoverId: s.hoverId, rulers: s.rulers, pings: s.pings, areas: s.areas, areaKind: s.areaKind, areaFeet: s.areaFeet, calibRect: s.calibRect, mapImage: s.mapImage, placing: s.placing, gathering: s.gathering, terrain: s.terrain, terrainEpoch: s.terrainEpoch, relief: s.relief, reliefEpoch: s.reliefEpoch, reliefPreview: s.reliefPreview, floors: s.floors, floorPreview: s.floorPreview, groundFailed: s.groundFailed })));
@@ -189,7 +191,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Ctrl+Z (fora de campos de texto): nas ferramentas Paredes, Desenho e Tochas, desfaz o último dela; nas
   // outras, o último que esta pessoa fez no mapa.
   useEffect(() => {
-    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : tool === "relief" ? "relief" : tool === "floor" ? "floor" : undefined;
+    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : tool === "relief" ? "relief" : tool === "floor" ? "floor" : tool === "bridge" ? "bridge" : undefined;
     const down = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
       const el = e.target as HTMLElement | null;
@@ -200,6 +202,24 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
   }, [tool]);
+
+  // Pontes (mestre): Delete apaga a escolhida.
+  useEffect(() => {
+    if (!gm || tool !== "bridge") return;
+    const down = (e: KeyboardEvent) => {
+      if (typingOrDialog(e)) return;
+      const key = e.key.toLowerCase();
+      if (key !== "delete" && key !== "backspace") return;
+      const { state: current, selectedBridgeId } = useApp.getState();
+      const picked = current?.battle.bridges.find((bridge) => bridge.id === selectedBridgeId);
+      if (!picked) return;
+      e.preventDefault();
+      void removeBridges([picked]);
+      useApp.setState({ selectedBridgeId: null });
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [gm, tool]);
 
   // Objetos (mestre): Delete apaga o escolhido; Ctrl+C copia e Ctrl+V cola onde está o mouse.
   const lastPoint = useRef<Point | null>(null);
@@ -618,6 +638,36 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const [floorRect, setFloorRect] = useState<{ from: LightPoint; to: LightPoint } | null>(null);
   const [floorHover, setFloorHover] = useState<{ key: string; outlines: number[][] } | null>(null);
   const toCells = (p: Point): LightPoint => ({ x: (p.x - grid.offsetX) / grid.cellPx, y: (p.y - grid.offsetY) / grid.cellPx });
+
+  // Ponte (mestre, docs/design/pontes.md): arrastar põe uma ponte nova (mesmo começando em cima de outra); clique
+  // sem arrastar escolhe a ponte sob o ponteiro (ou solta a escolhida). Pontas na meia casa; com Shift, livres.
+  const bridgePress = useRef<{ at: LightPoint; dragged: boolean } | null>(null);
+  const [bridgeDraft, setBridgeDraft] = useState<Omit<Bridge, "id"> | null>(null);
+  function startBridge(p: Point) {
+    bridgePress.current = { at: toCells(p), dragged: false };
+  }
+  function moveBridge(p: Point) {
+    const press = bridgePress.current;
+    if (!press) return;
+    const at = toCells(p);
+    if (!press.dragged && Math.hypot(at.x - press.at.x, at.y - press.at.y) < 0.3) return;
+    press.dragged = true;
+    const { kind, width } = useApp.getState().bridgeBrush;
+    setBridgeDraft({ from: snapBridgeEnd(press.at, shiftHeld), to: snapBridgeEnd(at, shiftHeld), width, kind });
+  }
+  function finishBridge() {
+    const press = bridgePress.current;
+    bridgePress.current = null;
+    if (!press) return;
+    const draft = bridgeDraft;
+    setBridgeDraft(null);
+    if (!press.dragged) {
+      const picked = bridgeAt(useApp.getState().state?.battle.bridges ?? [], press.at);
+      useApp.setState({ selectedBridgeId: picked?.id ?? null });
+      return;
+    }
+    if (draft && bridgeLength(draft) >= 1) void addBridge(draft).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedBridgeId: result.ids[0] }));
+  }
   const snapFloor = (at: LightPoint, half: boolean): LightPoint => (half ? { x: Math.round(at.x * 2) / 2, y: Math.round(at.y * 2) / 2 } : { x: Math.round(at.x), y: Math.round(at.y) });
   function floorBrushAt(p: Point) {
     const cursor = floorCursor.current;
@@ -1012,6 +1062,12 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       startFloor(p);
       return;
     }
+    if (tool === "bridge" && gm) {
+      // A alça da ponte escolhida é arrastada por ela mesma (Konva).
+      if (e.target.name() === "bridge-handle") return;
+      startBridge(p);
+      return;
+    }
     if (tool === "terrain" && gm) {
       const mode = useApp.getState().terrainBrush.terrain;
       if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
@@ -1081,6 +1137,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       moveFloor(p);
       return;
     }
+    if (tool === "bridge") {
+      moveBridge(p);
+      return;
+    }
     if (tool === "paint" || (tool === "props" && useApp.getState().propMode !== "place")) {
       const cell = cellAt(p, grid);
       setPaintHover((h) => (h && sameCell(h, cell) ? h : cell));
@@ -1135,6 +1195,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     finishTerrain();
     finishRelief();
     finishFloor();
+    finishBridge();
     finishPropBrush();
     finishRestyle();
     calibStart.current = null;
@@ -1331,7 +1392,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", k: "floor", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", k: "floor", u: "bridge", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -1549,6 +1610,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
             </Layer>
           )}
 
+          {/* Pontes sem WebGL 2: o desenho chapado, no chão (a prévia e as alças ficam no alto do palco). */}
+          <BridgeLayer bridges={state.battle.bridges} grid={grid} scale={view.scale} flat={!WEBGL_GROUND || groundFailed} editing={false} selectedId={null} draft={null} />
+
           {/* Piso: o contorno do pincel sob o mouse, o retângulo enquanto arrasta e o lugar fechado sob o mouse. */}
           {gm && tool === "floor" && (
             <Layer listening={false}>
@@ -1763,6 +1827,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               />
             )}
           </Layer>
+          {/* Ferramenta Ponte: a prévia e a escolhida com as alças, por cima de tudo (a alça recebe o aperto). */}
+          <BridgeLayer bridges={state.battle.bridges} grid={grid} scale={view.scale} flat={false} editing={gm && tool === "bridge" && !readOnly} selectedId={selectedBridgeId} draft={bridgeDraft} />
           <EffectTipLayer effects={state.battle.effects} view={view} width={size.width} casterName={(id) => allCombatants(state).find((c) => c.id === id)?.name} />
         </Stage>
       )}

@@ -4,12 +4,12 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle, type BridgeKind, type BridgeWidth } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain" | "relief" | "floor";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge";
 
 /** Pincel do Piso (docs/design/pisos.md): material, sentido das tábuas, modo e raio (pincel e borracha), em casas. */
 export interface FloorBrush {
@@ -130,6 +130,10 @@ interface AppStore extends DicePrefs {
   /** Pincel do Relevo (docs/design/relevo.md): nível e borda, ou (modo `dunes`) só a altura das dunas, de 0 a 3. */
   reliefBrush: { level: number; soft: boolean; radius: number; mode: "level" | "dunes"; dune: number };
   floorBrush: FloorBrush;
+  /** Ferramenta Ponte (docs/design/pontes.md): o tipo e a largura da próxima ponte. */
+  bridgeBrush: { kind: BridgeKind; width: BridgeWidth };
+  /** Ponte escolhida com a ferramenta Ponte (alças nas pontas; o painel muda tipo e largura dela). */
+  selectedBridgeId: string | null;
   /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
   propKind: PropKind;
   selectedPropId: string | null;
@@ -223,6 +227,8 @@ export const useApp = create<AppStore>(() => ({
   terrainBrush: { terrain: "grass", radius: 1.5, strength: 1, shape: "brush" },
   reliefBrush: { level: 1, soft: false, radius: 1.5, mode: "level", dune: 2 },
   floorBrush: { material: "plank", vertical: false, mode: "room", radius: 1 },
+  bridgeBrush: { kind: "plank", width: 2 },
+  selectedBridgeId: null,
   propKind: "tree",
   selectedPropId: null,
   propMode: "place",
@@ -301,7 +307,7 @@ export function openSheet(id: string) {
 }
 
 export function setTool(tool: MapTool) {
-  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null });
+  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null, selectedBridgeId: null });
 }
 
 /** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */

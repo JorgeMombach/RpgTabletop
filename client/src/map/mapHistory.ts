@@ -1,4 +1,4 @@
-import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent } from "@rpg/shared";
+import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -10,7 +10,7 @@ import { useApp } from "../store";
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props" | "terrain" | "relief" | "floor";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
@@ -29,6 +29,9 @@ type Step =
   | { scope: "props"; kind: "addedMany"; ids: string[] }
   | { scope: "props"; kind: "changed"; id: string; before: Partial<MapProp> }
   | { scope: "props"; kind: "removed"; props: MapProp[] }
+  | { scope: "bridge"; kind: "added"; id: string }
+  | { scope: "bridge"; kind: "changed"; id: string; before: Partial<Omit<Bridge, "id">> }
+  | { scope: "bridge"; kind: "removed"; bridges: Bridge[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
   | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
@@ -49,7 +52,7 @@ const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0, terrain: 0, relief: 0, floor: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0, terrain: 0, relief: 0, floor: 0, bridge: 0 }));
 
 function sync() {
   useMapUndo.setState({
@@ -62,6 +65,7 @@ function sync() {
     terrain: steps.filter((s) => s.scope === "terrain").length,
     relief: steps.filter((s) => s.scope === "relief").length,
     floor: steps.filter((s) => s.scope === "floor").length,
+    bridge: steps.filter((s) => s.scope === "bridge").length,
   });
 }
 
@@ -269,6 +273,32 @@ export async function updateProp(p: MapProp, changes: Partial<Omit<MapProp, "id"
 export async function addProps(items: Omit<MapProp, "id" | "above" | "blocks">[]): Promise<ActionResult> {
   const res = await act("prop:addMany", { items });
   if (res.ok && res.ids?.length) push({ scope: "props", kind: "addedMany", ids: res.ids });
+  return res;
+}
+
+/** Ponte nova (docs/design/pontes.md): desfazer apaga. */
+export async function addBridge(bridge: Omit<Bridge, "id">): Promise<ActionResult> {
+  const res = await act("bridge:add", bridge);
+  if (res.ok && res.ids?.[0]) push({ scope: "bridge", kind: "added", id: res.ids[0] });
+  return res;
+}
+
+/** Muda uma ponte (pontas, largura, tipo): desfazer volta só o que mudou. */
+export async function updateBridge(before: Bridge, changes: Partial<Omit<Bridge, "id">>): Promise<ActionResult> {
+  const previous: Partial<Omit<Bridge, "id">> = {};
+  if (changes.from) previous.from = before.from;
+  if (changes.to) previous.to = before.to;
+  if (changes.width !== undefined) previous.width = before.width;
+  if (changes.kind !== undefined) previous.kind = before.kind;
+  const res = await act("bridge:update", { id: before.id, ...changes });
+  if (res.ok) push({ scope: "bridge", kind: "changed", id: before.id, before: previous });
+  return res;
+}
+
+/** Apaga pontes: desfazer põe de volta (com ids novos). */
+export async function removeBridges(list: Bridge[]): Promise<ActionResult> {
+  const res = await act("bridge:remove", { ids: list.map((bridge) => bridge.id) });
+  if (res.ok) push({ scope: "bridge", kind: "removed", bridges: structuredClone(list) });
   return res;
 }
 
@@ -490,6 +520,12 @@ export async function undo(scope?: UndoScope) {
     } else if (step.kind === "changed") {
       if (has(battle?.props, step.id)) await act("prop:update", { id: step.id, ...step.before });
     } else await restoreProps(step.props);
+  } else if (step.scope === "bridge") {
+    if (step.kind === "added") {
+      if (has(battle?.bridges, step.id)) await act("bridge:remove", { ids: [step.id] });
+    } else if (step.kind === "changed") {
+      if (has(battle?.bridges, step.id)) await act("bridge:update", { id: step.id, ...step.before });
+    } else for (const { id: _, ...bridge } of step.bridges) await act("bridge:add", bridge);
   } else if (step.scope === "terrain" && step.kind === "currentAdded") {
     if (has(battle?.currents, step.id)) await act("current:remove", { ids: [step.id] });
   } else if (step.scope === "terrain" && step.kind === "currentChanged") {
