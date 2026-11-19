@@ -29,6 +29,11 @@ uniform vec4 uCarpets[${MAX_CARPETS}]; // caixas dos tapetes (x0, y0, x1, y1 em 
 uniform int uCarpetCount;
 uniform vec3 uLightDir;
 uniform float uLightAmount, uAmbientLum, uSunLum;
+// Píer (docs/design/pontes.md): a água do terreno embaixo (pesos da água, canal a; da água funda, canal r) e o sol.
+uniform sampler2D uWaterA, uWaterB;
+uniform vec2 uWeightsOrigin, uWeightsSize;
+uniform float uHasWater;
+uniform vec2 uSunShift;   // para onde cai a sombra de um nível de altura (casas); 0 sem sol
 ${SCREEN}
 // Sorteio pelos bits do número: igual perto e longe da origem do mapa.
 float hash(vec2 p) {
@@ -270,6 +275,84 @@ export function floorFragment(material: FloorMaterial): string {
   const index = FLOOR_MATERIALS.indexOf(material) + 1;
   return `${COMMON}${MATERIAL_ART[material]}
 const int MATERIAL = ${index};
+// ---------- píer e cais (piso sobre a água) ----------
+/** 1 sobre a água pintada (pelo menos metade), 0 em terra. textureLod: sem derivada da tela (lida em laço). */
+float waterAt(vec2 c) {
+  if (uHasWater < 0.5) return 0.0;
+  vec2 uv = (c * 4.0 - uWeightsOrigin + 0.5) / uWeightsSize;
+  return smoothstep(0.35, 0.65, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r);
+}
+bool mineAt(vec2 fine) { return int(byteAt(fine) & 15u) == MATERIAL; }
+bool emptyAt(vec2 fine) { return (byteAt(fine) & 15u) == 0u; }
+/** Cobertura deste material só (interpolada entre os 4 pontos em volta): o cais e a água escura são de cada piso. */
+float mineCover(vec2 f) {
+  vec2 i0 = floor(f), fr = f - i0;
+  float c00 = float(mineAt(i0)), c10 = float(mineAt(i0 + vec2(1.0, 0.0))), c01 = float(mineAt(i0 + vec2(0.0, 1.0))), c11 = float(mineAt(i0 + vec2(1.0, 1.0)));
+  return mix(mix(c00, c10, fr.x), mix(c01, c11, fr.x), fr.y);
+}
+/**
+ * A estaca mais perto (deck de tábuas sobre a água): nos pontos da borda do piso, uma por casa ao longo de cada lado,
+ * um fio para fora. Devolve a distância (casas) até o centro dela (9 se não há).
+ */
+float postDistance(vec2 c) {
+  vec2 base = floor(c * 4.0);
+  float best = 9.0;
+  for (int k = 0; k < 16 + uNoUnroll; k++) {
+    vec2 p = base + vec2(float(k % 4) - 1.0, float(k / 4) - 1.0);
+    if (!mineAt(p) || waterAt(p / 4.0) < 0.5) continue;
+    for (int d = 0; d < 4 + uNoUnroll; d++) {
+      vec2 dir = d == 0 ? vec2(1.0, 0.0) : d == 1 ? vec2(-1.0, 0.0) : d == 2 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+      if (!emptyAt(p + dir)) continue;
+      // lado vertical (vizinho dos lados vazio): estaca a cada casa em y; lado horizontal: a cada casa em x
+      float along = dir.x != 0.0 ? p.y : p.x;
+      if (mod(along, 4.0) > 0.5) continue;
+      best = min(best, length(c - (p / 4.0 + dir * 0.03)));
+    }
+  }
+  return best;
+}
+/** Topo da estaca (madeira com anéis), por cima do que houver. */
+vec4 postTop(vec2 c, float d) {
+  if (d >= 0.13) return vec4(0.0);
+  vec3 top = mix(vec3(0.45, 0.32, 0.2), vec3(0.6, 0.45, 0.3), fract(d * 40.0)) * (0.85 + 0.2 * noise(c * 30.0));
+  float a = 1.0 - smoothstep(0.11, 0.13, d);
+  return vec4(top * a, a);
+}
+/** Fora do deck, sobre a água: estacas, espuma, água escura rente e a sombra curta; no cais, a face de pedra. */
+vec4 aroundDeck(vec2 c, vec2 f) {
+  if (uHasWater < 0.5 || waterAt(c) < 0.3) return vec4(0.0);
+  float near = mineCover(f); // > 0 até ~1/4 de casa do último ponto pintado deste material
+  bool plank = MATERIAL <= 2;
+  vec3 color = vec3(0.0);
+  float alpha = 0.0;
+  if (plank) {
+    float d = postDistance(c);
+    // água escura rente ao deck e sombra curta (o deck fica ~0,2 nível acima da água)
+    vec2 back = (c - uSunShift * 0.2) * 4.0;
+    bool shadow = dot(uSunShift, uSunShift) > 0.0 && mineAt(floor(back + 0.5));
+    float dark = max(near > 0.0 ? 0.3 * near * 2.0 : 0.0, shadow ? 0.38 : 0.0);
+    alpha = clamp(dark, 0.0, 0.6);
+    // espuma em volta da estaca
+    float foam = smoothstep(0.24, 0.17, d) * smoothstep(0.1, 0.16, d) * (0.5 + 0.5 * noise(c * 12.0)) * 0.7;
+    color = color * (1.0 - foam) + vec3(0.85, 0.92, 0.9) * foam;
+    alpha = alpha + foam * (1.0 - alpha);
+    vec4 top = postTop(c, d);
+    color = color * (1.0 - top.a) + top.rgb;
+    alpha = alpha + top.a * (1.0 - alpha);
+    return vec4(color, alpha);
+  }
+  if (MATERIAL >= 3 && MATERIAL <= 5 && near > 0.0) {
+    // cais: face de pedra descendo até a água, com juntas; o lado do sol mais claro
+    vec2 grad = vec2(mineCover(f + vec2(0.5, 0.0)) - mineCover(f - vec2(0.5, 0.0)), mineCover(f + vec2(0.0, 0.5)) - mineCover(f - vec2(0.0, 0.5)));
+    vec2 out2 = length(grad) > 0.0 ? -normalize(grad) : vec2(0.0, 1.0);
+    vec2 block = vec2(dot(c, vec2(-out2.y, out2.x)) / 0.35, 0.0);
+    float joint = min(fract(block.x), 1.0 - fract(block.x));
+    vec3 stone = mix(vec3(0.42, 0.4, 0.37), vec3(0.52, 0.5, 0.46), hash(floor(block))) * mix(0.65, 1.0, smoothstep(0.0, 0.06, joint));
+    float a = smoothstep(0.0, 0.35, near);
+    return vec4(stone * relativeShade(vec3(out2 * 1.4, 0.6)) * 0.8 * a, a);
+  }
+  return vec4(0.0);
+}
 void main() {
   vec2 c = screenCell();
   vec2 f = c * 4.0;
@@ -289,7 +372,13 @@ void main() {
   float cover = min(min(coverAt(f + vec2(0.5, 0.0)), coverAt(f - vec2(0.5, 0.0))), min(coverAt(f + vec2(0.0, 0.5)), coverAt(f - vec2(0.0, 0.5))));
   // (anti-serrilhada pelo tamanho do pixel; derivada antes de descartar)
   float alpha = clamp((cover - 0.5) / max(fwidth(cover), 1e-4) + 0.5, 0.0, 1.0);
-  if (alpha <= 0.0) discard;
+  if (alpha <= 0.0) {
+    // fora do piso: o que o píer ou o cais deixam na água em volta
+    vec4 around = aroundDeck(c, f);
+    if (around.a <= 0.001) discard;
+    outColor = around;
+    return;
+  }
   // parte de cada material: quem tem mais peso fica com o pixel; a troca é uma linha lisa de ~1 pixel
   float tw = 4.0 * px();
   float parts[7];
@@ -322,6 +411,11 @@ void main() {
   // sujeira nos cantos (perto da borda do piso inteiro)
   float dirt = (1.0 - smoothstep(0.0, 0.6, edge)) * (0.5 + 0.5 * fbm(c * 3.0));
   col = mix(col, col * vec3(0.55, 0.5, 0.45), dirt * 0.6);
+  // estacas do píer aparecem um pouco por cima da beirada do deck
+  if (MATERIAL <= 2 && uHasWater > 0.5) {
+    vec4 top = postTop(c, postDistance(c));
+    col = col * (1.0 - top.a) + top.rgb;
+  }
   outColor = vec4(col * coverage, coverage);
 }`;
 }

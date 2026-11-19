@@ -430,6 +430,18 @@ export class GroundRenderer {
     this.wallsFresh = true;
   }
 
+  /** Pesos da água do terreno para quem lê o que está embaixo (pontes e píer); sem terreno, nada. */
+  private waterWeights() {
+    const weights = this.weights;
+    if (!weights) return null;
+    return {
+      second: weights.second,
+      third: weights.third,
+      origin: [weights.bounds.cx * CHUNK_SIDE - 1, weights.bounds.cy * CHUNK_SIDE - 1] satisfies [number, number],
+      size: [weights.bounds.cols * CHUNK_SIDE + 2, weights.bounds.rows * CHUNK_SIDE + 2] satisfies [number, number],
+    };
+  }
+
   private drawBridges(view: GroundView, width: number, height: number, scene: SceneLight) {
     const { gl } = this;
     if (!this.bridgeImage || !this.terrainFramebuffer) return;
@@ -438,15 +450,7 @@ export class GroundRenderer {
     gl.viewport(0, 0, width, height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    const weights = this.weights;
-    const water = weights
-      ? {
-          second: weights.second,
-          third: weights.third,
-          origin: [weights.bounds.cx * CHUNK_SIDE - 1, weights.bounds.cy * CHUNK_SIDE - 1] satisfies [number, number],
-          size: [weights.bounds.cols * CHUNK_SIDE + 2, weights.bounds.rows * CHUNK_SIDE + 2] satisfies [number, number],
-        }
-      : null;
+    const water = this.waterWeights();
     this.bridges.draw(view, width, height, scene, { water, bindRelief: (program, extra) => this.relief.bindSample(program, view, width, height, extra) });
   }
 
@@ -459,7 +463,7 @@ export class GroundRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     const stone = this.watercolors[TERRAINS.indexOf("stoneLight")];
-    if (stone) this.floor.draw(view, width, height, scene, stone);
+    if (stone) this.floor.draw(view, width, height, scene, stone, this.waterWeights());
   }
 
   private drawRelief(view: GroundView, width: number, height: number, scene: SceneLight) {

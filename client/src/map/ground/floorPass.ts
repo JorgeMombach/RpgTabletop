@@ -24,6 +24,14 @@ import { FULLSCREEN_VERTEX } from "./terrainShader";
  * inteiros (com uma borda vazia, como os pesos do terreno) e desenha uma camada por material presente, em ordem, no
  * alvo ligado. Os programas compilam em paralelo; enquanto um compila, `pending` pede mais quadros.
  */
+/** Pesos da água do terreno (para o píer): segunda textura (canal a), terceira (canal r), origem e tamanho. */
+export interface PierWater {
+  second: WebGLTexture;
+  third: WebGLTexture;
+  origin: [number, number];
+  size: [number, number];
+}
+
 export class FloorPass {
   private readonly triangle: WebGLBuffer;
   private readonly programs: ProgramCache<FloorMaterial>;
@@ -135,6 +143,7 @@ export class FloorPass {
     height: number,
     scene: SceneLight,
     stone: WebGLTexture,
+    water: PierWater | null,
   ) {
     const { gl } = this;
     this.programs.beginDraw();
@@ -154,7 +163,16 @@ export class FloorPass {
       bindTextures(gl, program, [
         ["uFloor", uploaded.texture],
         ["uStone", stone],
+        ...(water ? ([["uWaterA", water.second], ["uWaterB", water.third]] satisfies [string, WebGLTexture][]) : []),
       ]);
+      // píer: a água embaixo e para onde cai a sombra
+      gl.uniform1f(uniformOf(gl, program, "uHasWater"), water ? 1 : 0);
+      if (water) {
+        gl.uniform2f(uniformOf(gl, program, "uWeightsOrigin"), ...water.origin);
+        gl.uniform2f(uniformOf(gl, program, "uWeightsSize"), ...water.size);
+      }
+      const shift = scene.shadowCells > 0.01 ? scene.shadowCells * 1.6 : 0;
+      gl.uniform2f(uniformOf(gl, program, "uSunShift"), scene.sunDirection[0] * shift, scene.sunDirection[1] * shift);
       gl.uniform2f(uniformOf(gl, program, "uFloorOrigin"), ...uploaded.origin);
       gl.uniform2f(uniformOf(gl, program, "uFloorSize"), ...uploaded.size);
       gl.uniform4fv(uniformOf(gl, program, "uCarpets[0]"), this.carpets);
