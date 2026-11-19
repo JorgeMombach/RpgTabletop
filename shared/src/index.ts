@@ -17,6 +17,7 @@ export * from "./light";
 export * from "./wallJoin";
 export * from "./wallSnap";
 export * from "./currentLine";
+export * from "./bridge";
 export * from "./wallCut";
 export * from "./relief";
 export * from "./reliefQueue";

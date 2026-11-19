@@ -635,6 +635,9 @@ export const LIMITS = {
   chests: 40,
   /** Objetos por cena e tamanho (escala do desenho). */
   props: 800,
+  /** Pontes por cena e comprimento de uma ponte (casas). */
+  bridges: 64,
+  bridgeLength: { min: 1, max: 40 },
   propSize: { min: 0.25, max: 4 },
   /** Casas de uma pintura (pincel de efeitos) e números (col e row) por pincelada. */
   paintCells: 5000,
