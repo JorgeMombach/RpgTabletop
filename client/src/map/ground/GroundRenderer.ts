@@ -1,4 +1,4 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type TerrainId, type WallPiece } from "@rpg/shared";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type FloorChunks, type TerrainId, type WallPiece } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
@@ -6,6 +6,7 @@ import { ReliefPass } from "./reliefPass";
 import type { ReliefWindow } from "./reliefTypes";
 import { faceLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { DustPass } from "./dustPass";
+import { FloorPass } from "./floorPass";
 import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
@@ -38,6 +39,10 @@ export class GroundRenderer {
   private readonly walls: WallPass;
   /** Poeira das dunas com vento (etapa 3). */
   private readonly dust: DustPass;
+  /** Pisos (docs/design/pisos.md): por cima do terreno e da água, por baixo da camada do relevo. */
+  private readonly floor: FloorPass;
+  /** Camada dos pisos, guardada como o terreno (refeita com ele). */
+  private floorImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
   readonly relief: ReliefPass;
   /**
@@ -97,6 +102,14 @@ export class GroundRenderer {
     this.relief = new ReliefPass(gl, smallScreen);
     this.walls = new WallPass(gl);
     this.dust = new DustPass(gl);
+    this.floor = new FloorPass(gl);
+  }
+
+  /** Piso da cena (`FloorChunks`): a camada é refeita no próximo desenho. */
+  setFloors(chunks: FloorChunks) {
+    if (this.gl.isContextLost()) return;
+    this.floor.setChunks(chunks);
+    this.terrainDirty = true;
   }
 
   /** Onde há dunas (do relevo) e o vento do clima, para a poeira. */
@@ -140,7 +153,7 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
@@ -230,7 +243,7 @@ export class GroundRenderer {
 
   /** Tem algo para desenhar (terreno ou água). */
   get empty(): boolean {
-    return !this.weights && this.water.empty && !this.relief.drawable && this.walls.empty;
+    return !this.weights && this.water.empty && !this.relief.drawable && this.walls.empty && this.floor.empty;
   }
 
   render(view: GroundView, time: number, options: { waterDraft: boolean }) {
@@ -245,6 +258,8 @@ export class GroundRenderer {
       canvas.height = height;
       if (this.terrainImage) gl.deleteTexture(this.terrainImage);
       if (this.reliefImage) gl.deleteTexture(this.reliefImage);
+      if (this.floorImage) gl.deleteTexture(this.floorImage);
+      this.floorImage = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
       this.terrainImage = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
       this.reliefImage = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.NEAREST, gl.CLAMP_TO_EDGE);
       this.terrainDirty = true;
@@ -264,10 +279,11 @@ export class GroundRenderer {
     }
     if (this.terrainDirty) {
       this.drawTerrain(view, width, height, options.waterDraft, reliefLight);
+      this.drawFloors(view, width, height, reliefLight);
       this.drawRelief(view, width, height, reliefLight);
       this.drawn = state;
-      // Programa de terreno ainda compilando: o terreno é refeito no próximo quadro.
-      this.terrainDirty = this.terrain.pending;
+      // Programa de terreno ou de piso ainda compilando: o terreno é refeito no próximo quadro.
+      this.terrainDirty = this.terrain.pending || this.floor.pending;
     }
     // Barranco e fundo da água na resolução da tela (só refaz quando a visão ou a água mudam).
     this.water.bakeView(view, width, height);
@@ -286,6 +302,14 @@ export class GroundRenderer {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     this.water.render(view, time, width, height);
+    // Pisos por cima da água e por baixo do relevo (a luz da encosta pega o piso; a face do penhasco o cobre).
+    if (!this.floor.empty && this.floorImage) {
+      gl.useProgram(this.blit.program);
+      useVertices(gl, this.triangle);
+      gl.uniform2f(uniformOf(gl, this.blit, "uCanvas"), width, height);
+      bindTextures(gl, this.blit, [["uImage", this.floorImage]]);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
     // Relevo por cima da água: a face do penhasco cobre a água (docs/design/relevo.md).
     if (this.relief.drawable && this.reliefImage) {
       gl.useProgram(this.blit.program);
@@ -363,6 +387,18 @@ export class GroundRenderer {
     this.wallsFresh = true;
   }
 
+  private drawFloors(view: GroundView, width: number, height: number, scene: SceneLight) {
+    const { gl } = this;
+    if (!this.floorImage || !this.terrainFramebuffer) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.terrainFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.floorImage, 0);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const stone = this.watercolors[TERRAINS.indexOf("stoneLight")];
+    if (stone) this.floor.draw(view, width, height, scene, stone);
+  }
+
   private drawRelief(view: GroundView, width: number, height: number, scene: SceneLight) {
     const { gl } = this;
     if (!this.reliefImage || !this.terrainFramebuffer) return;
@@ -427,11 +463,13 @@ export class GroundRenderer {
     this.relief.dispose();
     this.walls.dispose();
     this.dust.dispose();
+    this.floor.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();
     if (this.terrainImage) gl.deleteTexture(this.terrainImage);
     if (this.reliefImage) gl.deleteTexture(this.reliefImage);
+    if (this.floorImage) gl.deleteTexture(this.floorImage);
     gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 }

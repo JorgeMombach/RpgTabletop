@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { duneMask, FrameWatch, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
+import { duneMask, FrameWatch, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
 import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
@@ -61,7 +61,10 @@ export const GroundLayer = memo(function GroundLayer({
   sceneStyle,
   gm,
   dust,
+  floors,
 }: {
+  /** Piso da cena (com a prévia da passada, se houver). */
+  floors: FloorChunks;
   /** Vento do clima para a poeira das dunas: 0 = nada, 1 = vento, 2 = tempestade de areia; direção 1 = direita. */
   dust: { level: 0 | 1 | 2; direction: 1 | -1 };
   /** Paredes, portas e janelas (com a prévia de *Trocar desenho* já aplicada): desenhadas na placa de vídeo. */
@@ -261,6 +264,13 @@ export const GroundLayer = memo(function GroundLayer({
     renderer.setWalls(pieces);
     setVersion((value) => value + 1);
   }, [renderer, pieces]);
+
+  // Pisos: a camada é refeita no próximo desenho.
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setFloors(floors);
+    setVersion((value) => value + 1);
+  }, [renderer, floors]);
 
   // Poeira das dunas: onde há duna (do relevo, com a prévia) e o vento do clima; parada com a animação desligada.
   const dunes = useMemo(() => duneMask(relief), [relief]);

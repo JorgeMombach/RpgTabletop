@@ -47,6 +47,7 @@ import { scatter } from "./scatter";
 import { toast } from "../notify";
 import { addChest, addCurrent, removeCurrents, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { reliefStrokeOf } from "./terrain/ReliefOptions";
+import { FloorLayer } from "./floor/FloorLayer";
 import { floorStrokeOf } from "./floor/FloorOptions";
 import { tableTile, TILE_CELLS } from "./tableArt";
 import { brushRect, FogLayer, FogOptions, rectBetween, sendFog, type FogDraft } from "./Fog";
@@ -124,7 +125,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, floorBrush, reduceFx } = useApp();
   const selectedPropId = useApp((s) => s.selectedPropId);
-  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, groundFailed } = useApp();
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, floors, floorPreview, groundFailed } = useApp();
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
   const smallScreen = useSmallScreen();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
@@ -1309,6 +1310,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
             {(!WEBGL_GROUND || groundFailed) && (
               <TerrainLayer chunks={terrainPreview ?? terrain} grid={grid} pixelsPerCell={smallScreen ? 16 : 32} epoch={terrainEpoch} draft={terrainPreview !== null} />
             )}
+            {/* Pisos no processador (cor chapada): só sem WebGL 2. */}
+            {(!WEBGL_GROUND || groundFailed) && <FloorLayer chunks={floorPreview ?? floors} grid={grid} />}
           </Layer>
 
           {/* O chão (docs/design/renderizador-chao.md): terreno e água animada em WebGL, numa camada própria. */}
@@ -1331,6 +1334,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               sceneStyle={wallStyle}
               gm={gm}
               dust={dust}
+              floors={floorPreview ?? floors}
             />
           )}
 

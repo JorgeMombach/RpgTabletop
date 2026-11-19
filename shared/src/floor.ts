@@ -315,3 +315,55 @@ export function paintFloor(
   }
   return [...working.keys()];
 }
+
+/** Caixa de um tapete (em casas): de borda a borda da área pintada (meio ponto fino além dos pontos). */
+export interface CarpetBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/**
+ * As caixas dos tapetes (cada grupo de pontos de tapete ligados por um lado é um tapete), para o desenho pôr o
+ * medalhão no meio de cada um.
+ */
+export function floorCarpetBoxes(chunks: FloorChunks): CarpetBox[] {
+  const carpet = FLOOR_MATERIALS.indexOf("carpet") + 1;
+  const points = new Set<string>();
+  for (const [key, text] of Object.entries(chunks)) {
+    const bytes = decodeLayer(text);
+    if (!bytes) continue;
+    const [cx, cy] = key.split(",").map(Number);
+    for (let index = 0; index < bytes.length; index++) {
+      if ((bytes[index] & MATERIAL_MASK) !== carpet) continue;
+      points.add(`${cx * TERRAIN_CHUNK_SIDE + (index % TERRAIN_CHUNK_SIDE)},${cy * TERRAIN_CHUNK_SIDE + Math.floor(index / TERRAIN_CHUNK_SIDE)}`);
+    }
+  }
+  const boxes: CarpetBox[] = [];
+  const seen = new Set<string>();
+  for (const start of points) {
+    if (seen.has(start)) continue;
+    seen.add(start);
+    const queue = [start];
+    let [x0, y0] = start.split(",").map(Number);
+    let [x1, y1] = [x0, y0];
+    while (queue.length > 0) {
+      const [x, y] = (queue.pop() ?? "").split(",").map(Number);
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const next = `${x + dx},${y + dy}`;
+        if (points.has(next) && !seen.has(next)) {
+          seen.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    const half = 0.5 / TERRAIN_FINE;
+    boxes.push({ x0: x0 / TERRAIN_FINE - half, y0: y0 / TERRAIN_FINE - half, x1: x1 / TERRAIN_FINE + half, y1: y1 / TERRAIN_FINE + half });
+  }
+  return boxes;
+}

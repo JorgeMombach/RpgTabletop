@@ -5,6 +5,7 @@ import {
   decodeFloorPoint,
   encodeFloorPoint,
   floorAt,
+  floorCarpetBoxes,
   paintFloor,
   validFloorByte,
   encodeLayer,
@@ -213,6 +214,20 @@ const rect = (
   material,
   vertical: false,
   shape: { kind: "rect", from: { x: x0, y: y0 }, to: { x: x1, y: y1 } },
+});
+
+describe("piso: tapetes", () => {
+  it("cada tapete vira uma caixa (em casas), para o medalhão no meio", () => {
+    const chunks: FloorChunks = {};
+    paintFloor(chunks, { material: "carpet", vertical: false, shape: { kind: "rect", from: { x: 1, y: 1 }, to: { x: 4, y: 3 } } }, [], "stone");
+    paintFloor(chunks, { material: "carpet", vertical: false, shape: { kind: "rect", from: { x: 10, y: 2 }, to: { x: 12, y: 6 } } }, [], "stone");
+    paintFloor(chunks, { material: "flagstone", vertical: false, shape: { kind: "rect", from: { x: 0, y: 0 }, to: { x: 0.5, y: 0.5 } } }, [], "stone");
+    const boxes = floorCarpetBoxes(chunks).sort((one, other) => one.x0 - other.x0);
+    assert.deepEqual(boxes, [
+      { x0: 0.875, y0: 0.875, x1: 4.125, y1: 3.125 },
+      { x0: 9.875, y0: 1.875, x1: 12.125, y1: 6.125 },
+    ]);
+  });
 });
 
 describe("piso: servidor", () => {
