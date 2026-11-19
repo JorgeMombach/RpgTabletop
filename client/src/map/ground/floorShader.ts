@@ -55,21 +55,43 @@ uint byteAt(vec2 fine) {
   if (t.x < 0 || t.y < 0 || t.x >= int(uFloorSize.x) || t.y >= int(uFloorSize.y)) return 0u;
   return texelFetch(uFloor, t, 0).r;
 }
+/** Cobertura "tem piso" interpolada entre os 4 pontos finos em volta (f em pontos finos). */
+float coverAt(vec2 f) {
+  vec2 i0 = floor(f);
+  vec2 fr = f - i0;
+  float c00 = float((byteAt(i0) & 15u) != 0u), c10 = float((byteAt(i0 + vec2(1.0, 0.0)) & 15u) != 0u);
+  float c01 = float((byteAt(i0 + vec2(0.0, 1.0)) & 15u) != 0u), c11 = float((byteAt(i0 + vec2(1.0, 1.0)) & 15u) != 0u);
+  return mix(mix(c00, c10, fr.x), mix(c01, c11, fr.x), fr.y);
+}
 /** Material (0 = sem piso) do ponto fino mais perto de c (casas). */
 int materialNear(vec2 c) { return int(byteAt(floor(c * 4.0 + 0.5)) & 15u); }
-/** Distância (casas) até onde o piso acaba (material < 0: qualquer piso), marchando em 8 direções, até 'reach'. */
+/** Dentro do piso (material < 0: qualquer piso, pela cobertura lisa; senão, o material do ponto mais perto). */
+bool insideFloor(vec2 c, int material) {
+  return material < 0 ? coverAt(c * 4.0) >= 0.5 : materialNear(c) == material;
+}
+/**
+ * Distância (casas) até onde o piso acaba (material < 0: qualquer piso), marchando em 8 direções e refinando o passo
+ * que saiu (sem o refino, a distância anda em degraus e a sujeira faz escada na parede diagonal).
+ */
 float edgeDistance(vec2 c, int material, float stepCells, int steps) {
   float best = stepCells * float(steps + 1);
   for (int d = 0; d < 8; d++) {
     float angle = float(d) * 0.7854;
     vec2 dir = vec2(cos(angle), sin(angle));
-    for (int k = 1; k <= 8; k++) {
+    for (int k = 1; k <= 16; k++) {
       if (k > steps) break;
       float r = stepCells * float(k);
       if (r >= best) break;
-      int m = materialNear(c + dir * r);
-      bool inside = material < 0 ? m != 0 : m == material;
-      if (!inside) { best = r - stepCells * 0.5; break; }
+      if (!insideFloor(c + dir * r, material)) {
+        float lo = r - stepCells;
+        float hi = r;
+        for (int s = 0; s < 4; s++) {
+          float mid = (lo + hi) * 0.5;
+          if (insideFloor(c + dir * mid, material)) lo = mid; else hi = mid;
+        }
+        best = (lo + hi) * 0.5;
+        break;
+      }
     }
   }
   return best;
@@ -214,7 +236,7 @@ vec3 colorAt(vec2 q, float edge) {
 float heightAt(vec2 q) { return 0.02 + (noise(q * 60.0) - 0.5) * 0.002 * detail(60.0); }
 vec3 colorAt(vec2 q, float edge) {
   // a barra segue a borda do próprio tapete
-  float band = edgeDistance(q, 6, 0.04, 8);
+  float band = edgeDistance(q, 6, 0.04, 12); // alcance 0,52: passa do fim da barra (0,44), senão o miolo nunca aparece
   float weave = (sin(q.x * 220.0) * sin(q.y * 220.0)) * 0.5 + 0.5;
   vec3 col = vec3(0.5, 0.12, 0.12);
   if (band < 0.12) col = vec3(0.68, 0.5, 0.2);
@@ -259,8 +281,11 @@ void main() {
   w[min(int(b10 & 15u), 6)] += fr.x * (1.0 - fr.y);
   w[min(int(b01 & 15u), 6)] += (1.0 - fr.x) * fr.y;
   w[min(int(b11 & 15u), 6)] += fr.x * fr.y;
-  float cover = 1.0 - w[0];
-  // borda do piso: reta e lisa, anti-serrilhada pelo tamanho do pixel (derivada antes de descartar)
+  // borda do piso: o corte em 0,5 da cobertura fica meio ponto (1/8 de casa) além do último ponto pintado; encolher
+  // meio ponto (o menor valor nos 4 lados) põe a borda reta em cima da linha (embaixo da parede) e mantém a diagonal
+  // reta (um corte mais alto faria degraus nela)
+  float cover = min(min(coverAt(f + vec2(0.5, 0.0)), coverAt(f - vec2(0.5, 0.0))), min(coverAt(f + vec2(0.0, 0.5)), coverAt(f - vec2(0.0, 0.5))));
+  // (anti-serrilhada pelo tamanho do pixel; derivada antes de descartar)
   float alpha = clamp((cover - 0.5) / max(fwidth(cover), 1e-4) + 0.5, 0.0, 1.0);
   if (alpha <= 0.0) discard;
   // parte de cada material: quem tem mais peso fica com o pixel; a troca é uma linha lisa de ~1 pixel
@@ -281,7 +306,8 @@ void main() {
   float coverage = alpha * mine;
   if (coverage <= 0.001) discard;
   DIR = float((byteAt(floor(f + 0.5)) & 16u) != 0u);
-  float edge = edgeDistance(c, -1, 0.3, 7);
+  // (a borda desenhada fica meio ponto para dentro do corte da cobertura)
+  float edge = max(edgeDistance(c, -1, 0.3, 7) - 0.125, 0.0);
   float e = 0.5 * px();
   float h = heightAt(c);
   vec3 n = normalize(vec3(-(heightAt(c + vec2(e, 0.0)) - h) / e, -(heightAt(c + vec2(0.0, e)) - h) / e, 1.0));

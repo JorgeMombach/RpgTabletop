@@ -196,36 +196,33 @@ export function floorRoomAt(
   return { outer, holes };
 }
 
-/** Pontos finos (i, j) que a forma cobre: a caixa a varrer e o teste de cada ponto (em casas). */
+/** Uma área a varrer: a caixa (em casas) e o teste de cada ponto fino dentro dela. */
+interface CoverArea {
+  box: [number, number, number, number];
+  covers: (x: number, y: number) => boolean;
+}
+
+/**
+ * Áreas que a forma cobre. O pincel vira uma área por ponto (a caixinha do raio), para a conta crescer com o
+ * caminho e não com a caixa da passada inteira; ponto coberto por duas áreas recebe o mesmo valor duas vezes.
+ */
 function shapeCover(
   shape: FloorShape,
   walls: Wall[],
   sceneStyle: WallStyle,
-): {
-  box: [number, number, number, number];
-  covers: (x: number, y: number) => boolean;
-} | null {
+): CoverArea[] | null {
   if (shape.kind === "brush") {
     const { radius, points } = shape;
-    let x0 = Infinity;
-    let y0 = Infinity;
-    let x1 = -Infinity;
-    let y1 = -Infinity;
+    const areas: CoverArea[] = [];
     for (let p = 0; p + 1 < points.length; p += 2) {
-      x0 = Math.min(x0, points[p] - radius);
-      x1 = Math.max(x1, points[p] + radius);
-      y0 = Math.min(y0, points[p + 1] - radius);
-      y1 = Math.max(y1, points[p + 1] + radius);
+      const x = points[p];
+      const y = points[p + 1];
+      areas.push({
+        box: [x - radius, y - radius, x + radius, y + radius],
+        covers: (pointX, pointY) => Math.hypot(pointX - x, pointY - y) < radius,
+      });
     }
-    return {
-      box: [x0, y0, x1, y1],
-      covers: (x, y) => {
-        for (let p = 0; p + 1 < points.length; p += 2)
-          if (Math.hypot(x - points[p], y - points[p + 1]) < radius)
-            return true;
-        return false;
-      },
-    };
+    return areas;
   }
   if (shape.kind === "rect") {
     const x0 = Math.min(shape.from.x, shape.to.x);
@@ -233,30 +230,35 @@ function shapeCover(
     const y0 = Math.min(shape.from.y, shape.to.y);
     const y1 = Math.max(shape.from.y, shape.to.y);
     const near = (a: number, b: number) => a >= b - ON_EDGE;
-    return {
-      box: [x0, y0, x1, y1],
-      covers: (x, y) =>
-        near(x, x0) && near(x1, x) && near(y, y0) && near(y1, y),
-    };
+    return [
+      {
+        box: [x0, y0, x1, y1],
+        covers: (x, y) =>
+          near(x, x0) && near(x1, x) && near(y, y0) && near(y1, y),
+      },
+    ];
   }
   const room = floorRoomAt(walls, shape.at, sceneStyle);
   if (!room) return null;
   const xs = room.outer.filter((_, index) => index % 2 === 0);
   const ys = room.outer.filter((_, index) => index % 2 === 1);
-  return {
-    box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
-    covers: (x, y) => {
-      const point = { x, y };
-      // Os pontos sobre o contorno de um buraco ficam com o salão (a parede cobre a emenda).
-      return (
-        insideOrOn(room.outer, point) &&
-        !room.holes.some(
-          (hole) =>
-            strictlyInside(hole, point) && edgeDistance(hole, point) >= ON_EDGE,
-        )
-      );
+  return [
+    {
+      box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+      covers: (x, y) => {
+        const point = { x, y };
+        // Os pontos sobre o contorno de um buraco ficam com o salão (a parede cobre a emenda).
+        return (
+          insideOrOn(room.outer, point) &&
+          !room.holes.some(
+            (hole) =>
+              strictlyInside(hole, point) &&
+              edgeDistance(hole, point) >= ON_EDGE,
+          )
+        );
+      },
     },
-  };
+  ];
 }
 
 /**
@@ -269,8 +271,8 @@ export function paintFloor(
   walls: Wall[],
   sceneStyle: WallStyle,
 ): string[] | null {
-  const cover = shapeCover(stroke.shape, walls, sceneStyle);
-  if (!cover) return null;
+  const areas = shapeCover(stroke.shape, walls, sceneStyle);
+  if (!areas) return null;
   const value =
     stroke.material === "erase"
       ? 0
@@ -278,35 +280,37 @@ export function paintFloor(
           material: stroke.material,
           vertical: stroke.vertical,
         });
-  const [x0, y0, x1, y1] = cover.box;
   const working = new Map<string, Uint8Array>();
-  for (
-    let j = Math.ceil(y0 * TERRAIN_FINE - ON_EDGE);
-    j <= Math.floor(y1 * TERRAIN_FINE + ON_EDGE);
-    j++
-  ) {
+  for (const area of areas) {
+    const [x0, y0, x1, y1] = area.box;
     for (
-      let i = Math.ceil(x0 * TERRAIN_FINE - ON_EDGE);
-      i <= Math.floor(x1 * TERRAIN_FINE + ON_EDGE);
-      i++
+      let j = Math.ceil(y0 * TERRAIN_FINE - ON_EDGE);
+      j <= Math.floor(y1 * TERRAIN_FINE + ON_EDGE);
+      j++
     ) {
-      if (!cover.covers(i / TERRAIN_FINE, j / TERRAIN_FINE)) continue;
-      const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
-      const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
-      const key = chunkKey(cx, cy);
-      let bytes = working.get(key);
-      if (!bytes) {
-        // Apagar onde nem há piso: nada a mudar (e não cria pedaço).
-        if (value === 0 && !chunks[key]) continue;
-        bytes =
-          (chunks[key] ? decodeLayer(chunks[key]) : null) ??
-          new Uint8Array(TERRAIN_CHUNK_SIDE * TERRAIN_CHUNK_SIDE);
-        working.set(key, bytes);
+      for (
+        let i = Math.ceil(x0 * TERRAIN_FINE - ON_EDGE);
+        i <= Math.floor(x1 * TERRAIN_FINE + ON_EDGE);
+        i++
+      ) {
+        if (!area.covers(i / TERRAIN_FINE, j / TERRAIN_FINE)) continue;
+        const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
+        const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
+        const key = chunkKey(cx, cy);
+        let bytes = working.get(key);
+        if (!bytes) {
+          // Apagar onde nem há piso: nada a mudar (e não cria pedaço).
+          if (value === 0 && !chunks[key]) continue;
+          bytes =
+            (chunks[key] ? decodeLayer(chunks[key]) : null) ??
+            new Uint8Array(TERRAIN_CHUNK_SIDE * TERRAIN_CHUNK_SIDE);
+          working.set(key, bytes);
+        }
+        bytes[
+          (j - cy * TERRAIN_CHUNK_SIDE) * TERRAIN_CHUNK_SIDE +
+            (i - cx * TERRAIN_CHUNK_SIDE)
+        ] = value;
       }
-      bytes[
-        (j - cy * TERRAIN_CHUNK_SIDE) * TERRAIN_CHUNK_SIDE +
-          (i - cx * TERRAIN_CHUNK_SIDE)
-      ] = value;
     }
   }
   for (const [key, bytes] of working) {
@@ -337,7 +341,9 @@ export function floorCarpetBoxes(chunks: FloorChunks): CarpetBox[] {
     const [cx, cy] = key.split(",").map(Number);
     for (let index = 0; index < bytes.length; index++) {
       if ((bytes[index] & MATERIAL_MASK) !== carpet) continue;
-      points.add(`${cx * TERRAIN_CHUNK_SIDE + (index % TERRAIN_CHUNK_SIDE)},${cy * TERRAIN_CHUNK_SIDE + Math.floor(index / TERRAIN_CHUNK_SIDE)}`);
+      points.add(
+        `${cx * TERRAIN_CHUNK_SIDE + (index % TERRAIN_CHUNK_SIDE)},${cy * TERRAIN_CHUNK_SIDE + Math.floor(index / TERRAIN_CHUNK_SIDE)}`,
+      );
     }
   }
   const boxes: CarpetBox[] = [];
@@ -354,7 +360,12 @@ export function floorCarpetBoxes(chunks: FloorChunks): CarpetBox[] {
       x1 = Math.max(x1, x);
       y0 = Math.min(y0, y);
       y1 = Math.max(y1, y);
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
         const next = `${x + dx},${y + dy}`;
         if (points.has(next) && !seen.has(next)) {
           seen.add(next);
@@ -363,7 +374,12 @@ export function floorCarpetBoxes(chunks: FloorChunks): CarpetBox[] {
       }
     }
     const half = 0.5 / TERRAIN_FINE;
-    boxes.push({ x0: x0 / TERRAIN_FINE - half, y0: y0 / TERRAIN_FINE - half, x1: x1 / TERRAIN_FINE + half, y1: y1 / TERRAIN_FINE + half });
+    boxes.push({
+      x0: x0 / TERRAIN_FINE - half,
+      y0: y0 / TERRAIN_FINE - half,
+      x1: x1 / TERRAIN_FINE + half,
+      y1: y1 / TERRAIN_FINE + half,
+    });
   }
   return boxes;
 }

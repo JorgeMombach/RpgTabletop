@@ -180,6 +180,32 @@ describe("piso: contas", () => {
       vertical: false,
     });
   });
+
+  it("passada longa do pincel (zigue-zague num mapa grande) é rápida e pinta só o caminho", () => {
+    // 2000 pontos varrendo 60 × 60 casas: a conta vai ponto a ponto, não pela caixa inteira da passada.
+    const points: number[] = [];
+    for (let step = 0; step < 2000; step++) {
+      const row = Math.floor(step / 100);
+      const along = (step % 100) * 0.6;
+      points.push(row % 2 === 0 ? along : 60 - along, row * 3);
+    }
+    const chunks: FloorChunks = {};
+    const started = performance.now();
+    paintFloor(
+      chunks,
+      {
+        material: "plank",
+        vertical: false,
+        shape: { kind: "brush", radius: 1, points },
+      },
+      [],
+      "stone",
+    );
+    assert.ok(performance.now() - started < 500, "pincel longo demorou demais");
+    assert.equal(floorAt(chunks, 0, 0).material, "plank");
+    assert.equal(floorAt(chunks, 40, 12).material, "plank"); // (10, 3): na segunda linha
+    assert.equal(floorAt(chunks, 40, 6).material, null); // (10, 1,5): entre as linhas
+  });
 });
 
 const { ctx, client } = useServer();
@@ -219,10 +245,39 @@ const rect = (
 describe("piso: tapetes", () => {
   it("cada tapete vira uma caixa (em casas), para o medalhão no meio", () => {
     const chunks: FloorChunks = {};
-    paintFloor(chunks, { material: "carpet", vertical: false, shape: { kind: "rect", from: { x: 1, y: 1 }, to: { x: 4, y: 3 } } }, [], "stone");
-    paintFloor(chunks, { material: "carpet", vertical: false, shape: { kind: "rect", from: { x: 10, y: 2 }, to: { x: 12, y: 6 } } }, [], "stone");
-    paintFloor(chunks, { material: "flagstone", vertical: false, shape: { kind: "rect", from: { x: 0, y: 0 }, to: { x: 0.5, y: 0.5 } } }, [], "stone");
-    const boxes = floorCarpetBoxes(chunks).sort((one, other) => one.x0 - other.x0);
+    paintFloor(
+      chunks,
+      {
+        material: "carpet",
+        vertical: false,
+        shape: { kind: "rect", from: { x: 1, y: 1 }, to: { x: 4, y: 3 } },
+      },
+      [],
+      "stone",
+    );
+    paintFloor(
+      chunks,
+      {
+        material: "carpet",
+        vertical: false,
+        shape: { kind: "rect", from: { x: 10, y: 2 }, to: { x: 12, y: 6 } },
+      },
+      [],
+      "stone",
+    );
+    paintFloor(
+      chunks,
+      {
+        material: "flagstone",
+        vertical: false,
+        shape: { kind: "rect", from: { x: 0, y: 0 }, to: { x: 0.5, y: 0.5 } },
+      },
+      [],
+      "stone",
+    );
+    const boxes = floorCarpetBoxes(chunks).sort(
+      (one, other) => one.x0 - other.x0,
+    );
     assert.deepEqual(boxes, [
       { x0: 0.875, y0: 0.875, x1: 4.125, y1: 3.125 },
       { x0: 9.875, y0: 1.875, x1: 12.125, y1: 6.125 },
@@ -430,12 +485,10 @@ describe("piso: servidor", () => {
     const { floors: _dropped, ...withoutFloors } = exported.file.game.battle;
     assert.ok(
       (
-        await g
-          .timeout(2000)
-          .emitWithAck("session:import", {
-            ...exported.file,
-            game: { ...exported.file.game, battle: withoutFloors },
-          })
+        await g.timeout(2000).emitWithAck("session:import", {
+          ...exported.file,
+          game: { ...exported.file.game, battle: withoutFloors },
+        })
       ).ok,
     );
     assert.equal(battle().floors, undefined, "arquivo antigo, sem piso");

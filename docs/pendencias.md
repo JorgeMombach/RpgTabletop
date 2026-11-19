@@ -122,6 +122,14 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ## Pendências pequenas
 
+### Pisos ([docs/design/pisos.md](design/pisos.md))
+- [ ] Retângulo ou pincel gigante forjado (só o mestre) varre a caixa inteira antes de conferir o limite de pedaços (`shared/src/floor.ts` `paintFloor`): abortar quando passar de `LIMITS.terrainChunks`.
+- [ ] A prévia do pincel reenvia a textura inteira e refaz as caixas dos tapetes a cada movimento (`floorPass.ts` `setChunks`; `FloorLayer.tsx`).
+- [ ] Piso pintado atrás de porta secreta mostra o formato da sala sem névoa (vai inteiro para os jogadores, como terreno e relevo).
+- [ ] `floorPreview` não é limpo se a cena trocar no meio de uma passada.
+- [ ] Sem WebGL (`FloorLayer`), o piso passa 1/8 de casa da linha da parede (quadradinhos de ±1/8).
+- [ ] Barra do tapete pelo ponto mais perto: em tapete com borda diagonal sai em degraus.
+
 ### Chão, água, areia e dunas ([docs/design/relevo.md](design/relevo.md))
 - [ ] A poeira anima (chão redesenhado a 30 quadros/s) mesmo com as dunas fora da tela (`GroundRenderer.dusting` não olha a visibilidade, ao contrário da água).
 - [ ] `duneMask` não tem limite de tamanho: dunas a milhares de casas umas das outras alocam uma máscara enorme (sem o equivalente ao `TerrainTooLarge`).
