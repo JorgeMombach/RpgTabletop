@@ -42,6 +42,12 @@ export class GroundRenderer {
   private readonly dust: DustPass;
   /** Pisos (docs/design/pisos.md): por cima do terreno e da água, por baixo da camada do relevo. */
   private readonly floor: FloorPass;
+  /**
+   * Textura vazia (1 × 1) para os samplers que o programa declara mas que não têm o que ler (sem terreno, sem
+   * relevo): no WebGL 2, sampler sem textura fica na unidade 0, junto de outro de tipo diferente ou da imagem que está
+   * sendo desenhada, e o desenho é recusado.
+   */
+  private readonly blank: WebGLTexture;
   /** Camada dos pisos, guardada como o terreno (refeita com ele). */
   private floorImage: WebGLTexture | null = null;
   /** Pontes (docs/design/pontes.md): por cima da camada do relevo (passam sobre o penhasco), por baixo das paredes. */
@@ -108,6 +114,7 @@ export class GroundRenderer {
     this.walls = new WallPass(gl);
     this.dust = new DustPass(gl);
     this.floor = new FloorPass(gl);
+    this.blank = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)), gl.NEAREST, gl.CLAMP_TO_EDGE);
     this.bridges = new BridgePass(gl);
   }
 
@@ -451,7 +458,7 @@ export class GroundRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     const water = this.waterWeights();
-    this.bridges.draw(view, width, height, scene, { water, bindRelief: (program, extra) => this.relief.bindSample(program, view, width, height, extra) });
+    this.bridges.draw(view, width, height, scene, { blank: this.blank, water, bindRelief: (program, extra) => this.relief.bindSample(program, view, width, height, extra) });
   }
 
   private drawFloors(view: GroundView, width: number, height: number, scene: SceneLight) {
@@ -463,7 +470,7 @@ export class GroundRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     const stone = this.watercolors[TERRAINS.indexOf("stoneLight")];
-    if (stone) this.floor.draw(view, width, height, scene, stone, this.waterWeights());
+    if (stone) this.floor.draw(view, width, height, scene, stone, this.waterWeights(), this.blank);
   }
 
   private drawRelief(view: GroundView, width: number, height: number, scene: SceneLight) {
@@ -531,6 +538,7 @@ export class GroundRenderer {
     this.walls.dispose();
     this.dust.dispose();
     this.floor.dispose();
+    gl.deleteTexture(this.blank);
     this.bridges.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);

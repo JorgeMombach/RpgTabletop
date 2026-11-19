@@ -31,6 +31,14 @@ describe("ponte: contas", () => {
     assert.equal(bridgeAt(bridges, { x: 5, y: 3 })?.id, "cima");
   });
 
+  it("onde tipos diferentes se cruzam, vale o que o desenho põe por cima (tábuas, depois pedra, depois corda)", () => {
+    const stone: Bridge = { ...bridge("pedra", [2, 3], [8, 3]), kind: "stone" };
+    const plank = bridge("tabuas", [5, 0], [5, 6]);
+    assert.equal(bridgeAt([stone, plank], { x: 5, y: 3 })?.id, "pedra", "a pedra é desenhada depois das tábuas");
+    const rope: Bridge = { ...bridge("corda", [5, 0], [5, 6]), kind: "rope" };
+    assert.equal(bridgeAt([rope, stone], { x: 5, y: 3 })?.id, "corda");
+  });
+
   it("comprimento de ponta a ponta", () => {
     assert.equal(bridgeLength(bridge("a", [1, 1], [4, 5])), 5);
   });

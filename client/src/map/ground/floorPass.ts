@@ -144,6 +144,8 @@ export class FloorPass {
     scene: SceneLight,
     stone: WebGLTexture,
     water: PierWater | null,
+    /** Textura vazia para os samplers da água quando não há terreno (cada sampler na sua unidade). */
+    blank: WebGLTexture,
   ) {
     const { gl } = this;
     this.programs.beginDraw();
@@ -163,7 +165,8 @@ export class FloorPass {
       bindTextures(gl, program, [
         ["uFloor", uploaded.texture],
         ["uStone", stone],
-        ...(water ? ([["uWaterA", water.second], ["uWaterB", water.third]] satisfies [string, WebGLTexture][]) : []),
+        ["uWaterA", water ? water.second : blank],
+        ["uWaterB", water ? water.third : blank],
       ]);
       // píer: a água embaixo e para onde cai a sombra
       gl.uniform1f(uniformOf(gl, program, "uHasWater"), water ? 1 : 0);

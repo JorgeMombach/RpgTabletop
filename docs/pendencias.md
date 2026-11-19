@@ -140,6 +140,15 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ## Pendências pequenas
 
+### Pontes e píer ([docs/design/pontes.md](design/pontes.md))
+- [ ] Ao soltar a alça, a ponta volta um instante à posição antiga até o servidor responder; mover para menos de 1 casa volta sem aviso (`BridgeLayer.tsx`: manter a prévia até a ponte mudar; toast com o motivo).
+- [ ] Arrastar entre 0,3 e 1 casa não cria ponte nem escolhe nada, sem aviso (`BattleMap.tsx` `finishBridge`).
+- [ ] Nível das pontas lido do ponto fino mais perto (processador) e o chão interpolado (placa): no relevo suave pode sobrar um fio de sombra na ponta em terra (`bridgePass.ts` `setBridges`).
+- [ ] Na sombra da ponte, o chão é lido no pixel e não no ponto da ponte que tapa o sol: em chão irregular, o comprimento da sombra erra um pouco (`bridgeShader.ts`, laço da sombra).
+- [ ] Estacas do píer: 16 leituras por pixel em todo pixel de tábua e de água perto dele, a cada redesenho; sair cedo quando não há piso de tábuas por perto (`floorShader.ts` `postDistance`).
+- [ ] Delete com a ferramenta Ponte também pode apagar um token escolhido (o mesmo padrão dos objetos; `BattleMap.tsx`).
+- [ ] A ponte de pedra compila em ~3 s na placa integrada (o calçamento aparece no tabuleiro e na cabeceira: duas cópias do voronoi).
+
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
 - [ ] Rente a uma parede livre inclinada, a borda do piso anda em degraus de 1/4 de casa (o piso segue a grade fina) e aparece um dentinho de chão entre o piso e a parede. Caminho: no *Cômodo*, incluir também os pontos até a meia espessura da parede para fora (`shapeCover` em `shared/src/floor.ts`), ou recortar a borda pela linha da parede no shader.
 - [ ] Retângulo ou pincel gigante forjado (só o mestre) varre a caixa inteira antes de conferir o limite de pedaços (`shared/src/floor.ts` `paintFloor`): abortar quando passar de `LIMITS.terrainChunks`.

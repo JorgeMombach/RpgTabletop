@@ -9,6 +9,8 @@ const LEVEL_SHADOW = 1.6;
 
 /** O que está embaixo das pontes, vindo do resto do renderizador. */
 export interface BridgeGround {
+  /** Textura vazia para os samplers sem o que ler (sem terreno, sem relevo): cada sampler na sua unidade. */
+  blank: WebGLTexture;
   /** Pesos da água (segunda textura, canal a) e da água funda (terceira, canal r), com a origem e o tamanho. */
   water: { second: WebGLTexture; third: WebGLTexture; origin: [number, number]; size: [number, number] } | null;
   /** Liga o atlas de altura do relevo ao programa (devolve se há relevo); sem relevo, o chão é o nível 0. */
@@ -77,12 +79,16 @@ export class BridgePass {
       const program = this.programs.get(kind, () => bridgeFragment(kind));
       if (!program) continue;
       const water = ground.water;
-      const extra: [string, WebGLTexture][] = water ? [["uWaterA", water.second], ["uWaterB", water.third]] : [];
+      const extra: [string, WebGLTexture][] = [
+        ["uWaterA", water ? water.second : ground.blank],
+        ["uWaterB", water ? water.third : ground.blank],
+      ];
       const relief = ground.bindRelief(program, extra);
       if (!relief) {
         gl.useProgram(program.program);
         useVertices(gl, this.triangle);
-        bindTextures(gl, program, extra);
+        // sem relevo: os samplers dele também na textura vazia (senão caem na unidade 0, com a imagem desenhada)
+        bindTextures(gl, program, [...extra, ["uReliefIndex", ground.blank], ["uReliefA", ground.blank], ["uReliefB", ground.blank], ["uReliefShadow", ground.blank], ["uReliefShadowPrevious", ground.blank]]);
         gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
         gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
         gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);

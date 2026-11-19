@@ -33,10 +33,14 @@ export function bridgeLength(bridge: Pick<Bridge, "from" | "to">): number {
   return Math.hypot(bridge.to.x - bridge.from.x, bridge.to.y - bridge.from.y);
 }
 
-/** A ponte cujo tabuleiro contém o ponto (a de cima, a última da lista, onde se cruzam); `null` se nenhuma. */
+/**
+ * A ponte cujo tabuleiro contém o ponto; onde se cruzam, a que o desenho põe por cima: a placa de vídeo desenha um
+ * tipo depois do outro (tábuas, pedra, corda), e dentro do mesmo tipo a última da lista. `null` se nenhuma.
+ */
 export function bridgeAt(bridges: Bridge[], point: LightPoint): Bridge | null {
-  for (let index = bridges.length - 1; index >= 0; index--) {
-    const bridge = bridges[index];
+  const drawOrder = bridges.map((bridge, index) => ({ bridge, rank: BRIDGE_KINDS.indexOf(bridge.kind) * bridges.length + index }));
+  drawOrder.sort((first, second) => second.rank - first.rank);
+  for (const { bridge } of drawOrder) {
     const length = bridgeLength(bridge);
     if (length <= 0) continue;
     const alongX = (bridge.to.x - bridge.from.x) / length;

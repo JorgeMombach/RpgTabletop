@@ -48,7 +48,7 @@ Uma ferramenta **Ponte** no painel *Construir*: o mestre escolhe o tipo e a larg
 
 - `bridges: Bridge[]` por cena: `{ id, from: { x, y }, to: { x, y }, width: 1 | 2 | 3, kind: "plank" | "stone" | "rope" }`, pontas em casas (a linha do meio do tabuleiro, de ponta a ponta).
 - Limites: até **64 pontes** por cena; comprimento de **1 a 40 casas** *(chamadas minhas)*.
-- Ponte nova vai no fim da lista (desenhada por cima das anteriores onde se cruzam).
+- Ponte nova vai no fim da lista. Onde pontes se cruzam, a placa de vídeo desenha um tipo depois do outro (tábuas, pedra, corda) e, no mesmo tipo, a última da lista por cima; o clique escolhe a que aparece por cima *(chamada minha, na revisão final)*.
 
 ### Ações (servidor valida tudo, só o mestre)
 
