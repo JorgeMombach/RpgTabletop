@@ -1,20 +1,43 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { chunkKey, decodeLayer, encodeLayer, paintTerrain, terrainAt, terrainBounds, terrainWeights, TERRAINS, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
+import { chunkKey, decodeLayer, encodeLayer, paintTerrain, terrainAt, terrainBounds, terrainWeights, TERRAINS, type TerrainChunks, type TerrainStroke, type TerrainStrokeMemory } from "@rpg/shared";
 
 // Terreno pintado (entrega 1 da criação de mapa): as contas do pincel e da mistura, puras.
 const stroke = (terrain: TerrainStroke["terrain"], points: number[], radius = 1, strength = 1): TerrainStroke => ({ terrain, radius, strength, points });
 const sum = (values: Partial<Record<string, number>>) => Object.values(values).reduce<number>((total, value) => total + (value ?? 0), 0);
 
 describe("terreno: contas do pincel", () => {
-  it("pincel sobe no centro e cai na borda", () => {
+  it("uma passada com força 1 cobre por inteiro até o miolo (3/4 do raio) e cai só na beirada", () => {
     const chunks: TerrainChunks = {};
-    paintTerrain(chunks, stroke("grass", [4, 4]));
-    const center = terrainAt(chunks, 4, 4).grass ?? 0;
-    const side = terrainAt(chunks, 4.5, 4).grass ?? 0;
-    assert.ok(center > side, `${center} > ${side}`);
-    assert.ok(side > 0);
-    assert.equal(terrainAt(chunks, 5.2, 4).grass ?? 0, 0);
+    paintTerrain(chunks, stroke("grass", [4, 4], 2));
+    assert.equal(terrainAt(chunks, 4, 4).grass, 255, "centro");
+    assert.equal(terrainAt(chunks, 5.5, 4).grass, 255, "na borda do miolo (d = 0,75)");
+    const rim = terrainAt(chunks, 5.75, 4).grass ?? 0;
+    assert.ok(rim > 0 && rim < 255, `beirada: ${rim}`);
+    assert.equal(terrainAt(chunks, 6, 4).grass ?? 0, 0, "fora do círculo");
+  });
+
+  it("a passada deposita a força uma vez: cruzar o próprio traço não soma de novo", () => {
+    const chunks: TerrainChunks = {};
+    paintTerrain(chunks, stroke("grass", [4, 4, 4.3, 4, 4, 4.3, 4, 4], 1, 0.5));
+    assert.equal(terrainAt(chunks, 4, 4).grass, 128);
+  });
+
+  it("passar de novo carrega mais", () => {
+    const chunks: TerrainChunks = {};
+    paintTerrain(chunks, stroke("grass", [4, 4], 1, 0.5));
+    paintTerrain(chunks, stroke("grass", [4, 4], 1, 0.5));
+    assert.equal(terrainAt(chunks, 4, 4).grass, 255);
+  });
+
+  it("a prévia ponto a ponto (com a memória da passada) dá o mesmo que a passada inteira no servidor", () => {
+    const points = [2, 2, 2.6, 2.3, 3.2, 2.9, 3.4, 3.6, 2.9, 4.1, 2.4, 3.6];
+    const whole: TerrainChunks = {};
+    paintTerrain(whole, stroke("dirt", points, 1.5, 0.7));
+    const preview: TerrainChunks = {};
+    const memory: TerrainStrokeMemory = new Map();
+    for (let index = 0; index < points.length; index += 2) paintTerrain(preview, stroke("dirt", points.slice(index, index + 2), 1.5, 0.7), memory);
+    assert.deepEqual(preview, whole);
   });
 
   it("o que entra empurra os outros", () => {

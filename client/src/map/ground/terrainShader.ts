@@ -263,8 +263,9 @@ void main() {
   vec2 uv = (c * 4.0 - uWeightsOrigin + 0.5) / uWeightsSize;
   float value = texture(uWeights, uv).${"rgba"[index % 4]}${water ? " * uWaterDraft" : ""};
   // Longe da borda pintada: nada (aparece o que está embaixo).
-  if (value <= 0.32 - 0.21) discard;
-  float alpha = edgeSmooth(value + edgeNoise(c) * 0.42);
+  if (value <= 0.32 - 0.15) discard;
+  // Borda irregular, mas fina: ruído de 0,3 (o mesmo do desenho sem WebGL, renderChunk.ts).
+  float alpha = edgeSmooth(value + edgeNoise(c) * 0.3);
   if (alpha <= 0.0) discard;
   float px = pixelCells();
   // Aquarela com o nível de detalhe pelo tamanho do pixel (leitura dentro de condicional: sem derivada automática).

@@ -220,7 +220,7 @@ export const useApp = create<AppStore>(() => ({
   paintColor: "#d4a24c",
   paintErase: false,
   paintSize: 3,
-  terrainBrush: { terrain: "grass", radius: 1.5, strength: 0.5, shape: "brush" },
+  terrainBrush: { terrain: "grass", radius: 1.5, strength: 1, shape: "brush" },
   reliefBrush: { level: 1, soft: false, radius: 1.5, mode: "level", dune: 2 },
   floorBrush: { material: "plank", vertical: false, mode: "room", radius: 1 },
   propKind: "tree",

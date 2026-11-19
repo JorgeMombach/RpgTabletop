@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { brushCells, currentEndNear, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { brushCells, currentEndNear, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -520,7 +520,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   // Pincel de terreno (mestre): a passada é pintada numa cópia local na hora (a mesma conta do servidor) e vai
   // inteira ao soltar. O contorno do pincel anda sob o mouse sem redesenhar o mapa (mexe direto no Konva).
-  const terrainRef = useRef<{ points: number[]; local: TerrainChunks } | null>(null);
+  // A passada do pincel: os pontos, a cópia local pintada (prévia) e o que a passada já deixou em cada ponto (a força
+  // entra uma vez por passada, como no servidor).
+  const terrainRef = useRef<{ points: number[]; local: TerrainChunks; memory: TerrainStrokeMemory } | null>(null);
   // Retângulo de terreno: de canto a canto, nas casas (com Shift, na meia casa); a prévia mostra o terreno pintado.
   const [terrainRect, setTerrainRect] = useState<{ from: LightPoint; to: LightPoint; base: TerrainChunks } | null>(null);
   function terrainRectTo(p: Point) {
@@ -563,7 +565,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     // Ponto novo só depois de andar um pedaço do raio: a força da passada não depende da velocidade do mouse.
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintTerrain(draft.local, { ...brush, points: [x, y] });
+    paintTerrain(draft.local, { ...brush, points: [x, y] }, draft.memory);
     setTerrainPreview({ ...draft.local });
   }
   function finishTerrain() {
@@ -1018,7 +1020,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
         setTerrainRect({ from: corner, to: corner, base: { ...useApp.getState().terrain } });
         return;
       }
-      terrainRef.current = { points: [], local: { ...useApp.getState().terrain } };
+      terrainRef.current = { points: [], local: { ...useApp.getState().terrain }, memory: new Map() };
       terrainAt(p);
       return;
     }

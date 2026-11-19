@@ -42,8 +42,13 @@ function edgeNoise(x: number, y: number): number {
   return sum - 0.5;
 }
 
-/** O ruído empurra a intensidade em até ±0,21: fora desta faixa a cobertura já está decidida (0 ou 1). */
-const NOISE_REACH = 0.21;
+/**
+ * Força do ruído da borda (o mesmo no shader, `terrainShader.ts`): 0,3 deixa a borda irregular, como pintura à mão,
+ * mas fina (era 0,42: com o pincel antigo, a borda ficava larga e suja).
+ */
+const NOISE_AMOUNT = 0.3;
+/** O ruído empurra a intensidade em até ±NOISE_AMOUNT/2: fora desta faixa a cobertura já está decidida (0 ou 1). */
+const NOISE_REACH = NOISE_AMOUNT / 2;
 const EDGE_LOW = 0.32;
 const EDGE_HIGH = 0.6;
 
@@ -130,7 +135,7 @@ export function renderChunk(key: string, chunks: TerrainChunks, images: Record<s
       }
       if (!any) continue;
       // Ruído só onde ele decide alguma coisa (a borda de um terreno): no meio de uma área cheia ele não muda nada.
-      const noise = undecided ? edgeNoise(cx * TERRAIN_CHUNK_CELLS + (px + 0.5) / pixelsPerCell, cy * TERRAIN_CHUNK_CELLS + (py + 0.5) / pixelsPerCell) * 0.42 : 0;
+      const noise = undecided ? edgeNoise(cx * TERRAIN_CHUNK_CELLS + (px + 0.5) / pixelsPerCell, cy * TERRAIN_CHUNK_CELLS + (py + 0.5) / pixelsPerCell) * NOISE_AMOUNT : 0;
       const k = (py * side + px) * 4;
       // Mistura em camadas, na ordem dos terrenos (cor pré-multiplicada pela cobertura).
       let red = 0;

@@ -78,6 +78,12 @@ function open(chunks: TerrainChunks, working: Working, key: string): Map<Terrain
 }
 
 /** Mistura num ponto: o terreno pintado sobe Δ; se a soma passar de 255, os outros cedem na proporção do que têm. */
+/** Até onde (fração do raio) o pincel tem a força cheia; daí até a borda do círculo, cai suave. */
+export const BRUSH_CORE = 0.75;
+
+/** O que uma passada do pincel já deixou em cada ponto fino ("i,j"): a força entra uma vez por passada. */
+export type TerrainStrokeMemory = Map<string, number>;
+
 /** Folga para o canto que cai exatamente num ponto da grade entrar (conta em ponto flutuante). */
 const EDGE = 1e-6;
 
@@ -106,10 +112,13 @@ function mixPoint(layers: Map<TerrainId, Uint8Array>, index: number, terrain: Te
 
 /**
  * Aplica a passada em `chunks` (muda o objeto) e devolve as chaves dos pedaços que mudaram. Em cada ponto do traço,
- * um carimbo macio: Δ = força × 128 × (1 − d)², com d = distância ao centro ÷ raio. Terreno que ficou todo zero sai
- * do pedaço; pedaço que ficou vazio sai de `chunks`.
+ * um carimbo com força cheia até o miolo (`BRUSH_CORE` do raio) e queda suave só na beirada; a passada deposita a força
+ * uma vez em cada ponto (o maior carimbo que passou por ele), sem somar a cada carimbo: força 1 cobre de uma vez, e
+ * passar de novo carrega mais. `memory` guarda o que esta passada já deixou em cada ponto, para a prévia pintar
+ * ponto a ponto com o mesmo resultado da passada inteira. Terreno que ficou todo zero sai do pedaço; pedaço que ficou
+ * vazio sai de `chunks`.
  */
-export function paintTerrain(chunks: TerrainChunks, stroke: TerrainStroke): string[] {
+export function paintTerrain(chunks: TerrainChunks, stroke: TerrainStroke, memory: TerrainStrokeMemory = new Map()): string[] {
   const working: Working = new Map();
   const { radius, strength, terrain } = stroke;
   const touch = (i: number, j: number, amount: number) => {
@@ -136,9 +145,13 @@ export function paintTerrain(chunks: TerrainChunks, stroke: TerrainStroke): stri
       for (let i = Math.ceil((x - radius) * TERRAIN_FINE); i <= Math.floor((x + radius) * TERRAIN_FINE); i++) {
         const d = Math.hypot(i / TERRAIN_FINE - x, j / TERRAIN_FINE - y) / radius;
         if (d >= 1) continue;
-        const amount = Math.round(strength * 128 * (1 - d) * (1 - d));
-        if (amount === 0) continue;
-        touch(i, j, amount);
+        const rim = Math.min(1, Math.max(0, (d - BRUSH_CORE) / (1 - BRUSH_CORE)));
+        const target = Math.round(strength * 255 * (1 - rim * rim * (3 - 2 * rim)));
+        const point = `${i},${j}`;
+        const already = memory.get(point) ?? 0;
+        if (target <= already) continue;
+        memory.set(point, target);
+        touch(i, j, target - already);
       }
     }
   }

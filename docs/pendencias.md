@@ -120,6 +120,14 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Celular/tablet (jogador pelo IP da rede): o piso aparece.
 - [ ] Sem WebGL: cores chapadas, sem erro.
 
+### Correções do teste de 2026-11-18 (desempenho, paredes livres, correnteza, terreno)
+- [ ] Desempenho: abrir o app (compilado e dev), pintar água, pôr muitas árvores e objetos, traçar paredes e portas: sem travar; primeira água de uma sessão nova com no máximo uma pausa curta.
+- [ ] Primeira parede de cada desenho, primeiro piso de cada material e primeiro terreno de cada tipo (escolhidos na ferramenta antes): sem pausa no traço.
+- [ ] Paredes livres: ponta gruda na ponta e no corpo de outra parede (inclusive diagonal); Ctrl solta onde quiser; o cômodo fecha e o piso enche só ele.
+- [ ] Correnteza: clique a clique, duplo clique e Enter terminam, Esc cancela (sem sair da ferramenta); arrastar risca à mão; continuar pela ponta (fim e começo); desfazer.
+- [ ] Terreno em retângulo: cantos nas casas (Shift: meia casa), borracha em retângulo, prévia, desfazer; lado máximo 64 casas.
+- [ ] Pincel do terreno: pinta do tamanho do círculo, uma passada cobre (força 1), força menor carrega aos poucos; borda fina; mapas antigos com a borda um pouco menos irregular; sem engasgo num mapa grande.
+
 ## Pendências pequenas
 
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
