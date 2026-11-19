@@ -1,4 +1,5 @@
 import { Anchor, Divider, Group, Modal, Stack, Table, Text, Title, UnstyledButton } from "@mantine/core";
+import { memo } from "react";
 import { APP_VERSION } from "@rpg/shared";
 import { useT, type MessageKey } from "../i18n";
 import { D20Emblem } from "./D20Emblem";
@@ -25,7 +26,8 @@ const CREDITS: { name: string; url: string; license: string; use: MessageKey }[]
 ];
 
 /** Janela "Sobre": versão, autor, o que o app é, créditos e licenças de terceiros. */
-export function AboutModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+/** Em `memo`: fechada, não redesenha a cada envio do servidor. */
+export const AboutModal = memo(function AboutModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const t = useT();
   return (
     <Modal opened={opened} onClose={onClose} size="lg" centered title={t("about.title")}>
@@ -83,10 +85,10 @@ export function AboutModal({ opened, onClose }: { opened: boolean; onClose: () =
       </Stack>
     </Modal>
   );
-}
+});
 
 /** A versão no topo abre o "Sobre". */
-export function AboutLink({ onOpen }: { onOpen: () => void }) {
+export const AboutLink = memo(function AboutLink({ onOpen }: { onOpen: () => void }) {
   const t = useT();
   return (
     <UnstyledButton onClick={onOpen} aria-label={t("about.open")} title={t("about.open")}>
@@ -95,4 +97,4 @@ export function AboutLink({ onOpen }: { onOpen: () => void }) {
       </Text>
     </UnstyledButton>
   );
-}
+});

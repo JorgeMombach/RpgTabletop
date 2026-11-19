@@ -1,5 +1,5 @@
 import Konva from "konva";
-import { useEffect, useRef, type RefObject } from "react";
+import { memo, useEffect, useRef, type RefObject } from "react";
 import { Group, Image as KImage, Shape } from "react-konva";
 import { FrameWatch, gust, windOf, type MapConfig, type MapProp, type WeatherState } from "@rpg/shared";
 import { useApp } from "../store";
@@ -40,9 +40,9 @@ const MIN_CELL_ON_SCREEN = 20;
 
 /**
  * Uma planta balançando. Só aparece com vento ligado; em edição, ou com token embaixo da copa (transparente), o mapa
- * usa o objeto parado de sempre.
+ * usa o objeto parado de sempre. Em `memo`: pôr um objeto não redesenha as outras plantas.
  */
-export function PlantNode({
+export const PlantNode = memo(function PlantNode({
   p,
   grid,
   layers,
@@ -114,7 +114,7 @@ export function PlantNode({
       )}
     </Group>
   );
-}
+});
 
 /** Folhas que viram para a luz e voltam: piscam mais quando a rajada está forte. */
 function drawGlints(ctx: CanvasRenderingContext2D, glints: Glint[], t: number, gustNow: number) {

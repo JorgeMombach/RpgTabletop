@@ -11,6 +11,7 @@ import { useApp } from "../store";
 import { toCellUnits, type Point } from "./geometry";
 import { drawDoor, drawOpeningSelection, drawWindow, wallArt } from "./wallArt";
 import { removeWall, restyleWalls, undo, useMapUndo } from "./mapHistory";
+import { useShallow } from "zustand/react/shallow";
 
 /** Ferramenta Paredes: traçar parede, traçar porta (ou escolher uma para trancar/esconder), trocar o desenho ou apagar. */
 export type WallMode = "wall" | "door" | "window" | "restyle" | "erase";
@@ -163,7 +164,7 @@ function WallSwatch({ style }: { style: WallStyle }) {
 /** Opções da ferramenta Paredes (mestre): modo, desenho, traço, a porta escolhida (aberta, trancada, secreta), desfazer e apagar tudo. */
 export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle }) {
   const t = useT();
-  const { wallMode, wallSnap, wallThick, selectedDoorId, wallDrawStyle } = useApp();
+  const { wallMode, wallSnap, wallThick, selectedDoorId, wallDrawStyle } = useApp(useShallow((s) => ({ wallMode: s.wallMode, wallSnap: s.wallSnap, wallThick: s.wallThick, selectedDoorId: s.selectedDoorId, wallDrawStyle: s.wallDrawStyle })));
   const undoCount = useMapUndo((s) => s.walls);
   const door = walls.find((w) => w.id === selectedDoorId && w.door);
   const pane = walls.find((w) => w.id === selectedDoorId && w.window);

@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Group, Kbd, Modal, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
 import { IconKeyboard } from "@tabler/icons-react";
 import type { ClientState } from "@rpg/shared";
-import { Fragment, useEffect, type ReactNode } from "react";
+import { Fragment, memo, useEffect, type ReactNode } from "react";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useT, type MessageKey } from "../i18n";
@@ -84,7 +84,10 @@ function keys(...parts: (string | { text: string })[]) {
   );
 }
 
-function ShortcutsHelp({ gm }: { gm: boolean }) {
+/** A ajuda monta todas as linhas: em `memo`, para não refazer tudo (fechada) a cada envio do servidor. */
+const ShortcutsHelp = memo(ShortcutsHelpWindow);
+
+function ShortcutsHelpWindow({ gm }: { gm: boolean }) {
   const t = useT();
   const open = useShortcutsHelp((s) => s.open);
   const k = (key: MessageKey) => t(key);

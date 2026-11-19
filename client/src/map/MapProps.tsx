@@ -57,8 +57,10 @@ export function propSpot(x: number, y: number, g: MapConfig, snap: boolean): { c
 /**
  * Um objeto do cenário: a imagem guardada do desenho (feita uma vez por tipo, semente e resolução), girada no
  * centro. Com a ferramenta Objetos, o mestre arrasta (Shift encaixa no centro da casa) e clica para escolher.
+ * Em `memo`: pôr ou mexer num objeto redesenha só ele, não a camada inteira.
  */
-function PropNode({ p, grid, scale, editing, faded, onPick }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean; onPick: () => void }) {
+const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean }) {
+  const onPick = () => useApp.setState({ selectedPropId: p.id });
   const { x, y } = centerOf(p, grid);
   const side = PROP_EXTENT[p.kind] * 2 * grid.cellPx * p.size;
   const image = propImage(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1));
@@ -118,7 +120,7 @@ function PropNode({ p, grid, scale, editing, faded, onPick }: { p: MapProp; grid
       }}
     />
   );
-}
+});
 
 interface PropLayerProps {
   props: MapProp[];
@@ -187,7 +189,7 @@ export const MapPropLayer = memo(function MapPropLayer({
         // Copa transparente (token embaixo) fica parada: as duas copas meio transparentes, uma sobre a outra, somariam.
         const layers = windOn && !faded ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
         if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} registry={registry} time={windTime} />;
-        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} onPick={() => useApp.setState({ selectedPropId: p.id })} />;
+        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} />;
       })}
       {editing && (
         <Transformer

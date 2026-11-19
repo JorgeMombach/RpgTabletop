@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { act } from "../actions";
 import { LANGS, setLang, useLang, useT, type Lang, type MessageKey } from "../i18n";
 import { setDicePrefs, setVolume, useApp, useVolume } from "../store";
+import { useShallow } from "zustand/react/shallow";
 
 /** Regras da mesa, cada uma com nome e explicação. */
 const RULE: Record<keyof TableRules, [MessageKey, MessageKey]> = {
@@ -142,7 +143,7 @@ function DeviceSettings() {
   const t = useT();
   const lang = useLang((s) => s.lang);
   const { volume, muted } = useVolume();
-  const { diceAnim, reduceFx, followTurn } = useApp();
+  const { diceAnim, reduceFx, followTurn } = useApp(useShallow((s) => ({ diceAnim: s.diceAnim, reduceFx: s.reduceFx, followTurn: s.followTurn })));
   return (
     <Stack gap="lg">
       <Text size="xs" c="dimmed">

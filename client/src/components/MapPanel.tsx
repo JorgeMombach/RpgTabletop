@@ -10,6 +10,7 @@ import { Abbr } from "./Abbr";
 import { Panel } from "./Panel";
 import { useT, type MessageKey } from "../i18n";
 import { UvttImportButton } from "./UvttImport";
+import { useShallow } from "zustand/react/shallow";
 
 /** Mesa em volta do mapa (L5), por cena. */
 /** Cores prontas do grid: preto (padrão), branco, pergaminho, bronze, sangue e azul. */
@@ -87,7 +88,7 @@ function sliderToCell(v: number): number {
 export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
   const t = useT();
   const [uploading, setUploading] = useState(false);
-  const { tool, calibRect } = useApp();
+  const { tool, calibRect } = useApp(useShallow((s) => ({ tool: s.tool, calibRect: s.calibRect })));
   const sendGrid = useThrottledGrid();
 
   // Valores locais para os sliders responderem na hora; o servidor confirma depois.

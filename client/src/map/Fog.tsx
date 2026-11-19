@@ -9,6 +9,7 @@ import { confirmAction } from "../confirm";
 import { useT } from "../i18n";
 import { useApp } from "../store";
 import { buildMask, FOG_TILE, fogTexture, type MaskArea } from "./fogRender";
+import { useShallow } from "zustand/react/shallow";
 
 /** Névoa vista pelo mestre: bruma acinzentada e translúcida (aparece até no grid sem imagem). */
 const GM_FOG_OPACITY = 0.62;
@@ -162,7 +163,7 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
 /** Opções da ferramenta Névoa (mestre): ligar, revelar ou cobrir, pincel ou retângulo, revelar o mapa e cobrir tudo. */
 export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (() => void) | null }) {
   const t = useT();
-  const { fogReveal, fogShape, fogBrush } = useApp();
+  const { fogReveal, fogShape, fogBrush } = useApp(useShallow((s) => ({ fogReveal: s.fogReveal, fogShape: s.fogShape, fogBrush: s.fogBrush })));
   // Cena hex (Passo 16): o tamanho do pincel aparece em hexes (1, 7, 19).
   const kind = useApp((s) => s.state?.battle.map.grid);
   const hex = kind === "hexRows" || kind === "hexCols";

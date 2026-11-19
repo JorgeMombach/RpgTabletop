@@ -63,6 +63,7 @@ import { ChestEditor, MapChestLayer } from "./MapChests";
 import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
 import { ViewAsBanner } from "./ViewAsBanner";
 import { WeatherOverlay } from "./WeatherOverlay";
+import { useShallow } from "zustand/react/shallow";
 
 /** Tipo usado ao arrastar um combatente da lista para o mapa. */
 export const DRAG_MIME = "application/x-combatant";
@@ -123,9 +124,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Pinça com dois dedos (E23): distância e centro do último quadro, em pixels da tela.
   const pinch = useRef<{ dist: number; center: Point } | null>(null);
 
-  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, floorBrush, reduceFx } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, floorBrush, reduceFx } = useApp(useShallow((s) => ({ drawMode: s.drawMode, drawColor: s.drawColor, drawWidth: s.drawWidth, drawHidden: s.drawHidden, wallMode: s.wallMode, wallSnap: s.wallSnap, selectedDoorId: s.selectedDoorId, wallDrawStyle: s.wallDrawStyle, fogReveal: s.fogReveal, fogShape: s.fogShape, fogBrush: s.fogBrush, paintPreset: s.paintPreset, paintColor: s.paintColor, paintErase: s.paintErase, paintSize: s.paintSize, terrainBrush: s.terrainBrush, reliefBrush: s.reliefBrush, floorBrush: s.floorBrush, reduceFx: s.reduceFx })));
   const selectedPropId = useApp((s) => s.selectedPropId);
-  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, floors, floorPreview, groundFailed } = useApp();
+  // Lidos no desenho da prévia do pincel dos objetos.
+  const { propMode: propBrushMode, scatterSize: propBrushSize } = useApp(useShallow((s) => ({ propMode: s.propMode, scatterSize: s.scatterSize })));
+  const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, floors, floorPreview, groundFailed } = useApp(useShallow((s) => ({ tool: s.tool, selectedId: s.selectedId, hoverId: s.hoverId, rulers: s.rulers, pings: s.pings, areas: s.areas, areaKind: s.areaKind, areaFeet: s.areaFeet, calibRect: s.calibRect, mapImage: s.mapImage, placing: s.placing, gathering: s.gathering, terrain: s.terrain, terrainEpoch: s.terrainEpoch, relief: s.relief, reliefEpoch: s.reliefEpoch, reliefPreview: s.reliefPreview, floors: s.floors, floorPreview: s.floorPreview, groundFailed: s.groundFailed })));
   // Celular: o terreno é desenhado com menos pixels por casa (pesa menos).
   const smallScreen = useSmallScreen();
   // Pôr conjurados no mapa (E21): casa sob o mouse, para a régua até quem conjurou.
@@ -315,6 +318,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     }
   }, [image, size.width, fit]);
 
+  // Zoom pelos botões da barra (no meio da tela): função estável, a barra fica em memo.
+  const zoomCenter = useRef<(factor: number) => void>(() => undefined);
+  zoomCenter.current = (factor) => zoomAt({ x: size.width / 2, y: size.height / 2 }, factor);
+  const zoomFromToolbar = useCallback((factor: number) => zoomCenter.current(factor), []);
+
   function zoomAt(point: Point, factor: number) {
     setView((v) => {
       const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, v.scale * factor));
@@ -352,7 +360,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
   // Borracha (M): apaga só por onde passa, como uma borracha de verdade. O caminho vai ao servidor em
   // pedaços enquanto arrasta (o apagado some na hora); nas paredes, a passada inteira vira um passo do Desfazer.
-  const { torchStyle, torchErase } = useApp();
+  const { torchStyle, torchErase } = useApp(useShallow((s) => ({ torchStyle: s.torchStyle, torchErase: s.torchErase })));
   const eraseMode = (tool === "draw" && drawMode === "erase") || (gm && tool === "walls" && wallMode === "erase") || (gm && tool === "torches" && torchErase);
   /** Raio da borracha (pixels do mapa): no desenho, pelo tamanho escolhido; nas paredes, um quarto de casa. */
   const eraserRadius = tool === "walls" || tool === "torches" ? grid.cellPx * WALL_ERASER : Math.max(4 / view.scale, grid.cellPx * (ERASER_CELLS[drawWidth] ?? 0.25));
@@ -1352,10 +1360,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           </Layer>
 
           {/* Pincel de espalhar objetos: a área da passada (de leve) e o quadrado do pincel. */}
-          {gm && tool === "props" && useApp.getState().propMode !== "place" && (
+          {gm && tool === "props" && propBrushMode !== "place" && (
             <Layer listening={false}>
               {propDraft && isHex(grid) && (
-                <CellMarks cells={propDraft} grid={grid} fill={useApp.getState().propMode === "erase" ? "#000000" : "#d8b47a"} opacity={useApp.getState().propMode === "erase" ? 0.3 : 0.16} />
+                <CellMarks cells={propDraft} grid={grid} fill={propBrushMode === "erase" ? "#000000" : "#d8b47a"} opacity={propBrushMode === "erase" ? 0.3 : 0.16} />
               )}
               {!isHex(grid) && propDraft?.map((c) => (
                 <Rect
@@ -1364,15 +1372,15 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                   y={grid.offsetY + c.row * grid.cellPx}
                   width={grid.cellPx}
                   height={grid.cellPx}
-                  fill={useApp.getState().propMode === "erase" ? "#000000" : "#d8b47a"}
-                  opacity={useApp.getState().propMode === "erase" ? 0.3 : 0.16}
+                  fill={propBrushMode === "erase" ? "#000000" : "#d8b47a"}
+                  opacity={propBrushMode === "erase" ? 0.3 : 0.16}
                 />
               ))}
               {paintHover && isHex(grid) && (
                 <CellMarks
-                  cells={brushCells(paintHover, useApp.getState().scatterSize, grid.grid)}
+                  cells={brushCells(paintHover, propBrushSize, grid.grid)}
                   grid={grid}
-                  stroke={useApp.getState().propMode === "erase" ? "#e05a5a" : "#d8b47a"}
+                  stroke={propBrushMode === "erase" ? "#e05a5a" : "#d8b47a"}
                   strokeWidth={1.5 / view.scale}
                   dash={[6 / view.scale, 4 / view.scale]}
                 />
@@ -1380,14 +1388,14 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               {paintHover &&
                 !isHex(grid) &&
                 (() => {
-                  const r = brushRect(paintHover, useApp.getState().scatterSize);
+                  const r = brushRect(paintHover, propBrushSize);
                   return (
                     <Rect
                       x={grid.offsetX + r.col * grid.cellPx}
                       y={grid.offsetY + r.row * grid.cellPx}
                       width={r.w * grid.cellPx}
                       height={r.h * grid.cellPx}
-                      stroke={useApp.getState().propMode === "erase" ? "#e05a5a" : "#d8b47a"}
+                      stroke={propBrushMode === "erase" ? "#e05a5a" : "#d8b47a"}
                       strokeWidth={1.5 / view.scale}
                       dash={[6 / view.scale, 4 / view.scale]}
                     />
@@ -1646,7 +1654,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
         gm={gm}
         compact={compact}
         narrow={size.width < 780}
-        onZoom={(f) => zoomAt({ x: size.width / 2, y: size.height / 2 }, f)}
+        onZoom={zoomFromToolbar}
         onFit={fit}
         paused={!!state.pause}
       />}
@@ -1979,7 +1987,8 @@ function RulerShape({
   );
 }
 
-function MapToolbar({
+/** Em `memo`: a barra não muda com o envio do servidor (zoom e enquadrar chegam estáveis). */
+const MapToolbar = memo(function MapToolbar({
   tool,
   gm,
   compact,
@@ -2142,14 +2151,14 @@ function MapToolbar({
       </MGroup>
     </Paper>
   );
-}
+});
 
 const AREA_KINDS: AreaKind[] = ["cone", "sphere", "cylinder", "line", "cube"];
 
 /** Forma e tamanho da área (ferramenta Área). */
 function AreaOptions({ canFix, locked, onFix }: { canFix: boolean; locked: boolean; onFix: () => void }) {
   const t = useT();
-  const { areaKind, areaFeet } = useApp();
+  const { areaKind, areaFeet } = useApp(useShallow((s) => ({ areaKind: s.areaKind, areaFeet: s.areaFeet })));
   return (
     <Paper className="map-options" p="xs" shadow="md" radius="md">
       <MGroup gap="xs" wrap="nowrap" align="flex-end">

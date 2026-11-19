@@ -7,6 +7,7 @@ import { join, savedName } from "../session";
 import { useApp } from "../store";
 import { D20Emblem } from "./D20Emblem";
 import { LanguageMenu } from "./LanguageMenu";
+import { useShallow } from "zustand/react/shallow";
 
 const ERRORS: Record<JoinError, MessageKey> = {
   invalid_name: "join.error.invalidName",
@@ -53,7 +54,7 @@ function Embers() {
  * Com "Reduzir efeitos", nada anima.
  */
 export function JoinScreen() {
-  const { connected, probedRole, joining, joinError, reduceFx } = useApp();
+  const { connected, probedRole, joining, joinError, reduceFx } = useApp(useShallow((s) => ({ connected: s.connected, probedRole: s.probedRole, joining: s.joining, joinError: s.joinError, reduceFx: s.reduceFx })));
   // Ladrilho do couro da mesa (o mesmo do mapa), gerado uma vez.
   const leather = useMemo(() => (customArt ? null : tableTile("leather").toDataURL()), []);
   const t = useT();
