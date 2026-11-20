@@ -1,4 +1,4 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
@@ -8,6 +8,7 @@ import { faceLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { DustPass } from "./dustPass";
 import { FloorPass } from "./floorPass";
 import { BridgePass } from "./bridgePass";
+import { StairPass } from "./stairPass";
 import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
 import type { WaterGpuField } from "./waterTypes";
@@ -52,6 +53,7 @@ export class GroundRenderer {
   private floorImage: WebGLTexture | null = null;
   /** Pontes (docs/design/pontes.md): por cima da camada do relevo (passam sobre o penhasco), por baixo das paredes. */
   private readonly bridges: BridgePass;
+  private readonly stairs: StairPass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -116,6 +118,7 @@ export class GroundRenderer {
     this.floor = new FloorPass(gl);
     this.blank = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)), gl.NEAREST, gl.CLAMP_TO_EDGE);
     this.bridges = new BridgePass(gl);
+    this.stairs = new StairPass(gl);
   }
 
   /**
@@ -123,11 +126,12 @@ export class GroundRenderer {
    * de piso ou o terreno do pincel (água: também a água animada). Compilar trava a placa um instante na primeira vez
    * (Direct3D); assim isso acontece ao escolher, não no meio do traço.
    */
-  warm(choice: { wall?: WallStyle | "opening"; floor?: FloorMaterial; terrain?: TerrainId; bridge?: BridgeKind }) {
+  warm(choice: { wall?: WallStyle | "opening"; floor?: FloorMaterial; terrain?: TerrainId; bridge?: BridgeKind; stair?: StairShape }) {
     if (this.gl.isContextLost()) return;
     if (choice.wall) this.walls.warm(choice.wall);
     if (choice.floor) this.floor.warm(choice.floor);
     if (choice.bridge) this.bridges.warm(choice.bridge);
+    if (choice.stair) this.stairs.warm(choice.stair);
     const terrain = choice.terrain;
     if (terrain) {
       this.terrain.warm(terrain, () => terrainLayerFragment(terrain));
@@ -140,6 +144,13 @@ export class GroundRenderer {
   setBridges(bridges: Bridge[], relief: ReliefChunks) {
     if (this.gl.isContextLost()) return;
     this.bridges.setBridges(bridges, relief);
+    this.terrainDirty = true;
+  }
+
+/** Escadas da cena (e o relevo, para o perfil que segue o chão): a camada é refeita no próximo desenho. */
+  setStairs(stairs: Stair[], relief: ReliefChunks) {
+    if (this.gl.isContextLost()) return;
+    this.stairs.setStairs(stairs, relief);
     this.terrainDirty = true;
   }
 
@@ -190,7 +201,7 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending || this.stairs.pending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
@@ -280,7 +291,7 @@ export class GroundRenderer {
 
   /** Tem algo para desenhar (terreno ou água). */
   get empty(): boolean {
-    return !this.weights && this.water.empty && !this.relief.drawable && this.walls.empty && this.floor.empty && this.bridges.empty;
+    return !this.weights && this.water.empty && !this.relief.drawable && this.walls.empty && this.floor.empty && this.bridges.empty && this.stairs.empty;
   }
 
   render(view: GroundView, time: number, options: { waterDraft: boolean }) {
@@ -325,7 +336,7 @@ export class GroundRenderer {
       this.drawn = state;
       // Programa de terreno ou de piso ainda compilando: o terreno é refeito no próximo quadro.
       this.drawBridges(view, width, height, reliefLight);
-      this.terrainDirty = this.terrain.pending || this.floor.pending || this.bridges.pending;
+      this.terrainDirty = this.terrain.pending || this.floor.pending || this.bridges.pending || this.stairs.pending;
     }
     // Barranco e fundo da água na resolução da tela (só refaz quando a visão ou a água mudam).
     this.water.bakeView(view, width, height);
@@ -360,8 +371,8 @@ export class GroundRenderer {
       bindTextures(gl, this.blit, [["uImage", this.reliefImage]]);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
-    // Pontes por cima do relevo (passam sobre o penhasco), por baixo das paredes.
-    if (!this.bridges.empty && this.bridgeImage) {
+    // Pontes e, por cima delas, escadas: por cima do relevo (passam sobre o penhasco), por baixo das paredes.
+    if ((!this.bridges.empty || !this.stairs.empty) && this.bridgeImage) {
       gl.useProgram(this.blit.program);
       useVertices(gl, this.triangle);
       gl.uniform2f(uniformOf(gl, this.blit, "uCanvas"), width, height);
@@ -458,7 +469,10 @@ export class GroundRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     const water = this.waterWeights();
-    this.bridges.draw(view, width, height, scene, { blank: this.blank, water, bindRelief: (program, extra) => this.relief.bindSample(program, view, width, height, extra) });
+    const bindRelief = (program: Program, extra: [string, WebGLTexture][]) => this.relief.bindSample(program, view, width, height, extra);
+    this.bridges.draw(view, width, height, scene, { blank: this.blank, water, bindRelief });
+    // Escadas na mesma imagem, por cima das pontes.
+    this.stairs.draw(view, width, height, scene, { blank: this.blank, bindRelief });
   }
 
   private drawFloors(view: GroundView, width: number, height: number, scene: SceneLight) {
@@ -540,6 +554,7 @@ export class GroundRenderer {
     this.floor.dispose();
     gl.deleteTexture(this.blank);
     this.bridges.dispose();
+    this.stairs.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

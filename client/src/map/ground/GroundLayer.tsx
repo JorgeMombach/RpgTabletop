@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { duneMask, FrameWatch, type Bridge, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
+import { duneMask, FrameWatch, type Bridge, type Stair, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
 import { useApp } from "../../store";
 import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
@@ -63,9 +63,12 @@ export const GroundLayer = memo(function GroundLayer({
   dust,
   floors,
   bridges,
+  stairs,
 }: {
   /** Pontes da cena (docs/design/pontes.md). */
   bridges: Bridge[];
+  /** Escadas da cena (docs/design/escadas.md). */
+  stairs: Stair[];
   /** Piso da cena (com a prévia da passada, se houver). */
   floors: FloorChunks;
   /** Vento do clima para a poeira das dunas: 0 = nada, 1 = vento, 2 = tempestade de areia; direção 1 = direita. */
@@ -274,6 +277,7 @@ export const GroundLayer = memo(function GroundLayer({
   const wallDrawStyle = useApp((state) => state.wallDrawStyle);
   const floorMaterial = useApp((state) => state.floorBrush.material);
   const bridgeKind = useApp((state) => state.bridgeBrush.kind);
+  const stairShape = useApp((state) => state.stairBrush.shape);
   const brushTerrain = useApp((state) => TERRAINS.find((terrain) => terrain === state.terrainBrush.terrain));
   useEffect(() => {
     if (!renderer) return;
@@ -282,7 +286,8 @@ export const GroundLayer = memo(function GroundLayer({
     if (tool === "floor") renderer.warm({ floor: floorMaterial });
     if (tool === "terrain" && brushTerrain) renderer.warm({ terrain: brushTerrain });
     if (tool === "bridge") renderer.warm({ bridge: bridgeKind });
-  }, [renderer, tool, wallDrawStyle, sceneStyle, floorMaterial, brushTerrain, bridgeKind]);
+    if (tool === "stair") renderer.warm({ stair: stairShape });
+  }, [renderer, tool, wallDrawStyle, sceneStyle, floorMaterial, brushTerrain, bridgeKind, stairShape]);
 
   // Pontes: com o relevo (nível das pontas); a camada é refeita no próximo desenho.
   useEffect(() => {
@@ -290,6 +295,13 @@ export const GroundLayer = memo(function GroundLayer({
     renderer.setBridges(bridges, relief);
     setVersion((value) => value + 1);
   }, [renderer, bridges, relief]);
+
+  // Escadas: com o relevo (o perfil segue o chão); a camada é refeita no próximo desenho.
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setStairs(stairs, relief);
+    setVersion((value) => value + 1);
+  }, [renderer, stairs, relief]);
 
   // Pisos: a camada é refeita no próximo desenho.
   useEffect(() => {

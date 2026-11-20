@@ -1650,6 +1650,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               dust={dust}
               floors={floorPreview ?? floors}
               bridges={state.battle.bridges}
+              stairs={state.battle.stairs}
             />
           )}
 
