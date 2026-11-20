@@ -505,3 +505,44 @@ export function duneMask(chunks: ReliefChunks): DuneMask | null {
   }
   return { cx, cy, cols, rows, data };
 }
+
+/**
+ * Altura do relevo (níveis) em qualquer ponto do mapa (casas): a bilinear do mesmo campo de `reliefHeights`, com os
+ * pedaços guardados (cada um calculado na primeira leitura). Fora do alcance do relevo, 0. Para quem precisa da altura
+ * no processador (o perfil das escadas).
+ */
+export function reliefSampler(chunks: ReliefChunks): (x: number, y: number) => number {
+  const cells = TERRAIN_CHUNK_SIDE / TERRAIN_FINE;
+  const side = (cells + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+  const reach = Math.ceil(RELIEF_MARGIN / cells);
+  const present = new Set(Object.keys(chunks));
+  const cache = new Map<string, Float32Array | null>();
+  const heightsOf = (cx: number, cy: number): Float32Array | null => {
+    const key = chunkKey(cx, cy);
+    const known = cache.get(key);
+    if (known !== undefined) return known;
+    // só calcula se algum pedaço com relevo alcança este (a face e a margem chegam a um pedaço de distância)
+    let near = false;
+    for (let dy = -reach; dy <= reach && !near; dy++) for (let dx = -reach; dx <= reach && !near; dx++) near = present.has(chunkKey(cx + dx, cy + dy));
+    const heights = near ? reliefHeights(chunks, key) : null;
+    cache.set(key, heights);
+    return heights;
+  };
+  return (x, y) => {
+    if (present.size === 0 || !Number.isFinite(x) || !Number.isFinite(y)) return 0;
+    const cx = Math.floor(x / cells);
+    const cy = Math.floor(y / cells);
+    const heights = heightsOf(cx, cy);
+    if (!heights) return 0;
+    const gx = (x - (cx * cells - RELIEF_MARGIN)) * RELIEF_PER_CELL;
+    const gy = (y - (cy * cells - RELIEF_MARGIN)) * RELIEF_PER_CELL;
+    const x0 = Math.min(side - 2, Math.floor(gx));
+    const y0 = Math.min(side - 2, Math.floor(gy));
+    const fx = gx - x0;
+    const fy = gy - y0;
+    const at = (i: number, j: number) => heights[j * side + i];
+    const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * fx;
+    const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * fx;
+    return top + (bottom - top) * fy;
+  };
+}

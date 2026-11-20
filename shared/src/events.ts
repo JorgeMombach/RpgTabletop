@@ -643,6 +643,11 @@ export const LIMITS = {
   /** Pontes por cena e comprimento de uma ponte (casas). */
   bridges: 64,
   bridgeLength: { min: 1, max: 40 },
+  /** Escadas por cena (docs/design/escadas.md): comprimento do caminho e pontos dele; comprimento da escada de mão (casas). */
+  stairs: 64,
+  stairLength: { min: 1, max: 40 },
+  stairPoints: 16,
+  ladderLength: { min: 1, max: 4 },
   propSize: { min: 0.25, max: 4 },
   /** Casas de uma pintura (pincel de efeitos) e números (col e row) por pincelada. */
   paintCells: 5000,
