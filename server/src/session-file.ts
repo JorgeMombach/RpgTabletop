@@ -61,6 +61,7 @@ import { markTerrain, parseTerrainChunks } from "./actions/terrain";
 import { parseChest } from "./actions/chests";
 import { parseProp } from "./actions/props";
 import { parseBridge } from "./actions/bridges";
+import { parseStair } from "./actions/stairs";
 import { parseWall } from "./actions/walls";
 import { parseTable } from "./tables";
 import { parseClock } from "./actions/clock";
@@ -707,6 +708,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     props: list(b.props ?? [], "objetos", LIMITS.props).map((p) => ({ id: requireString(obj(p, "objeto").id, "Objeto"), ...parseProp(p) })),
     // Pontes (docs/design/pontes.md); arquivos anteriores não têm.
     bridges: list(b.bridges ?? [], "pontes", LIMITS.bridges).map((bridge) => ({ id: requireString(obj(bridge, "ponte").id, "Ponte"), ...parseBridge(bridge) })),
+    // Escadas (docs/design/escadas.md); arquivos anteriores não têm.
+    stairs: list(b.stairs ?? [], "escadas", LIMITS.stairs).map((stair) => ({ id: requireString(obj(stair, "escada").id, "Escada"), ...parseStair(stair) })),
     // Correnteza da água; arquivos anteriores não têm.
     currents: list(b.currents ?? [], "correntezas", LIMITS.currents).map((c) => ({ id: requireString(obj(c, "correnteza").id, "Correnteza"), ...parseCurrent(c) })),
     weather: weatherFromFile(b.weather),

@@ -56,6 +56,7 @@ export function createGame(): GameState {
       chests: [],
       props: [],
       bridges: [],
+      stairs: [],
       currents: [],
       weather: defaultWeather(),
       fog: emptyFog(),

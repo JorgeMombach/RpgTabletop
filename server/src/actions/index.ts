@@ -21,6 +21,7 @@ import { mapTorchHandlers } from "./mapTorches";
 import { chestHandlers } from "./chests";
 import { propHandlers } from "./props";
 import { bridgeHandlers } from "./bridges";
+import { stairHandlers } from "./stairs";
 import { weatherHandlers } from "./weather";
 import { tableHandlers } from "./tables";
 import { clockHandlers } from "./clock";
@@ -50,6 +51,7 @@ export const handlers: HandlerMap = {
   ...chestHandlers,
   ...propHandlers,
   ...bridgeHandlers,
+  ...stairHandlers,
   ...ruleHandlers,
   ...soundHandlers,
   ...sheetHandlers,

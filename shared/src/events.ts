@@ -4,6 +4,7 @@ import type { ReliefStroke } from "./relief";
 import type { TerrainChunk, TerrainStroke } from "./terrain";
 import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
 import type { Bridge } from "./bridge";
+import type { Stair } from "./stair";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
 import type { CatalogCollection, CatalogDetails, CatalogLang } from "./catalog";
@@ -352,6 +353,9 @@ export interface ActionPayloads {
   "bridge:add": Omit<Bridge, "id">;
   "bridge:update": { id: string } & Partial<Omit<Bridge, "id">>;
   "bridge:remove": { ids: string[] };
+  "stair:add": Omit<Stair, "id">;
+  "stair:update": { id: string } & Partial<Omit<Stair, "id">>;
+  "stair:remove": { ids: string[] };
   /** Troca os pontos de uma linha (continuar pela ponta; desfazer a continuação). */
   "current:update": { id: string; points: number[] };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */

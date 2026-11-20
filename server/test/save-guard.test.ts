@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { encodeLayer } from "@rpg/shared";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, Bridge, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, WallWindow, RollTable, TableLoot, GameClock, JournalEntry, WaterCurrent } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, Bridge, Stair, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, WallWindow, RollTable, TableLoot, GameClock, JournalEntry, WaterCurrent } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -158,6 +158,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     ],
     props: [{ id: "pr1", kind: "tree", col: 6.25, row: 3.5, size: 1.4, rotation: 30, seed: 1234, above: true, blocks: false } satisfies Required<MapProp>],
     bridges: [{ id: "br1", from: { x: 2, y: 3.5 }, to: { x: 8.25, y: 3.5 }, width: 2, kind: "stone" } satisfies Required<Bridge>],
+    stairs: [{ id: "st1", shape: "path", points: [{ x: 2, y: 2 }, { x: 6, y: 2 }, { x: 6, y: 5.5 }], width: 2, material: "stone", exit: "down" } satisfies Required<Stair>],
     currents: [{ id: "c1", points: [1, 2.5, 3.25, 4] } satisfies Required<WaterCurrent>],
     weather,
     fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60, foundNpcs: ["guarda"] } satisfies Required<FogState>,
@@ -177,6 +178,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     torches: [],
     props: [{ id: "pr2", kind: "crates", col: 1, row: 1, size: 1, rotation: 0, seed: 5, above: false, blocks: true }],
     bridges: [{ id: "br2", from: { x: 1, y: 1 }, to: { x: 1, y: 5 }, width: 1, kind: "rope" }],
+    stairs: [{ id: "st2", shape: "ladder", points: [{ x: 3, y: 3 }, { x: 3, y: 1 }], width: 1, material: "wood", exit: "up" }],
     currents: [],
     chests: [],
     weather,
