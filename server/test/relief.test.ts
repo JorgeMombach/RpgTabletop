@@ -98,8 +98,9 @@ describe("relevo: dunas", () => {
     paintRelief(chunks, dunes(3, [16, 16, 18, 16, 20, 16], 3));
     const { heights } = reliefFields(chunks, "2,2");
     const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
-    // Casa (x, y) no mapa -> ponto da janela do pedaço 2,2 (começa em 16 - 8 = 8 casas).
-    const at = (x: number, y: number) => heights[Math.round((y - 8) * RELIEF_PER_CELL) * side + Math.round((x - 8) * RELIEF_PER_CELL)];
+    // Casa (x, y) no mapa -> ponto da janela do pedaço 2,2 (começa em 16 casas menos a margem).
+    const origin = 16 - RELIEF_MARGIN;
+    const at = (x: number, y: number) => heights[Math.round((y - origin) * RELIEF_PER_CELL) * side + Math.round((x - origin) * RELIEF_PER_CELL)];
     let low = Infinity;
     let high = -Infinity;
     for (let x = 16; x <= 20; x += 0.25) for (let y = 15; y <= 17; y += 0.25) { low = Math.min(low, at(x, y)); high = Math.max(high, at(x, y)); }
@@ -334,7 +335,12 @@ describe("relevo: altura por pedaço", () => {
   });
 
   it("pedaços afetados: o tocado e os vizinhos até a margem", () => {
-    assert.deepEqual(new Set(reliefAffected(["0,0"])), new Set(["-1,-1", "0,-1", "1,-1", "-1,0", "0,0", "1,0", "-1,1", "0,1", "1,1"]));
+    // margem de 12 casas: os pedaços (8 casas) até 2 de distância
+    const reach = Math.ceil(RELIEF_MARGIN / 8);
+    const expected = new Set<string>();
+    for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) expected.add(`${dx},${dy}`);
+    assert.equal(reach, 2);
+    assert.deepEqual(new Set(reliefAffected(["0,0"])), expected);
   });
 });
 

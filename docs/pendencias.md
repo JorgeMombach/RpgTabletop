@@ -186,8 +186,8 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Sem compilação em paralelo no navegador, a tela trava um instante (1–2 s) a cada desenho de parede novo que aparece.
 
 ### Relevo ([docs/design/relevo.md](design/relevo.md))
-- [ ] Sombra do relevo só alcança 8 casas (a margem da janela): no entardecer, a de um patamar de 2+ níveis termina numa linha quase reta (`reliefShader.ts`).
-- [ ] Altura de um pedaço leva 7 a ~35 ms (no Worker); o alvo era 5 ms (`relief.ts`).
+- [ ] Margem do relevo passou a 12 casas (sombra do entardecer inteira): cada pincelada de relevo dá ~4× mais conta no Worker (pedaço ~1,4× e 5 × 5 pedaços em vez de 3 × 3). Conferir num mapa grande se o relevo novo demora a aparecer.
+- [ ] Altura de um pedaço leva ~10 a ~50 ms com a margem de 12 casas (no Worker); o alvo era 5 ms (`relief.ts`).
 - [ ] Calibrar o comprimento da sombra (um nível = 1,6 × a sombra de uma parede) e a força da luz das encostas à noite.
 - [ ] Com o atlas cheio nas três resoluções, pedaço sem lugar fica plano; um lugar que se liberta depois não recalcula sozinho, e a resolução não volta a subir quando o relevo diminui (só recarregando) (`reliefPass.ts`).
 - [ ] Trocar a luz de novo no meio da mistura da sombra pula para a anterior; pedaço pintado durante a troca mostra a sombra antiga até todos ficarem prontos (`reliefPass.ts`).

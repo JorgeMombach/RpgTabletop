@@ -96,7 +96,8 @@ void main() {
   const float STEP = 0.1;
   float ray = windowLinear(local) + 0.02;
   float shadow = 1.0;
-  for (int i = 1; i <= 80 + uNoUnroll; i++) {
+  // até a margem da janela (12 casas, RELIEF_MARGIN) em passos de 0,1
+  for (int i = 1; i <= 120 + uNoUnroll; i++) {
     float t = float(i) * STEP;
     if (t > uMargin) break;
     float diff = windowLinear(local - uSunDir * t) - (ray + uRise * t);

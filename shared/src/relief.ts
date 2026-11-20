@@ -110,8 +110,12 @@ export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke): string[
 
 /** Altura grossa: 8 pontos por casa (o detalhe fino é do shader). */
 export const RELIEF_PER_CELL = 8;
-/** Casas de margem em volta do pedaço: a face suave de vários níveis e a sombra alcançam até aqui. */
-export const RELIEF_MARGIN = 8;
+/**
+ * Casas de margem em volta do pedaço: a face suave de vários níveis e a sombra alcançam até aqui. 12 (antes 8): a
+ * sombra de um patamar de 2+ níveis no entardecer cabe sem acabar numa linha reta; o pedaço custa ~1,4× e a pincelada
+ * refaz os pedaços até 2 de distância (no Worker).
+ */
+export const RELIEF_MARGIN = 12;
 /** Casas de face por nível: escarpa (penhasco de rocha, do lado de baixo da borda) e suave (rampa centrada na borda). */
 export const RELIEF_FACE = { cliff: 1.15, soft: 2.5 };
 /** Suavização da encosta suave (desvio, em casas): apaga as "dobras" da distância até uma borda irregular. */
