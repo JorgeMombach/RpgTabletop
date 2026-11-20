@@ -5,7 +5,7 @@ import { memo } from "react";
 import { useT } from "../../i18n";
 import { useApp } from "../../store";
 import { removeStairs, undo, updateStair, useMapUndo } from "../mapHistory";
-import { pointsForShape, STAIR_FLAT_COLOR, STAIR_MATERIAL_LABEL, STAIR_SHAPE_LABEL } from "./stairArt";
+import { pointsForShape, spiralEdge, STAIR_FLAT_COLOR, STAIR_MATERIAL_LABEL, STAIR_SHAPE_LABEL } from "./stairArt";
 
 const WIDTHS: BridgeWidth[] = [1, 2, 3];
 const isShape = (value: string): value is StairShape => STAIR_SHAPES.some((shape) => shape === value);
@@ -38,7 +38,10 @@ export const StairOptions = memo(function StairOptions({ selected }: { selected:
   }
   function pickWidth(next: BridgeWidth) {
     useApp.setState((s) => ({ stairBrush: { ...s.stairBrush, width: next } }));
-    if (selected && selected.width !== next) void updateStair(selected, { width: next });
+    if (!selected || selected.width === next) return;
+    // no caracol, a borda acompanha o raio novo
+    const points = selected.shape === "spiral" ? { points: [selected.points[0], spiralEdge(selected.points[0], selected.points[1], next)] } : {};
+    void updateStair(selected, { width: next, ...points });
   }
   function pickExit(next: StairExit) {
     useApp.setState((s) => ({ stairBrush: { ...s.stairBrush, exit: next } }));

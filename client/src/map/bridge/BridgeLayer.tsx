@@ -1,8 +1,13 @@
-import { bridgeLength, snapBridgeEnd, type Bridge, type LightPoint, type MapConfig } from "@rpg/shared";
+import { BRIDGE_KINDS, bridgeLength, snapBridgeEnd, type Bridge, type LightPoint, type MapConfig } from "@rpg/shared";
 import { useState } from "react";
 import { Circle, Group, Layer, Line } from "react-konva";
 import { updateBridge } from "../mapHistory";
+import { t } from "../../i18n";
+import { toast } from "../../notify";
 import { BRIDGE_FLAT_COLOR, BRIDGE_LINE_COLOR } from "./bridgeArt";
+
+/** Na ordem em que a placa de vídeo desenha (tipo, depois a lista), a mesma do clique (`bridgeAt`). */
+const drawOrder = (bridges: Bridge[]) => [...bridges].sort((first, second) => BRIDGE_KINDS.indexOf(first.kind) - BRIDGE_KINDS.indexOf(second.kind));
 
 type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY">;
 
@@ -67,7 +72,7 @@ export function BridgeLayer({
   return (
     <Layer listening={editing}>
       {flat &&
-        bridges.map((raw) => {
+        drawOrder(bridges).map((raw) => {
           const bridge = shown(raw);
           return (
             <Group key={bridge.id} listening={false}>
@@ -103,9 +108,15 @@ export function BridgeLayer({
                 }}
                 onDragEnd={(event) => {
                   const at = snapBridgeEnd(toCells(event.target.x(), event.target.y()), event.evt.shiftKey);
-                  setMoving(null);
                   const next = { ...selected, [end]: at };
-                  if (bridgeLength(next) >= 1) void updateBridge(selected, { [end]: at });
+                  if (bridgeLength(next) < 1) {
+                    setMoving(null);
+                    toast({ kind: "error", text: t("bridge.tooShort") });
+                    return;
+                  }
+                  // a prévia fica até o servidor responder (o estado novo chega antes da resposta): a ponta não pisca
+                  setMoving({ id: selected.id, end, at });
+                  void updateBridge(selected, { [end]: at }).then(() => setMoving(null));
                 }}
               />
             );

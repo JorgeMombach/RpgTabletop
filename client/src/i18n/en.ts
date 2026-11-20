@@ -1014,6 +1014,7 @@ export const en: Partial<Messages> = {
   "bridge.remove": "Delete bridge",
   "bridge.hint": "Drag from one bank to the other (ends snap to half squares; hold Shift for free ends). Click a bridge to select it.",
   "bridge.hintSelected": "Drag the handles to move the ends; the buttons change its type and width. Delete removes it. Click elsewhere to deselect.",
+  "bridge.tooShort": "Bridge too short: drag from one bank to the other (at least 1 square).",
   "stair.tool": "Stairs",
   "stair.toolTip": "Stone or wooden stairs: with turns, spiral or ladder. On relief they go up and down with the ground; loose, they rise to a cut edge or go down to a trapdoor. Visual only; everyone sees them.",
   "stair.shape": "Stair shape",

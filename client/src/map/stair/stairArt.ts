@@ -36,10 +36,20 @@ export function pointsForShape(stair: Stair, shape: StairShape): LightPoint[] {
   const span = Math.hypot(last.x - first.x, last.y - first.y);
   const direction = span > 0 ? { x: (last.x - first.x) / span, y: (last.y - first.y) / span } : { x: 0, y: -1 };
   const toward = (length: number): LightPoint => ({ x: cent(first.x + direction.x * length), y: cent(first.y + direction.y * length) });
-  if (shape === "spiral") return [first, toward(Math.max(0.5, Math.min(span, stair.width / 2)))];
+  if (shape === "spiral") return [first, spiralEdge(first, last, stair.width)];
   if (shape === "ladder") return [first, toward(Math.min(4, Math.max(1, span)))];
   if (stair.shape === "path") return stair.points;
   return stairPath([first, last]).length >= 1 ? [first, last] : [first, toward(1)];
+}
+
+/**
+ * A borda do caracol: no raio (meia largura), na direção de `toward` a partir do centro (a direção dá o primeiro
+ * degrau); sem direção (o mesmo ponto), para a direita. Em centésimos, como o servidor guarda.
+ */
+export function spiralEdge(center: LightPoint, toward: LightPoint, width: number): LightPoint {
+  const span = Math.hypot(toward.x - center.x, toward.y - center.y);
+  const [dx, dy] = span > 0 ? [(toward.x - center.x) / span, (toward.y - center.y) / span] : [1, 0];
+  return { x: cent(center.x + dx * (width / 2)), y: cent(center.y + dy * (width / 2)) };
 }
 
 /** Folga (casas) além da meia largura em que o clique ainda acrescenta um ponto no trecho. */

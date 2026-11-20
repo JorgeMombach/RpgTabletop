@@ -1,9 +1,17 @@
-import { snapBridgeEnd, stairPath, stairPointAt, type LightPoint, type MapConfig, type Stair } from "@rpg/shared";
+import { snapBridgeEnd, STAIR_SHAPES, stairPath, stairPointAt, type LightPoint, type MapConfig, type Stair } from "@rpg/shared";
 import { useState } from "react";
 import { Circle, Group, Layer, Line } from "react-konva";
 import { toast } from "../../notify";
 import { updateStair } from "../mapHistory";
-import { STAIR_FLAT_COLOR, STAIR_LINE_COLOR, stairSizeWarning } from "./stairArt";
+import { spiralEdge, STAIR_FLAT_COLOR, STAIR_LINE_COLOR, stairSizeWarning } from "./stairArt";
+
+/** Na ordem em que a placa de vídeo desenha (formato, depois a lista), a mesma do clique (`stairAt`). */
+const drawOrder = (stairs: Stair[]) => [...stairs].sort((first, second) => STAIR_SHAPES.indexOf(first.shape) - STAIR_SHAPES.indexOf(second.shape));
+
+/** Onde a alça para: a borda do caracol fica no raio (só a direção muda); os outros pontos vão aonde o mouse for. */
+function handleAt(stair: Stair, index: number, at: LightPoint): LightPoint {
+  return stair.shape === "spiral" && index === 1 ? spiralEdge(stair.points[0], at, stair.width) : at;
+}
 
 type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY">;
 type StairShapeData = Omit<Stair, "id">;
@@ -135,7 +143,7 @@ export function StairLayer({
   return (
     <Layer listening={editing}>
       {flat &&
-        stairs.map((raw) => {
+        drawOrder(stairs).map((raw) => {
           const stair = shown(raw);
           return (
             <Group key={stair.id} listening={false}>
@@ -173,17 +181,22 @@ export function StairLayer({
               draggable
               onDragMove={(event) => {
                 const node = event.target;
-                const at = snapBridgeEnd(toCells(node.x(), node.y()), event.evt.shiftKey);
+                const at = handleAt(selected, index, snapBridgeEnd(toCells(node.x(), node.y()), event.evt.shiftKey));
                 node.position({ x: px(at)[0], y: px(at)[1] });
                 setMoving({ id: selected.id, index, at });
               }}
               onDragEnd={(event) => {
-                const at = snapBridgeEnd(toCells(event.target.x(), event.target.y()), event.evt.shiftKey);
-                setMoving(null);
+                const at = handleAt(selected, index, snapBridgeEnd(toCells(event.target.x(), event.target.y()), event.evt.shiftKey));
                 const points = selected.points.map((old, which) => (which === index ? at : old));
                 const warning = stairSizeWarning(selected.shape, points);
-                if (warning) toast({ kind: "error", text: warning });
-                else void updateStair(selected, { points });
+                if (warning) {
+                  setMoving(null);
+                  toast({ kind: "error", text: warning });
+                  return;
+                }
+                // a prévia fica até o servidor responder (o estado novo chega antes da resposta): a alça não pisca
+                setMoving({ id: selected.id, index, at });
+                void updateStair(selected, { points }).then(() => setMoving(null));
               }}
               onContextMenu={(event) => {
                 event.evt.preventDefault();

@@ -1021,6 +1021,7 @@ export const ptBR = {
   "bridge.remove": "Apagar ponte",
   "bridge.hint": "Arraste de uma margem à outra (as pontas encaixam na meia casa; com Shift, livres). Clique numa ponte para escolhê-la.",
   "bridge.hintSelected": "Arraste as alças para mover as pontas; os botões mudam o tipo e a largura dela. Delete apaga. Clique fora para soltar.",
+  "bridge.tooShort": "Ponte curta demais: arraste de uma margem à outra (pelo menos 1 casa).",
   "stair.tool": "Escada",
   "stair.toolTip": "Escadas de pedra ou de madeira: com curvas, caracol ou de mão. No relevo, sobem e descem com o chão; soltas, sobem até um corte ou descem até um alçapão. Só visual; todos veem.",
   "stair.shape": "Formato da escada",

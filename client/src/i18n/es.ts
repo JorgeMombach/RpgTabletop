@@ -1014,6 +1014,7 @@ export const es: Partial<Messages> = {
   "bridge.remove": "Borrar puente",
   "bridge.hint": "Arrastra de una orilla a la otra (los extremos se ajustan a media casilla; con Shift, libres). Haz clic en un puente para elegirlo.",
   "bridge.hintSelected": "Arrastra las asas para mover los extremos; los botones cambian su tipo y ancho. Supr lo borra. Haz clic fuera para soltarlo.",
+  "bridge.tooShort": "Puente demasiado corto: arrastra de una orilla a la otra (al menos 1 casilla).",
   "stair.tool": "Escalera",
   "stair.toolTip": "Escaleras de piedra o de madera: con curvas, de caracol o de mano. En el relieve suben y bajan con el suelo; sueltas, suben hasta un corte o bajan hasta una trampilla. Solo visual; todos las ven.",
   "stair.shape": "Forma de la escalera",

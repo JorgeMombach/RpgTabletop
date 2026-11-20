@@ -121,9 +121,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Pintar relevo com 3 ou 4 escadas longas por cima: o pincel não trava (o perfil é refeito só no fim da pincelada).
 - Menores da revisão (decidir se valem):
   - [ ] Lateral construída e parede cavada cortadas a 1 casa da borda (`out_ > 1.0` no stairShader): só aparece se a parede for alargada; as pontas da escada construída acima do chão ficam abertas.
-  - [ ] Caracol com a borda longe do centro: a alça fica longe e a caixa do desenho cresce à toa (normalizar a borda para o raio).
-  - [ ] Ao soltar a alça, ela pisca na posição antiga até o servidor responder.
-  - [ ] Sem WebGL: o desenho chapado põe por cima a última da lista; o clique escolhe pela ordem da placa (formato e depois lista).
 
 ### Pontes e píer (estruturas, parte 2)
 - [ ] Ferramenta *Ponte* (U): os três tipos, largura 1/2/3, arrastar de margem a margem (meia casa; Shift livre), clicar para escolher, alças nas pontas, Delete, *Desfazer*; cabe na coluna na largura mínima.
@@ -160,8 +157,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ## Pendências pequenas
 
 ### Pontes e píer ([docs/design/pontes.md](design/pontes.md))
-- [ ] Ao soltar a alça, a ponta volta um instante à posição antiga até o servidor responder; mover para menos de 1 casa volta sem aviso (`BridgeLayer.tsx`: manter a prévia até a ponte mudar; toast com o motivo).
-- [ ] Arrastar entre 0,3 e 1 casa não cria ponte nem escolhe nada, sem aviso (`BattleMap.tsx` `finishBridge`).
 - [ ] Nível das pontas lido do ponto fino mais perto (processador) e o chão interpolado (placa): no relevo suave pode sobrar um fio de sombra na ponta em terra (`bridgePass.ts` `setBridges`).
 - [ ] Na sombra da ponte, o chão é lido no pixel e não no ponto da ponte que tapa o sol: em chão irregular, o comprimento da sombra erra um pouco (`bridgeShader.ts`, laço da sombra).
 - [ ] Estacas do píer: 16 leituras por pixel em todo pixel de tábua e de água perto dele, a cada redesenho; sair cedo quando não há piso de tábuas por perto (`floorShader.ts` `postDistance`).

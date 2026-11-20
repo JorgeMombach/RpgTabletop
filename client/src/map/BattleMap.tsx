@@ -30,7 +30,7 @@ import type { LightingInput } from "./ground/lightPass";
 import { CurrentLines } from "./water/CurrentLines";
 import { BridgeLayer } from "./bridge/BridgeLayer";
 import { StairLayer } from "./stair/StairLayer";
-import { insertStairPoint, stairSizeWarning } from "./stair/stairArt";
+import { insertStairPoint, spiralEdge, stairSizeWarning } from "./stair/stairArt";
 import { CURRENT_CONTINUE, CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent, type CurrentDraft } from "./water/currentTool";
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
@@ -694,7 +694,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       useApp.setState({ selectedBridgeId: picked?.id ?? null });
       return;
     }
-    if (draft && bridgeLength(draft) >= 1) void addBridge(draft).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedBridgeId: result.ids[0] }));
+    // arrastou, mas a ponte ficou com menos de 1 casa: avisa em vez de não fazer nada
+    if (draft && bridgeLength(draft) < 1) return void toast({ kind: "error", text: t("bridge.tooShort") });
+    if (draft) void addBridge(draft).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedBridgeId: result.ids[0] }));
   }
   // Escada (mestre, docs/design/escadas.md). Escada com caminho: clique no pé, em cada virada e duas vezes (ou Enter)
   // no topo; Backspace tira o último ponto, Esc cancela. Caracol e de mão: arrastar. Clique sem arrastar escolhe a
@@ -743,7 +745,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (!press.dragged && Math.hypot(at.x - press.at.x, at.y - press.at.y) < 0.3) return;
     press.dragged = true;
     const foot = snapBridgeEnd(press.at, shift);
-    let top = snapBridgeEnd(at, shift);
+    const brush = useApp.getState().stairBrush;
+    // caracol: a borda fica no raio, na direção do arraste
+    let top = brush.shape === "spiral" ? spiralEdge(foot, at, brush.width) : snapBridgeEnd(at, shift);
     const span = Math.hypot(top.x - foot.x, top.y - foot.y);
     const longest = LIMITS.ladderLength.max;
     if (useApp.getState().stairBrush.shape === "ladder" && span > longest) {
