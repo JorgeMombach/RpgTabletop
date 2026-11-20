@@ -129,6 +129,12 @@ export class WaterPass {
   bakeView(view: GroundView, width: number, height: number) {
     const { gl } = this;
     if (!this.dirt || !this.framebuffer) return;
+    // sem água: nem compila o assado nem guarda as duas texturas do tamanho da tela
+    if (this.groups.length === 0) {
+      this.releaseBaked();
+      this.bakedFor = "";
+      return;
+    }
     const bake = this.programs.get("bake", () => BAKE_FRAGMENT);
     if (!bake) return;
     const key = [view.offsetX, view.offsetY, view.cellPx, view.stageX, view.stageY, view.scale, view.width, view.height, width, height, this.version].join("|");

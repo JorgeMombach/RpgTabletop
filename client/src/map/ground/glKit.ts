@@ -16,6 +16,15 @@ export interface GroundView {
   pixelRatio: number;
 }
 
+/** Um retângulo do mapa (em casas) aparece na tela. */
+export function cellRectOnScreen(view: GroundView, col: number, row: number, cols: number, rows: number): boolean {
+  const left = (view.offsetX + col * view.cellPx) * view.scale + view.stageX;
+  const top = (view.offsetY + row * view.cellPx) * view.scale + view.stageY;
+  const right = left + cols * view.cellPx * view.scale;
+  const bottom = top + rows * view.cellPx * view.scale;
+  return right > 0 && bottom > 0 && left < view.width && top < view.height;
+}
+
 export interface Program {
   program: WebGLProgram;
   uniforms: Map<string, WebGLUniformLocation | null>;

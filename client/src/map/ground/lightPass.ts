@@ -1,5 +1,5 @@
 import { blockersNear, lightPolygon, stopAtWall, sunShadows, triangulate, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
-import { bindTextures, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
+import { bindTextures, cellRectOnScreen, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
 import { blendSceneLight, INDOOR_SUN, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
@@ -142,12 +142,15 @@ export class LightPass {
         changed = true;
       }
     }
-    const roomsJson = JSON.stringify([input.rooms, input.windows]);
-    if (roomsJson !== this.roomsJson) {
-      this.roomsJson = roomsJson;
-      this.roofVersion++;
-      this.rebuildRooms(input.rooms);
-      changed = true;
+    // Cômodos e janelas chegam memorizados: só compara o texto quando a lista é outra (arrastar tocha não refaz).
+    if (input.rooms !== previous?.rooms || input.windows !== previous?.windows) {
+      const roomsJson = JSON.stringify([input.rooms, input.windows]);
+      if (roomsJson !== this.roomsJson) {
+        this.roomsJson = roomsJson;
+        this.roofVersion++;
+        this.rebuildRooms(input.rooms);
+        changed = true;
+      }
     }
     if (this.rebuildTorches(input)) changed = true;
     return changed;
@@ -394,6 +397,11 @@ export class LightPass {
 
   get hasTorches(): boolean {
     return this.torches.length > 0;
+  }
+
+  /** Alguma tocha (a chama ou a luz até o alcance) aparece na tela: só então a tremulação pede quadros. */
+  torchesOnScreen(view: GroundView): boolean {
+    return this.torches.some(({ source }) => cellRectOnScreen(view, source.x - source.reach, source.y - source.reach, source.reach * 2, source.reach * 2));
   }
 
   /** A troca de luz da cena ainda está no meio (precisa de mais quadros para chegar). */

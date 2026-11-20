@@ -1,5 +1,5 @@
 import type { DuneMask } from "@rpg/shared";
-import { bindTextures, createTexture, NO_UNROLL, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView } from "./glKit";
+import { bindTextures, cellRectOnScreen, createTexture, NO_UNROLL, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView } from "./glKit";
 import { SCREEN } from "./reliefShader";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
 
@@ -124,6 +124,13 @@ export class DustPass {
   /** Programa ainda compilando. */
   get pending(): boolean {
     return this.active && this.programs.pending;
+  }
+
+  /** Há poeira animando e as dunas (a máscara, 4 pontos por casa) aparecem na tela. */
+  visible(view: GroundView): boolean {
+    const mask = this.mask;
+    if (!this.active || !mask) return false;
+    return cellRectOnScreen(view, mask.origin[0] / 4, mask.origin[1] / 4, mask.size[0] / 4, mask.size[1] / 4);
   }
 
   /** Desenha a poeira no alvo ligado (viewport e mistura pré-multiplicada já postos pelo chão). */

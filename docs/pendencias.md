@@ -165,18 +165,14 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
 - [ ] Rente a uma parede livre inclinada, a borda do piso anda em degraus de 1/4 de casa (o piso segue a grade fina) e aparece um dentinho de chão entre o piso e a parede. Caminho: no *Cômodo*, incluir também os pontos até a meia espessura da parede para fora (`shapeCover` em `shared/src/floor.ts`), ou recortar a borda pela linha da parede no shader.
 - [ ] Retângulo ou pincel gigante forjado (só o mestre) varre a caixa inteira antes de conferir o limite de pedaços (`shared/src/floor.ts` `paintFloor`): abortar quando passar de `LIMITS.terrainChunks`.
-- [ ] A prévia do pincel reenvia a textura inteira e refaz as caixas dos tapetes a cada movimento (`floorPass.ts` `setChunks`; `FloorLayer.tsx`).
 - [ ] Piso pintado atrás de porta secreta mostra o formato da sala sem névoa (vai inteiro para os jogadores, como terreno e relevo).
 - [ ] `floorPreview` não é limpo se a cena trocar no meio de uma passada.
 - [ ] Sem WebGL (`FloorLayer`), o piso passa 1/8 de casa da linha da parede (quadradinhos de ±1/8).
 - [ ] Barra do tapete pelo ponto mais perto: em tapete com borda diagonal sai em degraus.
 
 ### Chão, água, areia e dunas ([docs/design/relevo.md](design/relevo.md))
-- [ ] A poeira anima (chão redesenhado a 30 quadros/s) mesmo com as dunas fora da tela (`GroundRenderer.dusting` não olha a visibilidade, ao contrário da água).
 - [ ] `duneMask` não tem limite de tamanho: dunas a milhares de casas umas das outras alocam uma máscara enorme (sem o equivalente ao `TerrainTooLarge`).
-- [ ] A máscara das dunas é refeita a cada movimento do pincel de relevo, mesmo sem vento.
 - [ ] Sem compilação em paralelo, até 3 programas compilam no mesmo quadro (terreno, paredes, poeira: um por cache).
-- [ ] As duas texturas do assado da água (do tamanho da tela) são criadas e limpas mesmo sem água.
 - [ ] Comentário de `TerrainWeights.third` (`terrain.ts`) diz "areia"; lá fica a água funda. Comentário duplicado em `reliefBrush` (`store.ts`).
 - [ ] `reliefStrokeOf` exportada de um arquivo de componente (`ReliefOptions.tsx`): atrapalha o recarregamento rápido do Vite.
 - [ ] O relógio da poeira volta a zero a cada 30 min: o desenho dos fiapos pula uma vez nesse instante.
@@ -209,7 +205,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Emenda por arredondamento (0,001 casa), não por distância: traço livre que quase encosta (0,01) não emenda; sobreposição quase alinhada vira um X raso (`wallJoin.ts`).
 - [ ] Janela: o *Cômodo* da névoa conta toda janela, mas o telhado ignora janela com desenho vazado, e janela com desenho vazado nunca bloqueia mesmo fechada (`fog.ts`/`wallJoin.ts`: ignorar o desenho na janela).
 - [ ] A textura de um cômodo pode "pular" depois de *Desfazer* (a cadeia começa noutro ponto conforme a ordem das paredes; `wallJoin.ts`: começar pelo menor ponto).
-- [ ] O passo da luz compara cômodos e janelas por texto a cada atualização, inclusive arrastando tocha (`lightPass.ts`: comparar pela referência, já memorizada).
 - [ ] `parseWall`: `raw` da janela repete o nome do parâmetro e lê antes de conferir o tipo (mesmo padrão da porta); `getContext("2d")!` em `wallChainArt.ts` (já trocado na reescrita; conferir `wallArt.ts`).
 - [ ] A conta da emenda (O(n²)) roda duas vezes por mudança de paredes (cadeias e cômodos) e de novo na prévia de *Trocar desenho*.
 - [ ] Montar as imagens das paredes ao trocar de degrau de zoom ficou mais lento (600 paredes: ~0,8 s; antes ~0,14 s), porque cada pedaço de tira pinta o trecho inteiro.
@@ -217,7 +212,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Luz ([docs/design/luz.md](design/luz.md))
 - [ ] O corpo da tocha fixa é desenhado por cima da chama nova (a camada das chamas fica embaixo de `MapTorchLayer`): conferir de olho, principalmente a bacia do braseiro (`BattleMap.tsx`).
 - [ ] Chuva e neve escurecem pela luz de destino, não pela que está no meio da troca: pulam enquanto o mapa escurece devagar (`weatherDim` em `BattleMap.tsx`).
-- [ ] Com qualquer tocha na cena, o chão redesenha a 30 quadros por segundo, até de dia e com a tocha fora da tela; também com o chão desligado por terreno grande demais (`GroundLayer.tsx`, `flickering`).
+- [ ] Tocha na tela redesenha o chão a 30 quadros por segundo também de dia (a chama tremula; a luz da tocha de dia quase não aparece): decidir se de dia a chama pode ficar parada (`GroundRenderer.flickering`).
 - [ ] O texto do desenho diz que com névoa "nada aparece" depois de uma porta secreta, mas a camada da luz fica acima da névoa: a poça de luz aparece sobre a névoa (`docs/design/luz.md`; ajustar o texto).
 - [ ] O desenho diz que o mapa de luz já recebe a altura do chão; ainda não recebe (fica para o relevo).
 - [ ] No primeiro instante com o chão em WebGL, a película e o brilho antigos já saíram e o mapa de luz ainda não chegou: um piscar claro à noite ao abrir o mapa (`BattleMap.tsx`, `groundLit`).
@@ -232,7 +227,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Renderizador do chão ([docs/design/renderizador-chao.md](design/renderizador-chao.md))
 - [ ] Pintando grama por cima de água, a água animada antiga cobre a grama nova por ~150 ms depois de soltar, até o Worker responder (`GroundLayer.tsx`).
-- [ ] Com o chão desligado (`groundFailed`), o relógio da água continua desenhando num canvas invisível e alimentando o detector de aparelho lento (`GroundLayer.tsx`: incluir `!groundFailed` no relógio).
 - [ ] Mudar a densidade da tela (arrastar a janela para outro monitor) não redesenha o chão até a próxima mudança de visão (`GroundLayer.tsx`).
 - [ ] `terrainShader.ts` usa 8 e 16 fixos em vez de `TERRAIN_CHUNK_CELLS` e `DETAIL_PERIOD`.
 - [ ] Hash do ruído da borda faz `uint(x)` de inteiro negativo (terreno à esquerda/acima da origem): o ANGLE preserva os bits, mas a GLSL ES 3.00 não garante (`terrainShader.ts`).

@@ -317,8 +317,10 @@ export const GroundLayer = memo(function GroundLayer({
   }, [renderer, floors]);
 
   // Poeira das dunas: onde há duna (do relevo, com a prévia) e o vento do clima; parada com a animação desligada.
-  const dunes = useMemo(() => duneMask(relief), [relief]);
   const reduceDust = useApp((state) => state.reduceFx || state.windStalled);
+  // sem vento (ou com a animação desligada) não há poeira: a máscara nem é montada (o pincel do relevo muda a toda hora)
+  const blowing = dust.level > 0 && !reduceDust;
+  const dunes = useMemo(() => (blowing ? duneMask(relief) : null), [relief, blowing]);
   useEffect(() => {
     if (!renderer) return;
     renderer.setDust(dunes, reduceDust ? 0 : dust.level, dust.direction);
@@ -400,7 +402,8 @@ export const GroundLayer = memo(function GroundLayer({
   // Relógio da água: no máximo 30 quadros por segundo, só com água na tela. Cada quadro passa pelo detector (o mesmo
   // do vento): aparelho que não aguenta para a água e as plantas. Aba oculta: o navegador já pausa.
   useEffect(() => {
-    if (!renderer || !animate) return;
+    // chão desligado (o mapa voltou ao desenho de antes): nada a animar nem a medir
+    if (!renderer || !animate || groundFailed) return;
     const watch = new FrameWatch();
     let frame = 0;
     let previous = performance.now();
@@ -415,15 +418,15 @@ export const GroundLayer = memo(function GroundLayer({
         useApp.setState({ windStalled: true });
         return;
       }
-      // Anima com água na tela, com tocha tremulando ou com a luz da cena ainda trocando.
-      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering || renderer.busy || renderer.dusting)) return;
+      // Anima com água, tocha tremulando ou poeira na tela, ou com a luz da cena ainda trocando.
+      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.busy || renderer.dusting(viewRef.current))) return;
       lastDraw = now;
       timeRef.current = now / 1000;
       paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [renderer, animate]);
+  }, [renderer, animate, groundFailed]);
 
   // Com a animação desligada (Reduzir efeitos, aparelho lento), o relevo ainda precisa de quadros para ser calculado
   // (e as paredes, para o programa compilar): um quadro por vez até acabar (só cálculo e desenho, sem água animando).

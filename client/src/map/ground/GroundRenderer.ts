@@ -167,9 +167,9 @@ export class GroundRenderer {
     this.dust.setWind(level, direction);
   }
 
-  /** Há poeira das dunas animando: precisa de quadros. */
-  get dusting(): boolean {
-    return this.dust.active;
+  /** Há poeira das dunas animando na tela: precisa de quadros (fora da tela, nada a ver). */
+  dusting(view: GroundView): boolean {
+    return this.dust.visible(view);
   }
 
   /** Peças das paredes, portas e janelas (`wallPieces`): a camada é refeita no próximo desenho. */
@@ -423,8 +423,8 @@ export class GroundRenderer {
   }
 
   /** Alguma tocha na cena, ou a luz da cena ainda trocando: precisa animar mesmo sem água na tela. */
-  get flickering(): boolean {
-    return this.light.hasTorches || this.light.settling;
+  flickering(view: GroundView): boolean {
+    return this.light.torchesOnScreen(view) || this.light.settling;
   }
 
   /**
