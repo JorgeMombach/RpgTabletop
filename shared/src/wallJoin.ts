@@ -26,8 +26,13 @@ export interface WallChain {
   wallIds: string[];
 }
 
-/** Pontas que coincidem até um milésimo de casa são o mesmo nó. */
+/** Pontas que coincidem até um milésimo de casa são o mesmo nó (chave do nó). */
 const NODE_PRECISION = 1000;
+/**
+ * Encontros por distância (casas): ponta a até isso de outra ponta, ou do corpo de outra parede, emenda; parede quase
+ * alinhada com outra (as duas pontas a até isso da linha dela) segue a mesma linha, sem cruzar em X raso.
+ */
+const JOIN_DISTANCE = 0.03;
 /** Diferença máxima de uma reta (rad) para duas paredes seguirem uma na outra num nó de três ou mais. */
 const STRAIGHT_TOLERANCE = 0.35;
 const EPSILON = 1e-6;
@@ -54,12 +59,29 @@ const cross = (ax: number, ay: number, bx: number, by: number) => ax * by - ay *
 
 /** Corta cada parede onde outra encosta, cruza ou se sobrepõe a ela, e junta os trechos repetidos. */
 function splitWalls(walls: Wall[], sceneStyle: WallStyle): Edge[] {
-  const canonical = new Map<string, LightPoint>();
+  const cached = splitCache.get(walls)?.get(sceneStyle);
+  if (cached) return cached;
+  // Pontos já usados, numa grade de lado JOIN_DISTANCE: um ponto novo a até JOIN_DISTANCE de um deles vira ele.
+  const buckets = new Map<string, LightPoint[]>();
   const snap = (point: LightPoint): LightPoint => {
-    const key = nodeKey(point);
-    const known = canonical.get(key);
-    if (known) return known;
-    canonical.set(key, point);
+    const bx = Math.floor(point.x / JOIN_DISTANCE);
+    const by = Math.floor(point.y / JOIN_DISTANCE);
+    let best: LightPoint | null = null;
+    let bestDistance = JOIN_DISTANCE;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const known of buckets.get(bx + dx + "," + (by + dy)) ?? []) {
+          const distance = Math.hypot(known.x - point.x, known.y - point.y);
+          if (distance <= bestDistance) {
+            best = known;
+            bestDistance = distance;
+          }
+        }
+      }
+    }
+    if (best) return best;
+    const key = bx + "," + by;
+    buckets.set(key, [...(buckets.get(key) ?? []), point]);
     return point;
   };
   const edges = new Map<string, Edge>();
@@ -68,26 +90,34 @@ function splitWalls(walls: Wall[], sceneStyle: WallStyle): Edge[] {
     const py = wall.from.row;
     const rx = wall.to.col - px;
     const ry = wall.to.row - py;
+    const ownLength = Math.hypot(rx, ry);
     const cuts = [0, 1];
     walls.forEach((other, otherIndex) => {
-      if (wallIndex === otherIndex) return;
+      if (wallIndex === otherIndex || ownLength < EPSILON) return;
       const qx = other.from.col;
       const qy = other.from.row;
       const sx = other.to.col - qx;
       const sy = other.to.row - qy;
-      const denominator = cross(rx, ry, sx, sy);
-      if (Math.abs(denominator) < 1e-9) {
-        // Paralelas: só importa se estão no mesmo alinhamento (as pontas da outra cortam esta).
-        if (Math.abs(cross(qx - px, qy - py, rx, ry)) > EPSILON) return;
+      const otherLength = Math.hypot(sx, sy);
+      if (otherLength < EPSILON) return;
+      // Distância (com sinal) de um ponto até a linha desta parede.
+      const offLine = (x: number, y: number) => cross(x - px, y - py, rx, ry) / ownLength;
+      if (Math.abs(offLine(qx, qy)) <= JOIN_DISTANCE && Math.abs(offLine(qx + sx, qy + sy)) <= JOIN_DISTANCE) {
+        // Mesmo alinhamento (ou quase): as pontas da outra cortam esta onde caem nela.
         for (const end of [other.from, other.to]) {
-          const along = ((end.col - px) * rx + (end.row - py) * ry) / (rx * rx + ry * ry);
+          const along = ((end.col - px) * rx + (end.row - py) * ry) / (ownLength * ownLength);
           if (along > EPSILON && along < 1 - EPSILON) cuts.push(along);
         }
         return;
       }
+      const denominator = cross(rx, ry, sx, sy);
+      if (Math.abs(denominator) < 1e-9) return;
       const along = cross(qx - px, qy - py, sx, sy) / denominator;
       const across = cross(qx - px, qy - py, rx, ry) / denominator;
-      if (along > -EPSILON && along < 1 + EPSILON && across > -EPSILON && across < 1 + EPSILON) cuts.push(Math.min(1, Math.max(0, along)));
+      // Cruza, encosta ou quase encosta (a até JOIN_DISTANCE de uma das pontas, medido em casas).
+      const ownSlack = JOIN_DISTANCE / ownLength;
+      const otherSlack = JOIN_DISTANCE / otherLength;
+      if (along > -ownSlack && along < 1 + ownSlack && across > -otherSlack && across < 1 + otherSlack) cuts.push(Math.min(1, Math.max(0, along)));
     });
     cuts.sort((first, second) => first - second);
     const kind = wall.door ? "door" : wall.window ? "window" : "wall";
@@ -103,7 +133,35 @@ function splitWalls(walls: Wall[], sceneStyle: WallStyle): Edge[] {
       edges.set(id, { index: 0, a, b, kind, style: wall.style ?? sceneStyle, ownStyle: wall.style, thickness: wall.thickness ?? WALL_THICKNESS.default, wallId: wall.id });
     }
   });
-  return [...edges.values()].map((edge, index) => ({ ...edge, index }));
+  const result = [...edges.values()].map((edge, index) => ({ ...edge, index }));
+  // Guardado pela lista de paredes: cadeias e cômodos da mesma lista cortam uma vez só (a conta é O(n²)).
+  const byStyle = splitCache.get(walls) ?? new Map<WallStyle, Edge[]>();
+  byStyle.set(sceneStyle, result);
+  splitCache.set(walls, byStyle);
+  return result;
+}
+
+/** Cortes já feitos, pela lista de paredes (o estado chega com a mesma lista enquanto as paredes não mudam). */
+const splitCache = new WeakMap<Wall[], Map<WallStyle, Edge[]>>();
+
+const before = (a: LightPoint, b: LightPoint) => a.x < b.x - EPSILON || (Math.abs(a.x - b.x) <= EPSILON && a.y < b.y - EPSILON);
+
+/**
+ * A mesma cadeia sempre do mesmo jeito, qualquer que seja a ordem das paredes guardadas (a textura corre ao longo dela
+ * e não pode "pular" depois de um desfazer): aberta, começa pela ponta menor (x, depois y); fechada, pelo menor ponto,
+ * seguindo para o vizinho menor.
+ */
+function canonicalChain(chain: WallChain): WallChain {
+  const { points } = chain;
+  if (!chain.closed) {
+    if (!before(points[points.length - 1], points[0])) return chain;
+    return { ...chain, points: [...points].reverse(), ends: [chain.ends[1], chain.ends[0]], extend: [chain.extend[1], chain.extend[0]] };
+  }
+  let start = 0;
+  for (let index = 1; index < points.length; index++) if (before(points[index], points[start])) start = index;
+  const rotated = [...points.slice(start), ...points.slice(0, start)];
+  const ordered = rotated.length > 2 && before(rotated[rotated.length - 1], rotated[1]) ? [rotated[0], ...rotated.slice(1).reverse()] : rotated;
+  return { ...chain, points: ordered };
 }
 
 function buildGraph(edges: Edge[]): Map<string, GraphNode> {
@@ -206,7 +264,7 @@ export function wallChains(walls: Wall[], sceneStyle: WallStyle): WallChain[] {
     for (const end of [edge.a, edge.b]) if (!seen.has(edge) && !paired.has(`${nodeKey(end)}|${edge.index}`)) chains.push(walk(edge, end));
   }
   for (const edge of edges) if (edge.kind === "wall" && !seen.has(edge)) chains.push(walk(edge, edge.a));
-  return chains;
+  return chains.map(canonicalChain).sort((first, second) => (before(first.points[0], second.points[0]) ? -1 : before(second.points[0], first.points[0]) ? 1 : 0));
 }
 
 /** Muros de fora (muralha, paliçada): cercam um pátio, não um cômodo coberto. */
@@ -218,7 +276,10 @@ const OPEN_AIR: readonly WallStyle[] = ["rampart", "palisade"];
  * todos os desenhos fecham (o pátio murado ou cercado também é um lugar).
  */
 export function wallRooms(walls: Wall[], sceneStyle: WallStyle = "stone", options: { allStyles?: boolean } = {}): number[][] {
-  const edges = splitWalls(walls, sceneStyle).filter((edge) => options.allStyles || (!seeThrough(edge.ownStyle) && !OPEN_AIR.includes(edge.style)));
+  // Janela fecha o cômodo qualquer que seja o desenho (a persiana é dela); muralha e paliçada nunca fecham.
+  const edges = splitWalls(walls, sceneStyle).filter(
+    (edge) => options.allStyles || (!OPEN_AIR.includes(edge.style) && (edge.kind === "window" || !seeThrough(edge.ownStyle))),
+  );
   interface HalfEdge {
     from: LightPoint;
     to: LightPoint;

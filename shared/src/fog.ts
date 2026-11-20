@@ -176,10 +176,10 @@ export function cellsWithCenterIn(a: CellPoint, b: CellPoint, kind: GridKind): G
 
 /** Parede ou porta que bloqueia a passagem: toda parede e porta fechada (inclusive a secreta). */
 export function blocks(w: Wall): boolean {
+  // Janela: só com a persiana fechada (docs/design/paredes.md), qualquer que seja o desenho da parede.
+  if (w.window) return !!w.window.closed;
   // Cerca, grade, arame, sebe e muro baixo deixam ver, mesmo com o portão fechado.
   if (seeThrough(w.style)) return false;
-  // Janela: só com a persiana fechada (docs/design/paredes.md).
-  if (w.window) return !!w.window.closed;
   return !w.door || !w.door.open;
 }
 

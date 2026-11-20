@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { triangulate, wallChains, wallRooms, type Wall } from "@rpg/shared";
+import { blocks, lightBlockers, triangulate, wallChains, wallRooms, type Wall } from "@rpg/shared";
 
 // Paredes emendadas (docs/design/paredes.md): cadeias para o desenho e cômodos para o telhado invisível.
 let nextId = 0;
@@ -91,6 +91,51 @@ describe("paredes: emenda", () => {
     const walls = square();
     const [chain] = wallChains(walls, "stone");
     assert.deepEqual([...chain.wallIds].sort(), walls.map((item) => item.id).sort());
+  });
+});
+
+describe("paredes: emenda por distância e cadeia estável", () => {
+  it("ponta que quase encosta (0,01 casa) numa ponta ou no corpo de outra parede emenda", () => {
+    // ponta com ponta: uma cadeia só
+    assert.equal(wallChains([wall([0, 0], [4, 0]), wall([4.01, 0.01], [4, 4])], "stone").length, 1);
+    // ponta quase no corpo (T): a de cima é cortada no encontro e a do T termina nela
+    const chains = wallChains([wall([0, 0], [8, 0]), wall([4, 0.01], [4, 4])], "stone");
+    const foot = chains.find((chain) => chain.points.some((point) => point.y > 3));
+    assert.ok(foot);
+    assert.deepEqual(foot.ends.includes("butt"), true, "o pé do T encosta (não fica solto)");
+  });
+
+  it("duas paredes quase alinhadas sobrepostas viram uma linha só (sem X raso)", () => {
+    const chains = wallChains([wall([0, 0], [6, 0]), wall([3, 0.004], [9, 0.008])], "stone");
+    assert.equal(chains.length, 1);
+    const xs = chains[0].points.map((point) => point.x);
+    assert.equal(Math.min(...xs), 0);
+    assert.equal(Math.max(...xs), 9);
+  });
+
+  it("paredes bem separadas (0,2 casa) não emendam", () => {
+    assert.equal(wallChains([wall([0, 0], [4, 0]), wall([4.2, 0], [4.2, 4])], "stone").length, 2);
+  });
+
+  it("a cadeia sai igual qualquer que seja a ordem das paredes (a textura não pula depois do desfazer)", () => {
+    const walls = [wall([0, 0], [4, 0]), wall([4, 0], [4, 3]), wall([4, 3], [9, 3])];
+    const shape = (list: Wall[]) => wallChains(list, "stone").map((chain) => chain.points.map((point) => [point.x, point.y]));
+    assert.deepEqual(shape([...walls].reverse()), shape(walls));
+    assert.deepEqual(shape([walls[1], walls[2], walls[0]]), shape(walls));
+    const loop = square();
+    assert.deepEqual(shape([loop[2], loop[0], loop[3], loop[1]]), shape(loop));
+  });
+});
+
+describe("paredes: janela em parede vazada", () => {
+  it("janela conta como fechada para o cômodo e bloqueia com a persiana fechada, qualquer que seja o desenho", () => {
+    const room = [wall([0, 0], [7, 0]), wall([7, 0], [7, 7]), wall([7, 7], [4, 7]), wall([4, 7], [3, 7], { window: {}, style: "fence" }), wall([3, 7], [0, 7]), wall([0, 7], [0, 0])];
+    assert.equal(wallRooms(room).length, 1);
+    const shut = wall([0, 0], [1, 0], { window: { closed: true }, style: "fence" });
+    const open = wall([0, 0], [1, 0], { window: {}, style: "fence" });
+    assert.equal(blocks(shut), true);
+    assert.equal(blocks(open), false);
+    assert.equal(lightBlockers([shut])[0].seeThrough, false, "a persiana fechada segura a luz");
   });
 });
 

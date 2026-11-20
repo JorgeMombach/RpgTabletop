@@ -28,11 +28,14 @@ const SEE_THROUGH_SHADOW = 1 / 3;
 /** Folga da origem da luz para a parede que ela não pode atravessar (casas). */
 const WALL_GAP = 0.02;
 
-/** Trechos que seguram (ou marcam) a luz: paredes, portas fechadas e janelas fechadas; abertas ficam de fora. */
+/**
+ * Trechos que seguram (ou marcam) a luz: paredes, portas fechadas e janelas fechadas; abertas ficam de fora. A janela
+ * fechada segura inteira, qualquer que seja o desenho da parede (a persiana é dela).
+ */
 export function lightBlockers(walls: Wall[]): Segment[] {
   return walls
     .filter((wall) => !wall.door?.open && !(wall.window && !wall.window.closed))
-    .map((wall) => ({ x1: wall.from.col, y1: wall.from.row, x2: wall.to.col, y2: wall.to.row, seeThrough: seeThrough(wall.style) }));
+    .map((wall) => ({ x1: wall.from.col, y1: wall.from.row, x2: wall.to.col, y2: wall.to.row, seeThrough: !wall.window && seeThrough(wall.style) }));
 }
 
 /** Distância ao longo do raio (origem + direção × t) até o trecho, ou Infinity se não cruza. */

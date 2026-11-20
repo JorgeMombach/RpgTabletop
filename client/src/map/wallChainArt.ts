@@ -68,11 +68,16 @@ const unit = (a: Vec): Vec => {
  * Lados esquerdo e direito de cada ponto, com a quina em ângulo; `half` = meia largura. Ponta solta passa um pouco;
  * ponta numa quina de desenhos diferentes passa `extend` (meia espessura da outra), para o canto não ficar com dente.
  */
-function outline(points: Vec[], chain: WallChain, half: number, t: number, cell: number) {
+export function chainOutline(points: Vec[], chain: Pick<WallChain, "closed" | "ends" | "extend">, half: number, t: number, cell: number) {
   const count = points.length;
   const segments = chain.closed ? count : count - 1;
   const directions: Vec[] = [];
-  for (let index = 0; index < segments; index++) directions.push(unit(add(points[(index + 1) % count], scale(points[index], -1))));
+  const lengths: number[] = [];
+  for (let index = 0; index < segments; index++) {
+    const delta = add(points[(index + 1) % count], scale(points[index], -1));
+    directions.push(unit(delta));
+    lengths.push(Math.hypot(delta[0], delta[1]));
+  }
   const normal = (direction: Vec): Vec => [-direction[1], direction[0]];
   const reach = (end: 0 | 1) => (chain.ends[end] === "free" ? t * FREE_END : chain.extend[end] * cell);
   const left: Vec[] = [];
@@ -80,27 +85,47 @@ function outline(points: Vec[], chain: WallChain, half: number, t: number, cell:
   for (let index = 0; index < count; index++) {
     const previous = chain.closed ? directions[(index - 1 + count) % count] : directions[index - 1];
     const next = chain.closed ? directions[index % count] : directions[index];
-    let offset: Vec;
+    let leftOffset: Vec;
+    let rightOffset: Vec;
     if (previous && next) {
       const bisector = unit(add(normal(previous), normal(next)));
       const along = bisector[0] * normal(next)[0] + bisector[1] * normal(next)[1];
-      offset = scale(bisector, half / Math.max(MITER_FLOOR, along));
-    } else offset = scale(normal(previous ?? next), half);
+      const full = half / Math.max(MITER_FLOOR, along);
+      // Lado de dentro da quina (para onde o traço vira): o ponto não pode passar do comprimento dos trechos vizinhos,
+      // senão o contorno se cruza numa quina muito fechada. O de fora fica com o bico limitado.
+      const lengthBefore = lengths[(index - 1 + segments) % segments];
+      const lengthAfter = lengths[index % segments];
+      const fit = (direction: Vec, length: number) => length / Math.max(Math.abs(bisector[0] * direction[0] + bisector[1] * direction[1]), 1e-6);
+      const inner = Math.min(full, 0.9 * Math.min(fit(previous, lengthBefore), fit(next, lengthAfter)));
+      const turnsLeft = next[0] * normal(previous)[0] + next[1] * normal(previous)[1] > 0;
+      leftOffset = scale(bisector, turnsLeft ? inner : full);
+      rightOffset = scale(bisector, -(turnsLeft ? full : inner));
+    } else {
+      leftOffset = scale(normal(previous ?? next), half);
+      rightOffset = scale(leftOffset, -1);
+    }
     let point = points[index];
     if (!chain.closed && index === 0) point = add(point, scale(next, -reach(0)));
     if (!chain.closed && index === count - 1) point = add(point, scale(previous, reach(1)));
-    left.push(add(point, offset));
-    right.push(add(point, scale(offset, -1)));
+    left.push(add(point, leftOffset));
+    right.push(add(point, rightOffset));
   }
   return { left, right, directions, segments };
 }
 
 /** Tira mais longa que isso (px do mapa) vira pedaços: fica nítida de perto e só o pedaço na tela é desenhado. */
 const MAX_PIECE = 1024;
+/** Lado máximo da imagem de um trecho inteiro (px do aparelho): acima disso, cada pedaço pinta a sua parte. */
+const MAX_SHEET = 16384;
 
 /** Imagens guardadas, com um teto de pixels somados (saem primeiro as mais antigas, como as de outro degrau de zoom). */
-const cache = new Map<string, { ink: StripImage[]; body: StripImage[]; pixels: number }>();
+const cache = new Map<string, { ink: StripImage[]; body: StripImage[]; pixels: number; usedAt: number }>();
 const PIXEL_BUDGET = 32_000_000;
+/**
+ * Imagem usada há menos que isso (ms) não sai do cache: com mais paredes na tela do que o teto comporta, o teto passa
+ * (em vez de jogar fora o que está na tela e refazer tudo a cada quadro).
+ */
+const RECENT_MS = 2000;
 let cachedPixels = 0;
 
 /**
@@ -111,7 +136,9 @@ export function chainArt(chain: WallChain, grid: MapConfig, pxPerUnit: number): 
   const step = Math.pow(2, Math.ceil(Math.log2(Math.max(0.25, pxPerUnit)) * 4) / 4);
   const key = [chain.style, chain.thickness, chain.closed, chain.ends.join(), chain.extend.join(), chain.points.map((point) => `${point.x.toFixed(3)},${point.y.toFixed(3)}`).join(";"), step, grid.cellPx, grid.offsetX, grid.offsetY].join("|");
   const hit = cache.get(key);
+  const now = performance.now();
   if (hit) {
+    hit.usedAt = now;
     cache.delete(key);
     cache.set(key, hit);
     return hit;
@@ -124,9 +151,9 @@ export function chainArt(chain: WallChain, grid: MapConfig, pxPerUnit: number): 
   const second = chain.points[1] ?? first;
   const seed = wallSeed(first.x, first.y, second.x, second.y);
   const painter = WALL_PAINTERS[chain.style];
-  const solid = outline(points, chain, t / 2, t, grid.cellPx);
+  const solid = chainOutline(points, chain, t / 2, t, grid.cellPx);
   // Nas vazadas, os esteios e portões passam da espessura: recorte largo.
-  const wide = open ? outline(points, chain, t * 3, t, grid.cellPx) : solid;
+  const wide = open ? chainOutline(points, chain, t * 3, t, grid.cellPx) : solid;
   const inkPad = t * 1.5;
   const ink: StripImage[] = [];
   const body: StripImage[] = [];
@@ -213,10 +240,30 @@ export function chainArt(chain: WallChain, grid: MapConfig, pxPerUnit: number): 
       );
     }
     const start = along;
+    // Trecho em vários pedaços: a textura do trecho inteiro é pintada uma vez (na resolução do degrau) e cada pedaço
+    // recorta dela (antes, cada pedaço pintava o trecho inteiro). Comprido demais para uma imagem: como antes.
+    const reachY = t * 3.5;
+    const sheetWidth = (length + t * 4) * step;
+    const sheet = count > 1 && sheetWidth <= MAX_SHEET && reachY * 2 * step <= MAX_SHEET ? document.createElement("canvas") : null;
+    if (sheet) {
+      sheet.width = Math.ceil(sheetWidth);
+      sheet.height = Math.ceil(reachY * 2 * step);
+      pixels += sheet.width * sheet.height;
+      const sheetContext = sheet.getContext("2d");
+      if (sheetContext) {
+        sheetContext.scale(step, step);
+        sheetContext.translate(t * 2 - start, reachY);
+        painter(sheetContext, start - t * 2, start + length + t * 2, t, seed, grid.cellPx);
+      }
+    }
     for (let piece = 0; piece < count; piece++) {
       body.push(
         strip(index, pieceOf(wide, piece), 1, (ctx, local) => {
           ctx.clip(pathOf(local));
+          if (sheet) {
+            ctx.drawImage(sheet, -t * 2, -reachY, sheet.width / step, sheet.height / step);
+            return;
+          }
           ctx.translate(-start, 0);
           painter(ctx, start - t * 2, start + length + t * 2, t, seed, grid.cellPx);
         }),
@@ -224,11 +271,13 @@ export function chainArt(chain: WallChain, grid: MapConfig, pxPerUnit: number): 
     }
     along += length;
   }
-  const art = { ink, body, pixels };
+  const art = { ink, body, pixels, usedAt: now };
   cache.set(key, art);
   cachedPixels += pixels;
+  // Saem primeiro as mais antigas; as usadas há pouco (na tela) ficam.
   for (const [oldKey, old] of cache) {
     if (cachedPixels <= PIXEL_BUDGET || cache.size <= 1) break;
+    if (now - old.usedAt < RECENT_MS) continue;
     cache.delete(oldKey);
     cachedPixels -= old.pixels;
   }

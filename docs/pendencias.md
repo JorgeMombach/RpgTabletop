@@ -188,15 +188,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] A sombra do relevo é cara de calcular (256² × 80 passos); numa troca de luz grande em placa integrada, os quadros lentos podem ligar o detector de aparelho lento e parar água e plantas.
 - [ ] Memória das alturas no processador: ~109 KB por pedaço (até ~50 MB no limite de pedaços).
 
-### Paredes emendadas ([docs/design/paredes.md](design/paredes.md))
-- [ ] Mapa com mais de ~700 cadeias (muitos cruzamentos de desenhos diferentes) pode refazer as imagens a todo quadro (`wallChainArt.ts`: o teto é de pixels, mas o que está na tela pode passar dele).
-- [ ] Quina muito fechada no traço livre (ângulo interno abaixo de ~35°): o lado de dentro do contorno se cruza (`wallChainArt.ts`, chanfrar em vez de limitar o bico).
-- [ ] Emenda por arredondamento (0,001 casa), não por distância: traço livre que quase encosta (0,01) não emenda; sobreposição quase alinhada vira um X raso (`wallJoin.ts`).
-- [ ] Janela: o *Cômodo* da névoa conta toda janela, mas o telhado ignora janela com desenho vazado, e janela com desenho vazado nunca bloqueia mesmo fechada (`fog.ts`/`wallJoin.ts`: ignorar o desenho na janela).
-- [ ] A textura de um cômodo pode "pular" depois de *Desfazer* (a cadeia começa noutro ponto conforme a ordem das paredes; `wallJoin.ts`: começar pelo menor ponto).
-- [ ] A conta da emenda (O(n²)) roda duas vezes por mudança de paredes (cadeias e cômodos) e de novo na prévia de *Trocar desenho*.
-- [ ] Montar as imagens das paredes ao trocar de degrau de zoom ficou mais lento (600 paredes: ~0,8 s; antes ~0,14 s), porque cada pedaço de tira pinta o trecho inteiro.
-
 ### Luz ([docs/design/luz.md](design/luz.md))
 - [ ] O corpo da tocha fixa é desenhado por cima da chama nova (a camada das chamas fica embaixo de `MapTorchLayer`): conferir de olho, principalmente a bacia do braseiro (`BattleMap.tsx`).
 - [ ] O texto do desenho diz que com névoa "nada aparece" depois de uma porta secreta, mas a camada da luz fica acima da névoa: a poça de luz aparece sobre a névoa (`docs/design/luz.md`; ajustar o texto).
