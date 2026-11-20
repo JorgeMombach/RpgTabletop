@@ -357,7 +357,9 @@ export const GroundLayer = memo(function GroundLayer({
   };
   const viewRef = useRef(groundView);
   viewRef.current = groundView;
-  const waterDraft = draft || waterPending;
+  // Terreno confirmado novo que o efeito da água ainda não viu: já é pendente (no quadro logo depois de soltar o pincel,
+  // nem a prévia nem o pendente estariam ligados, e a água sumiria até o Worker responder).
+  const waterDraft = draft || waterPending || lastCommitted.current !== committed;
   const waterDraftRef = useRef(waterDraft);
   waterDraftRef.current = waterDraft;
   // Tempo da água: contínuo (não volta a zero quando algo muda); parada, fica no último instante.

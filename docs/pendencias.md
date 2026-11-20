@@ -216,14 +216,11 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Se só o shader da luz falhar, o chão inteiro volta para o desenho antigo (terreno junto).
 
 ### Água animada ([docs/design/agua.md](design/agua.md))
-- [ ] Ao trocar de cena, a água da cena anterior aparece por uma fração de segundo até o Worker responder (`WaterLayer.tsx`: limpar o renderizador ao trocar o terreno inteiro).
-- [ ] Ao soltar o pincel de água, a água some por ~150 ms até o Worker responder (`TerrainLayer.tsx` redesenha sem a aquarela antes).
 - [ ] Longe da origem do mapa (a partir de ~50–100 casas), as oitavas finas do ruído do shader perdem precisão (`waterShader.ts`, `hash`).
 - [ ] `dFdx`/`dFdy` depois de `return` antecipado e dentro de `if` no shader da água: possíveis pixels soltos na margem (`waterShader.ts`).
 - [ ] Pedras no rio têm só espuma e esteira, não a cúpula no relevo da água que o desenho pedia (`waterShader.ts`, `heightAt`).
 
 ### Renderizador do chão ([docs/design/renderizador-chao.md](design/renderizador-chao.md))
-- [ ] Pintando grama por cima de água, a água animada antiga cobre a grama nova por ~150 ms depois de soltar, até o Worker responder (`GroundLayer.tsx`).
 - [ ] Mudar a densidade da tela (arrastar a janela para outro monitor) não redesenha o chão até a próxima mudança de visão (`GroundLayer.tsx`).
 - [ ] `terrainShader.ts` usa 8 e 16 fixos em vez de `TERRAIN_CHUNK_CELLS` e `DETAIL_PERIOD`.
 - [ ] Hash do ruído da borda faz `uint(x)` de inteiro negativo (terreno à esquerda/acima da origem): o ANGLE preserva os bits, mas a GLSL ES 3.00 não garante (`terrainShader.ts`).

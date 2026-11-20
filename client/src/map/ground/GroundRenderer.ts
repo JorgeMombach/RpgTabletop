@@ -351,10 +351,12 @@ export class GroundRenderer {
       bindTextures(gl, this.blit, [["uImage", this.terrainImage]]);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
-    // Água por cima do terreno (cor pré-multiplicada).
+    // Água por cima do terreno (cor pré-multiplicada). Com a água pendente (prévia do pincel, Worker calculando a
+    // forma nova, troca de cena), o terreno já mostra a água em aquarela: a animada antiga não vai por cima (cobriria
+    // a grama pintada por cima dela ou mostraria a água da cena anterior).
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    this.water.render(view, time, width, height);
+    if (!waterDraft) this.water.render(view, time, width, height);
     // Pisos por cima da água e por baixo do relevo (a luz da encosta pega o piso; a face do penhasco o cobre).
     if (!this.floor.empty && this.floorImage) {
       gl.useProgram(this.blit.program);
