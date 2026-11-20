@@ -96,6 +96,12 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
 export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", floor: "K", bridge: "U", stair: "Y", fog: "F" };
 
+/** A ferramenta aberta tem uma peça do mapa escolhida (objeto, ponte, escada): o Delete apaga a peça, não o token. */
+function mapPiecePicked(tool: MapTool): boolean {
+  const { selectedPropId, selectedBridgeId, selectedStairId } = useApp.getState();
+  return (tool === "props" && !!selectedPropId) || (tool === "bridge" && !!selectedBridgeId) || (tool === "stair" && !!selectedStairId);
+}
+
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
 const PAN_SPEED = 700;
@@ -1542,7 +1548,11 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
       const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", k: "floor", u: "bridge", y: "stair", f: "fog" } : {}) };
-      if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
+      // Teclas que também são do token ou do combate: com um token escolhido, K abre as Condições (não o Piso); em
+      // combate, N passa o turno (atalho geral, Shortcuts.tsx) e não troca para o Relevo.
+      const tokenPicked = !!selectedId && allCombatants(state).some((combatant) => combatant.id === selectedId);
+      const taken = (key === "k" && tokenPicked) || (gm && key === "n" && state.battle.combat.active);
+      if (tools[key] && !e.repeat && !taken) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
         else select(null);
@@ -1572,7 +1582,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       if (key === "k") return done(), openMenu("conditions");
       if (key === "t") return done(), void act("torch:set", { id: c.id, lit: !c.torch });
       if (key === "h" && gm && c.type !== "ally") return done(), void act("combatant:setHidden", { id: c.id, hidden: !c.hidden });
-      if (key === "Delete" && (gm || c.type === "ally")) return done(), void removeCombatant(c);
+      // Delete com uma peça escolhida na ferramenta (objeto, ponte, escada) é dela: o token fica.
+      if (key === "Delete" && !e.defaultPrevented && !mapPiecePicked(tool) && (gm || c.type === "ally")) return done(), void removeCombatant(c);
       // Altura e direção (Passo 10): PgUp/PgDn sobe e desce 5 ft; vírgula e ponto giram 45°.
       if (c.pos && (key === "PageUp" || key === "PageDown")) return done(), void act("token:pose", { id: c.id, elevation: (c.elevation ?? 0) + (key === "PageUp" ? 5 : -5) });
       if (c.pos && (key === "," || key === ".")) return done(), void act("token:pose", { id: c.id, facing: (c.facing ?? 0) + (key === "." ? 45 : -45) });

@@ -122,9 +122,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - Menores da revisão (decidir se valem):
   - [ ] Lateral construída e parede cavada cortadas a 1 casa da borda (`out_ > 1.0` no stairShader): só aparece se a parede for alargada; as pontas da escada construída acima do chão ficam abertas.
   - [ ] Caracol com a borda longe do centro: a alça fica longe e a caixa do desenho cresce à toa (normalizar a borda para o raio).
-  - [ ] Delete com um token escolhido e a ferramenta Escada (ou Ponte, Objetos) apaga os dois (o atalho global não confere `defaultPrevented`).
   - [ ] Ao soltar a alça, ela pisca na posição antiga até o servidor responder.
-  - [ ] A ajuda de atalhos (?) não lista Y (nem N, K, U).
   - [ ] Sem WebGL: o desenho chapado põe por cima a última da lista; o clique escolhe pela ordem da placa (formato e depois lista).
 
 ### Pontes e píer (estruturas, parte 2)
@@ -167,7 +165,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Nível das pontas lido do ponto fino mais perto (processador) e o chão interpolado (placa): no relevo suave pode sobrar um fio de sombra na ponta em terra (`bridgePass.ts` `setBridges`).
 - [ ] Na sombra da ponte, o chão é lido no pixel e não no ponto da ponte que tapa o sol: em chão irregular, o comprimento da sombra erra um pouco (`bridgeShader.ts`, laço da sombra).
 - [ ] Estacas do píer: 16 leituras por pixel em todo pixel de tábua e de água perto dele, a cada redesenho; sair cedo quando não há piso de tábuas por perto (`floorShader.ts` `postDistance`).
-- [ ] Delete com a ferramenta Ponte também pode apagar um token escolhido (o mesmo padrão dos objetos; `BattleMap.tsx`).
 - [ ] A ponte de pedra compila em ~3 s na placa integrada (o calçamento aparece no tabuleiro e na cabeceira: duas cópias do voronoi).
 
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
