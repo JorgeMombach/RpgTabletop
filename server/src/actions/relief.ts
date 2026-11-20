@@ -1,4 +1,4 @@
-import { decodeLayer, LIMITS, paintRelief, RELIEF_DUNE, RELIEF_LEVELS, validReliefByte, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
+import { decodeLayer, isChunkKey, LIMITS, paintRelief, RELIEF_DUNE, RELIEF_LEVELS, validReliefByte, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
 import type { Store } from "../store";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
@@ -18,8 +18,6 @@ export function markRelief(store: Store, keys: Iterable<string> | "all") {
   for (const key of keys) store.reliefDirty.add(key);
 }
 
-const KEY = /^-?\d{1,4},-?\d{1,4}$/;
-
 /** Um pedaço vindo de fora (ação ou arquivo): 1024 bytes em base64, cada um um nível e tipo válidos. */
 export function parseReliefChunk(raw: unknown): string {
   if (typeof raw !== "string") fail("Relevo inválido.");
@@ -32,10 +30,10 @@ export function parseReliefChunk(raw: unknown): string {
 export function parseReliefChunks(raw: unknown): ReliefChunks {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("Relevo inválido.");
   const entries = Object.entries(raw);
-  if (entries.length > LIMITS.terrainChunks) fail("Limite de relevo na cena: aplaine uma parte antes de pintar mais.");
+  if (entries.length > LIMITS.terrainChunks) fail("Arquivo com relevo demais numa cena (máximo de {n} pedaços).", { n: LIMITS.terrainChunks });
   const chunks: ReliefChunks = {};
   for (const [key, chunk] of entries) {
-    if (!KEY.test(key)) fail("Relevo inválido.");
+    if (!isChunkKey(key)) fail("Relevo inválido.");
     chunks[key] = parseReliefChunk(chunk);
   }
   return chunks;
@@ -87,7 +85,7 @@ export const reliefHandlers: HandlerMap = {
     if (entries.length > LIMITS.terrainChunks) fail("Relevo inválido.");
     const next: ReliefChunks = { ...store.game.battle.relief };
     for (const [key, chunk] of entries) {
-      if (!KEY.test(key)) fail("Relevo inválido.");
+      if (!isChunkKey(key)) fail("Relevo inválido.");
       if (chunk === null) delete next[key];
       else next[key] = parseReliefChunk(chunk);
     }

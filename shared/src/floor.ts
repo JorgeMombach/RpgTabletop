@@ -281,18 +281,16 @@ export function paintFloor(
           vertical: stroke.vertical,
         });
   const working = new Map<string, Uint8Array>();
-  for (const area of areas) {
-    const [x0, y0, x1, y1] = area.box;
-    for (
-      let j = Math.ceil(y0 * TERRAIN_FINE - ON_EDGE);
-      j <= Math.floor(y1 * TERRAIN_FINE + ON_EDGE);
-      j++
-    ) {
-      for (
-        let i = Math.ceil(x0 * TERRAIN_FINE - ON_EDGE);
-        i <= Math.floor(x1 * TERRAIN_FINE + ON_EDGE);
-        i++
-      ) {
+  /** Os pontos da caixa `[i0..i1] × [j0..j1]` (grade fina) cobertos pela área. */
+  const paintBox = (
+    area: (typeof areas)[number],
+    i0: number,
+    i1: number,
+    j0: number,
+    j1: number,
+  ) => {
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
         if (!area.covers(i / TERRAIN_FINE, j / TERRAIN_FINE)) continue;
         const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
         const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
@@ -311,6 +309,28 @@ export function paintFloor(
             (i - cx * TERRAIN_CHUNK_SIDE)
         ] = value;
       }
+    }
+  };
+  for (const area of areas) {
+    const [x0, y0, x1, y1] = area.box;
+    const i0 = Math.ceil(x0 * TERRAIN_FINE - ON_EDGE);
+    const i1 = Math.floor(x1 * TERRAIN_FINE + ON_EDGE);
+    const j0 = Math.ceil(y0 * TERRAIN_FINE - ON_EDGE);
+    const j1 = Math.floor(y1 * TERRAIN_FINE + ON_EDGE);
+    if (value !== 0) {
+      paintBox(area, i0, i1, j0, j1);
+      continue;
+    }
+    // Borracha: só os pedaços que já têm piso, cada um cortado pela caixa (uma caixa enorme não é varrida inteira).
+    for (const key of Object.keys(chunks)) {
+      const [cx, cy] = key.split(",").map(Number);
+      paintBox(
+        area,
+        Math.max(i0, cx * TERRAIN_CHUNK_SIDE),
+        Math.min(i1, (cx + 1) * TERRAIN_CHUNK_SIDE - 1),
+        Math.max(j0, cy * TERRAIN_CHUNK_SIDE),
+        Math.min(j1, (cy + 1) * TERRAIN_CHUNK_SIDE - 1),
+      );
     }
   }
   for (const [key, bytes] of working) {

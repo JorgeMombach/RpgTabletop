@@ -1,6 +1,6 @@
 import { Box, Button, Group, SegmentedControl, Slider, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconTrash } from "@tabler/icons-react";
-import { LIMITS, RELIEF_DUNE, RELIEF_LEVELS, type ReliefStroke } from "@rpg/shared";
+import { LIMITS, RELIEF_DUNE, RELIEF_LEVELS } from "@rpg/shared";
 import { memo } from "react";
 import { act } from "../../actions";
 import { confirmAction } from "../../confirm";
@@ -11,13 +11,6 @@ import { undo, useMapUndo } from "../mapHistory";
 /** Níveis do pincel, do mais fundo ao mais alto (o texto com sinal: −2, −1, 0, +1…). */
 const LEVELS = Array.from({ length: RELIEF_LEVELS.max - RELIEF_LEVELS.min + 1 }, (_, index) => RELIEF_LEVELS.min + index);
 const levelText = (level: number) => (level > 0 ? `+${level}` : level < 0 ? `−${-level}` : "0");
-
-type ReliefBrush = { level: number; soft: boolean; radius: number; mode: "level" | "dunes"; dune: number };
-
-/** A passada do pincel: nível e borda, ou (modo Dunas) só a altura das dunas. */
-export function reliefStrokeOf(brush: ReliefBrush, points: number[]): ReliefStroke {
-  return { level: brush.level, soft: brush.soft, radius: brush.radius, points, ...(brush.mode === "dunes" && { dune: brush.dune }) };
-}
 
 /**
  * Opções da ferramenta Relevo (mestre, docs/design/relevo.md): pintar o nível (com a borda: escarpa de rocha ou encosta

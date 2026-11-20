@@ -1,8 +1,11 @@
 import {
   decodeLayer,
   FLOOR_MATERIALS,
+  isChunkKey,
   LIMITS,
   paintFloor,
+  TERRAIN_CHUNK_SIDE,
+  TERRAIN_FINE,
   validFloorByte,
   type FloorChunks,
   type FloorMaterial,
@@ -28,8 +31,6 @@ export function markFloors(store: Store, keys: Iterable<string> | "all") {
   for (const key of keys) store.floorsDirty.add(key);
 }
 
-const KEY = /^-?\d{1,4},-?\d{1,4}$/;
-
 function isRecord(raw: unknown): raw is Record<string, unknown> {
   return typeof raw === "object" && raw !== null && !Array.isArray(raw);
 }
@@ -46,11 +47,10 @@ export function parseFloorChunk(raw: unknown): string {
 export function parseFloorChunks(raw: unknown): FloorChunks {
   if (!isRecord(raw)) fail("Piso inválido.");
   const entries = Object.entries(raw);
-  if (entries.length > LIMITS.terrainChunks)
-    fail("Limite de piso na cena: apague uma parte antes de pintar mais.");
+  if (entries.length > LIMITS.terrainChunks) fail("Arquivo com piso demais numa cena (máximo de {n} pedaços).", { n: LIMITS.terrainChunks });
   const chunks: FloorChunks = {};
   for (const [key, chunk] of entries) {
-    if (!KEY.test(key)) fail("Piso inválido.");
+    if (!isChunkKey(key)) fail("Piso inválido.");
     chunks[key] = parseFloorChunk(chunk);
   }
   return chunks;
@@ -103,6 +103,13 @@ function parseShape(raw: unknown): FloorShape {
   fail("Piso inválido.");
 }
 
+/** Quantos pedaços (8 × 8 casas) a caixa do retângulo toca. */
+function rectChunks(rect: { from: { x: number; y: number }; to: { x: number; y: number } }): number {
+  const cells = TERRAIN_CHUNK_SIDE / TERRAIN_FINE;
+  const span = (a: number, b: number) => Math.floor(Math.max(a, b) / cells) - Math.floor(Math.min(a, b) / cells) + 1;
+  return span(rect.from.x, rect.to.x) * span(rect.from.y, rect.to.y);
+}
+
 function isMaterial(raw: unknown): raw is FloorMaterial {
   return FLOOR_MATERIALS.some((material) => material === raw);
 }
@@ -132,6 +139,10 @@ export const floorHandlers: HandlerMap = {
     const { battle } = store.game;
     // Numa cópia: o piso da cena só muda se tudo der certo.
     const next: FloorChunks = { ...battle.floors };
+    // Retângulo pintando: cada pedaço que ele toca ganha piso. Se só isso já passa do limite, recusa antes de varrer
+    // a caixa inteira (um retângulo forjado de milhares de casas travaria o servidor).
+    if (stroke.shape.kind === "rect" && stroke.material !== "erase" && rectChunks(stroke.shape) > LIMITS.terrainChunks)
+      fail("Limite de piso na cena: apague uma parte antes de pintar mais.");
     const changed = paintFloor(
       next,
       stroke,
@@ -151,7 +162,7 @@ export const floorHandlers: HandlerMap = {
     if (entries.length > LIMITS.terrainChunks) fail("Piso inválido.");
     const next: FloorChunks = { ...store.game.battle.floors };
     for (const [key, chunk] of entries) {
-      if (!KEY.test(key)) fail("Piso inválido.");
+      if (!isChunkKey(key)) fail("Piso inválido.");
       if (chunk === null) delete next[key];
       else next[key] = parseFloorChunk(chunk);
     }

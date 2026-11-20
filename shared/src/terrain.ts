@@ -40,6 +40,11 @@ export function chunkKey(cx: number, cy: number): string {
   return `${cx},${cy}`;
 }
 
+/** Uma chave de pedaço como `chunkKey` escreve: inteiros de até 4 dígitos, sem zero à esquerda nem `-0`. */
+export function isChunkKey(key: string): boolean {
+  return /^(0|-?[1-9]\d{0,3}),(0|-?[1-9]\d{0,3})$/.test(key);
+}
+
 /** Bytes de um terreno num pedaço, em base64 (funciona no Node e no navegador). */
 export function encodeLayer(bytes: Uint8Array): string {
   let binary = "";
@@ -208,13 +213,13 @@ export function terrainBounds(chunks: TerrainChunks): ChunkRect | null {
   return { cx: minX, cy: minY, cols: maxX - minX + 1, rows: maxY - minY + 1 };
 }
 
-/** Pesos dos terrenos no formato das texturas RGBA8: os 4 primeiros de `TERRAINS` em `first`, os 4 últimos em `second`. */
+/** Pesos dos terrenos no formato das texturas RGBA8: os 4 primeiros de `TERRAINS` em `first`, os 4 seguintes em `second`. */
 export interface TerrainWeights {
   width: number;
   height: number;
   first: Uint8Array<ArrayBuffer>;
   second: Uint8Array<ArrayBuffer>;
-  /** Terrenos 9 a 12 (hoje só a areia, no canal r). */
+  /** Terrenos 9 a 12 (hoje só a água funda, no canal r). */
   third: Uint8Array<ArrayBuffer>;
 }
 

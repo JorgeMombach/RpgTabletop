@@ -1,4 +1,4 @@
-import { decodeLayer, LIMITS, paintTerrain, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainId, type TerrainStroke } from "@rpg/shared";
+import { decodeLayer, isChunkKey, LIMITS, paintTerrain, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainId, type TerrainStroke } from "@rpg/shared";
 import type { Store } from "../store";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
@@ -18,8 +18,6 @@ export function markTerrain(store: Store, keys: Iterable<string> | "all") {
   for (const key of keys) store.terrainDirty.add(key);
 }
 
-const KEY = /^-?\d{1,4},-?\d{1,4}$/;
-
 /** Um pedaço vindo de fora (ação ou arquivo): só terrenos conhecidos, cada um com 1024 bytes em base64; não vazio. */
 export function parseTerrainChunk(raw: unknown): TerrainChunk {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("Terreno inválido.");
@@ -37,10 +35,10 @@ export function parseTerrainChunk(raw: unknown): TerrainChunk {
 export function parseTerrainChunks(raw: unknown): TerrainChunks {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("Terreno inválido.");
   const entries = Object.entries(raw);
-  if (entries.length > LIMITS.terrainChunks) fail("Limite de terreno pintado na cena: apague uma parte antes de pintar mais.");
+  if (entries.length > LIMITS.terrainChunks) fail("Arquivo com terreno pintado demais numa cena (máximo de {n} pedaços).", { n: LIMITS.terrainChunks });
   const chunks: TerrainChunks = {};
   for (const [key, chunk] of entries) {
-    if (!KEY.test(key)) fail("Terreno inválido.");
+    if (!isChunkKey(key)) fail("Terreno inválido.");
     chunks[key] = parseTerrainChunk(chunk);
   }
   return chunks;
@@ -101,7 +99,7 @@ export const terrainHandlers: HandlerMap = {
     const entries = Object.entries(raw);
     if (entries.length > LIMITS.terrainChunks) fail("Terreno inválido.");
     for (const [key, chunk] of entries) {
-      if (!KEY.test(key)) fail("Terreno inválido.");
+      if (!isChunkKey(key)) fail("Terreno inválido.");
       if (chunk === null) delete next[key];
       else next[key] = parseTerrainChunk(chunk);
     }

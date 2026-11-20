@@ -164,7 +164,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
 - [ ] Rente a uma parede livre inclinada, a borda do piso anda em degraus de 1/4 de casa (o piso segue a grade fina) e aparece um dentinho de chão entre o piso e a parede. Caminho: no *Cômodo*, incluir também os pontos até a meia espessura da parede para fora (`shapeCover` em `shared/src/floor.ts`), ou recortar a borda pela linha da parede no shader.
-- [ ] Retângulo ou pincel gigante forjado (só o mestre) varre a caixa inteira antes de conferir o limite de pedaços (`shared/src/floor.ts` `paintFloor`): abortar quando passar de `LIMITS.terrainChunks`.
 - [ ] Piso pintado atrás de porta secreta mostra o formato da sala sem névoa (vai inteiro para os jogadores, como terreno e relevo).
 - [ ] `floorPreview` não é limpo se a cena trocar no meio de uma passada.
 - [ ] Sem WebGL (`FloorLayer`), o piso passa 1/8 de casa da linha da parede (quadradinhos de ±1/8).
@@ -173,8 +172,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Chão, água, areia e dunas ([docs/design/relevo.md](design/relevo.md))
 - [ ] `duneMask` não tem limite de tamanho: dunas a milhares de casas umas das outras alocam uma máscara enorme (sem o equivalente ao `TerrainTooLarge`).
 - [ ] Sem compilação em paralelo, até 3 programas compilam no mesmo quadro (terreno, paredes, poeira: um por cache).
-- [ ] Comentário de `TerrainWeights.third` (`terrain.ts`) diz "areia"; lá fica a água funda. Comentário duplicado em `reliefBrush` (`store.ts`).
-- [ ] `reliefStrokeOf` exportada de um arquivo de componente (`ReliefOptions.tsx`): atrapalha o recarregamento rápido do Vite.
 - [ ] O relógio da poeira volta a zero a cada 30 min: o desenho dos fiapos pula uma vez nesse instante.
 - [ ] A superfície da água ainda usa o relógio sem voltar a zero (sessões muito longas podem perder detalhe fino).
 
@@ -242,9 +239,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Terreno pintado ([docs/design/terreno.md](design/terreno.md))
 - [ ] Pedaço sem dados próprios não é desenhado: depois da *Borracha*, a faixa de 1/4 de casa até o vizinho da direita/de baixo fica cortada reta (`renderChunk.ts` / `TerrainLayer.tsx`).
 - [ ] Pinceladas sobrepostas em conexão lenta: o `.then` da primeira apaga a prévia da segunda e o *Desfazer* pode não fazer nada (`BattleMap.tsx`, `mapHistory.ts`).
-- [ ] Chave de pedaço não canônica (`"01,0"`, `"-0,0"`) aceita do arquivo de sessão e do `terrain:restore` (servidor).
 - [ ] Falha ao carregar as aquarelas fica guardada até recarregar a página (`terrainArt.ts`).
-- [ ] Arquivo de sessão com pedaços demais mostra a mensagem de pintura ("apague uma parte antes de pintar mais") em vez de uma de arquivo.
 
 ### Grid hexagonal ([docs/design/grid-hex.md](design/grid-hex.md))
 - [ ] `maskKey` da névoa sem o grid (`Fog.tsx`): só pesa trocando entre cena quadrada e hex com o revelado idêntico.

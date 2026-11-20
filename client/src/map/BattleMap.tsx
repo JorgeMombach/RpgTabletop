@@ -49,7 +49,7 @@ import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
 import { addBridge, addStair, removeStairs, updateStair, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
-import { reliefStrokeOf } from "./terrain/ReliefOptions";
+import { reliefStrokeOf } from "./terrain/reliefStroke";
 import { FloorLayer } from "./floor/FloorLayer";
 import { floorStrokeOf } from "./floor/FloorOptions";
 import { tableTile, TILE_CELLS } from "./tableArt";
