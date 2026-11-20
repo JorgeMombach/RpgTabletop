@@ -106,6 +106,27 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Muitas paredes (masmorra grande) e água animada na tela: sem queda de quadros.
 - [ ] Sem WebGL: o desenho de antes, emendado, sem erro.
 
+### Escadas (estruturas, parte 3)
+- [ ] Ferramenta *Escada* (Y): os três formatos, pedra e madeira, largura/diâmetro 1/2/3, *Sobe/Desce*; escada clique a clique (dois cliques ou Enter no topo, Backspace, Esc), caracol e de mão arrastando; meia casa e Shift livre; cabe na coluna na largura mínima.
+- [ ] Escolher: alças nos pontos, clique num trecho acrescenta ponto, botão direito na alça tira (mínimo 2), trocar formato/material/largura/sentido pelo painel, Delete, *Desfazer* de cada passo; clique em outra escada escolhe; Shift+clique começa uma nova em cima; escada com menos de 1 casa mostra o aviso.
+- [ ] No relevo: ziguezague subindo dois níveis de escarpa (cavada em rocha em cima, lateral embaixo, patamar na virada); curva numa encosta suave (barranco, leque); vale (desce e sobe) e morro (sobe e desce); desenhada do topo para o pé.
+- [ ] A parede cavada e a lateral na escarpa ficam estreitas (≤ ~0,14 casa, a conta aprovada): ver se basta ou se alarga.
+- [ ] Solta: subindo (corte com hachura) e descendo (escurece, moldura) dentro de um cômodo; pintar relevo embaixo dela: passa a seguir o chão.
+- [ ] Caracol de pedra subindo e de madeira descendo (diâmetros 1, 2 e 3); de mão encostada num penhasco de 1 nível (ganchos, pé assentado) e saindo de um alçapão (tampa ao lado).
+- [ ] Luz: dia, entardecer (sombra longa lisa), luar e noite; perto e longe; tocha ilumina.
+- [ ] Primeira escada de cada formato (escolhido antes na ferramenta): sem trava.
+- [ ] Jogador vê as escadas (sob a névoa); troca de cena; arquivo de sessão (e antigo sem escadas); *Limpar campo*; trocar o grid mantém.
+- [ ] Sem WebGL: escada chapada (degraus riscados, caracol com raios, de mão com trilhos), sem erro.
+
+- [ ] Pintar relevo com 3 ou 4 escadas longas por cima: o pincel não trava (o perfil é refeito só no fim da pincelada).
+- Menores da revisão (decidir se valem):
+  - [ ] Lateral construída e parede cavada cortadas a 1 casa da borda (`out_ > 1.0` no stairShader): só aparece se a parede for alargada; as pontas da escada construída acima do chão ficam abertas.
+  - [ ] Caracol com a borda longe do centro: a alça fica longe e a caixa do desenho cresce à toa (normalizar a borda para o raio).
+  - [ ] Delete com um token escolhido e a ferramenta Escada (ou Ponte, Objetos) apaga os dois (o atalho global não confere `defaultPrevented`).
+  - [ ] Ao soltar a alça, ela pisca na posição antiga até o servidor responder.
+  - [ ] A ajuda de atalhos (?) não lista Y (nem N, K, U).
+  - [ ] Sem WebGL: o desenho chapado põe por cima a última da lista; o clique escolhe pela ordem da placa (formato e depois lista).
+
 ### Pontes e píer (estruturas, parte 2)
 - [ ] Ferramenta *Ponte* (U): os três tipos, largura 1/2/3, arrastar de margem a margem (meia casa; Shift livre), clicar para escolher, alças nas pontas, Delete, *Desfazer*; cabe na coluna na largura mínima.
 - [ ] Ponte sobre o rio pintado: pousa nas margens (cabeceira, caminho, contato), sombra só sobre a água; de perto e de longe.
