@@ -426,10 +426,20 @@ export interface WindowLook {
  * travessa; com a persiana fechada, tábuas por cima. Desenho provisório (o definitivo vem no lote das portas).
  */
 /** Contorno branco da porta ou janela escolhida, no vão (quando o desenho vem da placa de vídeo). */
-export function drawOpeningSelection(ctx: CanvasRenderingContext2D, L: number, t: number) {
+/**
+ * Contorno branco da porta ou janela escolhida (com o desenho vindo da placa de vídeo). Porta aberta: o contorno gira
+ * com a folha (o mesmo ângulo do desenho, `swing` × 80°) e marca a folha, não o vão.
+ */
+export function drawOpeningSelection(ctx: CanvasRenderingContext2D, L: number, t: number, openSwing: number | null = null) {
+  ctx.save();
   ctx.strokeStyle = "#ffffff";
   ctx.lineWidth = t * 0.09;
-  ctx.strokeRect(0, -t * 0.6, L, t * 1.2);
+  if (openSwing === null) ctx.strokeRect(0, -t * 0.6, L, t * 1.2);
+  else {
+    ctx.rotate((openSwing * 80 * Math.PI) / 180);
+    ctx.strokeRect(t * 0.25, -t * 0.6, L - t * 0.5, t * 1.2);
+  }
+  ctx.restore();
 }
 
 export function drawWindow(ctx: CanvasRenderingContext2D, L: number, t: number, look: WindowLook) {

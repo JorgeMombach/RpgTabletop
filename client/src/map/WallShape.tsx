@@ -115,7 +115,7 @@ export function WallShape({
         ctx.translate(h.x, h.y);
         ctx.rotate(Math.atan2(e.y - h.y, e.x - h.x));
         if (gpu && (w.window || door)) {
-          if (selected) drawOpeningSelection(ctx, L, thick);
+          if (selected) drawOpeningSelection(ctx, L, thick, door?.open ? (layout?.swing ?? 1) : null);
         } else if (w.window) {
           drawWindow(ctx, L, thick, { closed: !!w.window.closed, selected: !!selected, style });
         } else if (door) {

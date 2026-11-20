@@ -174,7 +174,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Paredes na placa de vídeo ([docs/design/relevo.md](design/relevo.md))
 - [ ] Grade de ferro na espessura padrão (0,18) fica fina de longe (barras com menos de 1 px a 40 px por casa).
 - [ ] Tinta do lado do chão às vezes com 0 a 1 px (vem das derivadas em grupos de 2 × 2 pixels); a borda de dentro da parede é que garante o contorno.
-- [ ] Porta aberta escolhida: o contorno branco marca o vão, não a folha.
 - [ ] Casa com mais de 8 paredes por perto: ficam as 8 mais próximas do centro; uma nona pode sumir num canto da casa.
 - [ ] Densidade da tela acima de 2 (alguns celulares, 3): chão, água e paredes saem a 2 × (`MAX_PIXEL_RATIO`).
 - [ ] Porta secreta vista pelo mestre aparece como uma lasca fina de pedra (a espessura da folha, não a da parede).
