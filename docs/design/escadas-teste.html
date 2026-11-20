@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escadas</title>
+<style>
+  :root { --ink: #e8dcc4; --dim: #a8987c; --panel: #1d1712; --edge: #5a4630; --accent: #c8a05a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #120e0a; color: var(--ink); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 10px; color: var(--dim); max-width: 1100px; }
+  .controls { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin: 10px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; }
+  label { display: flex; gap: 8px; align-items: center; }
+  output { color: var(--accent); min-width: 3em; }
+  canvas { display: block; border: 1px solid var(--edge); border-radius: 4px; cursor: grab; max-width: 100%; }
+  ul { margin: 6px 0 0 18px; padding: 0; color: var(--dim); }
+</style>
+</head>
+<body>
+<h1>Escadas (teste)</h1>
+<p>Arraste para mover a vista; roda do mouse aproxima. Da esquerda para a direita: <b>penhasco de 2 níveis</b> com escada de pedra em ziguezague (patamares nas viradas), escada de pedra cortando o penhasco de frente e escada de mão encostada; <b>morro suave</b> com escada de madeira em curva; <b>cômodo</b> com escada reta subindo (borda cortada), escada descendo (alçapão), caracol subindo, caracol descendo e escada de mão saindo de um alçapão.</p>
+<div class="controls">
+  <label>Luz <select id="light"><option value="day">dia</option><option value="dusk">entardecer</option><option value="moon">luar</option></select></label>
+  <label>Zoom <input id="zoom" type="range" min="16" max="160" step="1" value="40"><output id="zoomOut">40 px/casa</output></label>
+  <label><input id="grid" type="checkbox" checked> grid</label>
+</div>
+<canvas id="view" width="1152" height="720"></canvas>
+<ul>
+  <li>No relevo, os degraus saem da altura do chão ao longo do caminho: onde sobe, degraus; onde fica plano, patamar. Onde o chão do lado fica mais alto, a escada aparece cavada (rocha dos dois lados); onde fica mais baixo, ganha lateral de alvenaria e sombra.</li>
+  <li>Soltas: subindo, os degraus clareiam até a borda cortada (hachura); descendo, escurecem até o fundo, com moldura de alçapão em volta.</li>
+  <li>Caracol: degraus em leque em volta do pilar; o de pedra com parede redonda, o de madeira com corrimão e balaústres.</li>
+</ul>
+<script>
+// ---------------- cena (a mesma conta no processador e na placa) ----------------
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const edge1 = (x) => 10 + 0.35 * Math.sin(0.6 * x) + 0.15 * Math.sin(1.7 * x + 2) + 0.08 * Math.sin(3.9 * x + 1);
+const edge2 = (x) => 5.6 + 0.4 * Math.sin(0.5 * x + 1) + 0.14 * Math.sin(1.9 * x + 0.5) + 0.07 * Math.sin(4.3 * x + 2);
+const east1 = (y) => 11.2 + 0.3 * Math.sin(0.7 * y + 1) + 0.1 * Math.sin(2.3 * y);
+const east2 = (y) => 9.4 + 0.3 * Math.sin(0.8 * y + 2) + 0.1 * Math.sin(2.1 * y + 1);
+const FACE = 1.15;
+const cliffStep = (d) => Math.min(1, Math.max(0, 1 - d / FACE));
+const hillSdf = (x, y) => { const qx = (x - 14.8) / 1.15, qy = (y - 5.2) / 1.0; return Math.hypot(qx, qy) - 2.7 + 0.25 * Math.sin(Math.atan2(qy, qx) * 3 + 1); };
+const ground = (x, y) => cliffStep(Math.max(y - edge1(x), x - east1(y))) + cliffStep(Math.max(y - edge2(x), x - east2(y))) + (1 - smooth(-1.25, 1.25, hillSdf(x, y)));
+
+// Escadas com caminho: pontos (casas), largura, material (0 pedra, 1 madeira), modo (0 relevo, 1 solta subindo, 2 solta descendo).
+const STAIRS = [
+  { points: [[1.6, 13.4], [3.9, 8.2], [1.5, 3.9], [1.5, 1.5]], width: 1, material: 0, mode: 0 },
+  { points: [[7.2, 8.2], [7.2, 3.2]], width: 1, material: 0, mode: 0 },
+  { points: [[16.35, 9.8], [17.7, 6.4], [16.1, 4.4]], width: 1, material: 1, mode: 0 },
+  { points: [[21.7, 7.6], [21.7, 2.0]], width: 1, material: 1, mode: 1 },
+  { points: [[27.5, 2.0], [27.5, 6.8]], width: 1, material: 0, mode: 2 },
+];
+const CORNER = 0.9;       // raio das viradas (casas), cortado para caber nos dois trechos
+const STEPS_PER_LEVEL = 10;
+const FLIGHT_PER_LEVEL = 2.2;  // casas de lance por nível: mais deitado que o penhasco (cava em cima, constrói embaixo)
+
+// Caminho com cantos arredondados: trechos retos e arcos, cada um com o u (casas) onde começa.
+function buildPrims(points) {
+  const prims = [];
+  let u = 0, cur = points[0];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], len = (a) => Math.hypot(a[0], a[1]), scale = (a, s) => [a[0] * s, a[1] * s], add = (a, b) => [a[0] + b[0], a[1] + b[1]];
+  const line = (a, b) => { const l = len(sub(b, a)); if (l > 1e-4) { prims.push({ type: 0, a, b, u0: u }); u += l; } };
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i], next = points[i + 1];
+    if (!next) { line(cur, b); break; }
+    const l1 = len(sub(b, a)), l2 = len(sub(next, b));
+    const d1 = scale(sub(b, a), 1 / l1), d2 = scale(sub(next, b), 1 / l2);
+    const cross = d1[0] * d2[1] - d1[1] * d2[0];
+    const turn = Math.acos(Math.max(-1, Math.min(1, d1[0] * d2[0] + d1[1] * d2[1])));
+    if (turn < 0.01) { line(cur, b); cur = b; continue; }
+    const tanHalf = Math.tan(turn / 2);
+    const r = Math.min(CORNER, (0.45 * l1) / tanHalf, (0.45 * l2) / tanHalf);
+    const trim = r * tanHalf;
+    const start = add(b, scale(d1, -trim));
+    line(cur, start);
+    const side = Math.sign(cross);
+    const center = add(start, scale([-d1[1], d1[0]], side * r));
+    const a0 = Math.atan2(start[1] - center[1], start[0] - center[0]);
+    prims.push({ type: 1, center, r, a0, sweep: side * turn, u0: u });
+    u += r * turn;
+    cur = add(b, scale(d2, trim));
+  }
+  return { prims, length: u };
+}
+function pointAt(prims, u) {
+  let prim = prims[0];
+  for (const candidate of prims) if (candidate.u0 <= u) prim = candidate;
+  const t = u - prim.u0;
+  if (prim.type === 0) { const dx = prim.b[0] - prim.a[0], dy = prim.b[1] - prim.a[1], l = Math.hypot(dx, dy); return [prim.a[0] + (dx / l) * t, prim.a[1] + (dy / l) * t]; }
+  const angle = prim.a0 + Math.sign(prim.sweep) * (t / prim.r);
+  return [prim.center[0] + prim.r * Math.cos(angle), prim.center[1] + prim.r * Math.sin(angle)];
+}
+// Perfil da escada: lances (u0, u1, h0, h1, degraus). No relevo, segue o chão: onde ele sobe ou desce, um lance com
+// degraus iguais; onde fica plano, patamar. Solta: um lance só, subindo ou descendo 1 nível.
+function buildProfile(prims, length, mode) {
+  if (mode !== 0) return [[0, length, 0, mode === 1 ? 1 : -1, Math.max(2, Math.round(length / 0.4))]];
+  const step = 0.02, count = Math.ceil(length / step);
+  const heights = [];
+  for (let i = 0; i <= count; i++) { const p = pointAt(prims, Math.min(length, i * step)); heights.push(ground(p[0], p[1])); }
+  const runs = [];
+  for (let i = 0; i < count; i++) {
+    if (Math.abs(heights[i + 1] - heights[i]) / step < 0.05) continue;
+    const last = runs[runs.length - 1];
+    if (last && i - last[1] < 15) last[1] = i + 1; else runs.push([i, i + 1]);
+  }
+  const segments = [];
+  let u = 0, level = runs.length ? heights[runs[0][0]] : heights[0];
+  for (const [i0, i1] of runs) {
+    const target = heights[Math.min(count, i1 + 3)];
+    let u0 = Math.max(0, (i0 - 3) * step), u1 = Math.min(length, (i1 + 3) * step);
+    const want = Math.abs(target - level) * FLIGHT_PER_LEVEL;
+    if (u1 - u0 < want) { const grow = (want - (u1 - u0)) / 2; u0 = Math.max(u, u0 - grow); u1 = Math.min(length, u1 + grow); }
+    const steps = Math.round(Math.abs(target - level) * STEPS_PER_LEVEL);
+    if (steps === 0) continue;
+    if (u0 > u) segments.push([u, u0, level, level, 0]);
+    segments.push([u0, u1, level, target, steps]);
+    u = u1; level = target;
+  }
+  if (u < length) segments.push([u, length, level, level, 0]);
+  return segments;
+}
+
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
+const MAXS = 8, MAXP = 48, MAXG = 48;
+const VERTEX = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const FRAGMENT = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec2 uCanvas;
+uniform vec2 uPan;        // casa no canto de cima à esquerda
+uniform float uCellPx;
+uniform vec3 uSun;        // direção do sol (z para cima)
+uniform vec3 uTint;       // cor da luz
+uniform float uAmbient;
+uniform float uGrid;
+const int MAXS = ${MAXS}, MAXP = ${MAXP}, MAXG = ${MAXG};
+uniform int uStairCount;
+uniform vec4 uStairA[MAXS];   // largura, material (0 pedra, 1 madeira), modo (0 relevo, 1 sobe, 2 desce), comprimento
+uniform vec4 uStairB[MAXS];   // primeiro trecho, nº de trechos, primeiro lance, nº de lances
+uniform vec4 uPrimA[MAXP];    // reto: a.xy, b.xy | arco: centro.xy, raio, ângulo inicial
+uniform vec4 uPrimB[MAXP];    // u inicial, tipo (0 reto, 1 arco), -, giro (arco)
+uniform vec4 uSeg[MAXG];      // lance: u0, u1, h0, h1
+uniform float uSegN[MAXG];    // degraus do lance (0 = patamar)
+
+const float PI2 = 6.2831853;
+const float FACE = 1.15;        // casas de face por nível (penhasco)
+const float STAIR_WALL = 0.6;   // casas de face por nível (lateral e parede cavada da escada)
+
+float hash(vec2 p) { uvec2 q = uvec2(ivec2(floor(p))) * uvec2(1597334673u, 3812015801u); uint n = (q.x ^ q.y) * 1597334673u; return float(n) / 4294967295.0; }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+vec3 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y); vec2 r = o + 0.12 + 0.76 * vec2(hash(i + o), hash(i + o + 17.3)) - f; float d = dot(r, r);
+    if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; }
+  return vec3(id.x + id.y * 57.0, sqrt(d1), sqrt(d2) - sqrt(d1)); }
+float px() { return 1.0 / uCellPx; }
+float lambert(vec3 n) { return max(dot(normalize(n), normalize(uSun)), 0.0); }
+vec3 light(vec3 col, vec3 n) { return col * (uAmbient + (1.0 - uAmbient) * lambert(n) / max(normalize(uSun).z, 0.35)) * uTint; }
+vec2 sunXY() { vec3 s = normalize(uSun); return s.xy / max(s.z, 0.2); }
+
+// ---------------- relevo da cena ----------------
+float edge1(float x) { return 10.0 + 0.35 * sin(0.6 * x) + 0.15 * sin(1.7 * x + 2.0) + 0.08 * sin(3.9 * x + 1.0); }
+float edge2(float x) { return 5.6 + 0.4 * sin(0.5 * x + 1.0) + 0.14 * sin(1.9 * x + 0.5) + 0.07 * sin(4.3 * x + 2.0); }
+float east1(float y) { return 11.2 + 0.3 * sin(0.7 * y + 1.0) + 0.1 * sin(2.3 * y); }
+float east2(float y) { return 9.4 + 0.3 * sin(0.8 * y + 2.0) + 0.1 * sin(2.1 * y + 1.0); }
+float cliffStep(float d) { return clamp(1.0 - d / FACE, 0.0, 1.0); }
+float top1(vec2 c) { return max(c.y - edge1(c.x), c.x - east1(c.y)); }
+float top2(vec2 c) { return max(c.y - edge2(c.x), c.x - east2(c.y)); }
+float hillSdf(vec2 c) { vec2 q = (c - vec2(14.8, 5.2)) / vec2(1.15, 1.0); return length(q) - 2.7 + 0.25 * sin(atan(q.y, q.x) * 3.0 + 1.0); }
+float cliffPart(vec2 c) { return cliffStep(top1(c)) + cliffStep(top2(c)); }
+float softPart(vec2 c) { return 1.0 - smoothstep(-1.25, 1.25, hillSdf(c)); }
+float ground(vec2 c) { return cliffPart(c) + softPart(c); }
+bool inRoom(vec2 c) { return c.x > 20.0 && c.x < 28.6 && c.y > 1.0 && c.y < 17.0; }
+
+vec3 stoneCol(vec2 id) { return mix(vec3(0.55, 0.52, 0.47), vec3(0.66, 0.63, 0.57), hash(id)); }
+vec3 wood(vec2 q, float plankId, float base) {
+  vec3 w = mix(vec3(0.42, 0.28, 0.16), vec3(0.55, 0.38, 0.22), hash(vec2(plankId, base)));
+  w *= 0.85 + 0.25 * fbm(vec2(q.x * 1.5 + plankId, q.y * 14.0));
+  w *= 0.92 + 0.12 * sin(q.y * 70.0 + fbm(q * 2.0 + plankId) * 8.0);
+  return w;
+}
+vec3 rockAt(vec2 c, float h) {
+  float strata = fract(h * 4.0 + (fbm(c * 1.5) - 0.5) * 0.3);
+  vec3 r = mix(vec3(0.46, 0.43, 0.39), vec3(0.6, 0.57, 0.51), fbm(vec2(c.x * 1.5 + c.y * 0.5, h * 12.0)));
+  r *= mix(0.82, 1.08, smoothstep(0.0, 0.15, strata)) * mix(1.0, 0.86, smoothstep(0.8, 1.0, strata));
+  float crack = 1.0 - smoothstep(0.0, 0.025, abs(fbm(c * 1.3 + 7.0) - 0.5)) * step(0.5, noise(c * 0.8 + 2.0));
+  return r * mix(1.0, 0.75, 1.0 - crack) * (0.92 + 0.12 * noise(c * 14.0));
+}
+
+vec3 groundColor(vec2 c, float h) {
+  float e = 0.03;
+  vec2 grad = vec2(ground(c + vec2(e, 0)) - ground(c - vec2(e, 0)), ground(c + vec2(0, e)) - ground(c - vec2(0, e))) / (2.0 * e);
+  vec2 gc = vec2(cliffPart(c + vec2(e, 0)) - cliffPart(c - vec2(e, 0)), cliffPart(c + vec2(0, e)) - cliffPart(c - vec2(0, e))) / (2.0 * e);
+  vec3 n = normalize(vec3(-grad * 1.4, 1.0));
+  vec3 col = mix(vec3(0.28, 0.38, 0.17), vec3(0.37, 0.45, 0.2), fbm(c * 0.7)) * (0.9 + 0.2 * noise(c * 9.0));
+  float rock = smoothstep(0.25, 0.5, length(gc));
+  if (rock > 0.0) {
+    col = mix(col, rockAt(c, h), rock);
+    n = normalize(n + vec3(noise(c * 8.0) - 0.5, noise(c * 8.0 + 3.0) - 0.5, 0.0) * 0.5 * rock);
+  }
+  float ao = 1.0;
+  for (int i = 0; i < 2; i++) { float t = i == 0 ? top1(c) : top2(c); if (t > FACE * 0.8 && t < FACE + 0.4) ao *= 1.0 - 0.3 * (1.0 - smoothstep(FACE, FACE + 0.4, t)); }
+  float ink = max(1.0 - smoothstep(0.0, 0.05, abs(top1(c) + 0.01)), 1.0 - smoothstep(0.0, 0.05, abs(top2(c) + 0.01)));
+  if (inRoom(c)) {
+    // assoalho de tábuas e paredes de pedra em volta
+    float wall = min(min(c.x - 20.0, 28.6 - c.x), min(c.y - 1.0, 17.0 - c.y));
+    if (wall < 0.3) {
+      vec2 b = vec2((c.x + c.y) / 0.45, wall / 0.15);
+      col = stoneCol(floor(b) + 7.0) * 0.8 * mix(0.6, 1.0, smoothstep(0.0, 0.06, min(fract(b.x), 1.0 - fract(b.x)) * 0.45));
+      return light(col, vec3(0, 0, 1)) * mix(0.75, 1.0, smoothstep(0.0, 0.1, wall));
+    }
+    float row = floor(c.y / 0.25);
+    float seg = floor((c.x + hash(vec2(row, 2.0)) * 1.6) / 1.6);
+    vec3 plank = wood(vec2(c.x, c.y), row * 13.0 + seg, 9.0) * 0.85;
+    float seam = min(fract(c.y / 0.25), 1.0 - fract(c.y / 0.25)) * 0.25;
+    float endSeam = min(fract((c.x + hash(vec2(row, 2.0)) * 1.6) / 1.6), 1.0 - fract((c.x + hash(vec2(row, 2.0)) * 1.6) / 1.6)) * 1.6;
+    plank *= mix(0.6, 1.0, smoothstep(0.0, 0.02, min(seam, endSeam)));
+    return light(plank, vec3(0, 0, 1)) * mix(0.8, 1.0, smoothstep(0.3, 0.6, wall));
+  }
+  return light(col, n) * ao * (1.0 - 0.6 * ink);
+}
+
+float reliefShadow(vec2 c, float h0) {
+  vec2 s = sunXY(); float len = length(s); if (len < 0.01) return 0.0;
+  vec2 dir = s / len; float shade = 0.0;
+  for (int i = 1; i <= 28; i++) { float d = float(i) * 0.2; float ray = h0 + d / len; shade = max(shade, smoothstep(0.0, 0.08, ground(c + dir * d) - ray)); }
+  return shade;
+}
+
+// ---------------- escadas com caminho ----------------
+struct Local { float u; float v; float dist; vec2 side; };
+Local stairLocal(int s, vec2 c) {
+  Local best = Local(0.0, 0.0, 1e9, vec2(0.0, 1.0));
+  int p0 = int(uStairB[s].x), pc = int(uStairB[s].y);
+  for (int i = 0; i < MAXP; i++) {
+    if (i >= pc) break;
+    vec4 A = uPrimA[p0 + i], B = uPrimB[p0 + i];
+    if (B.y < 0.5) {
+      vec2 a = A.xy, ab = A.zw - A.xy; float len = length(ab); vec2 dir = ab / len;
+      float t = dot(c - a, dir);
+      float d = length(c - (a + dir * clamp(t, 0.0, len)));
+      if (d < best.dist) {
+        float tu = t; if (i > 0) tu = max(tu, 0.0); if (i < pc - 1) tu = min(tu, len);
+        vec2 side = vec2(-dir.y, dir.x);
+        best = Local(B.x + tu, dot(c - a, side), d, side);
+      }
+    } else {
+      vec2 rel = c - A.xy; float sg = sign(B.w), sweep = abs(B.w);
+      float turned = mod((atan(rel.y, rel.x) - A.w) * sg, PI2);
+      if (turned <= sweep) {
+        float ang = A.w + sg * turned;
+        vec2 onArc = A.xy + A.z * vec2(cos(ang), sin(ang));
+        vec2 tg = sg * vec2(-sin(ang), cos(ang)); vec2 side = vec2(-tg.y, tg.x);
+        float v = dot(c - onArc, side);
+        if (abs(v) < best.dist) best = Local(B.x + A.z * turned, v, abs(v), side);
+      }
+    }
+  }
+  return best;
+}
+bool onStair(int s, Local L) { return abs(L.v) < uStairA[s].x * 0.5 && L.u >= 0.0 && L.u <= uStairA[s].w; }
+// Altura (níveis) do degrau em u; f = posição dentro do degrau (0..1), tl = comprimento do degrau (0 = patamar),
+// dh = quanto o lance sobe (negativo desce), k = índice do degrau.
+float stairHeight(int s, float u, out float f, out float tl, out float dh, out float k) {
+  int g0 = int(uStairB[s].z), gc = int(uStairB[s].w);
+  vec4 seg = uSeg[g0]; float n = uSegN[g0];
+  for (int i = 0; i < MAXG; i++) { if (i >= gc) break; seg = uSeg[g0 + i]; n = uSegN[g0 + i]; if (u <= seg.y) break; }
+  float uc = clamp(u, seg.x, seg.y);
+  f = 0.0; tl = 0.0; dh = 0.0; k = 0.0;
+  if (n < 0.5) return seg.z;
+  tl = (seg.y - seg.x) / n; dh = seg.w - seg.z;
+  k = clamp(floor((uc - seg.x) / tl), 0.0, n - 1.0);
+  f = (uc - seg.x) / tl - k;
+  return dh > 0.0 ? seg.z + dh * k / n : seg.z + dh * (k + 1.0) / n;
+}
+// Altura sem os degraus (a rampa do lance): para as paredes cavadas e a lateral ficarem lisas.
+float rampAt(int s, float u) {
+  int g0 = int(uStairB[s].z), gc = int(uStairB[s].w);
+  vec4 seg = uSeg[g0];
+  for (int i = 0; i < MAXG; i++) { if (i >= gc) break; seg = uSeg[g0 + i]; if (u <= seg.y) break; }
+  return mix(seg.z, seg.w, clamp((u - seg.x) / max(seg.y - seg.x, 1e-4), 0.0, 1.0));
+}
+float heightAt(int s, float u) { float f, tl, dh, k; return stairHeight(s, u, f, tl, dh, k); }
+
+vec3 hatch(vec2 c) { float stripe = smoothstep(0.3, 0.42, abs(fract((c.x + c.y) * 6.0) - 0.5)); return mix(vec3(0.42, 0.38, 0.32), vec3(0.17, 0.15, 0.13), stripe); }
+
+vec3 drawPathStair(int s, Local L, vec2 c, out float hs) {
+  vec4 A = uStairA[s]; float w = A.x; bool isWood = A.y > 0.5; int mode = int(A.z + 0.5); float len = A.w;
+  float f, tl, dh, k;
+  hs = stairHeight(s, L.u, f, tl, dh, k);
+  float halfW = w * 0.5, edge = halfW - abs(L.v);
+  vec2 sideOut = L.side * sign(L.v);
+  vec2 along = vec2(L.side.y, -L.side.x);
+  vec3 col; vec3 n = vec3(0, 0, 1);
+  // o chão logo fora da borda mais alto que o degrau: parede cavada dentro da borda (rocha ou alvenaria)
+  float cut = ground(c + sideOut * (edge + 0.08)) - rampAt(s, L.u);
+  float wallW = mode == 2 ? min(cut * STAIR_WALL, 0.1) : cut * STAIR_WALL;
+  float dark = mode == 2 ? exp(-1.6 * max(-hs, 0.0)) : 1.0;
+  if (cut > 0.04 && edge < wallW) {
+    float t = edge / wallW;
+    vec2 outside = c + sideOut * (edge + 0.08);
+    bool rocky = cliffPart(outside) - cliffPart(c - sideOut * min(halfW, 0.3)) > 0.03;
+    if (mode == 0 && rocky) col = rockAt(c, hs + t);
+    else if (mode == 0) col = mix(vec3(0.33, 0.42, 0.19), vec3(0.42, 0.32, 0.21) * (0.85 + 0.25 * fbm(c * 6.0)), smoothstep(0.0, 0.25, t));
+    else { vec2 b = vec2(L.u / 0.4 + floor(t * cut * 7.0) * 0.5, t * cut * 7.0); col = stoneCol(floor(b) + 11.0) * mix(0.6, 1.0, smoothstep(0.0, 0.05, min(min(fract(b.x), 1.0 - fract(b.x)) * 0.4, min(fract(b.y), 1.0 - fract(b.y)) * 0.14))); }
+    col *= mix(1.0, 0.72, t);
+    return light(col, vec3(-sideOut * 1.3, 0.6)) * dark;
+  }
+  // mureta (pedra) ou corrimão com postes (madeira) nas bordas
+  float railW = isWood ? 0.09 : 0.13;
+  if (edge < railW) {
+    if (isWood) {
+      bool post = fract((L.u + 0.2) / 0.9) < 0.12;
+      col = wood(vec2(L.u, L.v * 3.0), 99.0, 3.0) * (post ? 1.05 : 0.85);
+      n = normalize(vec3(sideOut * (edge < railW * 0.5 ? 0.7 : -0.4), 1.0));
+    } else {
+      vec2 b = vec2(L.u / 0.42, 0.0);
+      col = stoneCol(vec2(floor(b.x), 5.0 + float(s))) * (0.92 + 0.14 * fbm(c * 8.0)) * 1.06;
+      col *= mix(0.6, 1.0, smoothstep(0.0, 0.025, min(fract(b.x), 1.0 - fract(b.x)) * 0.42));
+      n = normalize(vec3(sideOut * (edge < railW * 0.5 ? 0.8 : -0.4), 1.0));
+    }
+    col = light(col, n) * (1.0 + 0.1 * hs * (mode == 1 ? 1.0 : 0.0));
+    return col * dark;
+  }
+  if (tl <= 0.0) {
+    // patamar: lajes (pedra) ou tábuas ao comprido (madeira)
+    if (isWood) {
+      float id = floor(L.u / 0.22);
+      float t = fract(L.u / 0.22);
+      col = wood(vec2(L.v, L.u), id + float(s) * 7.0, 4.0) * mix(0.7, 1.0, smoothstep(0.0, 0.08, min(t, 1.0 - t)));
+    } else {
+      float row = floor(L.u / 0.5);
+      vec2 b = vec2((L.v + hash(vec2(row, 4.0)) * 0.5) / 0.55, L.u / 0.5);
+      col = stoneCol(floor(b) + float(s) * 3.0) * (0.92 + 0.12 * fbm(c * 9.0));
+      col *= mix(0.62, 1.0, smoothstep(0.0, 0.03, min(min(fract(b.x), 1.0 - fract(b.x)) * 0.55, min(fract(b.y), 1.0 - fract(b.y)) * 0.5)));
+    }
+    n = normalize(vec3((noise(c * 9.0) - 0.5) * 0.25, (noise(c * 9.0 + 4.0) - 0.5) * 0.25, 1.0));
+  } else {
+    // degrau: piso, espelho do lado de baixo (largura de face), nariz claro e sombra na base do espelho
+    bool rising = dh > 0.0;
+    float rw = min(0.4, 0.08 / tl);
+    float riser = rising ? smoothstep(1.0 - rw - 0.03, 1.0 - rw, f) : 1.0 - smoothstep(rw, rw + 0.03, f);
+    vec3 tread;
+    if (isWood) {
+      float boards = max(1.0, floor(tl / 0.24));
+      float b = floor(f * boards), t = fract(f * boards);
+      tread = wood(vec2(L.v, L.u), k * 3.0 + b + float(s) * 17.0, 5.0);
+      tread *= mix(0.75, 1.0, smoothstep(0.0, 0.02, min(t, 1.0 - t) * tl / boards));
+    } else {
+      float split = (hash(vec2(k, 3.0 + float(s))) - 0.5) * 0.6 * halfW;
+      tread = stoneCol(vec2(k + float(s) * 31.0, L.v > split ? 1.0 : 0.0)) * (0.9 + 0.14 * fbm(c * 9.0));
+      tread *= mix(0.6, 1.0, smoothstep(0.0, 0.03, abs(L.v - split)));
+      tread *= 1.0 + 0.06 * (1.0 - smoothstep(0.0, halfW, abs(L.v)));   // gasto no meio
+    }
+    vec3 lowDir = vec3(rising ? -along : along, 0.0);
+    vec3 treadLit = light(tread, vec3((noise(c * 9.0) - 0.5) * 0.2, (noise(c * 9.0 + 4.0) - 0.5) * 0.2, 1.0));
+    vec3 riserLit = mix(light(tread * 0.9, normalize(lowDir * 1.3 + vec3(0, 0, 0.6))), treadLit * 0.7, 0.35);
+    col = mix(treadLit, riserLit, riser);
+    float nw = min(0.25, 0.025 / tl);
+    float nose = rising ? 1.0 - smoothstep(0.0, nw, f) : smoothstep(1.0 - nw, 1.0, f);
+    float base = rising ? smoothstep(1.0 - rw - 0.03 / tl, 1.0 - rw, f) * (1.0 - riser) : (1.0 - smoothstep(rw, rw + 0.03 / tl, f)) * (1.0 - riser);
+    col *= (1.0 + 0.16 * nose) * (1.0 - 0.18 * base);
+    n = vec3(0, 0, 1);
+    if (mode == 1) col *= 1.0 + 0.18 * hs;
+    if (mode == 2) col *= dark;
+    if (mode == 1 && L.u > len - 0.4) {
+      // borda cortada: o andar de cima é outra cena
+      float cutLine = 1.0 - smoothstep(0.02, 0.04, abs(L.u - (len - 0.4)));
+      return mix(hatch(c) * uTint, vec3(0.08), cutLine);
+    }
+    if (mode == 2 && L.u > len - 0.3) return mix(col, vec3(0.02), smoothstep(len - 0.3, len - 0.05, L.u));
+    return col;
+  }
+  col = light(col, n);
+  if (mode == 2) col *= dark;
+  return col;
+}
+
+// ---------------- caracol ----------------
+const float SP_SWEEP = PI2 * 0.88;
+const float SP_STEPS = 12.0;
+vec2 spCenter(int i) { return i == 0 ? vec2(22.4, 11.6) : vec2(26.5, 11.3); }
+float spStart(int i) { return i == 0 ? 0.3 : 2.0; }
+float spiralHeight(int i, vec2 c, out float k, out float f, out float turned) {
+  vec2 rel = c - spCenter(i);
+  turned = mod(atan(rel.y, rel.x) - spStart(i), PI2);
+  k = floor(turned / (SP_SWEEP / SP_STEPS)); f = fract(turned / (SP_SWEEP / SP_STEPS));
+  if (turned > SP_SWEEP) return 0.0;
+  return (i == 0 ? 1.0 : -1.0) * (k + 1.0) / SP_STEPS;
+}
+vec4 drawSpiral(int i, vec2 c) {
+  const float R = 1.0;
+  bool up = i == 0, isWood = i == 1;
+  vec2 rel = c - spCenter(i); float r = length(rel);
+  float outer = isWood ? 0.1 : 0.17;
+  if (r > R + outer) return vec4(0.0);
+  float k, f, turned;
+  float hs = spiralHeight(i, c, k, f, turned);
+  float ang = atan(rel.y, rel.x);
+  vec2 radial = rel / max(r, 1e-4), tg = vec2(-radial.y, radial.x);
+  if (r > R) {
+    if (isWood) {
+      // moldura do alçapão redondo
+      vec3 frame = wood(vec2(ang * 3.0, r * 4.0), floor(ang * 4.0), 8.0) * 0.8;
+      return vec4(light(frame, normalize(vec3(radial * (r > R + 0.05 ? 0.5 : -0.5), 1.0))), 1.0);
+    }
+    // parede redonda da torre: blocos ao longo do giro
+    vec2 b = vec2(ang * (R + 0.08) / 0.4, 0.0);
+    vec3 stone = stoneCol(vec2(floor(b.x), 21.0)) * 0.95 * mix(0.6, 1.0, smoothstep(0.0, 0.03, min(fract(b.x), 1.0 - fract(b.x)) * 0.4));
+    return vec4(light(stone, normalize(vec3(-radial * (r < R + 0.08 ? 0.6 : -0.6), 1.0))), 1.0);
+  }
+  float pillar = 0.2;
+  if (r < pillar) {
+    vec3 top = isWood ? mix(vec3(0.42, 0.29, 0.18), vec3(0.58, 0.43, 0.28), fract(r * 40.0)) : stoneCol(vec2(3.0, 9.0)) * (0.95 + 0.1 * fract(r * 30.0));
+    return vec4(light(top, normalize(vec3(rel * 2.5, 1.0))) * (up ? 1.18 : 1.0), 1.0);
+  }
+  vec3 col;
+  if (turned > SP_SWEEP) {
+    // vão entre o fim e o começo do giro: patamar no nível do piso
+    col = isWood ? wood(vec2(c.x, c.y), floor(c.y / 0.22), 6.0) : stoneCol(floor(c * 2.0) + 40.0) * 0.95;
+    return vec4(light(col, vec3(0, 0, 1)) * (up ? 1.0 : 0.9), 1.0);
+  }
+  float stepAng = SP_SWEEP / SP_STEPS;
+  float rf = 0.16;
+  float riser = up ? smoothstep(1.0 - rf - 0.03, 1.0 - rf, f) : 1.0 - smoothstep(rf, rf + 0.03, f);
+  vec3 tread = isWood ? wood(vec2(r, turned), k * 5.0 + 3.0, 2.0) : stoneCol(vec2(k, 15.0 + float(i))) * (0.9 + 0.14 * fbm(c * 9.0));
+  float joint = min(f, 1.0 - f) * r * stepAng;
+  tread *= mix(0.72, 1.0, smoothstep(0.0, 0.012 + 0.012 * r, joint));
+  vec3 lowDir = vec3(up ? -tg : tg, 0.0);
+  vec3 treadLit = light(tread, vec3(0, 0, 1));
+  col = mix(treadLit, mix(light(tread * 0.9, normalize(lowDir * 1.3 + vec3(0, 0, 0.6))), treadLit * 0.7, 0.35), riser);
+  // nariz claro na borda de cima do espelho
+  col *= 1.0 + 0.14 * (up ? 1.0 - smoothstep(0.0, 0.06, f) : smoothstep(0.94, 1.0, f));
+  if (isWood) {
+    // corrimão por fora e balaústres em cada degrau
+    if (r > R - 0.07) col = light(wood(vec2(ang * 4.0, r), 50.0, 1.0) * 0.8, normalize(vec3(radial * 0.4, 1.0)));
+    vec2 baluster = spCenter(i) + (R - 0.05) * vec2(cos(spStart(i) + (k + 0.5) * stepAng), sin(spStart(i) + (k + 0.5) * stepAng));
+    if (length(c - baluster) < 0.045) col = light(vec3(0.5, 0.36, 0.22), normalize(vec3((c - baluster) * 10.0, 1.0)));
+  }
+  if (up) {
+    col *= 1.0 + 0.18 * hs;
+    if (k >= SP_STEPS - 1.0) { float cutLine = 1.0 - smoothstep(0.02, 0.04, abs(f) * r * stepAng); col = mix(hatch(c) * uTint, vec3(0.08), cutLine); }
+  } else {
+    col *= exp(-2.2 * max(-hs, 0.0));
+    if (k >= SP_STEPS - 2.0) col = mix(col, vec3(0.02), smoothstep(SP_STEPS - 2.0, SP_STEPS - 0.3, k + f));
+  }
+  return vec4(col, 1.0);
+}
+
+// ---------------- escada de mão ----------------
+// 0: encostada no penhasco (pé embaixo, topo no patamar); 1: saindo do alçapão (desce para outra cena)
+vec2 ldFrom(int i) { return i == 0 ? vec2(10.1, 11.22) : vec2(24.6, 14.8); }
+vec2 ldTo(int i) { return i == 0 ? vec2(10.1, 10.02) : vec2(24.6, 15.6); }
+float ladderMask(int i, vec2 c, out float u, out float L, out float rung) {
+  vec2 a = ldFrom(i), b = ldTo(i); vec2 dir = normalize(b - a), side = vec2(-dir.y, dir.x);
+  L = length(b - a); u = dot(c - a, dir); float v = dot(c - a, side);
+  rung = 0.0;
+  float spread = i == 0 ? mix(0.17, 0.23, clamp(u / L, 0.0, 1.0)) : 0.2;
+  v = v * 0.2 / spread;
+  bool rail = abs(abs(v) - 0.2) < 0.04 && u > -0.02 && u < L + (i == 0 ? 0.16 : 0.0);
+  float rr = fract(u / 0.28);
+  bool step_ = abs(v) < 0.2 && u > 0.05 && u < L - 0.05 && abs(rr - 0.5) < 0.09;
+  if (step_) rung = 1.0;
+  return rail || step_ ? 1.0 : 0.0;
+}
+vec4 drawLadder(int i, vec2 c) {
+  float u, L, rung;
+  if (ladderMask(i, c, u, L, rung) < 0.5) return vec4(0.0);
+  vec2 dir = normalize(ldTo(i) - ldFrom(i));
+  vec3 col = wood(vec2(u, rung), rung > 0.5 ? floor(u / 0.28) : 1.0, 12.0) * (rung > 0.5 ? 1.05 : 0.85);
+  // no penhasco, deitada na face: pega a luz da face (virada para fora, contra o pé)
+  vec3 n = i == 0 ? normalize(vec3(-dir * 0.9, 1.0)) : vec3(0, 0, 1);
+  vec2 side = vec2(-dir.y, dir.x);
+  if (rung < 0.5) n = normalize(n + vec3(side * sign(dot(c - ldFrom(i), side)) * 0.35, 0.0));   // trilho redondo
+  vec3 lit = light(col, n);
+  if (i == 0 && u > L + 0.03) lit = light(vec3(0.3, 0.3, 0.33), vec3(0, 0, 1)) * (1.0 - 0.5 * smoothstep(L + 0.1, L + 0.16, u));   // gancho de ferro na borda
+  if (i == 1) lit *= mix(1.0, 0.08, clamp(u / L, 0.0, 1.0));   // para dentro do buraco, escurece
+  return vec4(lit, 1.0);
+}
+// alçapão quadrado com a tampa aberta deitada ao lado
+vec4 drawHatch(vec2 c, out bool hole) {
+  vec2 center = vec2(24.6, 15.2); vec2 q = c - center;
+  hole = false;
+  if (abs(q.x) < 0.45 && abs(q.y) < 0.45) { hole = true; float depth = (q.y + 0.45) / 0.9; return vec4(mix(vec3(0.16, 0.13, 0.1), vec3(0.015), smoothstep(0.0, 0.9, depth)) * uTint, 1.0); }
+  if (abs(q.x) < 0.56 && abs(q.y) < 0.56) return vec4(light(wood(vec2(q.x + q.y, q.x - q.y), 70.0, 2.0) * 0.75, vec3(0, 0, 1)), 1.0);
+  if (q.x > 0.6 && q.x < 1.5 && abs(q.y) < 0.45) {
+    float t = fract((q.x - 0.6) / 0.225);
+    vec3 lid = wood(vec2(q.y, q.x), floor((q.x - 0.6) / 0.225) + 80.0, 3.0) * 0.72 * mix(0.6, 1.0, smoothstep(0.0, 0.08, min(t, 1.0 - t)));
+    float rim = min(min(q.x - 0.6, 1.5 - q.x), 0.45 - abs(q.y));
+    lid *= mix(0.45, 1.0, smoothstep(0.0, 0.03, rim));
+    if (abs(q.x - 0.78) < 0.04 || abs(q.x - 1.32) < 0.04) lid = vec3(0.22, 0.22, 0.24);   // cintas de ferro
+    if (abs(length(q - vec2(1.4, 0.0)) - 0.07) < 0.018) lid = vec3(0.3, 0.3, 0.32);       // argola
+    return vec4(light(lid, vec3(0, 0, 1)), 1.0);
+  }
+  // sombra curta da tampa (é grossa)
+  vec2 back = q + sunXY() * 0.08;
+  if (back.x > 0.6 && back.x < 1.5 && abs(back.y) < 0.45) return vec4(-1.0);
+  return vec4(0.0);
+}
+
+void main() {
+  vec2 frag = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 c = uPan + frag / uCellPx;
+  float hg = ground(c);
+  vec3 col = groundColor(c, hg);
+  vec2 sxy = sunXY();
+  float shade = reliefShadow(c, hg);
+  // sombra das partes da escada acima do chão (procura o ponto que tapa o sol: três voltas)
+  for (int s = 0; s < MAXS; s++) {
+    if (s >= uStairCount) break;
+    if (int(uStairA[s].z + 0.5) == 2) continue;
+    float h = 0.5; bool hit = false;
+    for (int it = 0; it < 3; it++) {
+      Local L = stairLocal(s, c + sxy * h);
+      if (onStair(s, L)) { h = max(rampAt(s, L.u) - hg, 0.0); hit = true; } else { hit = false; h *= 0.5; }
+    }
+    if (hit && h > 0.05) shade = max(shade, 0.8);
+  }
+  {
+    float h = 0.5; bool hit = false;
+    for (int it = 0; it < 3; it++) { float k, f, turned; vec2 q = c + sxy * h; if (length(q - spCenter(0)) < 1.0 && length(q - spCenter(0)) > 0.0) { float hs = spiralHeight(0, q, k, f, turned); hit = turned <= SP_SWEEP; h = hs; } else { hit = false; h *= 0.5; } }
+    if (hit && h > 0.05 && length(c - spCenter(0)) > 1.17) shade = max(shade, 0.75);
+  }
+  {
+    // encostada na rocha: sombra rente e um halo escuro de contato; pé assentado no chão
+    float u, L, rung;
+    if (ladderMask(0, c, u, L, rung) < 0.5) {
+      float near = 0.0;
+      for (int k = 0; k < 8; k++) { float a = float(k) * 0.785; if (ladderMask(0, c + vec2(cos(a), sin(a)) * 0.035, u, L, rung) > 0.5) near += 0.125; }
+      shade = max(shade, near * 1.2);
+      if (ladderMask(0, c + sxy * 0.05, u, L, rung) > 0.5) shade = max(shade, 0.75);
+    }
+    vec2 foot = (c - ldFrom(0) - vec2(0.0, 0.03)) / vec2(0.42, 0.13);
+    if (length(foot) < 1.0) shade = max(shade, 1.1 * (1.0 - length(foot)));
+  }
+  col *= 1.0 - 0.45 * shade;
+  // lateral das escadas acima do chão, moldura do alçapão (descendo) e contato
+  for (int s = 0; s < MAXS; s++) {
+    if (s >= uStairCount) break;
+    Local L = stairLocal(s, c);
+    vec4 A = uStairA[s];
+    float halfW = A.x * 0.5, out_ = abs(L.v) - halfW;
+    if (out_ <= 0.0 || L.u < 0.0 || L.u > A.w || out_ > 1.0) continue;
+    int mode = int(A.z + 0.5);
+    float hs = rampAt(s, L.u);
+    vec2 sideOut = L.side * sign(L.v);
+    float faceW = (hs - hg) * STAIR_WALL;
+    if (mode != 2 && faceW > 0.02 && out_ < faceW && !(mode == 1 && L.u > A.w - 0.4)) {
+      float t = out_ / faceW;
+      vec3 face;
+      if (A.y > 0.5) { float b = fract(L.u / 0.18); face = wood(vec2(t, L.u), floor(L.u / 0.18), 6.0) * mix(0.6, 1.0, smoothstep(0.0, 0.1, min(b, 1.0 - b))) * (t < 0.12 ? 0.75 : 1.0); }
+      else { vec2 b = vec2(L.u / 0.38 + floor(t * (hs - hg) * 7.0) * 0.5, t * (hs - hg) * 7.0); face = stoneCol(floor(b) + 61.0) * 0.92 * mix(0.6, 1.0, smoothstep(0.0, 0.05, min(min(fract(b.x), 1.0 - fract(b.x)) * 0.38, min(fract(b.y), 1.0 - fract(b.y)) * 0.14))); }
+      col = light(face * mix(1.0, 0.72, t), normalize(vec3(sideOut * 1.4, 0.5)));
+      continue;
+    }
+    if (mode == 2 && out_ < 0.12) { col = light(stoneCol(vec2(floor(L.u / 0.35), 90.0)) * 0.85, normalize(vec3(sideOut * (out_ < 0.06 ? -0.4 : 0.4), 1.0))); continue; }
+    if (abs(hs - hg) < 0.12 && out_ < 0.25) col *= 1.0 - 0.3 * pow(1.0 - out_ / 0.25, 2.0);
+  }
+  // escadas por cima (a de cima na lista por cima)
+  for (int s = 0; s < MAXS; s++) {
+    if (s >= uStairCount) break;
+    Local L = stairLocal(s, c);
+    if (!onStair(s, L)) {
+      // moldura do fim da escada descendo
+      if (int(uStairA[s].z + 0.5) == 2 && L.u > uStairA[s].w && L.u < uStairA[s].w + 0.12 && abs(L.v) < uStairA[s].x * 0.5 + 0.12) col = light(stoneCol(vec2(floor(L.v / 0.35), 91.0)) * 0.85, vec3(0, 0, 1));
+      continue;
+    }
+    float hs;
+    vec3 stair = drawPathStair(s, L, c, hs);
+    if (int(uStairA[s].z + 0.5) == 0) stair *= 1.0 - 0.45 * reliefShadow(c, hs);
+    col = stair;
+  }
+  for (int i = 0; i < 2; i++) { vec4 sp = drawSpiral(i, c); if (sp.a > 0.0) col = sp.rgb; }
+  bool hole;
+  vec4 hatchCol = drawHatch(c, hole);
+  if (hatchCol.a > 0.0) col = hatchCol.rgb; else if (hatchCol.a < 0.0) col *= 0.6;
+  for (int i = 0; i < 2; i++) { vec4 ld = drawLadder(i, c); if (ld.a > 0.0 && (i == 0 || hole)) col = ld.rgb * (i == 0 ? 1.0 - 0.45 * reliefShadow(c, ground(c) + 0.1) : 1.0); }
+  vec2 g = abs(fract(c) - 0.5);
+  float line = smoothstep(0.5 - px() * 1.0, 0.5, max(g.x, g.y));
+  col = mix(col, col * 0.7, line * uGrid * 0.6);
+  outColor = vec4(pow(col, vec3(0.95)), 1.0);
+}`;
+function compile(type, source) { const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader); if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { document.body.insertAdjacentHTML("beforeend", "<pre>" + gl.getShaderInfoLog(shader) + "</pre>"); throw new Error(gl.getShaderInfoLog(shader)); } return shader; }
+const program = gl.createProgram();
+gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+gl.bindAttribLocation(program, 0, "aPos"); gl.linkProgram(program);
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+gl.useProgram(program);
+const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const uniform = (name) => gl.getUniformLocation(program, name);
+
+// escadas para a placa
+{
+  const stairA = new Float32Array(MAXS * 4), stairB = new Float32Array(MAXS * 4);
+  const primA = new Float32Array(MAXP * 4), primB = new Float32Array(MAXP * 4);
+  const segs = new Float32Array(MAXG * 4), segN = new Float32Array(MAXG);
+  let primCount = 0, segCount = 0;
+  STAIRS.forEach((stair, index) => {
+    const { prims, length } = buildPrims(stair.points);
+    const profile = buildProfile(prims, length, stair.mode);
+    stairA.set([stair.width, stair.material, stair.mode, length], index * 4);
+    stairB.set([primCount, prims.length, segCount, profile.length], index * 4);
+    for (const prim of prims) {
+      if (prim.type === 0) { primA.set([...prim.a, ...prim.b], primCount * 4); primB.set([prim.u0, 0, 0, 0], primCount * 4); }
+      else { primA.set([...prim.center, prim.r, prim.a0], primCount * 4); primB.set([prim.u0, 1, 0, prim.sweep], primCount * 4); }
+      primCount++;
+    }
+    for (const [u0, u1, h0, h1, steps] of profile) { segs.set([u0, u1, h0, h1], segCount * 4); segN[segCount] = steps; segCount++; }
+  });
+  gl.uniform1i(uniform("uStairCount"), STAIRS.length);
+  gl.uniform4fv(uniform("uStairA"), stairA);
+  gl.uniform4fv(uniform("uStairB"), stairB);
+  gl.uniform4fv(uniform("uPrimA"), primA);
+  gl.uniform4fv(uniform("uPrimB"), primB);
+  gl.uniform4fv(uniform("uSeg"), segs);
+  gl.uniform1fv(uniform("uSegN"), segN);
+}
+
+const LIGHTS = {
+  day: { sun: [-0.45, -0.55, 0.7], tint: [1.0, 0.98, 0.92], ambient: 0.45 },
+  dusk: { sun: [-0.85, -0.25, 0.32], tint: [1.05, 0.78, 0.56], ambient: 0.35 },
+  moon: { sun: [0.4, -0.5, 0.6], tint: [0.55, 0.65, 0.85], ambient: 0.3 },
+};
+let pan = [0, 0];
+function draw() {
+  const cellPx = Number(document.getElementById("zoom").value);
+  const light = LIGHTS[document.getElementById("light").value];
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(uniform("uCanvas"), canvas.width, canvas.height);
+  gl.uniform2f(uniform("uPan"), pan[0], pan[1]);
+  gl.uniform1f(uniform("uCellPx"), cellPx);
+  gl.uniform3f(uniform("uSun"), ...light.sun);
+  gl.uniform3f(uniform("uTint"), ...light.tint);
+  gl.uniform1f(uniform("uAmbient"), light.ambient);
+  gl.uniform1f(uniform("uGrid"), document.getElementById("grid").checked ? 1 : 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  document.getElementById("zoomOut").textContent = cellPx + " px/casa";
+}
+for (const id of ["light", "zoom", "grid"]) document.getElementById(id).addEventListener("input", draw);
+let dragging = null;
+const ratio = () => canvas.width / canvas.getBoundingClientRect().width;
+canvas.addEventListener("pointerdown", (event) => { dragging = { x: event.clientX, y: event.clientY, pan: [...pan] }; canvas.setPointerCapture(event.pointerId); });
+canvas.addEventListener("pointermove", (event) => { if (!dragging) return; const cellPx = Number(document.getElementById("zoom").value); pan = [dragging.pan[0] - ((event.clientX - dragging.x) * ratio()) / cellPx, dragging.pan[1] - ((event.clientY - dragging.y) * ratio()) / cellPx]; draw(); });
+canvas.addEventListener("pointerup", () => { dragging = null; });
+canvas.addEventListener("wheel", (event) => { event.preventDefault(); const zoom = document.getElementById("zoom"); const before = Number(zoom.value); const after = Math.min(160, Math.max(16, Math.round(before * (event.deltaY < 0 ? 1.15 : 1 / 1.15)))); const rect = canvas.getBoundingClientRect(); const mx = (event.clientX - rect.left) * ratio(), my = (event.clientY - rect.top) * ratio(); pan = [pan[0] + mx / before - mx / after, pan[1] + my / before - my / after]; zoom.value = after; draw(); }, { passive: false });
+window.__view = (x, y, cellPx, light) => { pan = [x, y]; document.getElementById("zoom").value = cellPx; if (light) document.getElementById("light").value = light; draw(); return canvas.toDataURL("image/jpeg", 0.92).length; };
+draw();
+</script>
+</body>
+</html>
