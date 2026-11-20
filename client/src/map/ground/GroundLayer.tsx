@@ -211,16 +211,27 @@ export const GroundLayer = memo(function GroundLayer({
   useEffect(() => {
     if (!renderer) return;
     let alive = true;
-    loadTerrainImages()
-      .then((images) => {
-        if (!alive) return;
-        const watercolors = TERRAINS.map((terrain) => filteredWatercolor(terrain, images[TERRAIN_ART[terrain].image]));
-        renderer.setArt(watercolors, images.dirt_01);
-        setVersion((value) => value + 1);
-      })
-      .catch(() => useApp.setState({ groundFailed: true }));
+    let attempt = 0;
+    let retry = 0;
+    // As aquarelas: se falharem (rede caiu, servidor reiniciando), tenta de novo duas vezes antes de desligar o chão.
+    const load = () =>
+      loadTerrainImages()
+        .then((images) => {
+          if (!alive) return;
+          const watercolors = TERRAINS.map((terrain) => filteredWatercolor(terrain, images[TERRAIN_ART[terrain].image]));
+          renderer.setArt(watercolors, images.dirt_01);
+          setVersion((value) => value + 1);
+        })
+        .catch(() => {
+          if (!alive) return;
+          attempt++;
+          if (attempt < 3) retry = window.setTimeout(load, 2000);
+          else useApp.setState({ groundFailed: true });
+        });
+    load();
     return () => {
       alive = false;
+      window.clearTimeout(retry);
     };
   }, [renderer]);
 

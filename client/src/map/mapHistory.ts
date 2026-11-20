@@ -394,7 +394,22 @@ export async function erasePaint(cells: number[]): Promise<ActionResult> {
  * relevo: o passo do desfazer guarda os pedaços de antes e de depois (a mesma conta do servidor, só com os envios
  * aceitos), e desfazer só repõe o que ainda está como a passada deixou.
  */
-export async function paintFloorStroke(stroke: FloorStroke): Promise<ActionResult> {
+/**
+ * Pinceladas (terreno, relevo, piso) vão ao servidor uma de cada vez: numa conexão lenta, a segunda só parte depois
+ * da primeira, já com o resultado dela (senão o "antes" e o "depois" do desfazer saem errados e ele não faz nada).
+ */
+let strokeQueue: Promise<unknown> = Promise.resolve();
+function queued<T>(work: () => Promise<T>): Promise<T> {
+  const next = strokeQueue.then(work, work);
+  strokeQueue = next.catch(() => undefined);
+  return next;
+}
+
+export function paintFloorStroke(stroke: FloorStroke): Promise<ActionResult> {
+  return queued(() => paintFloorNow(stroke));
+}
+
+async function paintFloorNow(stroke: FloorStroke): Promise<ActionResult> {
   const app = useApp.getState();
   const base = app.floors;
   const walls = app.state?.battle.walls ?? [];
@@ -430,7 +445,11 @@ export async function paintFloorStroke(stroke: FloorStroke): Promise<ActionResul
  * Uma passada do pincel de relevo (do apertar ao soltar), em envios de até 2000 pontos, como o terreno: o passo do
  * desfazer guarda os pedaços de antes e de depois, e desfazer só repõe o que ainda está como a passada deixou.
  */
-export async function paintReliefStroke(stroke: ReliefStroke): Promise<ActionResult> {
+export function paintReliefStroke(stroke: ReliefStroke): Promise<ActionResult> {
+  return queued(() => paintReliefNow(stroke));
+}
+
+async function paintReliefNow(stroke: ReliefStroke): Promise<ActionResult> {
   const base = useApp.getState().relief;
   const applied: ReliefChunks = { ...base };
   const touched = new Set<string>();
@@ -458,7 +477,11 @@ export async function paintReliefStroke(stroke: ReliefStroke): Promise<ActionRes
  * os pedaços de antes e os de depois (a mesma conta do servidor, só com os envios aceitos): desfazer só repõe o
  * pedaço que ainda está como a passada deixou (depois de *Limpar campo* ou de *Apagar todo o terreno*, não volta nada).
  */
-export async function paintTerrainStroke(stroke: TerrainStroke): Promise<ActionResult> {
+export function paintTerrainStroke(stroke: TerrainStroke): Promise<ActionResult> {
+  return queued(() => paintTerrainNow(stroke));
+}
+
+async function paintTerrainNow(stroke: TerrainStroke): Promise<ActionResult> {
   const base = useApp.getState().terrain;
   const applied: TerrainChunks = { ...base };
   const touched = new Set<string>();

@@ -483,7 +483,10 @@ export interface DuneMask {
   data: Uint8Array<ArrayBuffer>;
 }
 
-/** A máscara das dunas do relevo; `null` sem nenhuma duna. */
+/** Lado máximo da máscara das dunas (pontos da grade fina): 4096 = 1024 casas, textura que qualquer placa aceita. */
+export const DUNE_MASK_MAX_SIDE = 4096;
+
+/** A máscara das dunas do relevo; `null` sem nenhuma duna (ou com elas espalhadas além de `DUNE_MASK_MAX_SIDE`). */
 export function duneMask(chunks: ReliefChunks): DuneMask | null {
   const withDunes: [number, number, Uint8Array][] = [];
   for (const [key, text] of Object.entries(chunks)) {
@@ -497,6 +500,8 @@ export function duneMask(chunks: ReliefChunks): DuneMask | null {
   const cy = Math.min(...withDunes.map(([, y]) => y));
   const cols = Math.max(...withDunes.map(([x]) => x)) - cx + 1;
   const rows = Math.max(...withDunes.map(([, y]) => y)) - cy + 1;
+  // Dunas muito longe umas das outras: a máscara cobriria a caixa inteira entre elas. Acima do teto, sem poeira.
+  if (cols * TERRAIN_CHUNK_SIDE + 2 > DUNE_MASK_MAX_SIDE || rows * TERRAIN_CHUNK_SIDE + 2 > DUNE_MASK_MAX_SIDE) return null;
   const width = cols * TERRAIN_CHUNK_SIDE + 2;
   const data = new Uint8Array(width * (rows * TERRAIN_CHUNK_SIDE + 2));
   for (const [x, y, bytes] of withDunes) {

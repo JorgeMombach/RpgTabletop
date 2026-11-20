@@ -71,6 +71,14 @@ async function player(name: string): Promise<{ socket: Client; first: Promise<Re
 
 
 describe("relevo: dunas", () => {
+  it("máscara das dunas: dunas muito longe umas das outras não alocam uma máscara enorme (sem poeira)", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, { level: 0, soft: false, dune: 2, radius: 1, points: [4, 4] });
+    assert.ok(duneMask(chunks), "perto: tem máscara");
+    paintRelief(chunks, { level: 0, soft: false, dune: 2, radius: 1, points: [4 + 2000, 4] });
+    assert.equal(duneMask(chunks), null, "2000 casas de distância: sem máscara");
+  });
+
   const dunes = (dune: number, points = [4, 4], radius = 1): ReliefStroke => ({ level: 0, soft: false, dune, radius, points });
   it("byte com duna é válido e volta igual", () => {
     const value = encodeReliefPoint({ level: 1, soft: false, dune: 3 });

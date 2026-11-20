@@ -42,7 +42,14 @@ export function loadTerrainImages(): Promise<Record<string, HTMLImageElement>> {
           image.src = `terreno/${name}.webp`;
         }),
     ),
-  ).then((pairs) => Object.fromEntries(pairs));
+  ).then(
+    (pairs) => Object.fromEntries(pairs),
+    (error: unknown) => {
+      // Falhou (rede caiu, servidor reiniciando): a próxima chamada tenta de novo, sem precisar recarregar a página.
+      loading = null;
+      throw error;
+    },
+  );
   return loading;
 }
 

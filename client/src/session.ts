@@ -197,7 +197,8 @@ socket.on("floors", ({ reset, chunks }) => {
       if (chunk) floors[key] = chunk;
       else delete floors[key];
     }
-    return reset ? { floors, floorEpoch: s.floorEpoch + 1 } : { floors };
+    // Outra cena (ou entrou agora): a prévia de uma passada pela metade era da cena anterior.
+    return reset ? { floors, floorEpoch: s.floorEpoch + 1, floorPreview: null } : { floors };
   });
 });
 
@@ -209,7 +210,7 @@ socket.on("relief", ({ reset, chunks }) => {
       if (chunk) relief[key] = chunk;
       else delete relief[key];
     }
-    return reset ? { relief, reliefEpoch: s.reliefEpoch + 1 } : { relief };
+    return reset ? { relief, reliefEpoch: s.reliefEpoch + 1, reliefPreview: null } : { relief };
   });
 });
 

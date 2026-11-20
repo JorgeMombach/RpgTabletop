@@ -164,12 +164,10 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
 - [ ] Piso pintado atrás de porta secreta mostra o formato da sala sem névoa (vai inteiro para os jogadores, como terreno e relevo).
-- [ ] `floorPreview` não é limpo se a cena trocar no meio de uma passada.
 - [ ] Sem WebGL (`FloorLayer`), o piso passa 1/8 de casa da linha da parede (quadradinhos de ±1/8).
 - [ ] Barra do tapete pelo ponto mais perto: em tapete com borda diagonal sai em degraus.
 
 ### Chão, água, areia e dunas ([docs/design/relevo.md](design/relevo.md))
-- [ ] `duneMask` não tem limite de tamanho: dunas a milhares de casas umas das outras alocam uma máscara enorme (sem o equivalente ao `TerrainTooLarge`).
 - [ ] Sem compilação em paralelo, até 3 programas compilam no mesmo quadro (terreno, paredes, poeira: um por cache).
 - [ ] O relógio da poeira volta a zero a cada 30 min: o desenho dos fiapos pula uma vez nesse instante.
 - [ ] A superfície da água ainda usa o relógio sem voltar a zero (sessões muito longas podem perder detalhe fino).
@@ -234,12 +232,9 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Terreno pintado ([docs/design/terreno.md](design/terreno.md))
 - [ ] Pedaço sem dados próprios não é desenhado: depois da *Borracha*, a faixa de 1/4 de casa até o vizinho da direita/de baixo fica cortada reta (`renderChunk.ts` / `TerrainLayer.tsx`).
-- [ ] Pinceladas sobrepostas em conexão lenta: o `.then` da primeira apaga a prévia da segunda e o *Desfazer* pode não fazer nada (`BattleMap.tsx`, `mapHistory.ts`).
-- [ ] Falha ao carregar as aquarelas fica guardada até recarregar a página (`terrainArt.ts`).
 
 ### Grid hexagonal ([docs/design/grid-hex.md](design/grid-hex.md))
 - [ ] `maskKey` da névoa sem o grid (`Fog.tsx`): só pesa trocando entre cena quadrada e hex com o revelado idêntico.
-- [ ] Arquivo de sessão editado à mão com cena hex e névoa ligada fica sem como desligar a névoa (`fog:set` recusado no hex).
 - [ ] O canvas da máscara da névoa pode passar do limite do iOS numa área revelada enorme (já era assim no quadrado).
 
 ### Diário da campanha ([docs/design/diario.md](design/diario.md))

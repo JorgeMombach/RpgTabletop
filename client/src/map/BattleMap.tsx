@@ -591,9 +591,19 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
     // Sem área (só um clique): nada a pintar.
     if (brushTerrain === "current" || brushTerrain === "currentErase" || rect.from.x === rect.to.x || rect.from.y === rect.to.y) return setTerrainPreview(null);
-    void paintTerrainStroke({ ...brushSize, terrain: brushTerrain, points: [], rect: { from: rect.from, to: rect.to } }).then(() => setTerrainPreview(null));
+    strokeSent("terrain", paintTerrainStroke({ ...brushSize, terrain: brushTerrain, points: [], rect: { from: rect.from, to: rect.to } }), () => setTerrainPreview(null), () => !!terrainRef.current);
   }
   const [terrainPreview, setTerrainPreview] = useState<TerrainChunks | null>(null);
+  // Pinceladas que ainda não voltaram do servidor (terreno, relevo, piso): a prévia só some quando nenhuma falta e
+  // nenhuma está sendo pintada (numa conexão lenta, a resposta da primeira não apaga a prévia da segunda).
+  const strokesOut = useRef({ terrain: 0, relief: 0, floor: 0 });
+  const strokeSent = (kind: "terrain" | "relief" | "floor", sent: Promise<unknown>, clear: () => void, drawing: () => boolean) => {
+    strokesOut.current[kind]++;
+    void sent.finally(() => {
+      strokesOut.current[kind]--;
+      if (strokesOut.current[kind] === 0 && !drawing()) clear();
+    });
+  };
   const terrainCursor = useRef<Konva.Circle>(null);
   function terrainAt(p: Point) {
     const cursor = terrainCursor.current;
@@ -624,7 +634,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
     if (!draft || draft.points.length === 0 || brushTerrain === "current" || brushTerrain === "currentErase") return;
     // A prévia fica até o servidor responder (o terreno novo chega antes da resposta: sem piscar).
-    void paintTerrainStroke({ ...brushSize, terrain: brushTerrain, points: draft.points }).then(() => setTerrainPreview(null));
+    strokeSent("terrain", paintTerrainStroke({ ...brushSize, terrain: brushTerrain, points: draft.points }), () => setTerrainPreview(null), () => !!terrainRef.current);
   }
 
   // Pincel de relevo (mestre, docs/design/relevo.md): como o do terreno, a passada é pintada numa cópia local na hora
@@ -655,13 +665,21 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     reliefRef.current = null;
     if (!draft || draft.points.length === 0) return;
     // A prévia fica até o servidor responder (o relevo novo chega antes da resposta: sem piscar).
-    void paintReliefStroke(reliefStrokeOf(useApp.getState().reliefBrush, draft.points)).then(() => useApp.setState({ reliefPreview: null }));
+    strokeSent("relief", paintReliefStroke(reliefStrokeOf(useApp.getState().reliefBrush, draft.points)), () => useApp.setState({ reliefPreview: null }), () => !!reliefRef.current);
   }
 
   // Piso (mestre, docs/design/pisos.md). Pincel e borracha: como o relevo, a passada vai numa cópia local na hora
   // (prévia em `floorPreview`) e inteira ao soltar. Retângulo: os cantos encaixam na casa (Shift: meia casa), contorno
   // enquanto arrasta. Cômodo: o contorno do lugar fechado sob o mouse e, no clique, a passada.
   const floorRef = useRef<{ points: number[]; local: FloorChunks } | null>(null);
+  // Trocou de cena no meio de uma passada (piso ou relevo inteiro novo): a passada era da cena anterior e acaba ali.
+  const floorEpoch = useApp((s) => s.floorEpoch);
+  useEffect(() => {
+    floorRef.current = null;
+  }, [floorEpoch]);
+  useEffect(() => {
+    reliefRef.current = null;
+  }, [reliefEpoch]);
   const floorCursor = useRef<Konva.Circle>(null);
   const [floorRect, setFloorRect] = useState<{ from: LightPoint; to: LightPoint } | null>(null);
   const [floorHover, setFloorHover] = useState<{ key: string; outlines: number[][] } | null>(null);
@@ -875,7 +893,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     floorRef.current = null;
     if (!draft || draft.points.length === 0) return;
     // A prévia fica até o servidor responder (o piso novo chega antes da resposta: sem piscar).
-    void paintFloorStroke(floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: draft.points })).then(() => useApp.setState({ floorPreview: null }));
+    strokeSent("floor", paintFloorStroke(floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: draft.points })), () => useApp.setState({ floorPreview: null }), () => !!floorRef.current);
   }
 
   // Correnteza (água animada, mestre): a linha vai no sentido em que a água corre. Clique a clique (cada clique põe
