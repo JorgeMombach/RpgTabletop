@@ -68,6 +68,8 @@ export const journalHandlers: HandlerMap = {
   "journal:share": (store, player, payload) => {
     requireGm(player);
     const entry = findEntry(store, payload?.id);
+    // Mesmo valor: nada muda (subir o updatedAt avisaria os jogadores de novo).
+    if ((payload.shared === true) === (entry.shared === true)) return;
     if (payload.shared === true) entry.shared = true;
     else delete entry.shared;
     touch(store, entry);

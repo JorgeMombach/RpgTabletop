@@ -104,7 +104,8 @@ socket.on("connect", async () => {
 });
 
 socket.on("disconnect", () => {
-  useApp.setState({ connected: false });
+  // O diário que chegar ao reconectar é uma primeira chegada: o que mudou enquanto estava fora fica só na bolinha.
+  useApp.setState({ connected: false, journalLoaded: false });
 });
 
 /** Último pedido de reenvio da imagem do mapa: um por versão, e no máximo a cada 3 s. */

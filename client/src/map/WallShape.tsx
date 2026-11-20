@@ -2,7 +2,7 @@ import { Button, Center, Checkbox, Box, Group, SegmentedControl, Select, Slider,
 import { IconArrowBackUp, IconBrush, IconDoor, IconEraser, IconTrash, IconWall, IconWindow } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Shape as KShape } from "react-konva";
-import { seeThrough, wallAnchor, wallSeed, WALL_STYLES, WALL_THICKNESS, type DoorLayout, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
+import { isHex, seeThrough, wallAnchor, wallSeed, WALL_STYLES, WALL_THICKNESS, type DoorLayout, type GridPos, type MapConfig, type Wall, type WallStyle } from "@rpg/shared";
 import { useEffect, useRef } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
@@ -166,6 +166,8 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
   const t = useT();
   const { wallMode, wallSnap, wallThick, selectedDoorId, wallDrawStyle } = useApp(useShallow((s) => ({ wallMode: s.wallMode, wallSnap: s.wallSnap, wallThick: s.wallThick, selectedDoorId: s.selectedDoorId, wallDrawStyle: s.wallDrawStyle })));
   const undoCount = useMapUndo((s) => s.walls);
+  // No hex, as pontas encaixam nos vértices e meios de lado (não há "canto do grid").
+  const hex = useApp((s) => !!s.state && isHex(s.state.battle.map));
   const door = walls.find((w) => w.id === selectedDoorId && w.door);
   const pane = walls.find((w) => w.id === selectedDoorId && w.window);
 
@@ -327,7 +329,7 @@ export function WallOptions({ walls, style }: { walls: Wall[]; style: WallStyle 
         </Group>
       ) : (
         <Text size="xs" c="dimmed" mt={4}>
-          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "restyle" ? "walls.hintRestyle" : wallMode === "door" ? "walls.hintDoor" : wallMode === "window" ? "walls.hintWindow" : wallSnap ? "walls.hintWall" : "walls.hintWallFree")}
+          {t(wallMode === "erase" ? "walls.hintErase" : wallMode === "restyle" ? "walls.hintRestyle" : wallMode === "door" ? "walls.hintDoor" : wallMode === "window" ? "walls.hintWindow" : wallSnap ? (hex ? "walls.hintWallHex" : "walls.hintWall") : "walls.hintWallFree")}
         </Text>
       )}
     </Box>

@@ -83,6 +83,24 @@ describe("diário: ações", () => {
     assert.equal(version(), v0 + 5);
   });
 
+  it("liberar (ou recolher) de novo com o mesmo valor não muda nada (os jogadores não são avisados outra vez)", async () => {
+    const g = await gm();
+    const id = idOf(await act(g, "journal:upsert", entry()));
+    assert.ok((await act(g, "journal:share", { id, shared: true })).ok);
+    const shared = structuredClone(journal().find((e) => e.id === id));
+    const v0 = version();
+    await new Promise((r) => setTimeout(r, 5));
+    assert.ok((await act(g, "journal:share", { id, shared: true })).ok);
+    assert.deepEqual(journal().find((e) => e.id === id), shared, "updatedAt igual");
+    assert.equal(version(), v0);
+    assert.ok((await act(g, "journal:share", { id, shared: false })).ok);
+    const hidden = structuredClone(journal().find((e) => e.id === id));
+    await new Promise((r) => setTimeout(r, 5));
+    assert.ok((await act(g, "journal:share", { id, shared: false })).ok);
+    assert.deepEqual(journal().find((e) => e.id === id), hidden);
+    assert.equal(version(), v0 + 1);
+  });
+
   it("validação recusa sem mudar nada", async () => {
     const g = await gm();
     const id = idOf(await act(g, "journal:upsert", entry()));

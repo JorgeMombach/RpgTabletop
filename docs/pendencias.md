@@ -228,7 +228,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Ao soltar o pincel de água, a água some por ~150 ms até o Worker responder (`TerrainLayer.tsx` redesenha sem a aquarela antes).
 - [ ] Longe da origem do mapa (a partir de ~50–100 casas), as oitavas finas do ruído do shader perdem precisão (`waterShader.ts`, `hash`).
 - [ ] `dFdx`/`dFdy` depois de `return` antecipado e dentro de `if` no shader da água: possíveis pixels soltos na margem (`waterShader.ts`).
-- [ ] Desfazer em cadeia (riscar → apagar → desfazer → desfazer) não remove a linha recriada, que ganhou id novo (`mapHistory.ts`).
 - [ ] Pedras no rio têm só espuma e esteira, não a cúpula no relevo da água que o desenho pedia (`waterShader.ts`, `heightAt`).
 
 ### Renderizador do chão ([docs/design/renderizador-chao.md](design/renderizador-chao.md))
@@ -254,13 +253,9 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Arquivo de sessão com pedaços demais mostra a mensagem de pintura ("apague uma parte antes de pintar mais") em vez de uma de arquivo.
 
 ### Grid hexagonal ([docs/design/grid-hex.md](design/grid-hex.md))
-- [ ] Dica da ferramenta *Paredes* fala em canto do grid, não em vértice/lado do hex (pt-BR, en, es).
-- [ ] Comentário de `changeGrid` (`server/src/actions/map.ts`) ainda diz que no hex não há ferramenta para revelar.
 - [ ] `maskKey` da névoa sem o grid (`Fog.tsx`): só pesa trocando entre cena quadrada e hex com o revelado idêntico.
 - [ ] Arquivo de sessão editado à mão com cena hex e névoa ligada fica sem como desligar a névoa (`fog:set` recusado no hex).
 - [ ] O canvas da máscara da névoa pode passar do limite do iOS numa área revelada enorme (já era assim no quadrado).
 
 ### Diário da campanha ([docs/design/diario.md](design/diario.md))
 - [ ] `.journal-secret` usa cores fixas do protótipo (`#231a14`, `#6b4b2f`) em vez de variáveis `--mantine-*`.
-- [ ] `journal:share` com o mesmo valor ainda sobe `updatedAt` (reliberar avisa os jogadores de novo).
-- [ ] `journalLoaded` não zera ao reconectar: o que mudou enquanto o jogador estava fora vira aviso ao voltar.

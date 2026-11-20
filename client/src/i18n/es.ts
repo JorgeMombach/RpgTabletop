@@ -75,6 +75,7 @@ export const es: Partial<Messages> = {
   "walls.doorTip": "Con llave: solo tú la abres. Secreta: los jugadores no la ven.",
   "walls.removeDoor": "Borrar puerta",
   "walls.hintWall": "Arrastra de una esquina de la cuadrícula a otra para trazar la pared.",
+  "walls.hintWallHex": "Arrastra de un vértice o punto medio de lado del hexágono a otro para trazar la pared.",
   "walls.hintDoor": "Arrastra para trazar una puerta, o haz clic en una puerta para cerrarla con llave u ocultarla.",
   "walls.hintErase": "Arrastra por encima: la goma corta el muro solo por donde pasa; la puerta tocada desaparece entera. Deshacer devuelve la pasada entera.",
   "scenes.title": "Escenas",

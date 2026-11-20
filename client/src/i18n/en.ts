@@ -75,6 +75,7 @@ export const en: Partial<Messages> = {
   "walls.doorTip": "Locked: only you open it. Secret: players don't see it.",
   "walls.removeDoor": "Erase door",
   "walls.hintWall": "Drag from one grid corner to another to draw the wall.",
+  "walls.hintWallHex": "Drag from one hex corner or side midpoint to another to draw the wall.",
   "walls.hintDoor": "Drag to draw a door, or click a door to lock or hide it.",
   "walls.hintErase": "Drag over it: the eraser cuts the wall only where it passes; a door it touches disappears whole. Undo brings back the whole pass.",
   "scenes.title": "Scenes",

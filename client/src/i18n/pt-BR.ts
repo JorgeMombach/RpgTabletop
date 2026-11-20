@@ -81,6 +81,7 @@ export const ptBR = {
   "walls.doorTip": "Trancada: só você abre. Secreta: os jogadores não veem.",
   "walls.removeDoor": "Apagar porta",
   "walls.hintWall": "Arraste de um canto do grid a outro para traçar a parede.",
+  "walls.hintWallHex": "Arraste de um vértice ou meio de lado do hex a outro para traçar a parede.",
   "walls.hintDoor": "Arraste para traçar uma porta, ou clique numa porta para trancar ou esconder.",
   "walls.hintErase": "Arraste por cima: a borracha corta a parede só por onde passa; porta tocada some inteira. Desfazer volta a passada inteira.",
   "scenes.title": "Cenas",

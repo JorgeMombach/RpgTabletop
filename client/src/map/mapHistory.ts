@@ -103,7 +103,7 @@ useApp.subscribe((s) => {
 
 /** Algo voltou com id novo: os passos anteriores que apontavam para o antigo passam a apontar para o novo. */
 function renamed(scope: UndoScope, from: string, to: string) {
-  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved" || s.kind === "changed") && s.id === from) s.id = to;
+  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved" || s.kind === "changed" || s.kind === "currentAdded" || s.kind === "currentChanged") && s.id === from) s.id = to;
 }
 
 /** Compara a lista de antes e a de depois de uma passada da borracha: o que sumiu e o que nasceu (pedaços). */
@@ -556,19 +556,33 @@ export async function undo(scope?: UndoScope) {
       if (has(battle?.bridges, step.id)) await act("bridge:remove", { ids: [step.id] });
     } else if (step.kind === "changed") {
       if (has(battle?.bridges, step.id)) await act("bridge:update", { id: step.id, ...step.before });
-    } else for (const { id: _, ...bridge } of step.bridges) await act("bridge:add", bridge);
+    } else {
+      // volta com id novo: os passos mais antigos que falam dela passam a usá-lo (desfazer em cadeia)
+      for (const { id: oldId, ...bridge } of step.bridges) {
+        const res = await act("bridge:add", bridge);
+        if (res.ok && res.ids?.[0]) renamed("bridge", oldId, res.ids[0]);
+      }
+    }
   } else if (step.scope === "stair") {
     if (step.kind === "added") {
       if (has(battle?.stairs, step.id)) await act("stair:remove", { ids: [step.id] });
     } else if (step.kind === "changed") {
       if (has(battle?.stairs, step.id)) await act("stair:update", { id: step.id, ...step.before });
-    } else for (const { id: _, ...stair } of step.stairs) await act("stair:add", stair);
+    } else {
+      for (const { id: oldId, ...stair } of step.stairs) {
+        const res = await act("stair:add", stair);
+        if (res.ok && res.ids?.[0]) renamed("stair", oldId, res.ids[0]);
+      }
+    }
   } else if (step.scope === "terrain" && step.kind === "currentAdded") {
     if (has(battle?.currents, step.id)) await act("current:remove", { ids: [step.id] });
   } else if (step.scope === "terrain" && step.kind === "currentChanged") {
     if (has(battle?.currents, step.id)) await act("current:update", { id: step.id, points: step.before });
   } else if (step.scope === "terrain" && step.kind === "currentsRemoved") {
-    for (const current of step.currents) await act("current:add", { points: current.points });
+    for (const current of step.currents) {
+      const res = await act("current:add", { points: current.points });
+      if (res.ok && res.ids?.[0]) renamed("terrain", current.id, res.ids[0]);
+    }
   } else if (step.scope === "floor") {
     const now = useApp.getState().floors;
     const chunks: Record<string, string | null> = {};

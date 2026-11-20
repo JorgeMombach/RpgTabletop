@@ -62,8 +62,8 @@ export function gridKindOf(raw: unknown): GridKind | undefined {
 
 /**
  * Troca a grade da cena. Tokens e baús mantêm `col`/`row` (o app não reposiciona ninguém); paredes, pinturas
- * de efeito e névoa só valem na geometria em que foram feitas e saem. A névoa desliga (com a visão): ligada,
- * os jogadores ficariam sem nada à vista e sem ferramenta no hex para revelar.
+ * de efeito e névoa só valem na geometria em que foram feitas e saem. A névoa desliga (com a visão): o revelado
+ * era da grade antiga, e ligada os jogadores ficariam sem nada à vista até o mestre revelar de novo.
  */
 function changeGrid(store: Store, grid: GridKind | undefined) {
   const { battle } = store.game;
