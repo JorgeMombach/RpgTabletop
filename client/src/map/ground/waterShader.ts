@@ -226,6 +226,25 @@ void main() {
     float pxUnits = UNIT / uCellDevice;
     float fine = (fbm4(px / 6.0 + vec2(uTime * 1.1, -uTime * 0.8)) - 0.5) * 0.12 + (noise(px / 2.6 - uTime * 1.6) - 0.5) * 0.04 * smoothstep(2.0, 0.6, pxUnits);
     float wd = w0 + fine * smoothstep(3.0, 1.0, pxUnits);
+    // Pedras: a água sobe numa cúpula por cima de cada uma (até 2,2 vezes o raio; o desenho da pedra cobre o meio).
+    // A altura entra na inclinação da superfície; o lado virado para a luz clareia e o outro escurece pela inclinação
+    // da própria cúpula (a ondulação em volta é forte demais para ela aparecer só pelas ondas); a água rasa clareia.
+    float dome = 0.0;
+    float domeLight = 0.0;
+    for (int k = 0; k < ${MAX_ROCKS} + uNoUnroll; k++) {
+      if (k >= uRockCount) break;
+      float reach = uRocks[k].z * UNIT * 2.2;
+      vec2 fromCenter = px - uRocks[k].xy * UNIT;
+      float t = length(fromCenter) / max(reach, 1e-3);
+      if (t >= 1.0) continue;
+      float bump = 1.0 - t * t;
+      if (bump * bump > dome) {
+        dome = bump * bump;
+        // inclinação de (1 − t²)², no máximo ~1,54 em t ≈ 0,58; positiva onde a encosta olha para a luz
+        domeLight = dot(fromCenter / max(length(fromCenter), 1e-3), normalize(LIGHT.xy)) * 4.0 * t * bump / 1.54;
+      }
+    }
+    wd += dome * 0.45;
     // Inclinação da superfície pelas derivadas da tela (uma conta só por pixel).
     vec2 stepX = dFdx(px), stepY = dFdy(px);
     float slopeX = dFdx(wd) / max(length(stepX), 1e-3);
@@ -242,6 +261,8 @@ void main() {
     float fres = 0.08 + 0.25 * (1.0 - wn.z) * 8.0;
     col = mix(col, vec3(0.5, 0.85, 0.86), clamp(fres, 0.0, 0.35) * smoothstep(0.0, 5.0, depth));
     col *= 0.92 + (w0 - 0.5) * 0.3;
+    col = mix(col, vec3(0.5, 0.82, 0.8), dome * 0.3);
+    col *= 1.0 + 0.28 * domeLight;
     float spec = dot(wn, normalize(LIGHT + vec3(0, 0, 1)));
     col += smoothstep(0.975, 0.995, spec) * 0.3;
     // Brilhos miúdos do sol nas cristas das ondinhas.

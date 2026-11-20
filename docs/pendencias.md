@@ -207,7 +207,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Água animada ([docs/design/agua.md](design/agua.md))
 - [ ] Longe da origem do mapa (a partir de ~50–100 casas), as oitavas finas do ruído do shader perdem precisão (`waterShader.ts`, `hash`).
 - [ ] `dFdx`/`dFdy` depois de `return` antecipado e dentro de `if` no shader da água: possíveis pixels soltos na margem (`waterShader.ts`).
-- [ ] Pedras no rio têm só espuma e esteira, não a cúpula no relevo da água que o desenho pedia (`waterShader.ts`, `heightAt`).
 
 ### Renderizador do chão ([docs/design/renderizador-chao.md](design/renderizador-chao.md))
 - [ ] `terrainShader.ts` usa 8 e 16 fixos em vez de `TERRAIN_CHUNK_CELLS` e `DETAIL_PERIOD`.
