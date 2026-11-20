@@ -189,7 +189,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Com o atlas cheio nas três resoluções, pedaço sem lugar fica plano; um lugar que se liberta depois não recalcula sozinho, e a resolução não volta a subir quando o relevo diminui (só recarregando) (`reliefPass.ts`).
 - [ ] Trocar a luz de novo no meio da mistura da sombra pula para a anterior; pedaço pintado durante a troca mostra a sombra antiga até todos ficarem prontos (`reliefPass.ts`).
 - [ ] Aplainar com *Suave* ligado (nível 0 suave) não apaga o pedaço (conta no limite de 400); a dica poderia dizer "aplainar = 0 Escarpa".
-- [ ] `actions/relief.ts`: `(raw ?? {}) as Partial<…>` ao ler a pincelada (mesmo padrão do terreno).
 - [ ] A sombra do relevo é cara de calcular (256² × 80 passos); numa troca de luz grande em placa integrada, os quadros lentos podem ligar o detector de aparelho lento e parar água e plantas.
 - [ ] Memória das alturas no processador: ~109 KB por pedaço (até ~50 MB no limite de pedaços).
 
@@ -199,7 +198,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Emenda por arredondamento (0,001 casa), não por distância: traço livre que quase encosta (0,01) não emenda; sobreposição quase alinhada vira um X raso (`wallJoin.ts`).
 - [ ] Janela: o *Cômodo* da névoa conta toda janela, mas o telhado ignora janela com desenho vazado, e janela com desenho vazado nunca bloqueia mesmo fechada (`fog.ts`/`wallJoin.ts`: ignorar o desenho na janela).
 - [ ] A textura de um cômodo pode "pular" depois de *Desfazer* (a cadeia começa noutro ponto conforme a ordem das paredes; `wallJoin.ts`: começar pelo menor ponto).
-- [ ] `parseWall`: `raw` da janela repete o nome do parâmetro e lê antes de conferir o tipo (mesmo padrão da porta); `getContext("2d")!` em `wallChainArt.ts` (já trocado na reescrita; conferir `wallArt.ts`).
 - [ ] A conta da emenda (O(n²)) roda duas vezes por mudança de paredes (cadeias e cômodos) e de novo na prévia de *Trocar desenho*.
 - [ ] Montar as imagens das paredes ao trocar de degrau de zoom ficou mais lento (600 paredes: ~0,8 s; antes ~0,14 s), porque cada pedaço de tira pinta o trecho inteiro.
 
@@ -228,7 +226,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Mudar o clima (até só a luz de dia/noite) recria a animação e as plantas dão um pulinho no balanço (`PlantWind.tsx`: `frame.time` volta a 0).
 - [ ] Grama alta com vento põe todas as pontas sobre todas as bases; parada, elas se alternam folha a folha (`plantArt.ts`).
 - [ ] Sombra borrada da palmeira (`ctx.filter`) não funciona no Safari: sai nítida (`plantArt.ts`).
-- [ ] Dois `!` antigos em `propImage` (`getContext("2d")!` e `.value!`) (`propArt.ts`).
 
 ### Terreno pintado ([docs/design/terreno.md](design/terreno.md))
 - [ ] Pedaço sem dados próprios não é desenhado: depois da *Borracha*, a faixa de 1/4 de casa até o vizinho da direita/de baixo fica cortada reta (`renderChunk.ts` / `TerrainLayer.tsx`).
