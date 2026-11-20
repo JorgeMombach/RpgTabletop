@@ -1084,7 +1084,7 @@ export const ptBR = {
   "relief.clearMessage": "Todo o relevo desta cena volta ao chão plano, e isso não dá para desfazer.",
   "relief.clearConfirm": "Aplainar",
   "relief.hint": "Arraste no mapa para pintar o nível; entre um nível e outro aparece um penhasco de rocha. O nível 0 aplaina.",
-  "relief.hintSoft": "Arraste no mapa para pintar o nível; entre um nível e outro a encosta sobe suave, sem rocha (morro, monte).",
+  "relief.hintSoft": "Arraste no mapa para pintar o nível; entre um nível e outro a encosta sobe suave, sem rocha (morro, monte). Para aplainar, use o nível 0 com Escarpa.",
   "relief.paint": "Pintar",
   "relief.paintLevel": "Nível",
   "relief.paintDunes": "Dunas",

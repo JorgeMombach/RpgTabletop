@@ -1077,7 +1077,7 @@ export const es: Partial<Messages> = {
   "relief.clearMessage": "Todo el relieve de esta escena vuelve al suelo plano, y esto no se puede deshacer.",
   "relief.clearConfirm": "Aplanar",
   "relief.hint": "Arrastra en el mapa para pintar el nivel; entre un nivel y otro aparece un acantilado de roca. El nivel 0 aplana.",
-  "relief.hintSoft": "Arrastra en el mapa para pintar el nivel; entre un nivel y otro la ladera sube suave, sin roca (colina, montículo).",
+  "relief.hintSoft": "Arrastra en el mapa para pintar el nivel; entre un nivel y otro la ladera sube suave, sin roca (colina, montículo). Para aplanar, usa el nivel 0 con Escarpa.",
   "relief.paint": "Pintar",
   "relief.paintLevel": "Nivel",
   "relief.paintDunes": "Dunas",

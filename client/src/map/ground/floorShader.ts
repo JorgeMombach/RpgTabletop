@@ -295,6 +295,14 @@ float mineCover(vec2 f) {
  * um fio para fora. Devolve a distância (casas) até o centro dela (9 se não há).
  */
 float postDistance(vec2 c) {
+  // Estaca só existe sobre a água: sem água a ~1/3 de casa (9 leituras a 0,2 casa; o filtro alcança mais 1/4), sai
+  // antes das 16 leituras do piso (a maior parte do piso, longe da água, para aqui).
+  float wet = 0.0;
+  for (int k = 0; k < 9 + uNoUnroll; k++) {
+    vec2 uv = ((c + vec2(float(k % 3) - 1.0, float(k / 3) - 1.0) * 0.2) * 4.0 - uWeightsOrigin + 0.5) / uWeightsSize;
+    wet = max(wet, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r);
+  }
+  if (wet <= 0.0) return 9.0;
   vec2 base = floor(c * 4.0);
   float best = 9.0;
   for (int k = 0; k < 16 + uNoUnroll; k++) {

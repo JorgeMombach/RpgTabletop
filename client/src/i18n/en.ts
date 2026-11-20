@@ -1077,7 +1077,7 @@ export const en: Partial<Messages> = {
   "relief.clearMessage": "All the relief in this scene goes back to flat ground, and this can't be undone.",
   "relief.clearConfirm": "Flatten",
   "relief.hint": "Drag on the map to paint the level; a rock cliff appears between levels. Level 0 flattens.",
-  "relief.hintSoft": "Drag on the map to paint the level; between levels the ground rises gently, with no rock (hill, mound).",
+  "relief.hintSoft": "Drag on the map to paint the level; between levels the ground rises gently, with no rock (hill, mound). To flatten, use level 0 with Cliff.",
   "relief.paint": "Paint",
   "relief.paintLevel": "Level",
   "relief.paintDunes": "Dunes",

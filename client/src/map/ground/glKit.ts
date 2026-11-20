@@ -53,11 +53,14 @@ export function linkProgram(gl: WebGL2RenderingContext, vertexSource: string, fr
   };
   const program = gl.createProgram();
   if (!program) throw new Error("programa");
-  gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource));
-  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
+  const vertex = compile(gl.VERTEX_SHADER, vertexSource);
+  const fragment = compile(gl.FRAGMENT_SHADER, fragmentSource);
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
   gl.bindAttribLocation(program, VERTEX_ATTRIBUTE, attribute);
   gl.linkProgram(program);
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? "programa");
+  releaseShaders(gl, program, vertex, fragment);
   return { program, uniforms: new Map() };
 }
 
@@ -116,6 +119,14 @@ export function vertexBuffer(gl: WebGL2RenderingContext, points: number[]): WebG
   return buffer;
 }
 
+/** Programa ligado: os shaders já não servem para nada (o programa guarda o resultado) e saem da memória da placa. */
+function releaseShaders(gl: WebGL2RenderingContext, program: WebGLProgram, vertex: WebGLShader, fragment: WebGLShader) {
+  gl.detachShader(program, vertex);
+  gl.detachShader(program, fragment);
+  gl.deleteShader(vertex);
+  gl.deleteShader(fragment);
+}
+
 /** Programa ainda compilando em paralelo (`KHR_parallel_shader_compile`): a página não trava esperando. */
 export interface PendingProgram {
   program: WebGLProgram;
@@ -153,6 +164,7 @@ export function finishProgram(gl: WebGL2RenderingContext, pending: PendingProgra
     const log = gl.getShaderInfoLog(pending.fragment) || gl.getShaderInfoLog(pending.vertex) || gl.getProgramInfoLog(pending.program);
     throw new Error(log ?? "programa");
   }
+  releaseShaders(gl, pending.program, pending.vertex, pending.fragment);
   return { program: pending.program, uniforms: new Map() };
 }
 

@@ -159,7 +159,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Pontes e píer ([docs/design/pontes.md](design/pontes.md))
 - [ ] Nível das pontas lido do ponto fino mais perto (processador) e o chão interpolado (placa): no relevo suave pode sobrar um fio de sombra na ponta em terra (`bridgePass.ts` `setBridges`).
 - [ ] Na sombra da ponte, o chão é lido no pixel e não no ponto da ponte que tapa o sol: em chão irregular, o comprimento da sombra erra um pouco (`bridgeShader.ts`, laço da sombra).
-- [ ] Estacas do píer: 16 leituras por pixel em todo pixel de tábua e de água perto dele, a cada redesenho; sair cedo quando não há piso de tábuas por perto (`floorShader.ts` `postDistance`).
 - [ ] A ponte de pedra compila em ~3 s na placa integrada (o calçamento aparece no tabuleiro e na cabeceira: duas cópias do voronoi).
 
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
@@ -178,7 +177,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Porta aberta escolhida: o contorno branco marca o vão, não a folha.
 - [ ] Casa com mais de 8 paredes por perto: ficam as 8 mais próximas do centro; uma nona pode sumir num canto da casa.
 - [ ] Densidade da tela acima de 2 (alguns celulares, 3): chão, água e paredes saem a 2 × (`MAX_PIXEL_RATIO`).
-- [ ] Os shaders compilados não são apagados depois de ligados (`glKit.ts`, também no `linkProgram` de antes); o contexto morre junto com o renderizador.
 - [ ] Porta secreta vista pelo mestre aparece como uma lasca fina de pedra (a espessura da folha, não a da parede).
 - [ ] Sem compilação em paralelo no navegador, a tela trava um instante (1–2 s) a cada desenho de parede novo que aparece.
 
@@ -188,7 +186,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Calibrar o comprimento da sombra (um nível = 1,6 × a sombra de uma parede) e a força da luz das encostas à noite.
 - [ ] Com o atlas cheio nas três resoluções, pedaço sem lugar fica plano; um lugar que se liberta depois não recalcula sozinho, e a resolução não volta a subir quando o relevo diminui (só recarregando) (`reliefPass.ts`).
 - [ ] Trocar a luz de novo no meio da mistura da sombra pula para a anterior; pedaço pintado durante a troca mostra a sombra antiga até todos ficarem prontos (`reliefPass.ts`).
-- [ ] Aplainar com *Suave* ligado (nível 0 suave) não apaga o pedaço (conta no limite de 400); a dica poderia dizer "aplainar = 0 Escarpa".
 - [ ] A sombra do relevo é cara de calcular (256² × 80 passos); numa troca de luz grande em placa integrada, os quadros lentos podem ligar o detector de aparelho lento e parar água e plantas.
 - [ ] Memória das alturas no processador: ~109 KB por pedaço (até ~50 MB no limite de pedaços).
 
@@ -215,7 +212,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Renderizador do chão ([docs/design/renderizador-chao.md](design/renderizador-chao.md))
 - [ ] `terrainShader.ts` usa 8 e 16 fixos em vez de `TERRAIN_CHUNK_CELLS` e `DETAIL_PERIOD`.
-- [ ] Hash do ruído da borda faz `uint(x)` de inteiro negativo (terreno à esquerda/acima da origem): o ANGLE preserva os bits, mas a GLSL ES 3.00 não garante (`terrainShader.ts`).
 - [ ] `dispose` do chão não apaga programas, buffers e framebuffers (o `loseContext` libera tudo; só registro).
 - [ ] Conferir de olho: detalhe com zoom bem longe pode sair um pouco mais escuro (mipmap de textura com alfa não pré-multiplicado; não reproduzido na medição).
 
@@ -227,7 +223,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Pedaço sem dados próprios não é desenhado: depois da *Borracha*, a faixa de 1/4 de casa até o vizinho da direita/de baixo fica cortada reta (`renderChunk.ts` / `TerrainLayer.tsx`).
 
 ### Grid hexagonal ([docs/design/grid-hex.md](design/grid-hex.md))
-- [ ] `maskKey` da névoa sem o grid (`Fog.tsx`): só pesa trocando entre cena quadrada e hex com o revelado idêntico.
 - [ ] O canvas da máscara da névoa pode passar do limite do iOS numa área revelada enorme (já era assim no quadrado).
 
 ### Diário da campanha ([docs/design/diario.md](design/diario.md))

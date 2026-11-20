@@ -31,8 +31,11 @@ uniform float uLightAmount, uAmbientLum, uSunLum;
 ${SCREEN}
 
 // O mesmo sorteio de renderChunk.ts (contas de inteiros de 32 bits): a borda irregular sai igual.
+// Os bits de um inteiro como uint (complemento de dois, como o Math.imul): uint() de negativo a GLSL ES não garante;
+// ~(−(v + 1)) dá os mesmos bits sem converter negativo.
+uint intBits(int v) { return v >= 0 ? uint(v) : ~uint(-(v + 1)); }
 float cornerHash(int x, int y) {
-  uint h = uint(x) * 374761393u + uint(y) * 668265263u;
+  uint h = intBits(x) * 374761393u + intBits(y) * 668265263u;
   h = (h ^ (h >> 13u)) * 1274126177u;
   return float(h ^ (h >> 16u)) / 4294967296.0;
 }

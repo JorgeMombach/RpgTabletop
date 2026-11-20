@@ -91,7 +91,8 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
 
   // A máscara só muda quando o que se vê muda. O estado chega como objetos novos a cada envio (qualquer token
   // andando, qualquer rolagem): por isso a comparação é pelo conteúdo, não pelo objeto. Refazer é caro.
-  const maskKey = fog.enabled ? JSON.stringify([fog.vision, fog.revealed, fog.vision ? fog.explored : 0, fog.vision ? sight : 0]) : "";
+  // O grid entra na chave: o mesmo revelado desenha outra forma no quadrado e no hex.
+  const maskKey = fog.enabled ? JSON.stringify([grid.grid ?? "square", fog.vision, fog.revealed, fog.vision ? fog.explored : 0, fog.vision ? sight : 0]) : "";
   const mask = useMemo(() => {
     if (!fog.enabled) return null;
     const areas: MaskArea[] = [];
