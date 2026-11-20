@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { type Bridge, bridgeAt, bridgeLength, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { type Bridge, bridgeAt, bridgeLength, type Stair, stairAt, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -29,6 +29,8 @@ import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
 import type { LightingInput } from "./ground/lightPass";
 import { CurrentLines } from "./water/CurrentLines";
 import { BridgeLayer } from "./bridge/BridgeLayer";
+import { StairLayer } from "./stair/StairLayer";
+import { insertStairPoint, stairSizeOk } from "./stair/stairArt";
 import { CURRENT_CONTINUE, CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent, type CurrentDraft } from "./water/currentTool";
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
@@ -46,7 +48,7 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addBridge, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addBridge, addStair, removeStairs, updateStair, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { reliefStrokeOf } from "./terrain/ReliefOptions";
 import { FloorLayer } from "./floor/FloorLayer";
 import { floorStrokeOf } from "./floor/FloorOptions";
@@ -92,7 +94,7 @@ function imageLayout(image: HTMLImageElement, rotation: number, scale: number) {
 }
 
 /** Tecla de atalho de cada ferramenta (L8), mostrada no tooltip; a lista completa fica na ajuda (`?`). */
-export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", floor: "K", bridge: "U", fog: "F" };
+export const TOOL_KEYS: Record<string, string> = { move: "V", ruler: "R", area: "Q", ping: "P", draw: "B", walls: "G", torches: "L", chests: "J", props: "O", paint: "E", terrain: "M", relief: "N", floor: "K", bridge: "U", stair: "Y", fog: "F" };
 
 /** `compact` = tela de celular (E23): barra só com ícones; zoom com pinça. */
 /** Velocidade do mapa com W, A, S, D (pixels da tela por segundo). */
@@ -128,6 +130,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const { drawMode, drawColor, drawWidth, drawHidden, wallMode, wallSnap, selectedDoorId, wallDrawStyle, fogReveal, fogShape, fogBrush, paintPreset, paintColor, paintErase, paintSize, terrainBrush, reliefBrush, floorBrush, reduceFx } = useApp(useShallow((s) => ({ drawMode: s.drawMode, drawColor: s.drawColor, drawWidth: s.drawWidth, drawHidden: s.drawHidden, wallMode: s.wallMode, wallSnap: s.wallSnap, selectedDoorId: s.selectedDoorId, wallDrawStyle: s.wallDrawStyle, fogReveal: s.fogReveal, fogShape: s.fogShape, fogBrush: s.fogBrush, paintPreset: s.paintPreset, paintColor: s.paintColor, paintErase: s.paintErase, paintSize: s.paintSize, terrainBrush: s.terrainBrush, reliefBrush: s.reliefBrush, floorBrush: s.floorBrush, reduceFx: s.reduceFx })));
   const selectedPropId = useApp((s) => s.selectedPropId);
   const selectedBridgeId = useApp((s) => s.selectedBridgeId);
+  const selectedStairId = useApp((s) => s.selectedStairId);
+  const stairShape = useApp((s) => s.stairBrush.shape);
   // Lidos no desenho da prévia do pincel dos objetos.
   const { propMode: propBrushMode, scatterSize: propBrushSize } = useApp(useShallow((s) => ({ propMode: s.propMode, scatterSize: s.scatterSize })));
   const { tool, selectedId, hoverId, rulers, pings, areas, areaKind, areaFeet, calibRect, mapImage, placing, gathering, terrain, terrainEpoch, relief, reliefEpoch, reliefPreview, floors, floorPreview, groundFailed } = useApp(useShallow((s) => ({ tool: s.tool, selectedId: s.selectedId, hoverId: s.hoverId, rulers: s.rulers, pings: s.pings, areas: s.areas, areaKind: s.areaKind, areaFeet: s.areaFeet, calibRect: s.calibRect, mapImage: s.mapImage, placing: s.placing, gathering: s.gathering, terrain: s.terrain, terrainEpoch: s.terrainEpoch, relief: s.relief, reliefEpoch: s.reliefEpoch, reliefPreview: s.reliefPreview, floors: s.floors, floorPreview: s.floorPreview, groundFailed: s.groundFailed })));
@@ -191,7 +195,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Ctrl+Z (fora de campos de texto): nas ferramentas Paredes, Desenho e Tochas, desfaz o último dela; nas
   // outras, o último que esta pessoa fez no mapa.
   useEffect(() => {
-    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : tool === "relief" ? "relief" : tool === "floor" ? "floor" : tool === "bridge" ? "bridge" : undefined;
+    const scope: UndoScope | undefined = tool === "walls" ? "walls" : tool === "draw" ? "drawings" : tool === "torches" ? "torches" : tool === "chests" ? "chests" : tool === "paint" ? "paint" : tool === "props" ? "props" : tool === "terrain" ? "terrain" : tool === "relief" ? "relief" : tool === "floor" ? "floor" : tool === "bridge" ? "bridge" : tool === "stair" ? "stair" : undefined;
     const down = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z" || e.shiftKey) return;
       const el = e.target as HTMLElement | null;
@@ -216,6 +220,24 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       e.preventDefault();
       void removeBridges([picked]);
       useApp.setState({ selectedBridgeId: null });
+    };
+    window.addEventListener("keydown", down);
+    return () => window.removeEventListener("keydown", down);
+  }, [gm, tool]);
+
+  // Escadas (mestre): Delete apaga a escolhida (enquanto desenha, as teclas são do desenho).
+  useEffect(() => {
+    if (!gm || tool !== "stair") return;
+    const down = (e: KeyboardEvent) => {
+      if (typingOrDialog(e) || stairDrawingRef.current) return;
+      const key = e.key.toLowerCase();
+      if (key !== "delete" && key !== "backspace") return;
+      const { state: current, selectedStairId } = useApp.getState();
+      const picked = current?.battle.stairs.find((stair) => stair.id === selectedStairId);
+      if (!picked) return;
+      e.preventDefault();
+      void removeStairs([picked]);
+      useApp.setState({ selectedStairId: null });
     };
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
@@ -668,6 +690,99 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     }
     if (draft && bridgeLength(draft) >= 1) void addBridge(draft).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedBridgeId: result.ids[0] }));
   }
+  // Escada (mestre, docs/design/escadas.md). Escada com caminho: clique no pé, em cada virada e duas vezes (ou Enter)
+  // no topo; Backspace tira o último ponto, Esc cancela. Caracol e de mão: arrastar. Clique sem arrastar escolhe a
+  // escada sob o ponteiro (na escolhida com caminho, clique num trecho acrescenta um ponto); Shift+clique começa uma
+  // nova em cima de outra. Pontos na meia casa; com Shift, livres.
+  const stairPress = useRef<{ at: LightPoint; dragged: boolean; shift: boolean } | null>(null);
+  const [stairDrawing, setStairDrawing] = useState<LightPoint[] | null>(null);
+  const stairDrawingRef = useRef<LightPoint[] | null>(null);
+  stairDrawingRef.current = stairDrawing;
+  const [stairHover, setStairHover] = useState<LightPoint | null>(null);
+  const [stairDrag, setStairDrag] = useState<Omit<Stair, "id"> | null>(null);
+  // Trocar de ferramenta ou de formato larga o desenho pela metade.
+  useEffect(() => {
+    setStairDrawing(null);
+    setStairHover(null);
+  }, [tool, stairShape]);
+  const stairOf = (points: LightPoint[]): Omit<Stair, "id"> => {
+    const { shape, material, width, exit } = useApp.getState().stairBrush;
+    return { shape, points, width, material, exit };
+  };
+  /** Termina a escada clique a clique: curta demais vira aviso (nada é criado). */
+  function commitStair(points: LightPoint[]) {
+    setStairDrawing(null);
+    setStairHover(null);
+    if (!stairSizeOk("path", points)) return void toast({ kind: "error", text: t("stair.tooShort") });
+    void addStair({ ...stairOf(points), shape: "path" }).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedStairId: result.ids[0] }));
+  }
+  const commitStairRef = useRef(commitStair);
+  commitStairRef.current = commitStair;
+  function startStair(p: Point, shift: boolean) {
+    stairPress.current = { at: toCells(p), dragged: false, shift };
+  }
+  function moveStair(p: Point, shift: boolean) {
+    const at = toCells(p);
+    if (stairDrawingRef.current) setStairHover(snapBridgeEnd(at, shift));
+    const press = stairPress.current;
+    if (!press || stairDrawingRef.current || useApp.getState().stairBrush.shape === "path") return;
+    if (!press.dragged && Math.hypot(at.x - press.at.x, at.y - press.at.y) < 0.3) return;
+    press.dragged = true;
+    setStairDrag(stairOf([snapBridgeEnd(press.at, shift), snapBridgeEnd(at, shift)]));
+  }
+  function finishStair() {
+    const press = stairPress.current;
+    stairPress.current = null;
+    if (!press) return;
+    const drag = stairDrag;
+    setStairDrag(null);
+    const at = snapBridgeEnd(press.at, press.shift);
+    const drawing = stairDrawingRef.current;
+    if (drawing) {
+      // Clique de novo no último ponto (dois cliques): termina; senão, mais uma virada (no limite, termina ali).
+      const last = drawing[drawing.length - 1];
+      if (last.x === at.x && last.y === at.y) return commitStair(drawing);
+      const next = [...drawing, at];
+      if (next.length >= LIMITS.stairPoints) return commitStair(next);
+      return setStairDrawing(next);
+    }
+    if (press.dragged && drag) {
+      if (!stairSizeOk(drag.shape, drag.points)) return void toast({ kind: "error", text: t("stair.tooShort") });
+      void addStair(drag).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedStairId: result.ids[0] }));
+      return;
+    }
+    const { state: current, selectedStairId: chosenId } = useApp.getState();
+    const stairs = current?.battle.stairs ?? [];
+    const chosen = stairs.find((stair) => stair.id === chosenId) ?? null;
+    if (!press.shift) {
+      if (chosen && chosen.shape === "path") {
+        const points = insertStairPoint(chosen.points, chosen.width, at, LIMITS.stairPoints);
+        if (points) return void updateStair(chosen, { points });
+      }
+      const picked = stairAt(stairs, press.at);
+      if (picked) return useApp.setState({ selectedStairId: picked.id });
+      if (chosen) return useApp.setState({ selectedStairId: null });
+    }
+    if (useApp.getState().stairBrush.shape !== "path") return;
+    useApp.setState({ selectedStairId: null });
+    setStairDrawing([at]);
+    setStairHover(at);
+  }
+  /** Teclas do desenho clique a clique: Enter termina, Esc cancela, Backspace tira o último ponto. */
+  const stairKeyRef = useRef((key: string): boolean => {
+    const drawing = stairDrawingRef.current;
+    if (!drawing) return false;
+    if (key === "Enter") commitStairRef.current(drawing);
+    else if (key === "Escape") {
+      setStairDrawing(null);
+      setStairHover(null);
+    } else if (key === "Backspace") setStairDrawing(drawing.length > 1 ? drawing.slice(0, -1) : null);
+    else return false;
+    return true;
+  });
+  const stairDraft: Omit<Stair, "id"> | null = stairDrawing
+    ? stairOf(stairHover && !stairDrawing.some((point) => point.x === stairHover.x && point.y === stairHover.y) ? [...stairDrawing, stairHover] : stairDrawing)
+    : stairDrag;
   const snapFloor = (at: LightPoint, half: boolean): LightPoint => (half ? { x: Math.round(at.x * 2) / 2, y: Math.round(at.y * 2) / 2 } : { x: Math.round(at.x), y: Math.round(at.y) });
   function floorBrushAt(p: Point) {
     const cursor = floorCursor.current;
@@ -1068,6 +1183,12 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       startBridge(p);
       return;
     }
+    if (tool === "stair" && gm) {
+      // A alça da escada escolhida é arrastada por ela mesma (Konva).
+      if (e.target.name() === "stair-handle") return;
+      startStair(p, e.evt.shiftKey);
+      return;
+    }
     if (tool === "terrain" && gm) {
       const mode = useApp.getState().terrainBrush.terrain;
       if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
@@ -1141,6 +1262,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       moveBridge(p);
       return;
     }
+    if (tool === "stair") {
+      moveStair(p, e?.evt.shiftKey ?? shiftHeld);
+      return;
+    }
     if (tool === "paint" || (tool === "props" && useApp.getState().propMode !== "place")) {
       const cell = cellAt(p, grid);
       setPaintHover((h) => (h && sameCell(h, cell) ? h : cell));
@@ -1196,6 +1321,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     finishRelief();
     finishFloor();
     finishBridge();
+    finishStair();
     finishPropBrush();
     finishRestyle();
     calibStart.current = null;
@@ -1387,12 +1513,14 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
         else cancelCurrent();
         return;
       }
+      // Escada sendo desenhada clique a clique: Enter termina, Esc cancela, Backspace tira o último ponto.
+      if (tool === "stair" && stairKeyRef.current(e.key)) return done();
       // Visão do mapa.
       if (key === "+" || key === "=") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1.2);
       if (key === "-" || key === "_") return done(), zoomAt({ x: size.width / 2, y: size.height / 2 }, 1 / 1.2);
       if (key === "0") return done(), fit();
       // Ferramentas (repetir a tecla volta para Mover, como no botão).
-      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", k: "floor", u: "bridge", f: "fog" } : {}) };
+      const tools: Record<string, MapTool> = { v: "move", r: "ruler", q: "area", p: "ping", b: "draw", ...(gm ? { g: "walls", l: "torches", j: "chests", o: "props", e: "paint", m: "terrain", n: "relief", k: "floor", u: "bridge", y: "stair", f: "fog" } : {}) };
       if (tools[key] && !e.repeat) return done(), setTool(tool === tools[key] && key !== "v" ? "move" : tools[key]);
       if (key === "Escape") {
         if (tool !== "move") setTool("move");
@@ -1613,6 +1741,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
           {/* Pontes sem WebGL 2: o desenho chapado, no chão (a prévia e as alças ficam no alto do palco). */}
           <BridgeLayer bridges={state.battle.bridges} grid={grid} scale={view.scale} flat={!WEBGL_GROUND || groundFailed} editing={false} selectedId={null} draft={null} />
+          {/* Escadas sem WebGL 2: o desenho chapado, por cima das pontes. */}
+          <StairLayer stairs={state.battle.stairs} grid={grid} scale={view.scale} flat={!WEBGL_GROUND || groundFailed} editing={false} selectedId={null} draft={null} />
 
           {/* Piso: o contorno do pincel sob o mouse, o retângulo enquanto arrasta e o lugar fechado sob o mouse. */}
           {gm && tool === "floor" && (
@@ -1830,6 +1960,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           </Layer>
           {/* Ferramenta Ponte: a prévia e a escolhida com as alças, por cima de tudo (a alça recebe o aperto). */}
           <BridgeLayer bridges={state.battle.bridges} grid={grid} scale={view.scale} flat={false} editing={gm && tool === "bridge" && !readOnly} selectedId={selectedBridgeId} draft={bridgeDraft} />
+          {/* Ferramenta Escada: a prévia e a escolhida com as alças. */}
+          <StairLayer stairs={state.battle.stairs} grid={grid} scale={view.scale} flat={false} editing={gm && tool === "stair" && !readOnly} selectedId={selectedStairId} draft={stairDraft} />
           <EffectTipLayer effects={state.battle.effects} view={view} width={size.width} casterName={(id) => allCombatants(state).find((c) => c.id === id)?.name} />
         </Stage>
       )}

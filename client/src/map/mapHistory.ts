@@ -1,4 +1,4 @@
-import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge } from "@rpg/shared";
+import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -10,7 +10,7 @@ import { useApp } from "../store";
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge" | "stair";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
@@ -32,6 +32,9 @@ type Step =
   | { scope: "bridge"; kind: "added"; id: string }
   | { scope: "bridge"; kind: "changed"; id: string; before: Partial<Omit<Bridge, "id">> }
   | { scope: "bridge"; kind: "removed"; bridges: Bridge[] }
+  | { scope: "stair"; kind: "added"; id: string }
+  | { scope: "stair"; kind: "changed"; id: string; before: Partial<Omit<Stair, "id">> }
+  | { scope: "stair"; kind: "removed"; stairs: Stair[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
   | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
@@ -52,7 +55,7 @@ const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0, terrain: 0, relief: 0, floor: 0, bridge: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0, terrain: 0, relief: 0, floor: 0, bridge: 0, stair: 0 }));
 
 function sync() {
   useMapUndo.setState({
@@ -66,6 +69,7 @@ function sync() {
     relief: steps.filter((s) => s.scope === "relief").length,
     floor: steps.filter((s) => s.scope === "floor").length,
     bridge: steps.filter((s) => s.scope === "bridge").length,
+    stair: steps.filter((s) => s.scope === "stair").length,
   });
 }
 
@@ -302,6 +306,33 @@ export async function removeBridges(list: Bridge[]): Promise<ActionResult> {
   return res;
 }
 
+/** Escada nova (docs/design/escadas.md): desfazer apaga. */
+export async function addStair(stair: Omit<Stair, "id">): Promise<ActionResult> {
+  const res = await act("stair:add", stair);
+  if (res.ok && res.ids?.[0]) push({ scope: "stair", kind: "added", id: res.ids[0] });
+  return res;
+}
+
+/** Muda uma escada (pontos, formato, material, largura, sentido): desfazer volta só o que mudou. */
+export async function updateStair(before: Stair, changes: Partial<Omit<Stair, "id">>): Promise<ActionResult> {
+  const previous: Partial<Omit<Stair, "id">> = {};
+  if (changes.points) previous.points = before.points;
+  if (changes.shape !== undefined) previous.shape = before.shape;
+  if (changes.material !== undefined) previous.material = before.material;
+  if (changes.width !== undefined) previous.width = before.width;
+  if (changes.exit !== undefined) previous.exit = before.exit;
+  const res = await act("stair:update", { id: before.id, ...changes });
+  if (res.ok) push({ scope: "stair", kind: "changed", id: before.id, before: previous });
+  return res;
+}
+
+/** Apaga escadas: desfazer põe de volta (com ids novos). */
+export async function removeStairs(list: Stair[]): Promise<ActionResult> {
+  const res = await act("stair:remove", { ids: list.map((stair) => stair.id) });
+  if (res.ok) push({ scope: "stair", kind: "removed", stairs: structuredClone(list) });
+  return res;
+}
+
 export async function removeProps(list: MapProp[]): Promise<ActionResult> {
   const res = await act("prop:remove", { ids: list.map((p) => p.id) });
   if (res.ok) push({ scope: "props", kind: "removed", props: structuredClone(list) });
@@ -526,6 +557,12 @@ export async function undo(scope?: UndoScope) {
     } else if (step.kind === "changed") {
       if (has(battle?.bridges, step.id)) await act("bridge:update", { id: step.id, ...step.before });
     } else for (const { id: _, ...bridge } of step.bridges) await act("bridge:add", bridge);
+  } else if (step.scope === "stair") {
+    if (step.kind === "added") {
+      if (has(battle?.stairs, step.id)) await act("stair:remove", { ids: [step.id] });
+    } else if (step.kind === "changed") {
+      if (has(battle?.stairs, step.id)) await act("stair:update", { id: step.id, ...step.before });
+    } else for (const { id: _, ...stair } of step.stairs) await act("stair:add", stair);
   } else if (step.scope === "terrain" && step.kind === "currentAdded") {
     if (has(battle?.currents, step.id)) await act("current:remove", { ids: [step.id] });
   } else if (step.scope === "terrain" && step.kind === "currentChanged") {

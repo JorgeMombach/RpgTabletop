@@ -4,12 +4,12 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle, type BridgeKind, type BridgeWidth } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle, type BridgeKind, type BridgeWidth, type StairExit, type StairMaterial, type StairShape } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge" | "stair";
 
 /** Pincel do Piso (docs/design/pisos.md): material, sentido das tábuas, modo e raio (pincel e borracha), em casas. */
 export interface FloorBrush {
@@ -134,6 +134,10 @@ interface AppStore extends DicePrefs {
   bridgeBrush: { kind: BridgeKind; width: BridgeWidth };
   /** Ponte escolhida com a ferramenta Ponte (alças nas pontas; o painel muda tipo e largura dela). */
   selectedBridgeId: string | null;
+  /** Ferramenta Escada (docs/design/escadas.md): formato, material, largura (ou diâmetro) e sentido da próxima escada. */
+  stairBrush: { shape: StairShape; material: StairMaterial; width: BridgeWidth; exit: StairExit };
+  /** Escada escolhida com a ferramenta Escada (alças nos pontos; o painel muda as opções dela). */
+  selectedStairId: string | null;
   /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
   propKind: PropKind;
   selectedPropId: string | null;
@@ -229,6 +233,8 @@ export const useApp = create<AppStore>(() => ({
   floorBrush: { material: "plank", vertical: false, mode: "room", radius: 1 },
   bridgeBrush: { kind: "plank", width: 2 },
   selectedBridgeId: null,
+  stairBrush: { shape: "path", material: "stone", width: 1, exit: "up" },
+  selectedStairId: null,
   propKind: "tree",
   selectedPropId: null,
   propMode: "place",
@@ -307,7 +313,7 @@ export function openSheet(id: string) {
 }
 
 export function setTool(tool: MapTool) {
-  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null, selectedBridgeId: null });
+  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null, selectedBridgeId: null, selectedStairId: null });
 }
 
 /** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */
