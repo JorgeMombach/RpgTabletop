@@ -1043,6 +1043,7 @@ export const ptBR = {
   "stair.hintDrag": "Arraste do centro para o lado do primeiro degrau (caracol) ou do pé ao topo (de mão). Com Shift, pontos livres. Clique numa escada para escolhê-la.",
   "stair.hintSelected": "Arraste as alças para mover os pontos; clique no meio de um trecho para acrescentar um ponto e com o botão direito numa alça para tirá-lo. Delete apaga. Clique fora para soltar.",
   "stair.tooShort": "Escada curta demais: precisa de pelo menos 1 casa.",
+  "stair.tooLong": "Escada longa demais: no máximo {n} casas.",
   "floor.tool": "Piso",
   "floor.toolTip": "Pinta o chão de dentro: tábuas, laje, ladrilho, mosaico ou tapete, por cômodo, retângulo ou pincel. Só visual; todos veem.",
   "floor.material": "Material do piso",

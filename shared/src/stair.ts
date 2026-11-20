@@ -1,4 +1,5 @@
 import type { BridgeWidth } from "./bridge";
+import { LIMITS } from "./events";
 import type { LightPoint } from "./light";
 
 /**
@@ -276,4 +277,18 @@ export function stairAt(stairs: Stair[], point: LightPoint): Stair | null {
   drawOrder.sort((first, second) => second.rank - first.rank);
   for (const { stair } of drawOrder) if (stairContains(stair, point)) return stair;
   return null;
+}
+
+/**
+ * Por que a escada seria recusada pelo tamanho (a mesma regra do servidor): caminho de `LIMITS.stairLength`, de mão
+ * de `LIMITS.ladderLength`, caracol com a borda fora do centro. `null` = cabe.
+ */
+export function stairSizeProblem(shape: StairShape, points: LightPoint[]): "short" | "long" | null {
+  if (points.length < 2) return "short";
+  const [first, second] = points;
+  const span = distance(first, second);
+  if (shape === "spiral") return span > 0 ? null : "short";
+  const limits = shape === "ladder" ? LIMITS.ladderLength : LIMITS.stairLength;
+  const length = shape === "ladder" ? span : stairPath(points).length;
+  return length < limits.min ? "short" : length > limits.max ? "long" : null;
 }

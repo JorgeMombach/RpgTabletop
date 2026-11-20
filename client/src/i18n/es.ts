@@ -1036,6 +1036,7 @@ export const es: Partial<Messages> = {
   "stair.hintDrag": "Arrastra del centro hacia el primer peldaño (caracol) o del pie a lo alto (de mano). Con Shift, puntos libres. Haz clic en una escalera para elegirla.",
   "stair.hintSelected": "Arrastra las asas para mover los puntos; haz clic en medio de un tramo para añadir un punto y con el botón derecho en un asa para quitarlo. Supr la borra. Haz clic fuera para soltarla.",
   "stair.tooShort": "Escalera demasiado corta: necesita al menos 1 casilla.",
+  "stair.tooLong": "Escalera demasiado larga: como máximo {n} casillas.",
   "floor.tool": "Suelo",
   "floor.toolTip": "Pinta el suelo de dentro: tablas, losa, baldosa, mosaico o alfombra, por estancia, rectángulo o pincel. Solo visual; todos lo ven.",
   "floor.material": "Material del suelo",

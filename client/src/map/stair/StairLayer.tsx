@@ -1,10 +1,9 @@
 import { snapBridgeEnd, stairPath, stairPointAt, type LightPoint, type MapConfig, type Stair } from "@rpg/shared";
 import { useState } from "react";
 import { Circle, Group, Layer, Line } from "react-konva";
-import { t } from "../../i18n";
 import { toast } from "../../notify";
 import { updateStair } from "../mapHistory";
-import { STAIR_FLAT_COLOR, STAIR_LINE_COLOR, stairSizeOk } from "./stairArt";
+import { STAIR_FLAT_COLOR, STAIR_LINE_COLOR, stairSizeWarning } from "./stairArt";
 
 type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY">;
 type StairShapeData = Omit<Stair, "id">;
@@ -182,15 +181,17 @@ export function StairLayer({
                 const at = snapBridgeEnd(toCells(event.target.x(), event.target.y()), event.evt.shiftKey);
                 setMoving(null);
                 const points = selected.points.map((old, which) => (which === index ? at : old));
-                if (stairSizeOk(selected.shape, points)) void updateStair(selected, { points });
-                else toast({ kind: "error", text: t("stair.tooShort") });
+                const warning = stairSizeWarning(selected.shape, points);
+                if (warning) toast({ kind: "error", text: warning });
+                else void updateStair(selected, { points });
               }}
               onContextMenu={(event) => {
                 event.evt.preventDefault();
                 if (selected.shape !== "path" || selected.points.length <= 2) return;
                 const points = selected.points.filter((_, which) => which !== index);
-                if (stairSizeOk(selected.shape, points)) void updateStair(selected, { points });
-                else toast({ kind: "error", text: t("stair.tooShort") });
+                const warning = stairSizeWarning(selected.shape, points);
+                if (warning) toast({ kind: "error", text: warning });
+                else void updateStair(selected, { points });
               }}
             />
           ))}

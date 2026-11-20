@@ -76,6 +76,8 @@ export class StairPass {
   private readonly dataTexture: WebGLTexture;
   private count = 0;
   private present = new Set<StairShape>();
+  /** Alturas do relevo já calculadas: mudar só as escadas não refaz a conta (cara) do relevo. */
+  private ground: { relief: ReliefChunks; groundAt: (x: number, y: number) => number } | null = null;
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
@@ -101,7 +103,8 @@ export class StairPass {
   setStairs(stairs: Stair[], relief: ReliefChunks) {
     const { gl } = this;
     const list = stairs.slice(0, MAX_STAIRS);
-    const groundAt = reliefSampler(relief);
+    if (this.ground?.relief !== relief) this.ground = { relief, groundAt: reliefSampler(relief) };
+    const { groundAt } = this.ground;
     const rows = Math.max(1, list.length);
     const pixels = new Float32Array(STAIR_ROW * 4 * rows);
     this.present = new Set();

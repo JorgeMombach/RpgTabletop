@@ -30,7 +30,7 @@ import type { LightingInput } from "./ground/lightPass";
 import { CurrentLines } from "./water/CurrentLines";
 import { BridgeLayer } from "./bridge/BridgeLayer";
 import { StairLayer } from "./stair/StairLayer";
-import { insertStairPoint, stairSizeOk } from "./stair/stairArt";
+import { insertStairPoint, stairSizeWarning } from "./stair/stairArt";
 import { CURRENT_CONTINUE, CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyCurrent, type CurrentDraft } from "./water/currentTool";
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
@@ -694,7 +694,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // no topo; Backspace tira o último ponto, Esc cancela. Caracol e de mão: arrastar. Clique sem arrastar escolhe a
   // escada sob o ponteiro (na escolhida com caminho, clique num trecho acrescenta um ponto); Shift+clique começa uma
   // nova em cima de outra. Pontos na meia casa; com Shift, livres.
-  const stairPress = useRef<{ at: LightPoint; dragged: boolean; shift: boolean } | null>(null);
+  const stairPress = useRef<{ at: LightPoint; dragged: boolean; shift: boolean; chosenId: string | null; repeat: boolean } | null>(null);
+  /** Quando um clique escolheu uma escada (para o segundo clique de um duplo não acrescentar ponto nela). */
+  const stairPickedAt = useRef<{ id: string; time: number } | null>(null);
   const [stairDrawing, setStairDrawing] = useState<LightPoint[] | null>(null);
   const stairDrawingRef = useRef<LightPoint[] | null>(null);
   stairDrawingRef.current = stairDrawing;
@@ -713,13 +715,19 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   function commitStair(points: LightPoint[]) {
     setStairDrawing(null);
     setStairHover(null);
-    if (!stairSizeOk("path", points)) return void toast({ kind: "error", text: t("stair.tooShort") });
+    const warning = stairSizeWarning("path", points);
+    if (warning) return void toast({ kind: "error", text: warning });
     void addStair({ ...stairOf(points), shape: "path" }).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedStairId: result.ids[0] }));
   }
   const commitStairRef = useRef(commitStair);
   commitStairRef.current = commitStair;
+  // A escada escolhida quando o aperto começou e se é o segundo clique de um duplo (menos de meio segundo depois do
+  // clique que a escolheu): acrescentar ponto só vale numa escada que já estava escolhida, fora desse segundo clique.
   function startStair(p: Point, shift: boolean) {
-    stairPress.current = { at: toCells(p), dragged: false, shift };
+    const chosenId = useApp.getState().selectedStairId;
+    const picked = stairPickedAt.current;
+    const repeat = !!picked && picked.id === chosenId && performance.now() - picked.time < 500;
+    stairPress.current = { at: toCells(p), dragged: false, shift, chosenId, repeat };
   }
   function moveStair(p: Point, shift: boolean) {
     const at = toCells(p);
@@ -728,7 +736,16 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (!press || stairDrawingRef.current || useApp.getState().stairBrush.shape === "path") return;
     if (!press.dragged && Math.hypot(at.x - press.at.x, at.y - press.at.y) < 0.3) return;
     press.dragged = true;
-    setStairDrag(stairOf([snapBridgeEnd(press.at, shift), snapBridgeEnd(at, shift)]));
+    const foot = snapBridgeEnd(press.at, shift);
+    let top = snapBridgeEnd(at, shift);
+    const span = Math.hypot(top.x - foot.x, top.y - foot.y);
+    const longest = LIMITS.ladderLength.max;
+    if (useApp.getState().stairBrush.shape === "ladder" && span > longest) {
+      // a escada de mão vai até 4 casas: o topo para ali, na direção do mouse
+      const cent = (value: number) => Math.floor(value * 100) / 100;
+      top = { x: foot.x + cent(((top.x - foot.x) / span) * longest), y: foot.y + cent(((top.y - foot.y) / span) * longest) };
+    }
+    setStairDrag(stairOf([foot, top]));
   }
   function finishStair() {
     const press = stairPress.current;
@@ -747,7 +764,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       return setStairDrawing(next);
     }
     if (press.dragged && drag) {
-      if (!stairSizeOk(drag.shape, drag.points)) return void toast({ kind: "error", text: t("stair.tooShort") });
+      const warning = stairSizeWarning(drag.shape, drag.points);
+      if (warning) return void toast({ kind: "error", text: warning });
       void addStair(drag).then((result) => result.ok && result.ids?.[0] && useApp.setState({ selectedStairId: result.ids[0] }));
       return;
     }
@@ -755,12 +773,15 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const stairs = current?.battle.stairs ?? [];
     const chosen = stairs.find((stair) => stair.id === chosenId) ?? null;
     if (!press.shift) {
-      if (chosen && chosen.shape === "path") {
+      if (chosen && chosen.shape === "path" && chosen.id === press.chosenId && !press.repeat) {
         const points = insertStairPoint(chosen.points, chosen.width, at, LIMITS.stairPoints);
         if (points) return void updateStair(chosen, { points });
       }
       const picked = stairAt(stairs, press.at);
-      if (picked) return useApp.setState({ selectedStairId: picked.id });
+      if (picked) {
+        stairPickedAt.current = { id: picked.id, time: performance.now() };
+        return useApp.setState({ selectedStairId: picked.id });
+      }
       if (chosen) return useApp.setState({ selectedStairId: null });
     }
     if (useApp.getState().stairBrush.shape !== "path") return;
@@ -1651,6 +1672,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               floors={floorPreview ?? floors}
               bridges={state.battle.bridges}
               stairs={state.battle.stairs}
+              stairRelief={relief}
             />
           )}
 

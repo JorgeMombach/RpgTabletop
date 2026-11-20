@@ -1036,6 +1036,7 @@ export const en: Partial<Messages> = {
   "stair.hintDrag": "Drag from the center toward the first step (spiral) or from foot to top (ladder). Hold Shift for free points. Click a stair to select it.",
   "stair.hintSelected": "Drag the handles to move the points; click the middle of a stretch to add a point and right-click a handle to remove it. Delete removes the stair. Click elsewhere to deselect.",
   "stair.tooShort": "Stairs too short: they need at least 1 square.",
+  "stair.tooLong": "Stairs too long: at most {n} squares.",
   "floor.tool": "Floor",
   "floor.toolTip": "Paints indoor floors: planks, flagstone, tile, mosaic or carpet, by room, rectangle or brush. Visual only; everyone sees it.",
   "floor.material": "Floor material",

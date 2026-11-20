@@ -8,6 +8,7 @@ import {
   stairPath,
   stairPointAt,
   stairProfile,
+  stairSizeProblem,
   type LightPoint,
   type ReliefChunks,
   type Stair,
@@ -219,5 +220,19 @@ describe("relevo: altura em qualquer ponto", () => {
     near(sample(20, 20), 1, 1e-6);
     assert.equal(sample(60, 60), 0);
     assert.equal(sample(-40, 3), 0);
+  });
+});
+
+describe("escada: tamanho para o servidor", () => {
+  it("curta, longa ou boa, por formato", () => {
+    assert.equal(stairSizeProblem("path", points([0, 0], [0.5, 0])), "short");
+    assert.equal(stairSizeProblem("path", points([0, 0], [41, 0])), "long");
+    assert.equal(stairSizeProblem("path", points([0, 0], [3, 0], [3, 3])), null);
+    assert.equal(stairSizeProblem("path", points([0, 0])), "short");
+    assert.equal(stairSizeProblem("ladder", points([0, 0], [0, 0.5])), "short");
+    assert.equal(stairSizeProblem("ladder", points([0, 0], [0, 5])), "long");
+    assert.equal(stairSizeProblem("ladder", points([0, 0], [0, 4])), null);
+    assert.equal(stairSizeProblem("spiral", points([2, 2], [2, 2])), "short");
+    assert.equal(stairSizeProblem("spiral", points([2, 2], [3, 2])), null);
   });
 });

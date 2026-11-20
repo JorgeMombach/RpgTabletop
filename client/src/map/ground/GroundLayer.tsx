@@ -64,11 +64,17 @@ export const GroundLayer = memo(function GroundLayer({
   floors,
   bridges,
   stairs,
+  stairRelief,
 }: {
   /** Pontes da cena (docs/design/pontes.md). */
   bridges: Bridge[];
   /** Escadas da cena (docs/design/escadas.md). */
   stairs: Stair[];
+  /**
+   * Relevo confirmado, sem a prévia da pincelada: o perfil das escadas é refeito só quando ele muda (a conta da altura
+   * roda no processador; a cada movimento do pincel travaria).
+   */
+  stairRelief: ReliefChunks;
   /** Piso da cena (com a prévia da passada, se houver). */
   floors: FloorChunks;
   /** Vento do clima para a poeira das dunas: 0 = nada, 1 = vento, 2 = tempestade de areia; direção 1 = direita. */
@@ -296,12 +302,12 @@ export const GroundLayer = memo(function GroundLayer({
     setVersion((value) => value + 1);
   }, [renderer, bridges, relief]);
 
-  // Escadas: com o relevo (o perfil segue o chão); a camada é refeita no próximo desenho.
+  // Escadas: com o relevo confirmado (o perfil segue o chão); a camada é refeita no próximo desenho.
   useEffect(() => {
     if (!renderer) return;
-    renderer.setStairs(stairs, relief);
+    renderer.setStairs(stairs, stairRelief);
     setVersion((value) => value + 1);
-  }, [renderer, stairs, relief]);
+  }, [renderer, stairs, stairRelief]);
 
   // Pisos: a camada é refeita no próximo desenho.
   useEffect(() => {

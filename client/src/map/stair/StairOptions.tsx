@@ -26,7 +26,11 @@ export const StairOptions = memo(function StairOptions({ selected }: { selected:
 
   function pickShape(next: StairShape) {
     useApp.setState((s) => ({ stairBrush: { ...s.stairBrush, shape: next } }));
-    if (selected && selected.shape !== next) void updateStair(selected, { shape: next, points: pointsForShape(selected, next) });
+    if (selected && selected.shape !== next) {
+      // a de mão é sempre de madeira e largura 1 (o servidor força): vai junto, para o desfazer devolver os de antes
+      const forced: Partial<Pick<Stair, "material" | "width">> = next === "ladder" ? { material: "wood", width: 1 } : {};
+      void updateStair(selected, { shape: next, points: pointsForShape(selected, next), ...forced });
+    }
   }
   function pickMaterial(next: StairMaterial) {
     useApp.setState((s) => ({ stairBrush: { ...s.stairBrush, material: next } }));

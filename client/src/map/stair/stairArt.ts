@@ -1,5 +1,5 @@
-import { LIMITS, stairPath, type LightPoint, type Stair, type StairMaterial, type StairShape } from "@rpg/shared";
-import type { MessageKey } from "../../i18n";
+import { LIMITS, stairPath, stairSizeProblem, type LightPoint, type Stair, type StairMaterial, type StairShape } from "@rpg/shared";
+import { t, type MessageKey } from "../../i18n";
 
 /** Cor chapada de cada material (amostra do painel e desenho sem WebGL 2), tirada da página de teste aprovada. */
 export const STAIR_FLAT_COLOR: Record<StairMaterial, string> = {
@@ -70,15 +70,12 @@ export function insertStairPoint(points: LightPoint[], width: number, at: LightP
 }
 
 /**
- * A escada pode ir para o servidor sem ser recusada pelo tamanho: caminho de 1 a 40 casas, de mão de 1 a 4, caracol
- * com a borda fora do centro. Cada recusa de tamanho vira o aviso "curta demais" na ferramenta.
+ * O aviso da ferramenta quando a escada seria recusada pelo tamanho (a regra do servidor, `stairSizeProblem`):
+ * curta demais ou longa demais, com o máximo do formato. `null` = cabe.
  */
-export function stairSizeOk(shape: StairShape, points: LightPoint[]): boolean {
-  if (points.length < 2) return false;
-  const [first, second] = points;
-  const span = Math.hypot(second.x - first.x, second.y - first.y);
-  if (shape === "spiral") return span > 0;
-  if (shape === "ladder") return span >= LIMITS.ladderLength.min && span <= LIMITS.ladderLength.max;
-  const length = stairPath(points).length;
-  return length >= LIMITS.stairLength.min && length <= LIMITS.stairLength.max;
+export function stairSizeWarning(shape: StairShape, points: LightPoint[]): string | null {
+  const problem = stairSizeProblem(shape, points);
+  if (!problem) return null;
+  if (problem === "short") return t("stair.tooShort");
+  return t("stair.tooLong", { n: shape === "ladder" ? LIMITS.ladderLength.max : LIMITS.stairLength.max });
 }
