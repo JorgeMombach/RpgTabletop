@@ -1,7 +1,7 @@
 import { blockersNear, lightPolygon, stopAtWall, sunShadows, triangulate, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
 import { bindTextures, cellRectOnScreen, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
-import { blendSceneLight, INDOOR_SUN, SCENE_LIGHT, type SceneLight } from "./sceneLight";
+import { blendSceneLight, INDOOR_SUN, SCENE_BLEND_SECONDS, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
 
 /**
@@ -42,8 +42,6 @@ const SOFT_ORIGINS: [number, number][] = [
 ];
 /** Sombras do sol um pouco diferentes (borda macia), como no teste: ângulo e comprimento. */
 const SUN_SAMPLES = 5;
-/** Troca de luz da cena: meio segundo. */
-const SCENE_BLEND_SECONDS = 0.5;
 /** Raio do quadrado em volta da chama (casas): chama, brilho e faíscas cabem. */
 const FLAME_BOX = 1.1;
 
@@ -397,6 +395,11 @@ export class LightPass {
 
   get hasTorches(): boolean {
     return this.torches.length > 0;
+  }
+
+  /** Luz de dia na cena: a luz da tocha quase não aparece, e a chama pode ficar parada. */
+  get daylight(): boolean {
+    return this.input?.scene === "day";
   }
 
   /** Alguma tocha (a chama ou a luz até o alcance) aparece na tela: só então a tremulação pede quadros. */

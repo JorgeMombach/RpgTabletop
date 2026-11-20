@@ -203,8 +203,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Luz ([docs/design/luz.md](design/luz.md))
 - [ ] O corpo da tocha fixa é desenhado por cima da chama nova (a camada das chamas fica embaixo de `MapTorchLayer`): conferir de olho, principalmente a bacia do braseiro (`BattleMap.tsx`).
-- [ ] Chuva e neve escurecem pela luz de destino, não pela que está no meio da troca: pulam enquanto o mapa escurece devagar (`weatherDim` em `BattleMap.tsx`).
-- [ ] Tocha na tela redesenha o chão a 30 quadros por segundo também de dia (a chama tremula; a luz da tocha de dia quase não aparece): decidir se de dia a chama pode ficar parada (`GroundRenderer.flickering`).
 - [ ] O texto do desenho diz que com névoa "nada aparece" depois de uma porta secreta, mas a camada da luz fica acima da névoa: a poça de luz aparece sobre a névoa (`docs/design/luz.md`; ajustar o texto).
 - [ ] O desenho diz que o mapa de luz já recebe a altura do chão; ainda não recebe (fica para o relevo).
 - [ ] No primeiro instante com o chão em WebGL, a película e o brilho antigos já saíram e o mapa de luz ainda não chegou: um piscar claro à noite ao abrir o mapa (`BattleMap.tsx`, `groundLit`).
@@ -216,14 +214,12 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Pedras no rio têm só espuma e esteira, não a cúpula no relevo da água que o desenho pedia (`waterShader.ts`, `heightAt`).
 
 ### Renderizador do chão ([docs/design/renderizador-chao.md](design/renderizador-chao.md))
-- [ ] Mudar a densidade da tela (arrastar a janela para outro monitor) não redesenha o chão até a próxima mudança de visão (`GroundLayer.tsx`).
 - [ ] `terrainShader.ts` usa 8 e 16 fixos em vez de `TERRAIN_CHUNK_CELLS` e `DETAIL_PERIOD`.
 - [ ] Hash do ruído da borda faz `uint(x)` de inteiro negativo (terreno à esquerda/acima da origem): o ANGLE preserva os bits, mas a GLSL ES 3.00 não garante (`terrainShader.ts`).
 - [ ] `dispose` do chão não apaga programas, buffers e framebuffers (o `loseContext` libera tudo; só registro).
 - [ ] Conferir de olho: detalhe com zoom bem longe pode sair um pouco mais escuro (mipmap de textura com alfa não pré-multiplicado; não reproduzido na medição).
 
 ### Vento nas plantas ([docs/design/vento.md](design/vento.md))
-- [ ] Mudar o clima (até só a luz de dia/noite) recria a animação e as plantas dão um pulinho no balanço (`PlantWind.tsx`: `frame.time` volta a 0).
 - [ ] Grama alta com vento põe todas as pontas sobre todas as bases; parada, elas se alternam folha a folha (`plantArt.ts`).
 - [ ] Sombra borrada da palmeira (`ctx.filter`) não funciona no Safari: sai nítida (`plantArt.ts`).
 
@@ -235,4 +231,3 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] O canvas da máscara da névoa pode passar do limite do iOS numa área revelada enorme (já era assim no quadrado).
 
 ### Diário da campanha ([docs/design/diario.md](design/diario.md))
-- [ ] `.journal-secret` usa cores fixas do protótipo (`#231a14`, `#6b4b2f`) em vez de variáveis `--mantine-*`.

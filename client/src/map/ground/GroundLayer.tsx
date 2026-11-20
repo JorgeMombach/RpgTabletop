@@ -455,6 +455,20 @@ export const GroundLayer = memo(function GroundLayer({
     return () => cancelAnimationFrame(frame);
   }, [renderer, animate, version]);
 
+  // Densidade da tela mudou (janela arrastada para outro monitor): redesenha na densidade nova. A consulta vale para a
+  // densidade de agora, então é refeita a cada troca.
+  useEffect(() => {
+    let query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    const changed = () => {
+      query.removeEventListener("change", changed);
+      query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      query.addEventListener("change", changed);
+      setVersion((value) => value + 1);
+    };
+    query.addEventListener("change", changed);
+    return () => query.removeEventListener("change", changed);
+  }, []);
+
   // Quadro na hora: quando a visão, o tamanho, o terreno ou a água mudam (com a água parada, é o único desenho).
   useEffect(() => {
     if (!renderer) return;

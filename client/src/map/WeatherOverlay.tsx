@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { playSfx } from "../audio/engine";
 import { useApp } from "../store";
 import { glows, hasLightning, LightningClock, WeatherPainter } from "./weatherFx";
+import { SCENE_BLEND_SECONDS } from "./ground/sceneLight";
+import { useEased } from "./useEased";
 
 /** Luz da cena: cor multiplicada sobre o mapa e vinheta nas bordas. */
 const LIGHT_STYLE = {
@@ -28,6 +30,8 @@ function thunderDelay(at: number): number {
 export function WeatherOverlay({ weather, lights = [], film = true, dim = 1 }: { weather: WeatherState; lights?: ScreenLight[]; film?: boolean; dim?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduce = useApp((s) => s.reduceFx);
+  // Escurece junto com a luz do chão (a mesma troca de meio segundo), não de uma vez.
+  const shade = useEased(dim, SCENE_BLEND_SECONDS * 1000);
   const light = LIGHT_STYLE[weather.light];
   const { kind, intensity, wind, startedAt } = weather;
 
@@ -93,7 +97,7 @@ export function WeatherOverlay({ weather, lights = [], film = true, dim = 1 }: {
   const glowing = !!kind && glows(kind);
   return (
     <>
-      {kind && !glowing && <canvas ref={canvasRef} className="map-weather" style={dim < 1 ? { filter: `brightness(${dim})` } : undefined} />}
+      {kind && !glowing && <canvas ref={canvasRef} className="map-weather" style={shade < 1 ? { filter: `brightness(${shade})` } : undefined} />}
       {lightLayer}
       {glowing && <canvas ref={canvasRef} className="map-weather" />}
     </>

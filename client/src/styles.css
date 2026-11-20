@@ -2939,8 +2939,9 @@ button[data-disabled] > .ability-cell {
   gap: 8px;
 }
 .journal-secret {
-  background: #231a14;
-  border: 1px dashed #6b4b2f;
+  /* marrom de couro escuro (bronze-9 sobre dark-7) e borda tracejada em bronze, pelas variáveis do tema */
+  background: color-mix(in srgb, var(--mantine-color-bronze-9) 35%, var(--mantine-color-dark-7));
+  border: 1px dashed var(--mantine-color-bronze-8);
 }
 .journal-secret textarea {
   background: rgba(0, 0, 0, 0.25);

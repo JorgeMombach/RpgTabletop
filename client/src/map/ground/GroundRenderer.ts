@@ -426,7 +426,8 @@ export class GroundRenderer {
 
   /** Alguma tocha na cena, ou a luz da cena ainda trocando: precisa animar mesmo sem água na tela. */
   flickering(view: GroundView): boolean {
-    return this.light.torchesOnScreen(view) || this.light.settling;
+    // De dia a chama fica parada (decisão do dono): a tocha não pede quadros; na troca de luz, sim.
+    return (!this.light.daylight && this.light.torchesOnScreen(view)) || this.light.settling;
   }
 
   /**

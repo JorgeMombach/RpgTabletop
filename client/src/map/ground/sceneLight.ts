@@ -15,6 +15,9 @@ export interface SceneLight {
   torch: number;
 }
 
+/** Troca de luz da cena: meio segundo (o chão, e a chuva e a neve escurecendo junto). */
+export const SCENE_BLEND_SECONDS = 0.5;
+
 export const SCENE_LIGHT: Record<LightId, SceneLight> = {
   day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], sunDirection: [0.55, 0.83], shadowCells: 34 / 48, torch: 0.12 },
   dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], sunDirection: [0.97, 0.25], shadowCells: 150 / 48, torch: 0.55 },

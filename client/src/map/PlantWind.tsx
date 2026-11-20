@@ -161,7 +161,8 @@ export function useWindClock(
       sinceDraw += frame.timeDiff;
       if (sinceDraw < FRAME_MS) return false;
       sinceDraw = 0;
-      const t = frame.time / 1000;
+      // Relógio contínuo (não o da animação, que volta a zero quando ela é recriada ao mudar o clima): sem pulinho.
+      const t = performance.now() / 1000;
       time.current = t;
       const stage = layer.getStage();
       const scale = stage.scaleX() || 1;
