@@ -1,13 +1,13 @@
 import { cellsToRects, geometryOf, LIMITS, sizeOfSpan, paintFog, roomCells, type FogRect, type FogState } from "@rpg/shared";
 import { forgetSight } from "../sight";
-import { fail, requireInt } from "../validate";
+import { fail, isRecord, requireInt } from "../validate";
 import type { Store } from "../store";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
 function fogRect(raw: unknown): FogRect {
-  if (typeof raw !== "object" || raw === null) fail("Área da névoa inválida.");
-  const r = raw as Record<string, unknown>;
+  if (!isRecord(raw)) fail("Área da névoa inválida.");
+  const r = raw;
   const lim = LIMITS.gridCoord;
   const side = LIMITS.fogRectSide;
   return {
@@ -56,7 +56,7 @@ export const fogHandlers: HandlerMap = {
   "fog:room": (store, player, payload) => {
     requireGm(player);
     if (typeof payload?.reveal !== "boolean") fail("Informe se é para revelar ou cobrir.");
-    const raw = (payload.cell ?? {}) as unknown as Record<string, unknown>;
+    const raw: Record<string, unknown> = isRecord(payload.cell) ? payload.cell : {};
     const lim = LIMITS.gridCoord;
     const cell = { col: requireInt(raw.col, "Coluna", -lim, lim), row: requireInt(raw.row, "Linha", -lim, lim) };
     const { battle } = store.game;

@@ -35,6 +35,11 @@ export function requireName(raw: unknown): string {
   return cleanName(raw) ?? fail("Informe um nome.");
 }
 
+/** Um objeto comum (não nulo, não lista): os campos ficam `unknown` até cada um ser conferido. */
+export function isRecord(raw: unknown): raw is Record<string, unknown> {
+  return typeof raw === "object" && raw !== null && !Array.isArray(raw);
+}
+
 export function requireInt(raw: unknown, label: string, min: number, max: number): number {
   const n = typeof raw === "string" && raw.trim() !== "" ? Number(raw) : raw;
   if (typeof n !== "number" || !Number.isFinite(n)) fail("{label}: informe um número.", { label });

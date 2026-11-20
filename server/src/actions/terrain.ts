@@ -1,6 +1,6 @@
-import { decodeLayer, isChunkKey, LIMITS, paintTerrain, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainId, type TerrainStroke } from "@rpg/shared";
+import { decodeLayer, isChunkKey, LIMITS, paintTerrain, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
 import type { Store } from "../store";
-import { fail, requireNumber } from "../validate";
+import { fail, isRecord, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -25,8 +25,9 @@ export function parseTerrainChunk(raw: unknown): TerrainChunk {
   if (entries.length === 0) fail("Terreno inválido.");
   const chunk: TerrainChunk = {};
   for (const [id, text] of entries) {
-    if (!TERRAINS.includes(id as TerrainId) || typeof text !== "string" || !decodeLayer(text)) fail("Terreno inválido.");
-    chunk[id as TerrainId] = text;
+    const terrain = TERRAINS.find((known) => known === id);
+    if (!terrain || typeof text !== "string" || !decodeLayer(text)) fail("Terreno inválido.");
+    chunk[terrain] = text;
   }
   return chunk;
 }
@@ -44,10 +45,15 @@ export function parseTerrainChunks(raw: unknown): TerrainChunks {
   return chunks;
 }
 
+/** Um terreno conhecido ou a borracha. */
+function isTerrainChoice(raw: unknown): raw is TerrainStroke["terrain"] {
+  return raw === "erase" || TERRAINS.some((terrain) => terrain === raw);
+}
+
 function parseStroke(raw: unknown): TerrainStroke {
-  const stroke = (raw ?? {}) as Partial<Record<keyof TerrainStroke, unknown>>;
+  const stroke: Record<string, unknown> = isRecord(raw) ? raw : {};
   const terrain = stroke.terrain;
-  if (terrain !== "erase" && !TERRAINS.includes(terrain as TerrainId)) fail("Terreno inválido.");
+  if (!isTerrainChoice(terrain)) fail("Terreno inválido.");
   const radius = requireNumber(stroke.radius, "Tamanho do pincel", LIMITS.terrainRadius.min, LIMITS.terrainRadius.max);
   const strength = requireNumber(stroke.strength, "Força do pincel", LIMITS.terrainStrength.min, LIMITS.terrainStrength.max);
   const coord = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.gridCoord;
@@ -62,13 +68,13 @@ function parseStroke(raw: unknown): TerrainStroke {
     const from = corner(rect.from);
     const to = corner(rect.to);
     if (Math.abs(to.x - from.x) > LIMITS.terrainRectSide || Math.abs(to.y - from.y) > LIMITS.terrainRectSide) fail("Retângulo grande demais (máximo de {n} casas de lado): pinte em partes.", { n: LIMITS.terrainRectSide });
-    return { terrain: terrain as TerrainStroke["terrain"], radius, strength, points: [], rect: { from, to } };
+    return { terrain, radius, strength, points: [], rect: { from, to } };
   }
   const points = stroke.points;
   if (!Array.isArray(points) || points.length < 2 || points.length % 2 !== 0) fail("Terreno inválido.");
   if (points.length > LIMITS.terrainStrokePoints * 2) fail("Pincelada longa demais: solte e continue pintando.");
   if (!points.every(coord)) fail("Terreno inválido.");
-  return { terrain: terrain as TerrainStroke["terrain"], radius, strength, points };
+  return { terrain, radius, strength, points };
 }
 
 /** Guarda o terreno novo da cena (sem campo quando vazio) depois de conferir o limite de pedaços. */

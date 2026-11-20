@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { cutUnder, LIMITS, WALL_STYLES, WALL_THICKNESS, type Door, type GridPos, type Wall, type WallStyle, type WallWindow } from "@rpg/shared";
+import { cutUnder, LIMITS, WALL_STYLES, WALL_THICKNESS, type GridPos, type Wall, type WallStyle } from "@rpg/shared";
 import { eraseWall, pathOf } from "../erase";
-import { fail, requireNumber } from "../validate";
+import { fail, isRecord, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -18,12 +18,12 @@ function corner(raw: unknown): GridPos {
 }
 
 function styleOf(raw: unknown): WallStyle {
-  return WALL_STYLES.includes(raw as WallStyle) ? (raw as WallStyle) : fail("Desenho de parede inválido.");
+  return WALL_STYLES.find((style) => style === raw) ?? fail("Desenho de parede inválido.");
 }
 
 /** Valida as pontas, a porta e o desenho de uma parede (do mestre ou do arquivo de sessão), sem o id. */
 export function parseWall(raw: unknown): Omit<Wall, "id"> {
-  const w = (raw ?? {}) as Record<string, unknown>;
+  const w: Record<string, unknown> = isRecord(raw) ? raw : {};
   const from = corner(w.from);
   const to = corner(w.to);
   const len = Math.max(Math.abs(to.col - from.col), Math.abs(to.row - from.row));
@@ -39,17 +39,17 @@ export function parseWall(raw: unknown): Omit<Wall, "id"> {
     if (cent !== WALL_THICKNESS.default) out.thickness = cent;
   }
   if (w.door !== undefined) {
-    const d = w.door as Partial<Door>;
-    if (typeof d !== "object" || d === null || typeof d.open !== "boolean") fail("Porta inválida.");
+    const d = w.door;
+    if (!isRecord(d) || typeof d.open !== "boolean") fail("Porta inválida.");
     out.door = { open: d.open };
     if (d.locked === true) out.door.locked = true;
     if (d.secret === true) out.door.secret = true;
   }
   if (w.window !== undefined) {
     if (out.door) fail("Escolha porta ou janela, não as duas.");
-    const raw = w.window as Partial<WallWindow>;
-    if (typeof raw !== "object" || raw === null || (raw.closed !== undefined && typeof raw.closed !== "boolean")) fail("Janela inválida.");
-    out.window = raw.closed ? { closed: true } : {};
+    const pane = w.window;
+    if (!isRecord(pane) || (pane.closed !== undefined && typeof pane.closed !== "boolean")) fail("Janela inválida.");
+    out.window = pane.closed === true ? { closed: true } : {};
   }
   if (w.style !== undefined) out.style = styleOf(w.style);
   return out;

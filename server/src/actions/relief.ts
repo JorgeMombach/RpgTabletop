@@ -1,6 +1,6 @@
 import { decodeLayer, isChunkKey, LIMITS, paintRelief, RELIEF_DUNE, RELIEF_LEVELS, validReliefByte, type ReliefChunks, type ReliefStroke } from "@rpg/shared";
 import type { Store } from "../store";
-import { fail, requireNumber } from "../validate";
+import { fail, isRecord, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -40,7 +40,7 @@ export function parseReliefChunks(raw: unknown): ReliefChunks {
 }
 
 function parseStroke(raw: unknown): ReliefStroke {
-  const stroke = (raw ?? {}) as Partial<Record<keyof ReliefStroke, unknown>>;
+  const stroke: Record<string, unknown> = isRecord(raw) ? raw : {};
   const level = requireNumber(stroke.level, "Nível do relevo", RELIEF_LEVELS.min, RELIEF_LEVELS.max);
   if (!Number.isInteger(level)) fail("Relevo inválido.");
   if (typeof stroke.soft !== "boolean") fail("Relevo inválido.");

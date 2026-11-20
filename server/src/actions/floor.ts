@@ -13,7 +13,7 @@ import {
   type FloorStroke,
 } from "@rpg/shared";
 import type { Store } from "../store";
-import { fail, requireNumber } from "../validate";
+import { fail, isRecord, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
@@ -29,10 +29,6 @@ export function markFloors(store: Store, keys: Iterable<string> | "all") {
     return;
   }
   for (const key of keys) store.floorsDirty.add(key);
-}
-
-function isRecord(raw: unknown): raw is Record<string, unknown> {
-  return typeof raw === "object" && raw !== null && !Array.isArray(raw);
 }
 
 /** Um pedaço vindo de fora (ação ou arquivo): 1024 bytes em base64, cada um um piso válido. */

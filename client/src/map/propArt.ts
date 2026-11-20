@@ -829,11 +829,16 @@ export function propImage(kind: PropKind, seed: number, pxPerCell: number): HTML
   const side = Math.ceil(PROP_EXTENT[kind] * 2 * step);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = side;
-  const ctx = canvas.getContext("2d")!;
-  ctx.translate(side / 2, side / 2);
-  drawProp(ctx, kind, step, seed);
+  const ctx = canvas.getContext("2d");
+  // Sem contexto 2D: a imagem fica vazia (o objeto some em vez de quebrar o mapa).
+  if (ctx) {
+    ctx.translate(side / 2, side / 2);
+    drawProp(ctx, kind, step, seed);
+  }
   cache.set(key, canvas);
-  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
+  // a mais antiga sai quando passa do teto
+  const oldest = cache.keys().next();
+  if (cache.size > CACHE_MAX && !oldest.done) cache.delete(oldest.value);
   return canvas;
 }
 

@@ -216,13 +216,18 @@ export function wallArt(style: WallStyle, L: number, t: number, seed: number, px
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(2, Math.ceil((L + pad * 2) * k));
   canvas.height = Math.max(2, Math.ceil(pad * 2 * k));
-  const ctx = canvas.getContext("2d")!;
-  ctx.scale(k, k);
-  ctx.translate(pad, pad);
-  WALL_DRAW[style](ctx, L, t, seed, cell);
+  const ctx = canvas.getContext("2d");
+  // Sem contexto 2D (canvas recusado pelo navegador): a imagem fica vazia, a parede some em vez de quebrar o mapa.
+  if (ctx) {
+    ctx.scale(k, k);
+    ctx.translate(pad, pad);
+    WALL_DRAW[style](ctx, L, t, seed, cell);
+  }
   const art = { canvas, pad };
   cache.set(key, art);
-  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
+  // a mais antiga sai quando passa do teto
+  const oldest = cache.keys().next();
+  if (cache.size > CACHE_MAX && !oldest.done) cache.delete(oldest.value);
   return art;
 }
 
