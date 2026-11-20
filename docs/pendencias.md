@@ -163,7 +163,6 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] A ponte de pedra compila em ~3 s na placa integrada (o calçamento aparece no tabuleiro e na cabeceira: duas cópias do voronoi).
 
 ### Pisos ([docs/design/pisos.md](design/pisos.md))
-- [ ] Rente a uma parede livre inclinada, a borda do piso anda em degraus de 1/4 de casa (o piso segue a grade fina) e aparece um dentinho de chão entre o piso e a parede. Caminho: no *Cômodo*, incluir também os pontos até a meia espessura da parede para fora (`shapeCover` em `shared/src/floor.ts`), ou recortar a borda pela linha da parede no shader.
 - [ ] Piso pintado atrás de porta secreta mostra o formato da sala sem névoa (vai inteiro para os jogadores, como terreno e relevo).
 - [ ] `floorPreview` não é limpo se a cena trocar no meio de uma passada.
 - [ ] Sem WebGL (`FloorLayer`), o piso passa 1/8 de casa da linha da parede (quadradinhos de ±1/8).

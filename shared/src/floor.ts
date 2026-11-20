@@ -6,7 +6,7 @@ import {
   TERRAIN_CHUNK_SIDE,
   TERRAIN_FINE,
 } from "./terrain";
-import type { Wall, WallStyle } from "./types";
+import { WALL_THICKNESS, type Wall, type WallStyle } from "./types";
 import { wallRooms } from "./wallJoin";
 
 /**
@@ -104,6 +104,8 @@ export function floorAt(
 
 /** Tolerância (casas) para um ponto contar como "sobre" o contorno. */
 const ON_EDGE = 1e-6;
+/** Meia espessura padrão da parede (casas): o *Cômodo* pinta até aqui para fora do contorno, embaixo da parede. */
+const UNDER_WALL = WALL_THICKNESS.default / 2;
 
 function polygonArea(polygon: number[]): number {
   let area = 0;
@@ -244,16 +246,27 @@ function shapeCover(
   const ys = room.outer.filter((_, index) => index % 2 === 1);
   return [
     {
-      box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+      // A caixa vai até embaixo das paredes em volta.
+      box: [
+        Math.min(...xs) - UNDER_WALL,
+        Math.min(...ys) - UNDER_WALL,
+        Math.max(...xs) + UNDER_WALL,
+        Math.max(...ys) + UNDER_WALL,
+      ],
       covers: (x, y) => {
         const point = { x, y };
-        // Os pontos sobre o contorno de um buraco ficam com o salão (a parede cobre a emenda).
+        // Até embaixo da parede (meia espessura padrão): numa parede inclinada a grade fina não cai na linha, e sem
+        // isso sobra um dentinho de chão entre o piso e a parede. Os pontos ali ficam escondidos pela parede.
+        const inOuter =
+          insideOrOn(room.outer, point) ||
+          edgeDistance(room.outer, point) < UNDER_WALL;
+        // Os pontos sobre o contorno de um buraco (e embaixo da parede dele) ficam com o salão.
         return (
-          insideOrOn(room.outer, point) &&
+          inOuter &&
           !room.holes.some(
             (hole) =>
               strictlyInside(hole, point) &&
-              edgeDistance(hole, point) >= ON_EDGE,
+              edgeDistance(hole, point) >= UNDER_WALL,
           )
         );
       },

@@ -118,6 +118,31 @@ describe("piso: contas", () => {
     assert.equal(floorAt(chunks, 17, 6).material, null);
   });
 
+  it("parede inclinada: o piso vai até embaixo da parede (meia espessura), sem dentinho de chão e sem passar dela", () => {
+    // parede de (0, 0) a (8, 3): o cômodo fica embaixo dela (y maior)
+    const walls = [wall("a", [0, 0], [8, 3]), wall("b", [8, 3], [8, 8]), wall("c", [8, 8], [0, 8]), wall("d", [0, 8], [0, 0])];
+    const chunks: FloorChunks = {};
+    assert.ok(paintFloor(chunks, room("plank", 4, 6), walls, "stone"));
+    // distância (casas) de um ponto até a linha da parede, positiva do lado de fora (acima dela)
+    const outside = (x: number, y: number) => (3 * x - 8 * y) / Math.hypot(3, 8);
+    let under = 0;
+    let beyond = 0;
+    for (let i = 4; i < 28; i++) {
+      for (let j = 0; j < 12; j++) {
+        const distance = outside(i / 4, j / 4);
+        if (distance > 0.01 && distance < 0.08) {
+          assert.equal(floorAt(chunks, i, j).material, "plank", `embaixo da parede (${i / 4}, ${j / 4})`);
+          under++;
+        }
+        if (distance > 0.11) {
+          assert.equal(floorAt(chunks, i, j).material, null, `fora da parede (${i / 4}, ${j / 4})`);
+          beyond++;
+        }
+      }
+    }
+    assert.ok(under > 3 && beyond > 3, `pontos conferidos: ${under} embaixo, ${beyond} fora`);
+  });
+
   it("fora de lugar fechado: null e nada muda", () => {
     const walls = [
       wall("a", [0, 0], [4, 0]),
