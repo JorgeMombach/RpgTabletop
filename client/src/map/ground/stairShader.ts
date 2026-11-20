@@ -342,7 +342,254 @@ void main() {
   outColor = vec4(color, alpha);
 }`;
 
-/** Programa das escadas de um formato (por enquanto, a escada com caminho). */
+const SPIRAL = `
+// ---------- caracol (centro e borda: a direção dá o primeiro degrau; largura = diâmetro) ----------
+const float SP_TURN = PI2 * 0.88;   // 12 degraus em 0,88 de volta
+const float SP_STEPS = 12.0;
+/** Ângulo girado desde o primeiro degrau, o degrau k e a posição f nele; devolve a altura (níveis, ±1 no último). */
+float spiralHeight(int s, vec2 c, out float k, out float f, out float turned) {
+  vec4 P = data(s, PRIMS_AT);
+  vec2 rel = c - P.xy;
+  float start = atan(P.w - P.y, P.z - P.x);
+  turned = mod(atan(rel.y, rel.x) - start, PI2);
+  k = floor(turned / (SP_TURN / SP_STEPS));
+  f = fract(turned / (SP_TURN / SP_STEPS));
+  if (turned > SP_TURN) return 0.0;
+  return (int(data(s, 0).z + 0.5) == 1 ? 1.0 : -1.0) * (k + 1.0) / SP_STEPS;
+}
+/** Espessura da parede redonda (pedra) ou da moldura (madeira) por fora do raio. */
+float spiralOuter(int s) { return (data(s, 0).y > 0.5 ? 0.1 : 0.17) * clamp(data(s, 0).x * 0.5, 0.6, 1.0); }
+
+vec4 drawSpiral(int s, vec2 c) {
+  vec4 A = data(s, 0), P = data(s, PRIMS_AT);
+  float R = A.x * 0.5;
+  bool up = int(A.z + 0.5) == 1, isWood = A.y > 0.5;
+  vec2 rel = c - P.xy;
+  float r = length(rel);
+  float outer = spiralOuter(s);
+  if (r > R + outer) return vec4(0.0);
+  float k, f, turned;
+  float hs = spiralHeight(s, c, k, f, turned);
+  float ang = atan(rel.y, rel.x);
+  vec2 radial = rel / max(r, 1e-4), tg = vec2(-radial.y, radial.x);
+  if (r > R) {
+    if (isWood) {
+      // moldura do alçapão redondo
+      vec3 frame = wood(vec2(ang * 3.0, r * 4.0), floor(ang * 4.0), 8.0) * 0.8;
+      return vec4(frame * relativeShade(vec3(radial * (r > R + outer * 0.5 ? 0.5 : -0.5), 1.0)), 1.0);
+    }
+    // parede redonda da torre: blocos ao longo do giro
+    float bx = ang * (R + 0.08) / 0.4;
+    vec3 stone = stoneCol(vec2(floor(bx), 21.0 + float(s))) * 0.95 * joint(min(fract(bx), 1.0 - fract(bx)) * 0.4, 0.03);
+    return vec4(stone * relativeShade(vec3(-radial * (r < R + outer * 0.5 ? 0.6 : -0.6), 1.0)), 1.0);
+  }
+  float pillar = 0.2 * R;
+  if (r < pillar) {
+    vec3 top = isWood ? mix(vec3(0.42, 0.29, 0.18), vec3(0.58, 0.43, 0.28), fract(r / R * 40.0)) : stoneCol(vec2(3.0, 9.0)) * (0.95 + 0.1 * fract(r / R * 30.0));
+    return vec4(top * relativeShade(vec3(rel / R * 2.5, 1.0)) * (up ? 1.18 : 1.0), 1.0);
+  }
+  vec3 col;
+  if (turned > SP_TURN) {
+    // vão entre o fim e o começo do giro: o patamar no nível do piso
+    col = isWood ? wood(c, floor(c.y / 0.22), 6.0) : stoneCol(floor(c * 2.0) + 40.0) * 0.95;
+    return vec4(col * (up ? 1.0 : 0.9), 1.0);
+  }
+  float stepAng = SP_TURN / SP_STEPS;
+  float rf = 0.16;
+  float riser = up ? smoothstep(1.0 - rf - 0.03, 1.0 - rf, f) : 1.0 - smoothstep(rf, rf + 0.03, f);
+  vec3 tread = isWood ? wood(vec2(r, turned), k * 5.0 + 3.0 + float(s), 2.0) : stoneCol(vec2(k, 15.0 + float(s))) * (0.9 + 0.14 * fbm(c * 9.0));
+  float seam = min(f, 1.0 - f) * r * stepAng;
+  tread *= mix(0.72, 1.0, mix(1.0, smoothstep(0.0, 0.012 + 0.012 * r, seam), detail(6.0)));
+  vec3 lowDir = vec3(up ? -tg : tg, 0.0);
+  vec3 treadLit = tread;
+  col = mix(treadLit, mix(tread * 0.9 * relativeShade(lowDir * 1.3 + vec3(0.0, 0.0, 0.6)), treadLit * 0.7, 0.35), riser);
+  // nariz claro na borda de cima do espelho
+  col *= 1.0 + 0.14 * (up ? 1.0 - smoothstep(0.0, 0.06, f) : smoothstep(0.94, 1.0, f));
+  if (isWood) {
+    // corrimão por fora e balaústres em cada degrau
+    if (r > R - 0.07) col = wood(vec2(ang * 4.0, r), 50.0, 1.0) * 0.8 * relativeShade(vec3(radial * 0.4, 1.0));
+    float start = atan(P.w - P.y, P.z - P.x);
+    vec2 baluster = P.xy + (R - 0.05) * vec2(cos(start + (k + 0.5) * stepAng), sin(start + (k + 0.5) * stepAng));
+    if (length(c - baluster) < 0.045) col = vec3(0.5, 0.36, 0.22) * relativeShade(vec3((c - baluster) * 10.0, 1.0));
+  }
+  if (up) {
+    col *= 1.0 + 0.18 * hs;
+    // último degrau cortado: o andar de cima é outra cena
+    if (k >= SP_STEPS - 1.0) {
+      float cutLine = 1.0 - smoothstep(0.02, 0.04, f * r * stepAng);
+      col = mix(hatch(c), vec3(0.08), cutLine);
+    }
+  } else {
+    col *= exp(-2.2 * max(-hs, 0.0));
+    if (k >= SP_STEPS - 2.0) col = mix(col, vec3(0.02), smoothstep(SP_STEPS - 2.0, SP_STEPS - 0.3, k + f));
+  }
+  return vec4(col, 1.0);
+}
+
+void main() {
+  vec2 c = screenCell();
+  float reach = 1.2 + 2.0 * length(uSunShift);
+  float shade = 0.0;
+  // sombra do caracol que sobe (procura o degrau que tapa o sol: três voltas)
+  for (int s = 0; s < ${MAX_STAIRS} + uNoUnroll; s++) {
+    if (s >= uStairCount) break;
+    if (int(data(s, 1).x) != SHAPE) continue;
+    vec4 box = data(s, 2);
+    if (c.x < box.x - reach || c.y < box.y - reach || c.x > box.z + reach || c.y > box.w + reach) continue;
+    vec4 A = data(s, 0), P = data(s, PRIMS_AT);
+    float R = A.x * 0.5;
+    if (int(A.z + 0.5) != 1 || dot(uSunShift, uSunShift) <= 0.0 || length(c - P.xy) <= R + spiralOuter(s)) continue;
+    // marcha pelo raio do sol: na altura h, o ponto que tapa está em c − deslocamento·h; há sombra se o degrau ali é
+    // pelo menos tão alto (os degraus têm alturas em saltos: a busca por ponto fixo da escada com caminho serrilharia)
+    for (int it = 1; it <= 24 + uNoUnroll; it++) {
+      float h = float(it) / 24.0;
+      vec2 q = c - uSunShift * h;
+      float rq = length(q - P.xy);
+      if (rq >= R || rq <= 0.0) continue;
+      float k, f, turned;
+      float hs = spiralHeight(s, q, k, f, turned);
+      if (turned <= SP_TURN && hs >= h - 0.5 / SP_STEPS) { shade = max(shade, 0.75); break; }
+    }
+  }
+  vec3 color = vec3(0.0);
+  float alpha = 0.45 * shade;
+  for (int s = 0; s < ${MAX_STAIRS} + uNoUnroll; s++) {
+    if (s >= uStairCount) break;
+    if (int(data(s, 1).x) != SHAPE) continue;
+    vec4 box = data(s, 2);
+    if (c.x < box.x - 0.4 || c.y < box.y - 0.4 || c.x > box.z + 0.4 || c.y > box.w + 0.4) continue;
+    vec4 spiral = drawSpiral(s, c);
+    if (spiral.a > 0.0) { color = spiral.rgb; alpha = 1.0; }
+  }
+  if (alpha <= 0.001) discard;
+  outColor = vec4(color, alpha);
+}`;
+
+const LADDER = `
+// ---------- escada de mão (no relevo: da ponta baixa à alta, encostada na face; solta: do pé ao topo) ----------
+/** u ao longo desde a primeira ponta, v através, L o comprimento. */
+vec3 ladderLocal(int s, vec2 c) {
+  vec4 P = data(s, PRIMS_AT);
+  vec2 dir = normalize(P.zw - P.xy);
+  return vec3(dot(c - P.xy, dir), dot(c - P.xy, vec2(-dir.y, dir.x)), length(P.zw - P.xy));
+}
+/** 1 no trilho ou na travessa; rung = 1 na travessa. No relevo abre de 0,17 a 0,23 para cima e os ganchos passam a borda. */
+float ladderMask(int s, vec2 c, out float u, out float L, out float rung) {
+  int mode = int(data(s, 0).z + 0.5);
+  vec3 l = ladderLocal(s, c);
+  u = l.x; L = l.z; rung = 0.0;
+  float spread = mode == 0 ? mix(0.17, 0.23, clamp(u / L, 0.0, 1.0)) : 0.2;
+  float v = l.y * 0.2 / spread;
+  float end = mode == 0 ? L + 0.16 : mode == 1 ? L - 0.3 : L;
+  bool rail = abs(abs(v) - 0.2) < 0.04 && u > -0.02 && u < end;
+  bool step_ = abs(v) < 0.2 && u > 0.05 && u < min(L - 0.05, end) && abs(fract(u / 0.28) - 0.5) < 0.09;
+  if (step_) rung = 1.0;
+  return rail || step_ ? 1.0 : 0.0;
+}
+vec4 drawLadder(int s, vec2 c) {
+  float u, L, rung;
+  if (ladderMask(s, c, u, L, rung) < 0.5) return vec4(0.0);
+  int mode = int(data(s, 0).z + 0.5);
+  vec4 P = data(s, PRIMS_AT);
+  vec2 dir = normalize(P.zw - P.xy), side = vec2(-dir.y, dir.x);
+  vec3 col = wood(vec2(u, rung), rung > 0.5 ? floor(u / 0.28) : 1.0, 12.0 + float(s)) * (rung > 0.5 ? 1.05 : 0.85);
+  // no penhasco, deitada na face: pega a luz da face (virada para a ponta de baixo)
+  vec3 n = mode == 0 ? normalize(vec3(-dir * 0.9, 1.0)) : vec3(0.0, 0.0, 1.0);
+  if (rung < 0.5) n = normalize(n + vec3(side * sign(dot(c - P.xy, side)) * 0.35, 0.0));   // trilho redondo
+  vec3 lit = col * relativeShade(n);
+  if (mode == 0 && u > L + 0.03) lit = vec3(0.3, 0.3, 0.33) * (1.0 - 0.5 * smoothstep(L + 0.1, L + 0.16, u));   // gancho de ferro na borda
+  if (mode == 2) lit *= mix(1.0, 0.08, clamp(u / L, 0.0, 1.0));   // para dentro do buraco, escurece
+  return vec4(lit, 1.0);
+}
+/**
+ * Alçapão quadrado da escada que desce, com a tampa aberta deitada ao lado (a = -1: a sombra curta da tampa).
+ * hole = dentro do buraco (onde a escada aparece).
+ */
+vec4 drawHatch(int s, vec2 c, out bool hole) {
+  vec4 P = data(s, PRIMS_AT);
+  vec2 dir = normalize(P.zw - P.xy), side = vec2(-dir.y, dir.x);
+  float halfAlong = max(0.45, length(P.zw - P.xy) * 0.5 + 0.05);
+  vec2 middle = (P.xy + P.zw) * 0.5;
+  vec2 q = vec2(dot(c - middle, side), dot(c - middle, dir));   // x através, y ao longo
+  hole = false;
+  if (abs(q.x) < 0.45 && abs(q.y) < halfAlong) {
+    hole = true;
+    float depth = (q.y + halfAlong) / (2.0 * halfAlong);
+    return vec4(mix(vec3(0.16, 0.13, 0.1), vec3(0.015), smoothstep(0.0, 0.9, depth)), 1.0);
+  }
+  if (abs(q.x) < 0.56 && abs(q.y) < halfAlong + 0.11) return vec4(wood(vec2(q.x + q.y, q.x - q.y), 70.0, 2.0) * 0.75, 1.0);
+  if (q.x > 0.6 && q.x < 1.5 && abs(q.y) < halfAlong) {
+    float t = fract((q.x - 0.6) / 0.225);
+    vec3 lid = wood(vec2(q.y, q.x), floor((q.x - 0.6) / 0.225) + 80.0, 3.0) * 0.72 * mix(0.6, 1.0, mix(1.0, smoothstep(0.0, 0.08, min(t, 1.0 - t)), detail(5.0)));
+    float rim = min(min(q.x - 0.6, 1.5 - q.x), halfAlong - abs(q.y));
+    lid *= mix(0.45, 1.0, smoothstep(0.0, 0.03, rim));
+    if (abs(q.x - 0.78) < 0.04 || abs(q.x - 1.32) < 0.04) lid = vec3(0.22, 0.22, 0.24);   // cintas de ferro
+    if (abs(length(q - vec2(1.4, 0.0)) - 0.07) < 0.018) lid = vec3(0.3, 0.3, 0.32);       // argola
+    return vec4(lid, 1.0);
+  }
+  // sombra curta da tampa (é grossa)
+  vec2 back = q - vec2(dot(uSunShift, side), dot(uSunShift, dir)) * 0.08;
+  if (back.x > 0.6 && back.x < 1.5 && abs(back.y) < halfAlong) return vec4(-1.0);
+  return vec4(0.0);
+}
+
+void main() {
+  vec2 c = screenCell();
+  float shade = 0.0;
+  // apoiada (no relevo ou subindo solta): sombra rente, halo de contato e o pé assentado no chão
+  for (int s = 0; s < ${MAX_STAIRS} + uNoUnroll; s++) {
+    if (s >= uStairCount) break;
+    if (int(data(s, 1).x) != SHAPE) continue;
+    vec4 box = data(s, 2);
+    if (c.x < box.x - 0.6 || c.y < box.y - 0.6 || c.x > box.z + 0.6 || c.y > box.w + 0.6) continue;
+    if (int(data(s, 0).z + 0.5) == 2) continue;
+    float u, L, rung;
+    if (ladderMask(s, c, u, L, rung) < 0.5) {
+      float near = 0.0;
+      for (int k = 0; k < 8 + uNoUnroll; k++) {
+        float a = float(k) * 0.785;
+        if (ladderMask(s, c + vec2(cos(a), sin(a)) * 0.035, u, L, rung) > 0.5) near += 0.125;
+      }
+      shade = max(shade, near * 1.2);
+      if (dot(uSunShift, uSunShift) > 0.0 && ladderMask(s, c - uSunShift * 0.05, u, L, rung) > 0.5) shade = max(shade, 0.75);
+    }
+    vec3 l = ladderLocal(s, c);
+    float foot = length(vec2(l.y / 0.42, (l.x + 0.03) / 0.13));
+    if (foot < 1.0) shade = max(shade, 1.1 * (1.0 - foot));
+  }
+  vec3 color = vec3(0.0);
+  float alpha = clamp(0.45 * shade, 0.0, 0.6);
+  for (int s = 0; s < ${MAX_STAIRS} + uNoUnroll; s++) {
+    if (s >= uStairCount) break;
+    if (int(data(s, 1).x) != SHAPE) continue;
+    vec4 box = data(s, 2);
+    if (c.x < box.x - 1.2 || c.y < box.y - 1.2 || c.x > box.z + 1.2 || c.y > box.w + 1.2) continue;
+    int mode = int(data(s, 0).z + 0.5);
+    if (mode == 2) {
+      bool hole;
+      vec4 hatchColor = drawHatch(s, c, hole);
+      if (hatchColor.a > 0.0) { color = hatchColor.rgb; alpha = 1.0; }
+      else if (hatchColor.a < 0.0) { color *= 0.6; alpha = alpha + 0.4 * (1.0 - alpha); }
+      if (!hole) continue;
+    }
+    vec4 ladder = drawLadder(s, c);
+    if (ladder.a > 0.0) { color = ladder.rgb; alpha = 1.0; }
+    if (mode == 1) {
+      // topo cortado: o andar de cima é outra cena
+      vec3 l = ladderLocal(s, c);
+      if (l.x > l.z - 0.3 && l.x < l.z && abs(l.y) < 0.26) {
+        float cutLine = 1.0 - smoothstep(0.02, 0.04, abs(l.x - (l.z - 0.3)));
+        color = mix(hatch(c), vec3(0.08), cutLine);
+        alpha = 1.0;
+      }
+    }
+  }
+  if (alpha <= 0.001) discard;
+  outColor = vec4(color, alpha);
+}`;
+
+/** Programa das escadas de um formato. */
 export function stairFragment(shape: StairShape): string {
-  return `${COMMON.replace("SHAPE_INDEX", String(STAIR_SHAPES.indexOf(shape)))}${PATH}`;
+  const body = shape === "path" ? PATH : shape === "spiral" ? SPIRAL : LADDER;
+  return `${COMMON.replace("SHAPE_INDEX", String(STAIR_SHAPES.indexOf(shape)))}${body}`;
 }

@@ -1,4 +1,4 @@
-import { reliefSampler, STAIR_SHAPES, stairLoose, stairPath, stairProfile, type ReliefChunks, type Stair, type StairShape } from "@rpg/shared";
+import { reliefSampler, STAIR_LOOSE_BELOW, STAIR_SHAPES, stairLoose, stairPath, stairProfile, type ReliefChunks, type Stair, type StairShape } from "@rpg/shared";
 import { bindTextures, createTexture, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { faceLight, type SceneLight } from "./sceneLight";
 import { MAX_STAIR_PRIMS, MAX_STAIR_SEGMENTS, MAX_STAIRS, STAIR_PRIMS_AT, STAIR_ROW, STAIR_SEGMENTS_AT, stairFragment } from "./stairShader";
@@ -6,9 +6,6 @@ import { FULLSCREEN_VERTEX } from "./terrainShader";
 
 /** Sombra de um nível de relevo, em casas, por casa de sombra da cena (a mesma conta do relevo e das pontes). */
 const LEVEL_SHADOW = 1.6;
-/** Formatos que já têm programa (os outros chegam na etapa seguinte). */
-const DRAWN: ReadonlySet<StairShape> = new Set<StairShape>(["path"]);
-
 /** O que está embaixo das escadas, vindo do resto do renderizador. */
 export interface StairGround {
   /** Textura vazia para os samplers sem o que ler (sem relevo): cada sampler na sua unidade. */
@@ -20,6 +17,8 @@ export interface StairGround {
 /**
  * Uma linha da textura de dados (docs no stairShader.ts): o caminho e o perfil vêm prontos do processador, com a
  * altura do relevo ao longo da linha; a placa só lê. Escada solta (o chão quase não varia): modo 1 subindo, 2 descendo.
+ * Caracol: sempre solto (o sentido escolhido). Escada de mão: no relevo (pé e topo em alturas diferentes) os pontos vão
+ * da ponta baixa para a alta, encostada na face; solta, do pé para o topo.
  */
 function stairRow(stair: Stair, groundAt: (x: number, y: number) => number): Float32Array {
   const row = new Float32Array(STAIR_ROW * 4);
@@ -32,10 +31,17 @@ function stairRow(stair: Stair, groundAt: (x: number, y: number) => number): Flo
   if (stair.shape !== "path") {
     const [first, second] = stair.points;
     const span = Math.hypot(second.x - first.x, second.y - first.y);
-    const foot = groundAt(first.x, first.y);
-    row.set([stair.width, material, stair.exit === "up" ? 1 : 2, span], 0);
-    row.set([shape, 0, 0, Number.isFinite(foot) ? foot : 0], 4);
-    row.set([first.x, first.y, second.x, second.y], STAIR_PRIMS_AT * 4);
+    const level = (x: number, y: number) => {
+      const value = groundAt(x, y);
+      return Number.isFinite(value) ? value : 0;
+    };
+    const foot = level(first.x, first.y);
+    const top = level(second.x, second.y);
+    const onRelief = stair.shape === "ladder" && Math.abs(top - foot) >= STAIR_LOOSE_BELOW;
+    const [low, high] = onRelief && top < foot ? [second, first] : [first, second];
+    row.set([stair.width, material, onRelief ? 0 : stair.exit === "up" ? 1 : 2, span], 0);
+    row.set([shape, 0, 0, Math.min(foot, top)], 4);
+    row.set([low.x, low.y, high.x, high.y], STAIR_PRIMS_AT * 4);
     return row;
   }
   const path = stairPath(stair.points);
@@ -88,7 +94,7 @@ export class StairPass {
 
   /** Começa a compilar o formato escolhido na ferramenta, antes da primeira escada dele. */
   warm(shape: StairShape) {
-    if (DRAWN.has(shape)) this.programs.warm(shape, () => stairFragment(shape));
+    this.programs.warm(shape, () => stairFragment(shape));
   }
 
   /** Escadas da cena e o relevo (o perfil segue a altura do chão ao longo da linha). */
@@ -101,7 +107,7 @@ export class StairPass {
     this.present = new Set();
     list.forEach((stair, index) => {
       pixels.set(stairRow(stair, groundAt), index * STAIR_ROW * 4);
-      if (DRAWN.has(stair.shape)) this.present.add(stair.shape);
+      this.present.add(stair.shape);
     });
     gl.bindTexture(gl.TEXTURE_2D, this.dataTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, STAIR_ROW, rows, 0, gl.RGBA, gl.FLOAT, pixels);
