@@ -1,4 +1,4 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type MapProp, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type MapProp, type PropKind, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
@@ -185,6 +185,15 @@ export class GroundRenderer {
   /** Vento nas plantas (`null` = parado). */
   setPropWind(wind: { strength: number; direction: [number, number] } | null) {
     this.props.setWind(wind);
+  }
+
+  /** Ícone de um tipo de objeto (painel Objetos); `null` enquanto as aquarelas ou os programas não estão prontos. */
+  propIcon(kind: PropKind, side: number): HTMLCanvasElement | null {
+    const leaves = this.watercolors[TERRAINS.indexOf("grass")];
+    const stone = this.watercolors[TERRAINS.indexOf("stoneLight")];
+    const dirt = this.watercolors[TERRAINS.indexOf("dirtDark")];
+    if (this.gl.isContextLost() || !leaves || !stone || !dirt) return null;
+    return this.props.iconOf(kind, side, { leaves, stone, dirt });
   }
 
   /** Planta balançando na cena: o chão precisa de quadros. */

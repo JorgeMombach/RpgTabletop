@@ -12,6 +12,7 @@ import { drawProp, plantLayers, PROP_EXTENT, propImage, SWAYING } from "./propAr
 import { PlantNode, useWindClock, type PlantRegistry } from "./PlantWind";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
 import { GPU_PROP_KINDS } from "./props/propPass";
+import { useGroundOutputs } from "./ground/groundOutputs";
 import { movePropDraft } from "./props/propDrag";
 
 export const PROP_LABEL: Record<PropKind, MessageKey> = {
@@ -247,14 +248,30 @@ export function tokenSpots(tokens: CombatantView[]): string {
 /** O desenho do objeto no catálogo. */
 export function PropIcon({ kind, size = 34 }: { kind: PropKind; size?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const gpuIcon = useGroundOutputs((state) => state.propIcon);
+  const groundFailed = useApp((state) => state.groundFailed);
   useEffect(() => {
     const ctx = ref.current?.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(2, 0, 0, 2, 0, 0);
-    ctx.clearRect(0, 0, size, size);
-    ctx.translate(size / 2, size / 2);
-    drawProp(ctx, kind, size / (PROP_EXTENT[kind] * 2), 17);
-  }, [kind, size]);
+    // Com a placa de vídeo, o ícone no desenho novo (programa compilando: tenta de novo daqui a pouco).
+    let timer = 0;
+    let tries = 0;
+    const paint = () => {
+      const icon = gpuIcon && !groundFailed ? gpuIcon(kind, size * 2) : null;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, size * 2, size * 2);
+      if (icon) {
+        ctx.drawImage(icon, 0, 0);
+        return;
+      }
+      ctx.setTransform(2, 0, 0, 2, 0, 0);
+      ctx.translate(size / 2, size / 2);
+      drawProp(ctx, kind, size / (PROP_EXTENT[kind] * 2), 17);
+      if (gpuIcon && !groundFailed && tries++ < 20) timer = window.setTimeout(paint, 400);
+    };
+    paint();
+    return () => window.clearTimeout(timer);
+  }, [kind, size, gpuIcon, groundFailed]);
   return <canvas ref={ref} width={size * 2} height={size * 2} style={{ width: size, height: size, display: "block" }} aria-hidden />;
 }
 

@@ -1,8 +1,8 @@
 import { reliefSampler, type MapProp, type PropKind, type ReliefChunks } from "@rpg/shared";
 import { bindTextures, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "../ground/glKit";
-import { faceLight, type SceneLight } from "../ground/sceneLight";
+import { faceLight, SCENE_LIGHT, type SceneLight } from "../ground/sceneLight";
 import { FULLSCREEN_VERTEX } from "../ground/terrainShader";
-import { PROP_CAST, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
+import { PROP_CAST, PROP_EXTENT, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
 import { PROP_CASTS, PROP_SOLIDS, PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_SHADOW_FRAGMENT, PROP_SHADOW_VERTEX, propBakeFragment, SHAPED_KINDS } from "./propShader";
 
 /** Tipos que saem da placa de vídeo (todos; o desenho do Konva fica só sem WebGL 2). */
@@ -16,6 +16,8 @@ const ATLAS = 2048;
 const ATLAS_LAYERS = { small: 1, large: 2 };
 /** Formas assadas por quadro: uma floresta inteira aparece em poucos quadros, sem travar. */
 const BAKE_PER_FRAME = 6;
+/** Semente dos ícones do painel (a mesma de sempre: o ícone não muda). */
+const ICON_SEED = 17;
 /** Um nível do relevo tem 1,4 casa de altura (a mesma conta do relevo). */
 const LEVEL_HEIGHT = 1.4;
 
@@ -56,6 +58,8 @@ export class PropPass {
   /** Relevo já amostrado: mudar só os objetos não refaz a conta do relevo. */
   private ground: { relief: ReliefChunks; groundAt: (x: number, y: number) => number } | null = null;
   private frame = 0;
+  /** Ícones do painel já desenhados (tipo|lado). */
+  private readonly icons = new Map<string, HTMLCanvasElement>();
   /** Ficou forma da tela sem assar (precisa de mais quadros). */
   private waiting = false;
   /** Sobe a cada mudança que muda o desenho (objetos, arrasto, transparência, forma assada). */
@@ -226,14 +230,19 @@ export class PropPass {
    * que já têm forma no atlas; os outros aparecem nos próximos quadros.
    */
   draw(layer: "below" | "above", view: GroundView, width: number, height: number, scene: SceneLight, time: number, art: PropArt) {
-    const { gl } = this;
     this.draws.beginDraw();
-    const tier = this.atlas.currentTier;
     const rows = this.readyRows(this.onScreen(view).filter(({ prop }) => prop.above === (layer === "above")));
     if (rows.length === 0) return;
     const program = this.draws.get("draw", () => PROP_DRAW_FRAGMENT);
     if (!program) return;
     this.upload(rows);
+    this.drawRows(program, rows.length, view, width, height, scene, time, art);
+  }
+
+  /** Desenha as linhas já enviadas no alvo ligado (tela inteira ou o ícone). */
+  private drawRows(program: Program, count: number, view: GroundView, width: number, height: number, scene: SceneLight, time: number, art: PropArt) {
+    const { gl } = this;
+    const tier = this.atlas.currentTier;
     gl.useProgram(program.program);
     gl.viewport(0, 0, width, height);
     gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
@@ -262,9 +271,69 @@ export class PropPass {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.bindVertexArray(this.vertexArray);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, rows.length);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, count);
     gl.bindVertexArray(null);
     gl.disable(gl.BLEND);
+  }
+
+  /**
+   * Ícone do tipo para o painel Objetos (docs/design/objetos.md): a forma de uma semente fixa, desenhada de dia num
+   * alvo pequeno e copiada para uma imagem guardada. `null` enquanto um programa compila (quem pede tenta de novo).
+   */
+  iconOf(kind: PropKind, side: number, art: PropArt): HTMLCanvasElement | null {
+    const { gl } = this;
+    const cached = this.icons.get(`${kind}|${side}`);
+    if (cached) return cached;
+    const draw = this.draws.get("draw", () => PROP_DRAW_FRAGMENT);
+    const bake = this.bakes.get(kind, () => propBakeFragment(kind));
+    if (!draw || !bake) return null;
+    const key = `${kind}|${ICON_SEED}|${this.atlas.currentTier}`;
+    const found = this.atlas.slotFor(key, slotClassOf(kind), this.frame);
+    if (!found) return null;
+    if (found.fresh) this.bakeOne(bake, found.slot, ICON_SEED);
+    const target = gl.createTexture();
+    const framebuffer = gl.createFramebuffer();
+    if (!target || !framebuffer) return null;
+    gl.bindTexture(gl.TEXTURE_2D, target);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, side, side);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target, 0);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const prop: MapProp = { id: "icon", kind, col: 0, row: 0, size: 1, rotation: 0, seed: ICON_SEED, above: false, blocks: false };
+    this.upload([propRow({ prop, base: 0, faded: false, drag: null }, found.slot)]);
+    // o objeto inteiro no quadrado: o alcance do tipo vai de uma borda à outra
+    const view: GroundView = { offsetX: 0, offsetY: 0, cellPx: side / (2 * PROP_EXTENT[kind]), stageX: side / 2, stageY: side / 2, scale: 1, width: side, height: side, pixelRatio: 1 };
+    const wind = this.wind;
+    this.wind = null;
+    this.drawRows(draw, 1, view, side, side, SCENE_LIGHT.day, 0, art);
+    this.wind = wind;
+    const pixels = new Uint8Array(side * side * 4);
+    gl.readPixels(0, 0, side, side, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(framebuffer);
+    gl.deleteTexture(target);
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = side;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    const image = context.createImageData(side, side);
+    // de baixo para cima (WebGL) para de cima para baixo, e a cor sai da pré-multiplicação
+    for (let row = 0; row < side; row++) {
+      for (let col = 0; col < side; col++) {
+        const from = ((side - 1 - row) * side + col) * 4;
+        const to = (row * side + col) * 4;
+        const alpha = pixels[from + 3];
+        const scale = alpha > 0 ? 255 / alpha : 0;
+        image.data[to] = Math.min(255, pixels[from] * scale);
+        image.data[to + 1] = Math.min(255, pixels[from + 1] * scale);
+        image.data[to + 2] = Math.min(255, pixels[from + 2] * scale);
+        image.data[to + 3] = alpha;
+      }
+    }
+    context.putImageData(image, 0, 0);
+    this.icons.set(`${kind}|${side}`, canvas);
+    return canvas;
   }
 
   /** Linhas dos objetos que já têm forma no atlas; os que ainda não têm esperam o próximo quadro. */

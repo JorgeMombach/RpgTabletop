@@ -1,3 +1,4 @@
+import type { PropKind } from "@rpg/shared";
 import { create } from "zustand";
 
 /**
@@ -13,7 +14,9 @@ export const useGroundOutputs = create<{
   /** Objetos da placa de vídeo (docs/design/objetos.md): os de baixo e os de cima dos tokens. */
   propsBelow: HTMLCanvasElement | null;
   propsAbove: HTMLCanvasElement | null;
-}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null }));
+  /** Ícone de um tipo de objeto feito pela placa de vídeo (`null` = ainda não dá; sem motor, a função é `null`). */
+  propIcon: ((kind: PropKind, side: number) => HTMLCanvasElement | null) | null;
+}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, propIcon: null }));
 
 const drawnListeners = new Set<() => void>();
 
