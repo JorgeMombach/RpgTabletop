@@ -229,3 +229,4 @@ A versão do app é o campo `version` do `package.json` raiz: aparece na interfa
 | Tochas fixas no mapa, andar com o mapa por W, A, S, D, correções de desempenho e dos dados | ✅ v2.11.0 |
 | Configurações, baús com loot, armas no inventário, ficha completa em janela, ataques e magias com busca, pincel de efeitos, CA opcional | ✅ v2.12.0 |
 | Cenário (objetos, paredes novas, painel Construir), fichas em arquivo, chat e sussurro, rolagens secretas e salvas, pausa, Dungeondraft, altura e direção, ver como jogador, catálogo SRD 5.1, tabelas aleatórias, hora do jogo | ✅ v2.13.0 |
+| Diário da campanha, grid hexagonal e criação de mapa (terreno, água animada, vento, relevo, luz e sombras, paredes e janelas em alta definição, pisos, pontes, píer e escadas) | ✅ v2.14.0 |

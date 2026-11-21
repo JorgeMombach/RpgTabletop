@@ -248,7 +248,7 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 Trazer para dentro do app o que hoje se faz no Dungeondraft: o mestre monta o chão e o cenário do mapa. Arte desenhada (não foto), bonita a ponto de ser "o que o jogador vê"; peso do app não importa.
 - [x] Entrega 1: terreno pintado com pincel livre (grama, terra, pedra e água, misturados na borda). *(feito em 2026-11-16; desenho em [docs/design/terreno.md](design/terreno.md))*
 - [ ] Entrega 2: objetos com mais qualidade.
-- [ ] Entrega 3: mapa vivo (água e árvores animadas).
+- [x] Entrega 3: mapa vivo (água e árvores animadas). *(saiu na 2.14.0: [vento](design/vento.md) e [água animada](design/agua.md))*
 
 ### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
