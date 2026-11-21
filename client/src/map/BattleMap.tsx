@@ -45,7 +45,7 @@ import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./Drawin
 import { wallPointAt, wallSpan, WallPreview, WallShape } from "./WallShape";
 import { WallChains } from "./WallChains";
 import { paintColorOf } from "./PaintOptions";
-import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
+import { MapPropLayer, propSpot, propUnderToken, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
 import { addBridge, addStair, removeStairs, updateStair, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
@@ -1441,6 +1441,12 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   const tokenKey = tokenSpots(tokens);
+  // Copas com token embaixo (meio transparentes e paradas): só refaz quando um token anda ou os objetos mudam.
+  const fadedProps = useMemo(
+    () => new Set(state.battle.props.filter((p) => p.above && propUnderToken(p, tokens, grid)).map((p) => p.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tokenKey resume onde os tokens estão
+    [state.battle.props, tokenKey, grid],
+  );
   // Luz (docs/design/luz.md): com o chão em WebGL, a luz da cena, as sombras e as tochas saem da placa de vídeo.
   const groundLit = WEBGL_GROUND && !groundFailed;
   const torchKey = tokens
@@ -1706,6 +1712,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               bridges={state.battle.bridges}
               stairs={state.battle.stairs}
               stairRelief={relief}
+              fadedProps={fadedProps}
+              weather={state.battle.weather}
             />
           )}
 

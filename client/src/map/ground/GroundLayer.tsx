@@ -1,11 +1,12 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { duneMask, FrameWatch, type Bridge, type Stair, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent } from "@rpg/shared";
+import { duneMask, FrameWatch, type Bridge, type Stair, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent, type WeatherState, windOf } from "@rpg/shared";
 import { useApp } from "../../store";
 import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
+import { usePropDrag } from "../props/propDrag";
 import { notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
 import type { LightingInput } from "./lightPass";
 import type { ReliefJob, ReliefResult } from "./reliefTypes";
@@ -65,7 +66,13 @@ export const GroundLayer = memo(function GroundLayer({
   bridges,
   stairs,
   stairRelief,
+  fadedProps,
+  weather,
 }: {
+  /** Copas com token embaixo (docs/design/objetos.md): meio transparentes e paradas. */
+  fadedProps: ReadonlySet<string>;
+  /** Clima da cena: o vento nas plantas. */
+  weather: WeatherState;
   /** Pontes da cena (docs/design/pontes.md). */
   bridges: Bridge[];
   /** Escadas da cena (docs/design/escadas.md). */
@@ -327,6 +334,29 @@ export const GroundLayer = memo(function GroundLayer({
     renderer.setProps(props, stairRelief);
     setVersion((value) => value + 1);
   }, [renderer, props, stairRelief]);
+
+  // Objeto arrastado ou mexido pelas alças: o desenho acompanha (só o que muda; o resto do chão fica).
+  const propDrag = usePropDrag();
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setPropDrag(propDrag.id, propDrag.drag);
+    setVersion((value) => value + 1);
+  }, [renderer, propDrag]);
+
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setPropFaded(fadedProps);
+    setVersion((value) => value + 1);
+  }, [renderer, fadedProps]);
+
+  // Vento nas plantas: parado com a ferramenta Objetos, com Reduzir efeitos e no aparelho que não aguenta.
+  const propWindOff = useApp((state) => state.tool === "props" || state.reduceFx || state.windStalled);
+  useEffect(() => {
+    if (!renderer) return;
+    const wind = windOf(weather);
+    renderer.setPropWind(propWindOff ? null : { strength: wind.strength, direction: [wind.direction * 0.95, 0.31] });
+    setVersion((value) => value + 1);
+  }, [renderer, weather, propWindOff]);
 
   // Pisos: a camada é refeita no próximo desenho.
   useEffect(() => {

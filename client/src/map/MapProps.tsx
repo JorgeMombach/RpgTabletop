@@ -12,6 +12,7 @@ import { drawProp, plantLayers, PROP_EXTENT, propImage, SWAYING } from "./propAr
 import { PlantNode, useWindClock, type PlantRegistry } from "./PlantWind";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
 import { GPU_PROP_KINDS } from "./props/propPass";
+import { movePropDraft } from "./props/propDrag";
 
 export const PROP_LABEL: Record<PropKind, MessageKey> = {
   tree: "props.tree",
@@ -105,12 +106,25 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded, drawnB
         dragged.current = true;
         onPick();
       }}
+      // Desenhado pela placa de vídeo: o desenho acompanha o nó (posição livre; o Shift encaixa só ao soltar).
+      onDragMove={(e) => {
+        if (!drawnByGpu) return;
+        const node = e.target;
+        movePropDraft(p.id, { col: (node.x() - grid.offsetX) / grid.cellPx, row: (node.y() - grid.offsetY) / grid.cellPx, size: p.size, rotation: p.rotation });
+      }}
+      onTransform={(e) => {
+        if (!drawnByGpu) return;
+        const node = e.target;
+        movePropDraft(p.id, { col: (node.x() - grid.offsetX) / grid.cellPx, row: (node.y() - grid.offsetY) / grid.cellPx, size: p.size * node.scaleX(), rotation: node.rotation() });
+      }}
       onDragEnd={(e) => {
         window.setTimeout(() => (dragged.current = false), 0);
         const node = e.target;
         const spot = propSpot(node.x(), node.y(), grid, e.evt.shiftKey);
         node.position(centerOf(spot, grid));
-        if (spot.col !== p.col || spot.row !== p.row) void updateProp(p, spot);
+        // a posição provisória só sai quando o servidor responde (sem o objeto voltar ao lugar antigo por um quadro)
+        if (spot.col !== p.col || spot.row !== p.row) void updateProp(p, spot).finally(() => movePropDraft(null, null));
+        else movePropDraft(null, null);
       }}
       onTransformEnd={(e) => {
         // As alças mudam a escala do nó: vira tamanho do objeto, e a escala volta a 1.
@@ -118,7 +132,7 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded, drawnB
         const size = Math.min(LIMITS.propSize.max, Math.max(LIMITS.propSize.min, Math.round(p.size * node.scaleX() * 100) / 100));
         const rotation = Math.round(node.rotation());
         node.scale({ x: 1, y: 1 });
-        void updateProp(p, { size, rotation });
+        void updateProp(p, { size, rotation }).finally(() => movePropDraft(null, null));
       }}
     />
   );
@@ -178,16 +192,7 @@ export const MapPropLayer = memo(function MapPropLayer({
     t.getLayer()?.batchDraw();
   }, [picked, list]);
   if (list.length === 0) return null;
-  const under = (p: MapProp) => {
-    if (layer !== "above") return false;
-    const { x, y } = centerOf(p, grid);
-    const r = grid.cellPx * p.size;
-    return tokens.some((c) => {
-      if (!c.pos) return false;
-      const center = cellCenter(c.pos, grid);
-      return Math.hypot(center.x - x, center.y - y) < r;
-    });
-  };
+  const under = (p: MapProp) => layer === "above" && propUnderToken(p, tokens, grid);
   return (
     <Layer ref={layerRef} listening={editing}>
       {list.map((p) => {
@@ -221,6 +226,17 @@ export const MapPropLayer = memo(function MapPropLayer({
 
 function samePropLayer(a: PropLayerProps, b: PropLayerProps): boolean {
   return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey && a.weather === b.weather && a.gpu === b.gpu;
+}
+
+/** Copa com token embaixo (fica meio transparente e parada, para não esconder ninguém). */
+export function propUnderToken(p: MapProp, tokens: CombatantView[], grid: MapConfig): boolean {
+  const { x, y } = centerOf(p, grid);
+  const r = grid.cellPx * p.size;
+  return tokens.some((c) => {
+    if (!c.pos) return false;
+    const center = cellCenter(c.pos, grid);
+    return Math.hypot(center.x - x, center.y - y) < r;
+  });
 }
 
 /** Chave das posições dos tokens no mapa (muda só quando algum anda). */
