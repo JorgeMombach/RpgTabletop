@@ -3,10 +3,13 @@ import { bindTextures, ProgramCache, uniformOf, useVertices, vertexBuffer, type 
 import { faceLight, type SceneLight } from "../ground/sceneLight";
 import { FULLSCREEN_VERTEX } from "../ground/terrainShader";
 import { PROP_CAST, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
-import { PROP_CASTS, PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_SHADOW_FRAGMENT, PROP_SHADOW_VERTEX, propBakeFragment, SHAPED_KINDS } from "./propShader";
+import { PROP_CASTS, PROP_SOLIDS, PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_SHADOW_FRAGMENT, PROP_SHADOW_VERTEX, propBakeFragment, SHAPED_KINDS } from "./propShader";
 
-/** Tipos que já saem da placa de vídeo (os outros continuam no desenho do Konva até a Tarefa 6). */
+/** Tipos que saem da placa de vídeo (todos; o desenho do Konva fica só sem WebGL 2). */
 export const GPU_PROP_KINDS: ReadonlySet<PropKind> = SHAPED_KINDS;
+
+/** Plantas que balançam com o vento (o chão pede quadros com elas na cena). */
+const SWAYING_KINDS: ReadonlySet<PropKind> = new Set<PropKind>(["tree", "pine", "bush", "palm", "tallGrass", "flowers"]);
 
 /** Lado do atlas e camadas: 1 de lugares pequenos e 2 de grandes (2 × 4 bytes por ponto ≈ 96 MB na placa). */
 const ATLAS = 2048;
@@ -148,7 +151,7 @@ export class PropPass {
 
   /** Há planta balançando (o chão precisa de quadros). */
   get swaying(): boolean {
-    return this.wind !== null && this.wind.strength > 0 && this.placed.some(({ prop }) => prop.kind === "tree" || prop.kind === "pine" || prop.kind === "bush");
+    return this.wind !== null && this.wind.strength > 0 && this.placed.some(({ prop }) => SWAYING_KINDS.has(prop.kind));
   }
 
   private onScreen(view: GroundView, margin = 0): Placed[] {
@@ -313,6 +316,7 @@ export class PropPass {
     gl.uniform2f(uniformOf(gl, program, "uSunShift"), scene.sunDirection[0] * scene.shadowCells, scene.sunDirection[1] * scene.shadowCells);
     gl.uniform1fv(uniformOf(gl, program, "uExtents"), PROP_EXTENTS);
     gl.uniform1fv(uniformOf(gl, program, "uCasts"), PROP_CASTS);
+    gl.uniform1fv(uniformOf(gl, program, "uSolid"), PROP_SOLIDS);
     gl.uniform1f(uniformOf(gl, program, "uAtlas"), ATLAS);
     gl.uniform1f(uniformOf(gl, program, "uPoints"), PROP_TIERS[this.atlas.currentTier]);
     gl.uniform1f(uniformOf(gl, program, "uTime"), time);

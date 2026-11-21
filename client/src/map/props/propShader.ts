@@ -1,6 +1,7 @@
 import { PROP_KINDS, type PropKind } from "@rpg/shared";
 import { NO_UNROLL } from "../ground/glKit";
-import { PROP_CAST, PROP_EXTENT } from "./propLayout";
+import { PROP_CAST, PROP_EXTENT, PROP_SOLID } from "./propLayout";
+import { PROP_MATERIAL_GLSL, PROP_SHAPE_LIBRARY } from "./propShapes";
 
 /**
  * Objetos na placa de vídeo (docs/design/objetos.md), portados da página aprovada (`docs/design/objetos-teste.html`).
@@ -13,7 +14,7 @@ import { PROP_CAST, PROP_EXTENT } from "./propLayout";
  *   a sombra e as tochas vêm do mapa de luz por cima). Cor pré-multiplicada.
  */
 
-/** Materiais (o número vai no canal A, × 32). */
+/** Materiais dos seis primeiros tipos (o número vai nos 4 bits de cima do canal A; a lista toda em propShapes.ts). */
 export const PROP_MATERIALS = { leaves: 0, needles: 1, stone: 3, wood: 4, darkWood: 5, iron: 6, cloth: 7 } as const;
 
 const NOISE = `
@@ -42,15 +43,8 @@ vec3 voronoi(vec2 p, out vec2 toCenter) {
 
 /** As formas (coordenadas do objeto, tamanho 1, sem vento). `edge` = distância até a borda da parte de cima (1 = longe). */
 const SHAPES = `
-struct Hit { float sd; float h; int mat; float tone; float edge; };
-float sdBox(vec2 p, vec2 b) { vec2 d = abs(p) - b; return -(length(max(d, 0.0)) + min(max(d.x, d.y), 0.0)); }
-float sdSegment(vec2 p, vec2 a, vec2 b, float w) { vec2 pa = p - a, ba = b - a; float t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return w - length(pa - ba * t); }
-// Junta uma peça: o contorno é a união; a superfície (e a borda de dentro) é a da peça mais alta.
-void take(inout Hit o, float sd, float h, int mat, float tone) {
-  bool inside = sd > 0.0, was = o.sd > 0.0;
-  if ((inside && (!was || h > o.h)) || (!inside && !was && sd > o.sd)) { o.h = h; o.mat = mat; o.tone = tone; o.edge = sd; }
-  o.sd = max(o.sd, sd);
-}
+${PROP_MATERIAL_GLSL}
+${PROP_SHAPE_LIBRARY}
 
 // Copa (árvore e arbusto): lobos em volta do miolo e bolas de folha redondas sobrepostas, borda recortada em folhas.
 Hit canopy(vec2 q, float seed, float scale, float top) {
@@ -190,6 +184,28 @@ const SHAPE_CALL: Partial<Record<PropKind, string>> = {
   boulder: "boulder(q, seed)",
   barrel: "barrel(q, seed)",
   cart: "cart(q, seed)",
+  flowers: "flowers(q, seed)",
+  palm: "palm(q, seed)",
+  tallGrass: "tallGrass(q, seed)",
+  stones: "stones(q, seed)",
+  rubble: "rubble(q, seed)",
+  log: "logShape(q, seed)",
+  stump: "stump(q, seed)",
+  mushrooms: "mushrooms(q, seed)",
+  crate: "crate(q, seed)",
+  crates: "crates(q, seed)",
+  planks: "planks(q, seed)",
+  table: "tableShape(q, seed)",
+  shelf: "shelf(q, seed)",
+  bed: "bed(q, seed)",
+  bridge: "bridgeShape(q, seed)",
+  well: "well(q, seed)",
+  pillar: "pillar(q, seed)",
+  statue: "statue(q, seed)",
+  altar: "altar(q, seed)",
+  tent: "tent(q, seed)",
+  sacks: "sacks(q, seed)",
+  bones: "bones(q, seed)",
 };
 
 /** Tipos que a placa já sabe desenhar. */
@@ -219,7 +235,7 @@ void main() {
   vec2 grad = vec2(hx - o.h, hy - o.h) / step;
   grad *= min(1.0, 2.5 / max(length(grad), 1e-4));
   vec3 n = normalize(vec3(-grad, 1.0));
-  outShape = vec4(clamp(0.5 + o.sd * 2.0, 0.0, 1.0), clamp(o.h / 4.0, 0.0, 1.0), clamp(o.edge * 4.0, 0.0, 1.0), (float(o.mat) * 32.0 + floor(clamp(o.tone, 0.0, 1.0) * 31.0 + 0.5)) / 255.0);
+  outShape = vec4(clamp(0.5 + o.sd * 2.0, 0.0, 1.0), clamp(o.h / 4.0, 0.0, 1.0), clamp(o.edge * 4.0, 0.0, 1.0), (float(o.mat) * 16.0 + floor(clamp(o.tone, 0.0, 1.0) * 15.0 + 0.5)) / 255.0);
   outSlope = vec4(n.xy * 0.5 + 0.5, 0.0, 1.0);
 }
 `;
@@ -261,6 +277,16 @@ export const PROP_EXTENTS = new Float32Array(PROP_KINDS.map((kind) => PROP_EXTEN
 
 const KIND_INDEX = (kind: PropKind) => PROP_KINDS.indexOf(kind);
 
+/** Vento nas plantas: quanto a leitura da forma anda (a copa inteira; no pinheiro e na palmeira, mais na ponta). */
+const PLANT_SWAY = [
+  `  if (kind == ${KIND_INDEX("tree")}) q -= sway * 0.07;`,
+  `  else if (kind == ${KIND_INDEX("bush")}) q -= sway * 0.04;`,
+  `  else if (kind == ${KIND_INDEX("pine")}) q -= sway * 0.1 * clamp(1.0 - length(q) / 1.2, 0.0, 1.0);`,
+  `  else if (kind == ${KIND_INDEX("palm")}) q -= sway * 0.08 * clamp(length(q) / 1.2, 0.0, 1.0);`,
+  `  else if (kind == ${KIND_INDEX("tallGrass")}) q -= sway * 0.12 * clamp(length(q) / 0.8, 0.0, 1.0);`,
+  `  else if (kind == ${KIND_INDEX("flowers")}) q -= sway * 0.03;`,
+].join("\n");
+
 export const PROP_DRAW_FRAGMENT = `#version 300 es
 precision highp float;
 precision highp sampler2DArray;
@@ -284,6 +310,7 @@ uniform float uLightAmount, uAmbientLum, uSunLum;
 uniform float uTime, uWind;
 uniform vec2 uWindDir;
 ${NOISE}
+${PROP_MATERIAL_GLSL}
 const vec3 INK = vec3(0.03, 0.025, 0.02);
 
 /** Pixels do aparelho por casa do mapa. */
@@ -343,15 +370,42 @@ vec3 albedo(int mat, int kind, float tone, vec2 q, vec2 world, float seed, vec3 
   if (mat == ${PROP_MATERIALS.wood} || mat == ${PROP_MATERIALS.darkWood}) {
     // o veio corre ao longo da tábua: barril (tampa em y, aduelas para fora) e carroça (em x)
     float r = length(q);
-    vec2 grainUv = kind == ${KIND_INDEX("barrel")} ? (r < 0.285 ? vec2(q.y, q.x) : vec2(r * 3.0, atan(q.y, q.x) * 2.0)) : vec2(q.y, q.x);
+    // a ponte tem as tábuas atravessadas (o veio em y)
+    vec2 grainUv = kind == ${KIND_INDEX("barrel")} ? (r < 0.285 ? vec2(q.y, q.x) : vec2(r * 3.0, atan(q.y, q.x) * 2.0)) : kind == ${KIND_INDEX("bridge")} ? q : vec2(q.y, q.x);
     float grain = vnoise(vec2(grainUv.x * 3.0, grainUv.y * 70.0)) * 0.6 + vnoise(vec2(grainUv.x * 9.0, grainUv.y * 180.0)) * 0.4;
     vec3 base = mat == ${PROP_MATERIALS.wood} ? vec3(0.52, 0.36, 0.21) : vec3(0.36, 0.25, 0.15);
     vec3 w = art(uDirt, world * 0.6, 0.6);
     return base * (0.75 + 0.35 * tone) * (0.78 + 0.32 * grain) * (0.7 + 0.5 * w);
   }
-  if (mat == ${PROP_MATERIALS.iron}) return vec3(0.24, 0.24, 0.26) * (0.85 + 0.3 * vnoise(q * 40.0));
-  float weave = abs(sin(q.x * 240.0)) * 0.5 + abs(sin(q.y * 240.0)) * 0.5;
-  return vec3(0.66, 0.55, 0.38) * (0.82 + 0.18 * weave) * (0.88 + 0.2 * tone);
+  if (mat == M_IRON) return vec3(0.24, 0.24, 0.26) * (0.85 + 0.3 * vnoise(q * 40.0));
+  if (mat == M_CLOTH) {
+    float weave = abs(sin(q.x * 240.0)) * 0.5 + abs(sin(q.y * 240.0)) * 0.5;
+    return mix(vec3(0.3, 0.24, 0.16), vec3(0.74, 0.64, 0.46), tone) * (0.85 + 0.15 * weave);
+  }
+  if (mat == M_GRASS) {
+    float streak = vnoise(q * 30.0 + seed) * 0.6 + vnoise(q * 90.0) * 0.4;
+    return art(uLeaves, world * 0.3, 0.3) * vec3(0.78, 1.0, 0.6) * (0.68 + 0.5 * tone) * (0.82 + 0.3 * streak);
+  }
+  if (mat == M_CUT) return art(uStone, world * 0.3, 0.3) * vec3(0.95, 0.92, 0.86) * (0.85 + 0.25 * tone) * (0.9 + 0.2 * fbm(q * 14.0 + seed));
+  if (mat == M_BARK) {
+    float streak = vnoise(vec2(q.x * 10.0, q.y * 55.0) + seed) * 0.65 + vnoise(q * 120.0) * 0.35;
+    vec3 c = vec3(0.34, 0.23, 0.14) * (0.7 + 0.5 * streak) * (0.85 + 0.25 * tone);
+    float moss = smoothstep(0.6, 0.75, fbm(q * 5.0 + seed)) * smoothstep(0.8, 0.97, n.z);
+    return mix(c, art(uLeaves, world * 0.5, 0.5) * vec3(0.75, 0.9, 0.55), moss * 0.8);
+  }
+  if (mat == M_RINGS) {
+    float rings = 0.5 + 0.5 * sin(length(q) * 95.0 + vnoise(q * 6.0 + seed) * 5.0);
+    return vec3(0.72, 0.56, 0.36) * (0.82 + 0.18 * rings) * (0.9 + 0.15 * vnoise(q * 50.0));
+  }
+  if (mat == M_BONE) return vec3(0.88, 0.84, 0.72) * (0.82 + 0.22 * tone) * (0.9 + 0.12 * vnoise(q * 60.0));
+  if (mat == M_BRICK) return vec3(0.6, 0.3, 0.2) * (0.78 + 0.35 * tone) * (0.85 + 0.25 * vnoise(q * 50.0 + seed));
+  if (mat == M_WATER) {
+    float ripple = vnoise(q * 16.0 + vec2(uTime * 0.25, uTime * 0.1)) * vnoise(q * 9.0 - vec2(uTime * 0.15, 0.0));
+    float glint = smoothstep(0.42, 0.6, ripple);
+    return vec3(0.04, 0.07, 0.09) + vec3(0.03, 0.06, 0.07) * (1.0 - length(q) * 2.0) + vec3(0.35, 0.45, 0.5) * glint * 0.35;
+  }
+  if (mat == M_FLAME) return vec3(1.0, 0.78, 0.35);
+  return paintColor(tone) * (0.9 + 0.12 * vnoise(q * 80.0 + seed));
 }
 
 void main() {
@@ -361,9 +415,7 @@ void main() {
   // vento só nas plantas: a copa inclina inteira; no pinheiro, o meio (a ponta) anda mais que as pontas dos galhos
   float c = cos(vPlace.w), s = sin(vPlace.w);
   vec2 sway = vKind.w > 0.5 ? vec2(0.0) : mat2(c, -s, s, c) * swayAt(vPlace.xy, seed) / vPlace.z;
-  if (kind == ${KIND_INDEX("tree")}) q -= sway * 0.07;
-  else if (kind == ${KIND_INDEX("bush")}) q -= sway * 0.04;
-  else if (kind == ${KIND_INDEX("pine")}) q -= sway * 0.1 * clamp(1.0 - length(q) / 1.2, 0.0, 1.0);
+${PLANT_SWAY}
   vec3 at = atlasAt(q);
   vec4 shape = textureLod(uShape, at, 0.0);
   float perLocal = devicePerCell() * vPlace.z;
@@ -372,8 +424,8 @@ void main() {
   if (px < -1.0) discard;
   float edge = shape.b / 4.0;
   float packed = floor(shape.a * 255.0 + 0.5);
-  int mat = int(floor(packed / 32.0));
-  float tone = mod(packed, 32.0) / 31.0;
+  int mat = int(floor(packed / 16.0));
+  float tone = mod(packed, 16.0) / 15.0;
   vec2 slope = textureLod(uSlope, at, 0.0).rg * 2.0 - 1.0;
   vec3 n = vec3(mat2(c, s, -s, c) * slope, sqrt(max(0.0, 1.0 - dot(slope, slope))));
   vec3 color = albedo(mat, kind, tone, q, vWorld, seed, n, edge);
@@ -390,6 +442,9 @@ void main() {
 
 /** Alturas da sombra por tipo (na ordem de `PROP_KINDS`), para o uniform `uCasts`. */
 export const PROP_CASTS = new Float32Array(PROP_KINDS.map((kind) => PROP_CAST[kind]));
+
+/** Maciços (1) na ordem de `PROP_KINDS`, para o uniform `uSolid`. */
+export const PROP_SOLIDS = new Float32Array(PROP_KINDS.map((kind) => (PROP_SOLID.has(kind) ? 1 : 0)));
 
 /**
  * Sombra de cada objeto na máscara do passo da luz (meia resolução): um retângulo que cobre o objeto e a silhueta
@@ -444,6 +499,8 @@ uniform sampler2DArray uShape;
 uniform float uAtlas, uPoints;
 uniform float uTime, uWind;
 uniform vec2 uWindDir;
+uniform float uCasts[${PROP_KINDS.length}];
+uniform float uSolid[${PROP_KINDS.length}];   // 1 = maciço: a sombra sai do pé
 ${NOISE}
 vec3 atlasAt(vec2 q) {
   float reach = vSlot.w / (2.0 * uPoints);
@@ -455,17 +512,17 @@ vec2 swayAt(vec2 pos, float seed) {
   float g = sin(uTime * 1.1 + ph) * 0.6 + sin(uTime * 2.3 + ph * 1.7) * 0.3 + sin(uTime * 4.1 + ph * 2.9) * 0.1;
   return uWindDir * uWind * (0.45 + 0.55 * g);
 }
-/** Distância até a borda do objeto (casas do mapa) no ponto p do mapa, com o vento das plantas. */
-float silhouette(vec2 p) {
+/** Distância até a borda (casas do mapa) e altura (casas do objeto) no ponto p do mapa, com o vento das plantas. */
+vec2 shapeHere(vec2 p) {
   int kind = int(vKind.x + 0.5);
   float c = cos(vPlace.w), s = sin(vPlace.w);
   vec2 q = mat2(c, -s, s, c) * (p - vPlace.xy) / vPlace.z;
   vec2 sway = vKind.w > 0.5 ? vec2(0.0) : mat2(c, -s, s, c) * swayAt(vPlace.xy, mod(vKind.y, 997.0) + 0.5) / vPlace.z;
-  if (kind == ${KIND_INDEX("tree")}) q -= sway * 0.07;
-  else if (kind == ${KIND_INDEX("bush")}) q -= sway * 0.04;
-  else if (kind == ${KIND_INDEX("pine")}) q -= sway * 0.1 * clamp(1.0 - length(q) / 1.2, 0.0, 1.0);
-  return (textureLod(uShape, atlasAt(q), 0.0).r - 0.5) / 2.0 * vPlace.z;
+${PLANT_SWAY}
+  vec4 shape = textureLod(uShape, atlasAt(q), 0.0);
+  return vec2((shape.r - 0.5) / 2.0 * vPlace.z, shape.g * 4.0);
 }
+float silhouette(vec2 p) { return shapeHere(p).x; }
 float sdSegment(vec2 p, vec2 a, vec2 b, float w) { vec2 pa = p - a, ba = b - a; float t = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0); return w - length(pa - ba * t); }
 void main() {
   int kind = int(vKind.x + 0.5);
@@ -474,6 +531,13 @@ void main() {
   float lift = length(vShift);
   float soft = 0.05 + lift * 0.06;
   float shadow = smoothstep(-soft, soft, silhouette(vWorld - vShift)) * 0.85;
+  // maciço: a sombra varre do pé até a ponta, só pela parte alta o bastante (a corda e a base baixa não se esticam)
+  if (uSolid[kind] > 0.5) for (int k = 1; k < 28 + uNoUnroll; k++) {
+    float t = float(k) / 28.0;
+    vec2 part = shapeHere(vWorld - vShift * t);
+    float tall = smoothstep(t - 0.08, t + 0.02, part.y / max(uCasts[kind], 0.01));
+    shadow = max(shadow, smoothstep(-soft * t, soft * t, part.x) * tall * 0.85);
+  }
   // tronco: liga a sombra da copa ao pé da árvore
   if (kind == ${KIND_INDEX("tree")} || kind == ${KIND_INDEX("pine")}) {
     float trunk = sdSegment(vWorld, vPlace.xy, vPlace.xy + vShift * 0.8, 0.07 * vPlace.z);

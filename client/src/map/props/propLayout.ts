@@ -74,6 +74,15 @@ export const PROP_CAST: Record<PropKind, number> = {
   tallGrass: 0.4,
 };
 
+/**
+ * Maciços: a sombra sai do pé (varre até a ponta). Os outros fazem a sombra só da silhueta no alto: árvore e pinheiro
+ * (com o tronco), plantas baixas, mesa e carroça (em pernas e rodas, a sombra se descola).
+ */
+export const PROP_SOLID: ReadonlySet<PropKind> = new Set<PropKind>([
+  "boulder", "barrel", "bush", "stones", "rubble", "log", "stump", "mushrooms", "crate", "crates", "planks", "shelf",
+  "bed", "well", "pillar", "statue", "altar", "tent", "sacks", "bones",
+]);
+
 /** Pontos por casa da forma guardada, da melhor resolução à menor (o detalhe fino é calculado na hora). */
 export const PROP_TIERS: readonly number[] = [48, 24];
 
