@@ -62,6 +62,8 @@ export class PropPass {
   private readonly icons = new Map<string, HTMLCanvasElement>();
   /** Ficou forma da tela sem assar (precisa de mais quadros). */
   private waiting = false;
+  /** Faixa em volta da tela (casas) de onde a sombra pode cair dentro: a última pedida pela sombra. */
+  private shadowMargin = 0;
   /** Sobe a cada mudança que muda o desenho (objetos, arrasto, transparência, forma assada). */
   version = 0;
 
@@ -181,7 +183,11 @@ export class PropPass {
     });
     let baked = 0;
     this.waiting = false;
-    for (const { prop } of visible) {
+    // Os da tela primeiro; depois os de fora cuja sombra cai na tela (só esses não deixam o passo "esperando").
+    const shown = new Set(visible);
+    const nearby = this.onScreen(view, this.shadowMargin).filter((placed) => !shown.has(placed));
+    for (const placed of [...visible, ...nearby]) {
+      const { prop } = placed;
       const found = this.atlas.slotFor(`${prop.kind}|${prop.seed}|${tier}`, slotClassOf(prop.kind), this.frame);
       if (!found || !found.fresh) continue;
       if (baked >= BAKE_PER_FRAME) {
@@ -193,7 +199,7 @@ export class PropPass {
       const program = this.bakes.get(prop.kind, () => propBakeFragment(prop.kind));
       if (!program) {
         this.atlas.forget(`${prop.kind}|${prop.seed}|${tier}`);
-        this.waiting = true;
+        // programa compilando: `pending` já pede quadros pelo cache de programas
         continue;
       }
       this.bakeOne(program, found.slot, prop.seed);
@@ -336,8 +342,11 @@ export class PropPass {
     return canvas;
   }
 
-  /** Linhas dos objetos que já têm forma no atlas; os que ainda não têm esperam o próximo quadro. */
-  private readyRows(list: Placed[]): Float32Array[] {
+  /**
+   * Linhas dos objetos que já têm forma no atlas; os que ainda não têm esperam o próximo quadro. `wait` = ficar sem
+   * forma pede mais quadros (os da tela); a sombra de quem está fora não pede (a forma vem no `bake` seguinte).
+   */
+  private readyRows(list: Placed[], wait = true): Float32Array[] {
     const tier = this.atlas.currentTier;
     const rows: Float32Array[] = [];
     for (const { prop, base } of list) {
@@ -347,7 +356,7 @@ export class PropPass {
       if (found.fresh) {
         // ainda não assada: devolve o lugar e espera o próximo quadro
         this.atlas.forget(key);
-        this.waiting = true;
+        if (wait) this.waiting = true;
         continue;
       }
       const drag = this.drag?.id === prop.id ? this.drag.drag : null;
@@ -372,8 +381,10 @@ export class PropPass {
     const { gl } = this;
     this.shadows.beginDraw();
     if (this.empty || scene.shadowCells <= 0.01) return;
-    // folga: a sombra mais comprida (altura 1,25 × tamanho até 4) de um objeto fora da tela pode cair dentro
-    const rows = this.readyRows(this.onScreen(view, 5 * scene.shadowCells + 2).filter(({ prop }) => PROP_CAST[prop.kind] > 0));
+    // folga: a sombra mais comprida (altura até 1,9 × tamanho até 4, menos o que já está na tela) de um objeto fora
+    // da tela pode cair dentro; o `bake` seguinte assa as formas dessa faixa
+    this.shadowMargin = 5 * scene.shadowCells + 2;
+    const rows = this.readyRows(this.onScreen(view, this.shadowMargin).filter(({ prop }) => PROP_CAST[prop.kind] > 0), false);
     if (rows.length === 0) return;
     const program = this.shadows.get("shadow", () => PROP_SHADOW_FRAGMENT);
     if (!program) return;

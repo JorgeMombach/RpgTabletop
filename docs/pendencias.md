@@ -172,6 +172,8 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Árvore na beira do patamar faz a sombra curta lá embaixo (a base no relevo não alonga a sombra; ver `propPass.ts` `setProps`).
 - [ ] Cordas, cajado e outras peças finas a muitas casas de altura podem mostrar a sombra em degraus de perto (28 amostras; `PROP_SHADOW_FRAGMENT`).
 - [ ] Ícone do painel feito com `readPixels` (síncrono): 28 ícones na primeira abertura do painel; se travar, fazer aos poucos (`iconOf`).
+- [ ] Com vento, planta em qualquer lugar da cena faz o chão pedir quadros (30 por segundo), mesmo fora da tela; dá para olhar só as da tela, como a água (`PropPass.swaying`).
+- [ ] Ao trocar a resolução do atlas (muitos objetos na tela, depois poucos), as formas são refeitas 6 por quadro: numa floresta grande os objetos reaparecem aos poucos por ~1 a 2 s (`PropAtlas.tierFor`).
 
 ### Pontes e píer ([docs/design/pontes.md](design/pontes.md))
 - [ ] Nível das pontas lido do ponto fino mais perto (processador) e o chão interpolado (placa): no relevo suave pode sobrar um fio de sombra na ponta em terra (`bridgePass.ts` `setBridges`).
