@@ -6,7 +6,14 @@ import { create } from "zustand";
  * névoa). O chão publica as imagens aqui e avisa a cada desenho; as camadas só redesenham quando avisadas. As paredes
  * (docs/design/relevo.md, etapa 2) têm aviso próprio: só quando a imagem delas muda.
  */
-export const useGroundOutputs = create<{ light: HTMLCanvasElement | null; flame: HTMLCanvasElement | null; walls: HTMLCanvasElement | null }>(() => ({ light: null, flame: null, walls: null }));
+export const useGroundOutputs = create<{
+  light: HTMLCanvasElement | null;
+  flame: HTMLCanvasElement | null;
+  walls: HTMLCanvasElement | null;
+  /** Objetos da placa de vídeo (docs/design/objetos.md): os de baixo e os de cima dos tokens. */
+  propsBelow: HTMLCanvasElement | null;
+  propsAbove: HTMLCanvasElement | null;
+}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null }));
 
 const drawnListeners = new Set<() => void>();
 
@@ -34,4 +41,18 @@ export function onWallsDrawn(listener: () => void): () => void {
 
 export function notifyWallsDrawn() {
   for (const listener of wallListeners) listener();
+}
+
+const propListeners = new Set<() => void>();
+
+/** Chamado quando as imagens dos objetos mudam. Devolve como parar de ouvir. */
+export function onPropsDrawn(listener: () => void): () => void {
+  propListeners.add(listener);
+  return () => {
+    propListeners.delete(listener);
+  };
+}
+
+export function notifyPropsDrawn() {
+  for (const listener of propListeners) listener();
 }

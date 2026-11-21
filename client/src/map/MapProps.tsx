@@ -11,6 +11,7 @@ import { removeProps, undo, updateProp, useMapUndo } from "./mapHistory";
 import { drawProp, plantLayers, PROP_EXTENT, propImage, SWAYING } from "./propArt";
 import { PlantNode, useWindClock, type PlantRegistry } from "./PlantWind";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
+import { GPU_PROP_KINDS } from "./props/propPass";
 
 export const PROP_LABEL: Record<PropKind, MessageKey> = {
   tree: "props.tree",
@@ -59,11 +60,12 @@ export function propSpot(x: number, y: number, g: MapConfig, snap: boolean): { c
  * centro. Com a ferramenta Objetos, o mestre arrasta (Shift encaixa no centro da casa) e clica para escolher.
  * Em `memo`: pôr ou mexer num objeto redesenha só ele, não a camada inteira.
  */
-const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean }) {
+const PropNode = memo(function PropNode({ p, grid, scale, editing, faded, drawnByGpu }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean; drawnByGpu: boolean }) {
   const onPick = () => useApp.setState({ selectedPropId: p.id });
   const { x, y } = centerOf(p, grid);
   const side = PROP_EXTENT[p.kind] * 2 * grid.cellPx * p.size;
-  const image = propImage(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1));
+  // Desenhado pela placa de vídeo (docs/design/objetos.md): o nó fica só para clique, arrasto e alças.
+  const image = drawnByGpu ? undefined : propImage(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1));
   // O Konva solta um clique no fim do arrasto: esse não escolhe de novo.
   const dragged = useRef(false);
   return (
@@ -78,7 +80,7 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p:
       offsetX={side / 2}
       offsetY={side / 2}
       rotation={p.rotation}
-      opacity={faded ? 0.45 : 1}
+      opacity={drawnByGpu ? 0 : faded ? 0.45 : 1}
       listening={editing}
       draggable={editing}
       perfectDrawEnabled={false}
@@ -134,6 +136,8 @@ interface PropLayerProps {
   tokenKey: string;
   /** Clima da cena: o vento nas plantas fica mais forte e muda de lado com ele. */
   weather: WeatherState;
+  /** O chão da placa de vídeo desenha os tipos de `GPU_PROP_KINDS` (a camada fica com os nós de clique deles). */
+  gpu: boolean;
 }
 
 /**
@@ -152,6 +156,7 @@ export const MapPropLayer = memo(function MapPropLayer({
   selectedId,
   tokens,
   weather,
+  gpu,
 }: PropLayerProps) {
   const list = props.filter((p) => p.above === (layer === "above"));
   const tr = useRef<Konva.Transformer>(null);
@@ -161,7 +166,8 @@ export const MapPropLayer = memo(function MapPropLayer({
   const reduceFx = useApp((s) => s.reduceFx);
   const windStalled = useApp((s) => s.windStalled);
   const windOn = !editing && !reduceFx && !windStalled;
-  const swaying = windOn && list.some((p) => SWAYING[p.kind]);
+  const onGpu = (p: MapProp) => gpu && GPU_PROP_KINDS.has(p.kind);
+  const swaying = windOn && list.some((p) => SWAYING[p.kind] && !onGpu(p));
   useWindClock(layerRef, registry, windTime, weather, swaying);
   const picked = editing && list.some((p) => p.id === selectedId) ? selectedId : null;
   useEffect(() => {
@@ -187,9 +193,9 @@ export const MapPropLayer = memo(function MapPropLayer({
       {list.map((p) => {
         const faded = under(p);
         // Copa transparente (token embaixo) fica parada: as duas copas meio transparentes, uma sobre a outra, somariam.
-        const layers = windOn && !faded ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
+        const layers = windOn && !faded && !onGpu(p) ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
         if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} registry={registry} time={windTime} />;
-        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} />;
+        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} drawnByGpu={onGpu(p)} />;
       })}
       {editing && (
         <Transformer
@@ -214,7 +220,7 @@ export const MapPropLayer = memo(function MapPropLayer({
 }, samePropLayer);
 
 function samePropLayer(a: PropLayerProps, b: PropLayerProps): boolean {
-  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey && a.weather === b.weather;
+  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey && a.weather === b.weather && a.gpu === b.gpu;
 }
 
 /** Chave das posições dos tokens no mapa (muda só quando algum anda). */

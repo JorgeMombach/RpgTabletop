@@ -22,7 +22,7 @@ import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
-import { GroundOutputLayer, GroundWallsImage } from "./ground/GroundOutputLayer";
+import { GroundOutputLayer, GroundPropsImage, GroundWallsImage } from "./ground/GroundOutputLayer";
 import { useTokenDrag } from "./dragFollow";
 import { lightSources, type Dragging } from "./ground/lightSources";
 import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
@@ -1912,7 +1912,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           </Layer>
 
           {/* Objetos do cenário que ficam no chão (abaixo dos tokens): a luz das tochas e a névoa passam por cima. */}
-          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="below" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} />
+          {groundLit && <GroundPropsImage which="below" view={stageView} size={stageSize} />}
+          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="below" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} gpu={groundLit} />
 
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
               onde se vê (não "vaza" pela parede para dentro de um cômodo coberto). */}
@@ -1957,7 +1958,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           </Layer>
 
           {/* Copas e o que fica por cima dos tokens (o token passa por baixo; com alguém embaixo, fica meio transparente). */}
-          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="above" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} />
+          {groundLit && <GroundPropsImage which="above" view={stageView} size={stageSize} />}
+          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="above" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} gpu={groundLit} />
 
           {/* Luz da cena, sombras e tochas (docs/design/luz.md): multiplica tudo o que está embaixo; a interface do mapa
               (áreas, régua, pings) fica por cima, legível à noite. */}

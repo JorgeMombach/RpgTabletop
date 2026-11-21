@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { useEffect, useRef } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { onGroundDrawn, onWallsDrawn, useGroundOutputs } from "./groundOutputs";
+import { onGroundDrawn, onPropsDrawn, onWallsDrawn, useGroundOutputs } from "./groundOutputs";
 
 /**
  * Uma saída do chão numa camada do mapa (docs/design/luz.md): `light` multiplica tudo o que está embaixo (a luz da
@@ -39,4 +39,23 @@ export function GroundWallsImage({ view, size }: { view: { x: number; y: number;
 
   if (!image) return null;
   return <KImage ref={imageRef} listening={false} image={image} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />;
+}
+
+/**
+ * Os objetos da placa de vídeo (docs/design/objetos.md) numa camada própria, presa à tela, com mistura normal: os de
+ * baixo logo abaixo da camada dos objetos (que fica só com os nós de clique), os de cima logo abaixo das copas. Só
+ * redesenha quando as imagens dos objetos mudam.
+ */
+export function GroundPropsImage({ which, view, size }: { which: "below" | "above"; view: { x: number; y: number; scale: number }; size: { width: number; height: number } }) {
+  const image = useGroundOutputs((state) => (which === "below" ? state.propsBelow : state.propsAbove));
+  const layerRef = useRef<Konva.Layer>(null);
+
+  useEffect(() => onPropsDrawn(() => layerRef.current?.batchDraw()), [image]);
+
+  if (!image) return null;
+  return (
+    <Layer ref={layerRef} listening={false}>
+      <KImage image={image} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />
+    </Layer>
+  );
 }

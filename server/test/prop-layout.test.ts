@@ -44,6 +44,16 @@ describe("atlas das formas dos objetos", () => {
     assert.equal(full.slotFor("tree|9|0", "large", 11), null);
   });
 
+  it("lugar devolvido (não assado) volta fresco no próximo pedido", () => {
+    const atlas = new PropAtlas(2048, { small: 1, large: 1 });
+    const first = atlas.slotFor("tree|7|0", "large", 1);
+    atlas.forget("tree|7|0");
+    const again = atlas.slotFor("tree|7|0", "large", 2);
+    assert.ok(first && again);
+    assert.equal(again.fresh, true);
+    assert.deepEqual(again.slot, first.slot);
+  });
+
   it("a resolução cai quando não cabe e volta com folga de 1/4", () => {
     const atlas = new PropAtlas(2048, { small: 1, large: 2 });
     assert.equal(atlas.tierFor({ small: 10, large: 10 }), 0);

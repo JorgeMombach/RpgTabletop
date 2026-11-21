@@ -1,4 +1,4 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
+import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type MapProp, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
@@ -11,6 +11,8 @@ import { BridgePass } from "./bridgePass";
 import { StairPass } from "./stairPass";
 import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
+import { PropPass } from "../props/propPass";
+import type { PropDrag } from "../props/propLayout";
 import type { WaterGpuField } from "./waterTypes";
 
 /**
@@ -54,6 +56,8 @@ export class GroundRenderer {
   /** Pontes (docs/design/pontes.md): por cima da camada do relevo (passam sobre o penhasco), por baixo das paredes. */
   private readonly bridges: BridgePass;
   private readonly stairs: StairPass;
+  /** Objetos (docs/design/objetos.md): formas num atlas, desenhados nas duas saídas de objetos. */
+  private readonly props: PropPass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -67,6 +71,12 @@ export class GroundRenderer {
   readonly flameImage = document.createElement("canvas");
   /** As paredes, portas e janelas: copiadas só quando a camada muda (visão, paredes, luz da cena). */
   readonly wallImage = document.createElement("canvas");
+  /** Objetos de baixo (no lugar da camada de objetos de baixo) e de cima dos tokens (as copas). */
+  readonly propsBelowImage = document.createElement("canvas");
+  readonly propsAboveImage = document.createElement("canvas");
+  /** As imagens dos objetos mudaram no último desenho. */
+  propsFresh = false;
+  private propsDrawn = "";
   /** A imagem das paredes mudou no último desenho (a camada das paredes precisa redesenhar). */
   wallsFresh = false;
   /** Sobe a cada `setWalls`; com a visão e a luz, decide se a camada é refeita. */
@@ -119,6 +129,7 @@ export class GroundRenderer {
     this.blank = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)), gl.NEAREST, gl.CLAMP_TO_EDGE);
     this.bridges = new BridgePass(gl);
     this.stairs = new StairPass(gl);
+    this.props = new PropPass(gl);
   }
 
   /**
@@ -126,12 +137,13 @@ export class GroundRenderer {
    * de piso ou o terreno do pincel (água: também a água animada). Compilar trava a placa um instante na primeira vez
    * (Direct3D); assim isso acontece ao escolher, não no meio do traço.
    */
-  warm(choice: { wall?: WallStyle | "opening"; floor?: FloorMaterial; terrain?: TerrainId; bridge?: BridgeKind; stair?: StairShape }) {
+  warm(choice: { wall?: WallStyle | "opening"; floor?: FloorMaterial; terrain?: TerrainId; bridge?: BridgeKind; stair?: StairShape; props?: true }) {
     if (this.gl.isContextLost()) return;
     if (choice.wall) this.walls.warm(choice.wall);
     if (choice.floor) this.floor.warm(choice.floor);
     if (choice.bridge) this.bridges.warm(choice.bridge);
     if (choice.stair) this.stairs.warm(choice.stair);
+    if (choice.props) this.props.warm();
     const terrain = choice.terrain;
     if (terrain) {
       this.terrain.warm(terrain, () => terrainLayerFragment(terrain));
@@ -152,6 +164,32 @@ export class GroundRenderer {
     if (this.gl.isContextLost()) return;
     this.stairs.setStairs(stairs, relief);
     this.terrainDirty = true;
+  }
+
+  /** Objetos da cena e o relevo (a base de cada um): as imagens dos objetos são refeitas no próximo desenho. */
+  setProps(props: MapProp[], relief: ReliefChunks) {
+    if (this.gl.isContextLost()) return;
+    this.props.setProps(props, relief);
+  }
+
+  /** Copas com token embaixo (meio transparentes e paradas). */
+  setPropFaded(ids: ReadonlySet<string>) {
+    this.props.setFaded(ids);
+  }
+
+  /** Objeto sendo arrastado ou mexido pelas alças. */
+  setPropDrag(id: string | null, drag: PropDrag | null) {
+    this.props.setDrag(id, drag);
+  }
+
+  /** Vento nas plantas (`null` = parado). */
+  setPropWind(wind: { strength: number; direction: [number, number] } | null) {
+    this.props.setWind(wind);
+  }
+
+  /** Planta balançando na cena: o chão precisa de quadros. */
+  get swaying(): boolean {
+    return this.props.swaying;
   }
 
   setFloors(chunks: FloorChunks) {
@@ -201,7 +239,7 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending || this.stairs.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending || this.stairs.pending || this.props.pending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
@@ -386,6 +424,7 @@ export class GroundRenderer {
     gl.disable(gl.BLEND);
     this.copyTo(this.groundImage);
     this.drawWalls(view, width, height, state, lightKey, reliefLight);
+    this.drawProps(view, width, height, state, lightKey, reliefLight, time);
     if (!this.light.active) return;
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
     this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight));
@@ -449,6 +488,33 @@ export class GroundRenderer {
     this.copyTo(this.wallImage);
     this.wallsDrawn = key;
     this.wallsFresh = true;
+  }
+
+  /**
+   * Objetos de baixo e de cima, cada um no canvas e copiado para a sua imagem: assa as formas que faltam e só redesenha
+   * quando algo mudou (objetos, visão, luz, forma nova) ou com planta balançando.
+   */
+  private drawProps(view: GroundView, width: number, height: number, state: string, lightKey: string, scene: SceneLight, time: number) {
+    const { gl } = this;
+    this.propsFresh = false;
+    const leaves = this.watercolors[TERRAINS.indexOf("grass")];
+    const stone = this.watercolors[TERRAINS.indexOf("stoneLight")];
+    const dirt = this.watercolors[TERRAINS.indexOf("dirtDark")];
+    if (!leaves || !stone || !dirt) return;
+    this.props.bake(view);
+    const key = [state, lightKey, this.props.version, this.props.swaying ? time.toFixed(3) : 0].join("|");
+    if (key === this.propsDrawn) return;
+    for (const [layer, target] of [["below", this.propsBelowImage], ["above", this.propsAboveImage]] as const) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, width, height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      this.props.draw(layer, view, width, height, scene, time, { leaves, stone, dirt });
+      this.copyTo(target);
+    }
+    // programa ainda compilando ou forma da tela por assar: o próximo quadro desenha de novo
+    this.propsDrawn = this.props.pending ? "" : key;
+    this.propsFresh = true;
   }
 
   /** Pesos da água do terreno para quem lê o que está embaixo (pontes e píer); sem terreno, nada. */
@@ -558,6 +624,7 @@ export class GroundRenderer {
     gl.deleteTexture(this.blank);
     this.bridges.dispose();
     this.stairs.dispose();
+    this.props.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

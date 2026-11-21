@@ -174,6 +174,14 @@ export class PropAtlas {
     return { slot, fresh: true };
   }
 
+  /** Devolve o lugar de uma chave (pedido mas não assado neste quadro): o próximo pedido começa fresco. */
+  forget(key: string): void {
+    const entry = this.entries.get(key);
+    if (!entry) return;
+    this.entries.delete(key);
+    this.free[entry.slotClass].unshift(entry.slot);
+  }
+
   /** Esquece tudo (troca de resolução, contexto perdido). */
   reset(): void {
     this.entries.clear();

@@ -6,7 +6,7 @@ import { useApp } from "../../store";
 import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
-import { notifyGroundDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
+import { notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
 import type { LightingInput } from "./lightPass";
 import type { ReliefJob, ReliefResult } from "./reliefTypes";
 import { SCENE_LIGHT } from "./sceneLight";
@@ -191,7 +191,7 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
-    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage });
+    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage });
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
@@ -202,7 +202,7 @@ export const GroundLayer = memo(function GroundLayer({
       createdWorker.terminate();
       createdReliefWorker.terminate();
       created.dispose();
-      useGroundOutputs.setState({ light: null, flame: null, walls: null });
+      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null });
       setEngine(null);
     };
   }, [generation]);
@@ -304,6 +304,7 @@ export const GroundLayer = memo(function GroundLayer({
     if (tool === "terrain" && brushTerrain) renderer.warm({ terrain: brushTerrain });
     if (tool === "bridge") renderer.warm({ bridge: bridgeKind });
     if (tool === "stair") renderer.warm({ stair: stairShape });
+    if (tool === "props") renderer.warm({ props: true });
   }, [renderer, tool, wallDrawStyle, sceneStyle, floorMaterial, brushTerrain, bridgeKind, stairShape]);
 
   // Pontes: com o relevo (nível das pontas); a camada é refeita no próximo desenho.
@@ -319,6 +320,13 @@ export const GroundLayer = memo(function GroundLayer({
     renderer.setStairs(stairs, stairRelief);
     setVersion((value) => value + 1);
   }, [renderer, stairs, stairRelief]);
+
+  // Objetos (docs/design/objetos.md): com o relevo confirmado (a base de cada um); as imagens são refeitas no desenho.
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setProps(props, stairRelief);
+    setVersion((value) => value + 1);
+  }, [renderer, props, stairRelief]);
 
   // Pisos: a camada é refeita no próximo desenho.
   useEffect(() => {
@@ -394,6 +402,7 @@ export const GroundLayer = memo(function GroundLayer({
     imageRef.current?.getLayer()?.batchDraw();
     notifyGroundDrawn();
     if (target.wallsFresh) notifyWallsDrawn();
+    if (target.propsFresh) notifyPropsDrawn();
   };
   const paintRef = useRef(paint);
   paintRef.current = paint;
@@ -432,7 +441,7 @@ export const GroundLayer = memo(function GroundLayer({
         return;
       }
       // Anima com água, tocha tremulando ou poeira na tela, ou com a luz da cena ainda trocando.
-      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.busy || renderer.dusting(viewRef.current))) return;
+      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.swaying || renderer.busy || renderer.dusting(viewRef.current))) return;
       lastDraw = now;
       timeRef.current = now / 1000;
       paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);
