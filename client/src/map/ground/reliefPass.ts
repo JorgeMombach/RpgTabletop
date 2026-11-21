@@ -15,6 +15,23 @@ import { FULLSCREEN_VERTEX } from "./terrainShader";
 const ATLAS = 2048;
 /** Resoluções (px por casa), da melhor à menor: passando da capacidade, cai para a seguinte. */
 const TIERS = [32, 16, 8];
+/** Folga para voltar a uma resolução melhor: só sobe quando cabe com 1/4 sobrando (não fica trocando para lá e para cá). */
+const TIER_UP_ROOM = 0.75;
+
+/** Pedaços que cabem no atlas numa resolução. */
+const tierCapacity = (tier: number) => (ATLAS / (TERRAIN_CHUNK_CELLS * TIERS[tier])) ** 2;
+
+/**
+ * Resolução do atlas para `count` pedaços: cai enquanto não couber; sobe (até `base`, a de partida) quando o relevo
+ * diminui e couber na melhor com folga.
+ */
+export function reliefTier(count: number, current: number, base: number): number {
+  let tier = current;
+  while (tier < TIERS.length - 1 && count > tierCapacity(tier)) tier++;
+  while (tier > base && count <= tierCapacity(tier - 1) * TIER_UP_ROOM) tier--;
+  return tier;
+}
+
 /** Pedaços calculados por quadro (campos e sombra). */
 const BAKE_PER_FRAME = 4;
 /** Altura de um nível na conta da sombra: um nível faz sombra de `shadowCells × LEVEL_SHADOW` casas. */
@@ -82,6 +99,8 @@ export class ReliefPass {
   private upload = new Float32Array(0);
   private free: number[] = [];
   private tier = 0;
+  /** Resolução de partida (a melhor que esta tela usa): a resolução volta até ela quando o relevo diminui. */
+  private readonly baseTier: number;
   private readonly fieldsQueue = new Set<string>();
   private readonly shadowQueue = new Set<string>();
   private sun: { dir: [number, number]; rise: number } | null = null;
@@ -110,7 +129,8 @@ export class ReliefPass {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.atlasB, 0);
     this.shadowFramebuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    this.tier = smallScreen ? 1 : 0;
+    this.baseTier = smallScreen ? 1 : 0;
+    this.tier = this.baseTier;
     this.resetSlots();
   }
 
@@ -154,7 +174,8 @@ export class ReliefPass {
   /** Esquece pedaços (cena trocada, relevo apagado): `"all"` limpa tudo. */
   forget(keys: string[] | "all") {
     for (const key of keys === "all" ? [...this.windows.keys()] : keys) this.removeKey(key);
-    this.rebuildIndex();
+    // Lugar liberado: quem estava sem lugar ganha um (e a resolução pode voltar a subir).
+    this.allocate();
   }
 
   private removeKey(key: string) {
@@ -168,20 +189,23 @@ export class ReliefPass {
     this.free.push(slot);
   }
 
-  /** Dá lugar no atlas a quem não tem; sem lugar para todos, cai para a resolução seguinte e recalcula tudo. */
+  /**
+   * Dá lugar no atlas a quem não tem. A resolução segue a quantidade de pedaços: cai quando não cabem, sobe quando o
+   * relevo diminui (e aí tudo é recalculado na resolução nova). Quem ganha lugar entra na fila de cálculo.
+   */
   private allocate(): void {
-    const missing = [...this.windows.keys()].filter((key) => !this.slots.has(key));
-    if (missing.length > this.free.length && this.tier < TIERS.length - 1) {
-      while (this.windows.size > (ATLAS / (TERRAIN_CHUNK_CELLS * TIERS[this.tier])) ** 2 && this.tier < TIERS.length - 1) this.tier++;
+    const tier = reliefTier(this.windows.size, this.tier, this.baseTier);
+    if (tier !== this.tier) {
+      this.tier = tier;
       this.resetSlots();
-      for (const key of this.windows.keys()) this.fieldsQueue.add(key);
-      return this.allocate();
     }
-    for (const key of missing) {
+    for (const key of this.windows.keys()) {
+      if (this.slots.has(key)) continue;
       const slot = this.free.pop();
-      // Sem lugar nem resolução menor: o pedaço fica plano (só acontece com muito mais relevo que o limite da cena).
+      // Sem lugar nem resolução menor: o pedaço fica plano até um lugar se liberar (muito mais relevo que o limite).
       if (slot === undefined) break;
       this.slots.set(key, slot);
+      this.fieldsQueue.add(key);
     }
     this.rebuildIndex();
   }
