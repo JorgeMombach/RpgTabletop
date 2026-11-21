@@ -2,6 +2,7 @@ import type { PropKind } from "@rpg/shared";
 import { METALS, rivet, shade } from "./tokenArt";
 import { rng, shadowed, textured, WOODS } from "./wallKit";
 import { altar, bed, bones, bridge, cart, flowers, mushrooms, sacks, shelf, statue, tent, well } from "./propArtMore";
+import { palm, pine, tallGrass } from "./plantArt";
 
 /**
  * Objetos do cenário vistos de cima (docs/design/cenario.md, passo 2), no mesmo kit das paredes: sombra no chão,
@@ -18,14 +19,45 @@ export type R = () => number;
 export type Leaves = [string, string, string, string];
 export const GREEN: Leaves = ["#1d3a22", "#2c5a2d", "#43803a", "#6aa64b"];
 const OLIVE: Leaves = ["#2f3a17", "#4c5f22", "#6f862f", "#9bb246"];
-const PINE: Leaves = ["#132a1a", "#1e4226", "#2d5e35", "#4a8048"];
+export const PINE: Leaves = ["#132a1a", "#1e4226", "#2d5e35", "#4a8048"];
+
+/** Folha clara que vira para a luz e volta com o vento (vento nas plantas), em pixels da imagem a partir do centro. */
+export interface Glint {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  turn: number;
+  phase: number;
+  speed: number;
+}
+
+/**
+ * Onde a planta pinta (docs/design/vento.md): sombra no chão, copa de baixo e copa de cima. Parada, os três são o
+ * mesmo canvas e o desenho sai igual ao de sempre; com vento, são três imagens que balançam separadas. `glints`
+ * (só com vento) recebe as folhas que piscam, escolhidas com um sorteio à parte para não mudar o desenho.
+ */
+export interface PlantTargets {
+  shadow: CanvasRenderingContext2D;
+  low: CanvasRenderingContext2D;
+  high: CanvasRenderingContext2D;
+  glints?: { list: Glint[]; random: R };
+}
+
+export type PlantPainter = (targets: PlantTargets, c: number, seed: number) => void;
+
+/** Os três alvos no mesmo canvas: o desenho parado de sempre. */
+export function sameTarget(ctx: CanvasRenderingContext2D): PlantTargets {
+  return { shadow: ctx, low: ctx, high: ctx };
+}
 
 /**
  * Folhagem (copa e arbusto) feita de blocos: cada bloco é um monte de folhinhas giradas, iluminado em cima à esquerda
  * e escuro embaixo à direita; a borda sai recortada porque as folhas da beirada passam um pouco do bloco. A cor de
- * cada folha vem da posição dela no bloco, em quatro tons. Antes, a sombra nítida no chão, deslocada.
+ * cada folha vem da posição dela no bloco, em quatro tons. Antes, a sombra nítida no chão, deslocada. Com vento, a
+ * metade de baixo à direita dos blocos vai na copa de baixo e o resto na de cima (mesma ordem de desenho).
  */
-export function foliage(ctx: CanvasRenderingContext2D, r: R, radius: number, lobes: number, tones: Leaves, shadowK: number, spread = 0.5) {
+export function foliage(targets: PlantTargets, r: R, radius: number, lobes: number, tones: Leaves, shadowK: number, spread = 0.5) {
   const blobs: [number, number, number][] = [];
   for (let i = 0; i < lobes; i++) {
     const a = (i / lobes) * Math.PI * 2 + r() * 0.6;
@@ -34,19 +66,22 @@ export function foliage(ctx: CanvasRenderingContext2D, r: R, radius: number, lob
     blobs.push([Math.cos(a) * d, Math.sin(a) * d, radius * (i === 0 ? 0.46 + (0.5 - spread) : 0.34 + r() * 0.12)]);
   }
   // Sombra no chão: a silhueta inteira, nítida, deslocada para baixo e à direita (a árvore é alta).
-  ctx.save();
-  ctx.fillStyle = "rgba(18,8,22,.42)";
+  const shadow = targets.shadow;
+  shadow.save();
+  shadow.fillStyle = "rgba(18,8,22,.42)";
   const off = radius * 0.12 * shadowK;
   for (const [x, y, rr] of blobs) {
-    ctx.beginPath();
-    ctx.arc(x + off, y + off * 1.2, rr * 1.04, 0, Math.PI * 2);
-    ctx.fill();
+    shadow.beginPath();
+    shadow.arc(x + off, y + off * 1.2, rr * 1.04, 0, Math.PI * 2);
+    shadow.fill();
   }
-  ctx.restore();
+  shadow.restore();
   // Blocos de baixo à direita primeiro: os de cima à esquerda (mais iluminados) ficam por cima.
   blobs.sort((p, q) => q[0] + q[1] - (p[0] + p[1]));
   const leaf = radius * 0.075;
-  for (const [bx, by, br] of blobs) {
+  const lowCount = Math.ceil(blobs.length / 2);
+  blobs.forEach(([bx, by, br], index) => {
+    const ctx = index < lowCount ? targets.low : targets.high;
     const count = Math.round(((br * br) / (leaf * leaf)) * 1.6);
     // Primeiro um fundo escuro do bloco (fecha os buracos entre as folhas).
     ctx.fillStyle = tones[0];
@@ -71,12 +106,20 @@ export function foliage(ctx: CanvasRenderingContext2D, r: R, radius: number, lob
     // Dos tons escuros para os claros: a luz fica por cima.
     pts.sort((p, q) => p[2] - q[2]);
     for (const [x, y, tone] of pts) {
+      const width = leaf * (0.8 + r() * 0.5);
+      const height = leaf * (0.5 + r() * 0.3);
+      const turn = r() * Math.PI;
       ctx.fillStyle = tones[tone];
       ctx.beginPath();
-      ctx.ellipse(x, y, leaf * (0.8 + r() * 0.5), leaf * (0.5 + r() * 0.3), r() * Math.PI, 0, Math.PI * 2);
+      ctx.ellipse(x, y, width, height, turn, 0, Math.PI * 2);
       ctx.fill();
+      // Folhas claras da copa de cima que piscam com o vento (~8%), no sorteio à parte.
+      const glints = targets.glints;
+      if (glints && index >= lowCount && tone >= 2 && glints.random() < 0.08) {
+        glints.list.push({ x, y, width, height, turn, phase: glints.random() * Math.PI * 2, speed: 2 + glints.random() * 2 });
+      }
     }
-  }
+  });
 }
 
 /**
@@ -293,19 +336,20 @@ function crateBox(ctx: CanvasRenderingContext2D, r: R, s: number, shadowK: numbe
 
 // ---------- cada objeto ----------
 
-function tree(ctx: CanvasRenderingContext2D, c: number, seed: number) {
+function tree(targets: PlantTargets, c: number, seed: number) {
   const r = rng(seed);
   // Às vezes uma árvore de folha mais amarelada ou mais escura (pinheiro-escuro), para a floresta não ficar chapada.
   const pick = r();
   const tones = pick < 0.15 ? OLIVE : pick < 0.32 ? PINE : GREEN;
-  foliage(ctx, r, c * (0.95 + r() * 0.25), 5 + Math.floor(r() * 3), tones, 2.2);
+  foliage(targets, r, c * (0.95 + r() * 0.25), 5 + Math.floor(r() * 3), tones, 2.2);
 }
 
-function bush(ctx: CanvasRenderingContext2D, c: number, seed: number) {
+function bush(targets: PlantTargets, c: number, seed: number) {
   const r = rng(seed);
   // Arbusto: blocos mais juntos (redondinho e cheio).
-  foliage(ctx, r, c * (0.42 + r() * 0.1), 4 + Math.floor(r() * 2), GREEN, 1, 0.3);
-  // Às vezes frutinhas ou flores.
+  foliage(targets, r, c * (0.42 + r() * 0.1), 4 + Math.floor(r() * 2), GREEN, 1, 0.3);
+  // Às vezes frutinhas ou flores (na copa de cima: balançam com ela).
+  const ctx = targets.high;
   if (r() < 0.4) {
     const col = r() < 0.5 ? "#c94a52" : "#e8d47a";
     for (let k = 0; k < 6; k++) {
@@ -682,9 +726,18 @@ function pillar(ctx: CanvasRenderingContext2D, c: number, seed: number) {
   ctx.stroke();
 }
 
+/** Plantas que balançam com o vento: desenhadas em camadas (docs/design/vento.md). */
+export const SWAYING: Partial<Record<PropKind, PlantPainter>> = { tree, bush, flowers, pine, palm, tallGrass };
+
+/** Planta parada: as camadas no mesmo canvas. */
+const still =
+  (painter: PlantPainter) =>
+  (ctx: CanvasRenderingContext2D, c: number, seed: number): void =>
+    painter(sameTarget(ctx), c, seed);
+
 const DRAW: Record<PropKind, (ctx: CanvasRenderingContext2D, c: number, seed: number) => void> = {
-  tree,
-  bush,
+  tree: still(tree),
+  bush: still(bush),
   boulder,
   stones,
   log,
@@ -706,8 +759,11 @@ const DRAW: Record<PropKind, (ctx: CanvasRenderingContext2D, c: number, seed: nu
   bed,
   sacks,
   mushrooms,
-  flowers,
+  flowers: still(flowers),
   bridge,
+  pine: still(pine),
+  palm: still(palm),
+  tallGrass: still(tallGrass),
 };
 
 /** Desenha o objeto em volta de (0, 0); `c` = lado da casa já com o tamanho do objeto. */
@@ -744,9 +800,17 @@ export const PROP_EXTENT: Record<PropKind, number> = {
   mushrooms: 0.55,
   flowers: 0.55,
   bridge: 1.7,
+  pine: 1.5,
+  palm: 1.4,
+  tallGrass: 0.8,
 };
 
 const cache = new Map<string, HTMLCanvasElement>();
+
+/** Resolução da imagem guardada: pixels por casa em degraus de 2^¼ (não refaz a cada zoom), até 512. */
+function cacheStep(pxPerCell: number): number {
+  return Math.min(512, Math.pow(2, Math.ceil(Math.log2(Math.max(8, pxPerCell)) * 4) / 4));
+}
 const CACHE_MAX = 600;
 
 /**
@@ -754,7 +818,7 @@ const CACHE_MAX = 600;
  * do objeto (já com tamanho, zoom e densidade da tela), em degraus de 2^¼ para não refazer a cada zoom.
  */
 export function propImage(kind: PropKind, seed: number, pxPerCell: number): HTMLCanvasElement {
-  const step = Math.min(512, Math.pow(2, Math.ceil(Math.log2(Math.max(8, pxPerCell)) * 4) / 4));
+  const step = cacheStep(pxPerCell);
   const key = `${kind}|${seed}|${step}`;
   const hit = cache.get(key);
   if (hit) {
@@ -765,10 +829,103 @@ export function propImage(kind: PropKind, seed: number, pxPerCell: number): HTML
   const side = Math.ceil(PROP_EXTENT[kind] * 2 * step);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = side;
-  const ctx = canvas.getContext("2d")!;
-  ctx.translate(side / 2, side / 2);
-  drawProp(ctx, kind, step, seed);
+  const ctx = canvas.getContext("2d");
+  // Sem contexto 2D: a imagem fica vazia (o objeto some em vez de quebrar o mapa).
+  if (ctx) {
+    ctx.translate(side / 2, side / 2);
+    drawProp(ctx, kind, step, seed);
+  }
   cache.set(key, canvas);
-  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
+  // a mais antiga sai quando passa do teto
+  const oldest = cache.keys().next();
+  if (cache.size > CACHE_MAX && !oldest.done) cache.delete(oldest.value);
   return canvas;
+}
+
+/**
+ * Camadas de uma planta com vento: imagens do mesmo lado e centro que `propImage`, mais as folhas que piscam. A
+ * sombra vai pintada na copa de baixo (anda com ela): uma imagem a menos por planta a cada quadro.
+ */
+export interface PlantLayers {
+  low: HTMLCanvasElement;
+  high: HTMLCanvasElement;
+  glints: Glint[];
+}
+
+interface LayerEntry {
+  layers: PlantLayers;
+  /** Pixels das duas imagens (o que pesa na memória). */
+  pixels: number;
+  step: number;
+  /** Última vez que um desenho do mapa pediu esta planta (ms). */
+  usedAt: number;
+}
+
+const layerCache = new Map<string, LayerEntry>();
+let layerPixels = 0;
+/** Teto das imagens do vento: ~256 MB. Passou disso, a planta fica parada (não troca uma pela outra em ciclo). */
+const LAYER_PIXEL_BUDGET = 64_000_000;
+/** Planta pedida há menos que isso está na tela agora: não sai do cache para dar lugar a outra. */
+const LAYER_IN_USE_MS = 2000;
+
+function dropLayer(key: string, entry: LayerEntry) {
+  layerCache.delete(key);
+  layerPixels -= entry.pixels;
+}
+
+/**
+ * Abre espaço para `pixels`: primeiro sai o que é de outro degrau de zoom (não volta tão cedo), depois o que
+ * ninguém pediu nos últimos 2 s. O que está em uso fica: sem espaço, `false` (a planta fica parada). Assim um mapa
+ * com mais plantas que o teto não repinta todas a cada desenho.
+ */
+function roomFor(pixels: number, step: number, now: number): boolean {
+  if (layerPixels + pixels <= LAYER_PIXEL_BUDGET) return true;
+  for (const [key, entry] of layerCache) {
+    if (entry.step !== step) dropLayer(key, entry);
+    if (layerPixels + pixels <= LAYER_PIXEL_BUDGET) return true;
+  }
+  for (const [key, entry] of layerCache) {
+    if (now - entry.usedAt >= LAYER_IN_USE_MS) dropLayer(key, entry);
+    if (layerPixels + pixels <= LAYER_PIXEL_BUDGET) return true;
+  }
+  return false;
+}
+
+/**
+ * Planta pronta para balançar (docs/design/vento.md): mesmo degrau de resolução de `propImage`; `null` para quem
+ * não balança ou quando as imagens do vento já ocupam o teto de memória (a planta fica parada). As folhas que piscam
+ * saem de um sorteio à parte (a mesma semente desenha a mesma planta de sempre).
+ */
+export function plantLayers(kind: PropKind, seed: number, pxPerCell: number): PlantLayers | null {
+  const painter = SWAYING[kind];
+  if (!painter) return null;
+  const step = cacheStep(pxPerCell);
+  const key = `${kind}|${seed}|${step}`;
+  const now = performance.now();
+  const hit = layerCache.get(key);
+  if (hit) {
+    layerCache.delete(key);
+    layerCache.set(key, hit);
+    hit.usedAt = now;
+    return hit.layers;
+  }
+  const side = Math.ceil(PROP_EXTENT[kind] * 2 * step);
+  const pixels = side * side * 2;
+  if (!roomFor(pixels, step, now)) return null;
+  const layer = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = side;
+    const ctx = canvas.getContext("2d");
+    ctx?.translate(side / 2, side / 2);
+    return { canvas, ctx };
+  };
+  const low = layer();
+  const high = layer();
+  if (!low.ctx || !high.ctx) return null;
+  const glints: Glint[] = [];
+  painter({ shadow: low.ctx, low: low.ctx, high: high.ctx, glints: { list: glints, random: rng(seed ^ 0x5f3759df) } }, step, seed);
+  const layers: PlantLayers = { low: low.canvas, high: high.canvas, glints };
+  layerCache.set(key, { layers, pixels, step, usedAt: now });
+  layerPixels += pixels;
+  return layers;
 }

@@ -1,0 +1,383 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { duneDustLevel, duneMask, decodeReliefPoint, distanceField, encodeLayer, encodeReliefPoint, validReliefByte, paintRelief, ReliefQueue, reliefFields, reliefAffected, reliefAt, reliefHeights, RELIEF_MARGIN, RELIEF_PER_CELL, type ActionResult, type ReliefBroadcast, type ReliefChunks, type ReliefStroke, type WeatherId, type WeatherState } from "@rpg/shared";
+import { act, join, nextState, useServer, type Client } from "./helpers";
+
+// Relevo (docs/design/relevo.md): níveis de −2 a +3 e tipo de borda (escarpa ou suave) na grade fina do terreno.
+const stroke = (level: number, soft = false, points = [4, 4], radius = 1): ReliefStroke => ({ level, soft, radius, points });
+
+describe("relevo: contas do pincel", () => {
+  it("pintar nível 2 escarpa num raio de 1 casa marca os pontos de dentro, não os de fora", () => {
+    const chunks: ReliefChunks = {};
+    const changed = paintRelief(chunks, stroke(2));
+    assert.deepEqual(changed, ["0,0"]);
+    assert.deepEqual(reliefAt(chunks, 16, 16), { level: 2, soft: false, dune: 0 });
+    assert.deepEqual(reliefAt(chunks, 16 + 3, 16), { level: 2, soft: false, dune: 0 }, "0,75 casa do centro");
+    assert.deepEqual(reliefAt(chunks, 16 + 5, 16), { level: 0, soft: false, dune: 0 }, "1,25 casa do centro");
+  });
+
+  it("suave fica guardado; nível negativo também", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, true));
+    assert.deepEqual(reliefAt(chunks, 16, 16), { level: 1, soft: true, dune: 0 });
+    paintRelief(chunks, stroke(-2, false, [12, 4]));
+    assert.deepEqual(reliefAt(chunks, 48, 16), { level: -2, soft: false, dune: 0 });
+  });
+
+  it("aplainar (nível 0 escarpa) apaga o pedaço que ficou todo chão", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(2));
+    paintRelief(chunks, stroke(0, false, [4, 4], 1.5));
+    assert.deepEqual(chunks, {});
+  });
+
+  it("pedaço sem relevo é chão escarpa", () => {
+    assert.deepEqual(reliefAt({}, -100, 40), { level: 0, soft: false, dune: 0 });
+  });
+});
+
+// ---------- servidor ----------
+const { ctx, client } = useServer();
+const battle = () => ctx.server.store.game.battle;
+
+function errorOf(res: ActionResult): string {
+  assert.equal(res.ok, false, "deveria recusar");
+  return res.ok ? "" : res.error;
+}
+
+async function gm(): Promise<Client> {
+  const socket = await client();
+  await join(socket, "Mestre");
+  return socket;
+}
+
+function nextRelief(socket: Client): Promise<ReliefBroadcast> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("o relevo não chegou")), 2000);
+    socket.once("relief", (payload: ReliefBroadcast) => {
+      clearTimeout(timer);
+      resolve(payload);
+    });
+  });
+}
+
+let ipSeq = 1;
+async function player(name: string): Promise<{ socket: Client; first: Promise<ReliefBroadcast> }> {
+  const socket = await client(`10.52.0.${ipSeq++}`);
+  const first = nextRelief(socket);
+  await join(socket, name);
+  return { socket, first };
+}
+
+
+describe("relevo: dunas", () => {
+  it("máscara das dunas: dunas muito longe umas das outras não alocam uma máscara enorme (sem poeira)", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, { level: 0, soft: false, dune: 2, radius: 1, points: [4, 4] });
+    assert.ok(duneMask(chunks), "perto: tem máscara");
+    paintRelief(chunks, { level: 0, soft: false, dune: 2, radius: 1, points: [4 + 2000, 4] });
+    assert.equal(duneMask(chunks), null, "2000 casas de distância: sem máscara");
+  });
+
+  const dunes = (dune: number, points = [4, 4], radius = 1): ReliefStroke => ({ level: 0, soft: false, dune, radius, points });
+  it("byte com duna é válido e volta igual", () => {
+    const value = encodeReliefPoint({ level: 1, soft: false, dune: 3 });
+    assert.deepEqual(decodeReliefPoint(value), { level: 1, soft: false, dune: 3 });
+    assert.ok(validReliefByte(value));
+    assert.equal(validReliefByte(64), false);
+  });
+
+  it("pintar dunas não muda o nível nem a borda", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(2));
+    paintRelief(chunks, dunes(2));
+    assert.deepEqual(reliefAt(chunks, 16, 16), { level: 2, soft: false, dune: 2 });
+  });
+
+  it("pintar nível não apaga a duna", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, dunes(2));
+    paintRelief(chunks, stroke(1, true));
+    assert.deepEqual(reliefAt(chunks, 16, 16), { level: 1, soft: true, dune: 2 });
+  });
+
+  it("duna ondula a altura e some fora", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, dunes(3, [16, 16, 18, 16, 20, 16], 3));
+    const { heights } = reliefFields(chunks, "2,2");
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    // Casa (x, y) no mapa -> ponto da janela do pedaço 2,2 (começa em 16 casas menos a margem).
+    const origin = 16 - RELIEF_MARGIN;
+    const at = (x: number, y: number) => heights[Math.round((y - origin) * RELIEF_PER_CELL) * side + Math.round((x - origin) * RELIEF_PER_CELL)];
+    let low = Infinity;
+    let high = -Infinity;
+    for (let x = 16; x <= 20; x += 0.25) for (let y = 15; y <= 17; y += 0.25) { low = Math.min(low, at(x, y)); high = Math.max(high, at(x, y)); }
+    assert.ok(high - low > 0.3, `ondula: ${high - low}`);
+    assert.equal(at(18, 22), 0, "3 casas fora da área");
+    assert.equal(at(28, 16), 0);
+    let jump = 0;
+    for (let y = 12; y <= 20; y += 1 / RELIEF_PER_CELL) jump = Math.max(jump, Math.abs(at(18, y + 1 / RELIEF_PER_CELL) - at(18, y)));
+    assert.ok(jump < 0.05, `sem degrau na borda: ${jump}`);
+  });
+
+  it("duna não passa da área pintada (nem tira a rocha do penhasco vizinho)", () => {
+    const chunks: ReliefChunks = {};
+    // dunas de x = 14 a 22 (quadrado), e nada fora
+    for (let y = 12; y <= 20; y += 0.5) paintRelief(chunks, { level: 0, soft: false, dune: 3, radius: 0.5, points: [14, y, 16, y, 18, y, 20, y, 22, y] });
+    const { heights, soft } = reliefFields(chunks, "2,2");
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    const index = (x: number, y: number) => Math.round((y - 8) * RELIEF_PER_CELL) * side + Math.round((x - 8) * RELIEF_PER_CELL);
+    for (const x of [13, 12.5, 12]) {
+      assert.equal(heights[index(x, 16)], 0, `altura fora da área em x = ${x}`);
+      assert.equal(soft[index(x, 16)], 0, `sem "suave" fora da área em x = ${x}`);
+    }
+  });
+
+  it("duna emenda entre pedaços", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, dunes(2, [16, 12, 16, 16, 16, 20], 3));
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    // A divisa x = 16 casas: no pedaço 1,1 fica no fim da parte de dentro; no 2,1, no começo.
+    const left = reliefFields(chunks, "1,1").heights;
+    const right = reliefFields(chunks, "2,1").heights;
+    for (const y of [9, 12, 14]) {
+      const row = Math.round((y - 0) * RELIEF_PER_CELL) * side;
+      const fromLeft = left[row + Math.round((16 - 0) * RELIEF_PER_CELL)];
+      const fromRight = right[row + Math.round((16 - 8) * RELIEF_PER_CELL)];
+      assert.ok(Math.abs(fromLeft - fromRight) < 1e-3, `y ${y}: ${fromLeft} × ${fromRight}`);
+    }
+  });
+});
+
+describe("relevo: poeira das dunas", () => {
+  const weather = (kind: WeatherId | null): WeatherState => ({ kind, intensity: 0.6, wind: 0, light: "day", startedAt: 0 });
+  it("só os climas de vento levantam poeira; a tempestade de areia, mais", () => {
+    assert.equal(duneDustLevel(weather(null)), 0);
+    assert.equal(duneDustLevel(weather("rain")), 0);
+    assert.equal(duneDustLevel(weather("leaves")), 1);
+    assert.equal(duneDustLevel(weather("storm")), 1);
+    assert.equal(duneDustLevel(weather("sand")), 2);
+  });
+
+  it("máscara das dunas: onde há duna, na grade fina; sem duna, nada", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(2));
+    assert.equal(duneMask(chunks), null, "relevo sem duna");
+    paintRelief(chunks, { level: 0, soft: false, dune: 3, radius: 1, points: [4, 4] });
+    const mask = duneMask(chunks);
+    assert.ok(mask);
+    assert.deepEqual([mask.cx, mask.cy, mask.cols, mask.rows], [0, 0, 1, 1]);
+    // Borda de um texel vazio em volta (fora da caixa a poeira some, não repete a beira).
+    const width = 32 + 2;
+    assert.equal(mask.data.length, width * width);
+    assert.equal(mask.data[(16 + 1) * width + 16 + 1], 255, "duna 3 no centro");
+    for (let i = 0; i < width; i++) {
+      assert.equal(mask.data[i], 0, "borda de cima");
+      assert.equal(mask.data[(width - 1) * width + i], 0, "borda de baixo");
+      assert.equal(mask.data[i * width], 0, "borda da esquerda");
+      assert.equal(mask.data[i * width + width - 1], 0, "borda da direita");
+    }
+  });
+});
+
+describe("relevo: servidor", () => {
+  it("só o mestre pinta; nível fora de −2..3 ou quebrado é recusado inteiro", async () => {
+    const g = await gm();
+    await act(g, "relief:clear", {});
+    const { socket: ana } = await player("Ana");
+    assert.match(errorOf(await act(ana, "relief:paint", stroke(1))), /permissão/i);
+    assert.ok((await act(g, "relief:paint", stroke(1))).ok);
+    const before = structuredClone(battle().relief);
+    for (const bad of [stroke(4), stroke(-3), stroke(1.5), { ...stroke(1), soft: "sim" }, { ...stroke(1), radius: 99 }, { ...stroke(1), points: [4] }]) {
+      assert.equal((await act(g, "relief:paint", bad as ReliefStroke)).ok, false, JSON.stringify(bad).slice(0, 60));
+    }
+    assert.deepEqual(battle().relief, before);
+    ana.disconnect();
+  });
+
+  it("servidor recusa duna inválida", async () => {
+    const g = await gm();
+    await act(g, "relief:clear", {});
+    assert.equal((await act(g, "relief:paint", { ...stroke(0), dune: 4 })).ok, false);
+    assert.equal((await act(g, "relief:paint", { ...stroke(0), dune: 1.5 })).ok, false);
+    assert.ok((await act(g, "relief:paint", { ...stroke(0), dune: 2 })).ok);
+  });
+
+  it("jogador recebe só os pedaços que mudaram; quem entra recebe tudo; o estado não leva o relevo", async () => {
+    const g = await gm();
+    await act(g, "relief:clear", {});
+    const { socket: ana, first } = await player("Ana");
+    assert.deepEqual(await first, { reset: true, chunks: {} });
+    const arrived = nextRelief(ana);
+    await act(g, "relief:paint", stroke(1, false, [6, 4, 10, 4]));
+    const update = await arrived;
+    assert.equal(update.reset, false);
+    assert.deepEqual(new Set(Object.keys(update.chunks)), new Set(["0,0", "1,0"]));
+    const bia = await client("10.52.0.90");
+    const biaFirst = nextRelief(bia);
+    const biaState = nextState(bia);
+    await join(bia, "Bia");
+    assert.deepEqual(new Set(Object.keys((await biaFirst).chunks)), new Set(["0,0", "1,0"]));
+    assert.equal("relief" in (await biaState).battle, false);
+    ana.disconnect();
+    bia.disconnect();
+  });
+
+  it("restaurar, trocar de cena, limpar campo e arquivo de sessão", async () => {
+    const g = await gm();
+    await act(g, "relief:clear", {});
+    await act(g, "relief:paint", stroke(2));
+    const saved = battle().relief?.["0,0"];
+    assert.ok(saved);
+    await act(g, "relief:paint", stroke(-1, true, [12, 4]));
+    assert.ok((await act(g, "relief:restore", { chunks: { "0,0": null, "1,0": saved } })).ok);
+    assert.deepEqual(Object.keys(battle().relief ?? {}), ["1,0"]);
+    assert.equal((await act(g, "relief:restore", { chunks: { "0,0": "não é base64" } })).ok, false);
+    // cena
+    const sceneA = ctx.server.store.game.sceneId;
+    assert.ok((await act(g, "scene:add", { name: "Deserto" })).ok);
+    const sceneB = ctx.server.store.game.scenes.find((scene) => scene.id !== sceneA)!.id;
+    assert.ok((await act(g, "scene:switch", { id: sceneB })).ok);
+    assert.equal(battle().relief, undefined);
+    assert.ok((await act(g, "scene:switch", { id: sceneA })).ok);
+    assert.deepEqual(Object.keys(battle().relief ?? {}), ["1,0"]);
+    // arquivo de sessão
+    const exported = await g.timeout(2000).emitWithAck("session:export");
+    assert.ok(exported.ok);
+    await act(g, "relief:clear", {});
+    assert.ok((await g.timeout(2000).emitWithAck("session:import", exported.file)).ok);
+    assert.deepEqual(Object.keys(battle().relief ?? {}), ["1,0"], "volta do arquivo");
+    const withRelief = (relief: unknown) => ({ ...exported.file, game: { ...exported.file.game, battle: { ...exported.file.game.battle, relief } } });
+    for (const relief of [{ "0,0": "não é base64" }, { "0,0": encodeLayer(new Uint8Array(1023)) }, { "0,0": encodeLayer(new Uint8Array(1024).fill(77)) }, { "a,b": encodeLayer(new Uint8Array(1024).fill(2)) }]) {
+      assert.equal((await g.timeout(2000).emitWithAck("session:import", withRelief(relief))).ok, false, JSON.stringify(relief).slice(0, 40));
+    }
+    // limpar campo
+    await act(g, "battle:clear", { keepTemplates: true });
+    assert.equal(battle().relief, undefined);
+  });
+});
+
+describe("relevo: altura por pedaço", () => {
+  /** Altura (em níveis) no ponto `x, y` (casas), lida da janela do pedaço com interpolação linear. */
+  const heightAt = (chunks: ReliefChunks, key: string, x: number, y: number) => {
+    const [cx, cy] = key.split(",").map(Number);
+    const heights = reliefHeights(chunks, key);
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    const gx = (x - (cx * 8 - RELIEF_MARGIN)) * RELIEF_PER_CELL;
+    const gy = (y - (cy * 8 - RELIEF_MARGIN)) * RELIEF_PER_CELL;
+    const x0 = Math.floor(gx);
+    const y0 = Math.floor(gy);
+    const fx = gx - x0;
+    const fy = gy - y0;
+    const at = (i: number, j: number) => heights[j * side + i];
+    return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy;
+  };
+
+  it("tamanho da janela: o pedaço e a margem, 8 pontos por casa", () => {
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    assert.equal(reliefHeights({}, "0,0").length, side * side);
+  });
+
+  it("escarpa: no topo do patamar a altura é 1; a 1,15 casa da borda, do lado de baixo, é 0", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, false, [4, 4], 3));
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 4, 4) - 1) < 1e-6);
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 6.5, 4) - 1) < 1e-6, "dentro do patamar");
+    assert.ok(heightAt(chunks, "0,0", 7 + 1.3, 4) < 0.02, "pé da face");
+    const middle = heightAt(chunks, "0,0", 7.5, 4);
+    assert.ok(middle > 0.2 && middle < 0.8, `meio da face: ${middle}`);
+  });
+
+  it("suave: na borda pintada a altura fica no meio; 1,25 casa para fora, perto de 0; para dentro, perto de 1", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, true, [4, 4], 3));
+    const edge = heightAt(chunks, "0,0", 7, 4);
+    assert.ok(edge > 0.35 && edge < 0.65, `borda: ${edge}`);
+    assert.ok(heightAt(chunks, "0,0", 8.4, 4) < 0.1);
+    assert.ok(heightAt(chunks, "0,0", 5.6, 4) > 0.9);
+  });
+
+  it("suave: um monte de raio 1 casa não chega a 1 (topo arredondado)", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, true, [4, 4], 1));
+    const top = heightAt(chunks, "0,0", 4, 4);
+    assert.ok(top > 0.5 && top < 0.99, `topo: ${top}`);
+  });
+
+  it("distância exata (não por chanfro): de um ponto até (6, 8) e (8, 6) é 10, e até (0, 10) também", () => {
+    const side = 41;
+    const mask = new Uint8Array(side * side);
+    mask[20 * side + 20] = 1;
+    const distance = distanceField(mask, side, side);
+    for (const [dx, dy] of [[6, 8], [8, 6], [0, 10], [-6, -8], [10, 0]]) assert.ok(Math.abs(distance[(20 + dy) * side + 20 + dx] - 10) < 1e-6, `${dx},${dy}`);
+    assert.equal(distance[20 * side + 20], 0);
+  });
+
+  it("dois níveis: a face desce de 2 a 1, fica em 1 e depois desce de 1 a 0", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, false, [4, 4], 4));
+    paintRelief(chunks, stroke(2, false, [4, 4], 1.5));
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 4, 4) - 2) < 1e-6);
+    assert.ok(Math.abs(heightAt(chunks, "0,0", 7, 4) - 1) < 1e-6, "patamar do meio");
+    assert.ok(heightAt(chunks, "0,0", 8 + 1.3, 4) < 0.02, "chão");
+  });
+
+  it("pedaço vizinho sem relevo próprio tem a face do vizinho na margem", () => {
+    const chunks: ReliefChunks = {};
+    paintRelief(chunks, stroke(1, false, [4, 4], 3.8));
+    assert.equal(chunks["1,0"], undefined);
+    const face = heightAt(chunks, "1,0", 8.2, 4);
+    assert.ok(face > 0.1 && face < 0.9, `face no vizinho: ${face}`);
+  });
+
+  it("campos: a encosta suave sai marcada como suave; a escarpa e o chão longe, não", () => {
+    const side = (8 + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
+    const at = (x: number, y: number) => (y + RELIEF_MARGIN) * RELIEF_PER_CELL * side + (x + RELIEF_MARGIN) * RELIEF_PER_CELL;
+    const gentle: ReliefChunks = {};
+    paintRelief(gentle, stroke(1, true, [4, 4], 2));
+    assert.ok(reliefFields(gentle, "0,0").soft[at(6, 4)] > 0.9, "na borda do monte suave");
+    const cliff: ReliefChunks = {};
+    paintRelief(cliff, stroke(1, false, [4, 4], 2));
+    assert.equal(reliefFields(cliff, "0,0").soft[at(6, 4)], 0);
+    assert.equal(reliefFields(gentle, "0,0").soft[at(-6, -6)], 0, "longe do monte");
+  });
+
+  it("pedaços afetados: o tocado e os vizinhos até a margem", () => {
+    // margem de 12 casas: os pedaços (8 casas) até 2 de distância
+    const reach = Math.ceil(RELIEF_MARGIN / 8);
+    const expected = new Set<string>();
+    for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) expected.add(`${dx},${dy}`);
+    assert.equal(reach, 2);
+    assert.deepEqual(new Set(reliefAffected(["0,0"])), expected);
+  });
+});
+
+describe("relevo: fila de pedidos ao Worker", () => {
+  it("um pedido por vez: o que muda durante o pedido se junta e vai no próximo, junto", () => {
+    const queue = new ReliefQueue();
+    queue.mark(["0,0"]);
+    const first = queue.take();
+    assert.deepEqual(first?.keys, ["0,0"]);
+    queue.mark(["1,0"]);
+    queue.mark(["2,0", "1,0"]);
+    assert.equal(queue.take(), null, "ainda tem um pedido em andamento");
+    assert.equal(queue.accept(first?.id ?? -1), true);
+    assert.deepEqual(queue.take()?.keys.sort(), ["1,0", "2,0"]);
+  });
+
+  it("resposta de antes de recomeçar (aplainar tudo, outra cena) é ignorada", () => {
+    const queue = new ReliefQueue();
+    queue.mark(["0,0"]);
+    const old = queue.take();
+    queue.reset();
+    queue.mark(["5,5"]);
+    assert.equal(queue.accept(old?.id ?? -1), false, "resposta velha não vale");
+    assert.deepEqual(queue.take()?.keys, ["5,5"], "e o pedido novo sai em seguida");
+  });
+
+  it("nada marcado: nada a pedir; resposta desconhecida não destrava nada", () => {
+    const queue = new ReliefQueue();
+    assert.equal(queue.take(), null);
+    assert.equal(queue.accept(99), false);
+  });
+});

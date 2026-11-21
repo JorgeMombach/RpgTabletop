@@ -1,7 +1,7 @@
 import { Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { IconDeviceMobile, IconLogout } from "@tabler/icons-react";
 import { groupName, samePanelProps, type ClientState } from "@rpg/shared";
-import { memo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { BattleMap } from "../map/BattleMap";
 import { currentGroup } from "../format";
 import { setLayoutChoice, useMobileLayout, useSmallScreen } from "../layout";
@@ -18,6 +18,7 @@ import { FloatingLog } from "./FloatingLog";
 import { EffectsPanel } from "./EffectsPanel";
 import { GmTabs } from "./GmTabs";
 import { HandoutButton, HandoutModal } from "./Handout";
+import { JournalButton, JournalWindow } from "./JournalWindow";
 import { SheetImportModal } from "./SheetImportModal";
 import { InitiativePanel } from "./InitiativePanel";
 import { Shortcuts, ShortcutsButton } from "./Shortcuts";
@@ -77,6 +78,27 @@ export const Memo = {
   TurnStatus: memo(TurnStatus, samePanelProps),
 };
 
+/** Configurações: só redesenham quando muda o que a janela mostra (papel, regras da mesa, rolagens, tempo do loot). */
+function sameSettings(before: { state: ClientState; size?: "md" | "lg" }, after: { state: ClientState; size?: "md" | "lg" }): boolean {
+  const a = before.state;
+  const b = after.state;
+  return before.size === after.size && a.self.role === b.self.role && a.rules === b.rules && a.battle.rolls.outside === b.battle.rolls.outside && a.lootSeconds === b.lootSeconds;
+}
+
+/**
+ * Cabeçalho e janelas fechadas: não dependem do envio do servidor (ou só de um pedaço dele). Em `memo`, para não
+ * redesenhar a cada mensagem (medido no dev: ~25 ms por envio só com eles).
+ */
+const Chrome = {
+  D20Emblem: memo(D20Emblem),
+  HandoutButton: memo(HandoutButton),
+  JournalButton: memo(JournalButton),
+  ShortcutsButton: memo(ShortcutsButton),
+  SettingsButton: memo(SettingsButton, sameSettings),
+  HandoutModal: memo(HandoutModal),
+  JournalWindow: memo(JournalWindow),
+};
+
 export function Shell({ state }: { state: ClientState }) {
   const mobile = useMobileLayout(state.self.role === "gm");
   return mobile ? <MobileShell state={state} /> : <DesktopShell state={state} />;
@@ -91,6 +113,8 @@ function DesktopShell({ state }: { state: ClientState }) {
   // O log fica em um lugar só: no painel, flutuando na mesa ou numa janela fora dela.
   const logDetached = useApp((s) => s.logDetached && !s.logOut);
   const [about, setAbout] = useState(false);
+  const openAbout = useCallback(() => setAbout(true), []);
+  const closeAbout = useCallback(() => setAbout(false), []);
   const { widths, max, collapsed, resize, collapse, toggle, reset } = useColumnWidths();
   const gm = state.self.role === "gm";
 
@@ -107,11 +131,11 @@ function DesktopShell({ state }: { state: ClientState }) {
     >
       <Group component="header" className="topbar" justify="space-between" wrap="nowrap" gap="md" px="md">
         <Group gap={6} wrap="nowrap">
-          <D20Emblem size={24} />
+          <Chrome.D20Emblem size={24} />
           <Text fw={700} ff="heading" c="bronze.4" fz={18}>
             Jamal's Tabletop
           </Text>
-          <AboutLink onOpen={() => setAbout(true)} />
+          <AboutLink onOpen={openAbout} />
         </Group>
         <Memo.TurnStatus state={state} />
         <Group gap="sm" wrap="nowrap">
@@ -127,9 +151,10 @@ function DesktopShell({ state }: { state: ClientState }) {
               </Button>
             </Tooltip>
           )}
-          <HandoutButton />
-          <ShortcutsButton />
-          <SettingsButton state={state} />
+          <Chrome.HandoutButton />
+          <Chrome.JournalButton />
+          <Chrome.ShortcutsButton />
+          <Chrome.SettingsButton state={state} />
           <Group gap={6} wrap="nowrap">
             <Text size="sm" truncate maw={180}>
               {state.self.name}
@@ -194,8 +219,9 @@ function DesktopShell({ state }: { state: ClientState }) {
       <Shortcuts state={state} />
       {logDetached && <FloatingLog />}
       <SoundSync sound={state.sound} />
-      <AboutModal opened={about} onClose={() => setAbout(false)} />
-      <HandoutModal />
+      <AboutModal opened={about} onClose={closeAbout} />
+      <Chrome.HandoutModal />
+      <Chrome.JournalWindow />
       <Memo.SheetModal state={state} />
       <SheetImportModal gm={state.self.role === "gm"} />
     </div>

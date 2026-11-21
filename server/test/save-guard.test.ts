@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, RollTable, TableLoot, GameClock } from "@rpg/shared";
+import { encodeLayer } from "@rpg/shared";
+import type { BossPhase, Combatant, FogState, Door, Drawing, InventoryItem, MapChest, MapProp, Bridge, Stair, MapTorch, GameState, Resource, Scene, StoredScene, LogEntry, MapEffect, MobTemplate, SavedAttack, Spell, TableRules, WeatherState, Wall, WallWindow, RollTable, TableLoot, GameClock, JournalEntry, WaterCurrent } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { useServer } from "./helpers";
 
@@ -124,7 +125,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
-    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate", gridColor: "#d8b47a" },
+    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate", gridColor: "#d8b47a", grid: "hexCols" },
     mobs: [lich, sombra],
     npcs: [guarda],
     combat: { active: true, round: 2, turnIndex: 1, order: ["lich", "thorin", "lia"], turn: 4 },
@@ -152,11 +153,18 @@ function fullGame(playerId: string, gmId: string): GameState {
     ],
     walls: [
       { id: "w1", from: { col: 0, row: 0 }, to: { col: 4, row: 0 } },
-      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door>, style: "iron" } satisfies Required<Wall>,
+      { id: "w2", from: { col: 4, row: 0 }, to: { col: 4, row: 1 }, thickness: 0.6, door: { open: true, locked: true, secret: true } satisfies Required<Door>, style: "iron" } satisfies Omit<Required<Wall>, "window">,
+      { id: "w3", from: { col: 4, row: 1 }, to: { col: 4, row: 2 }, thickness: 0.3, window: { closed: true } satisfies Required<WallWindow>, style: "brick" } satisfies Omit<Required<Wall>, "door">,
     ],
     props: [{ id: "pr1", kind: "tree", col: 6.25, row: 3.5, size: 1.4, rotation: 30, seed: 1234, above: true, blocks: false } satisfies Required<MapProp>],
+    bridges: [{ id: "br1", from: { x: 2, y: 3.5 }, to: { x: 8.25, y: 3.5 }, width: 2, kind: "stone" } satisfies Required<Bridge>],
+    stairs: [{ id: "st1", shape: "path", points: [{ x: 2, y: 2 }, { x: 6, y: 2 }, { x: 6, y: 5.5 }], width: 2, material: "stone", exit: "down" } satisfies Required<Stair>],
+    currents: [{ id: "c1", points: [1, 2.5, 3.25, 4] } satisfies Required<WaterCurrent>],
     weather,
     fog: { enabled: true, revealed: { "2": [0, 4, 6, 9], "3": [0, 4] }, vision: true, explored: { "5": [1, 3] }, lastSeen: [{ id: "lich", name: "Lich", pos: { col: 8, row: 8 }, span: 2 }], range: 60, foundNpcs: ["guarda"] } satisfies Required<FogState>,
+    terrain: { "0,0": { grass: encodeLayer(new Uint8Array(1024).fill(200)), dirt: encodeLayer(new Uint8Array(1024).fill(55)) } },
+    relief: { "0,0": encodeLayer(new Uint8Array(1024).fill(3)) },
+    floors: { "0,0": encodeLayer(new Uint8Array(1024).fill(20)) },
   };
   // Cena guardada: tudo o que muda de um mapa para outro, mais onde os aliados estavam nela.
   const cripta: Required<StoredScene> = {
@@ -169,9 +177,15 @@ function fullGame(playerId: string, gmId: string): GameState {
     walls: [{ id: "w3", from: { col: 2, row: 2 }, to: { col: 2, row: 5 } }],
     torches: [],
     props: [{ id: "pr2", kind: "crates", col: 1, row: 1, size: 1, rotation: 0, seed: 5, above: false, blocks: true }],
+    bridges: [{ id: "br2", from: { x: 1, y: 1 }, to: { x: 1, y: 5 }, width: 1, kind: "rope" }],
+    stairs: [{ id: "st2", shape: "ladder", points: [{ x: 3, y: 3 }, { x: 3, y: 1 }], width: 1, material: "wood", exit: "up" }],
+    currents: [],
     chests: [],
     weather,
     fog: { enabled: false, revealed: {}, vision: false, explored: {}, lastSeen: [], range: null, foundNpcs: [] },
+    terrain: { "-1,2": { water: encodeLayer(new Uint8Array(1024).fill(90)) } },
+    relief: { "-1,2": encodeLayer(new Uint8Array(1024).fill(11)) },
+    floors: { "-1,2": encodeLayer(new Uint8Array(1024).fill(6)) },
     allyPos: { thorin: { col: 3, row: 3 } },
   };
   const scenes: Required<Scene>[] = [{ id: "cena-cripta", name: "Cripta", stored: cripta }];
@@ -197,6 +211,10 @@ function fullGame(playerId: string, gmId: string): GameState {
       },
     ],
     clock: { day: 12, minutes: 14 * 60 + 30, lightFollows: true } satisfies Required<GameClock>,
+    journal: [
+      { id: "dia-1", title: "Amuleto do barão", tag: "quest", text: "O barão paga 200 po.\n\nPista: capas verdes.", note: "O cocheiro é espião.", shared: true, done: true, day: 3, updatedAt: 1730000000000 } satisfies Required<JournalEntry>,
+      { id: "dia-2", title: "Torre de Kesh", tag: "place", text: "", updatedAt: 1730000000001 },
+    ],
     rules: { moveOnTurn: true, summonOnTurn: true, effectOnTurn: true, hideFoeHits: true, darkReminder: true } satisfies Required<TableRules>,
   };
   return structuredClone(game);

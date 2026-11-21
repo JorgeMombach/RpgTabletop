@@ -122,7 +122,7 @@ Decisões e novidades:
 - [x] Engasgos nos outros aparelhos ao liberar névoa e abrir portas.
 - [x] Dados 3D presos à espera dos sons.
 - [x] Coluna da esquerda empurrando o mapa.
-- [ ] Engasgo ao mover token: os painéis ainda redesenham (ficou para depois).
+- [x] Engasgo ao mover token: os painéis ainda redesenham. *(feito em 2026-11-11, branch `feat/campanha`: medido com 10 mobs, 200 objetos e névoa; as abas escondidas do mestre e o log redesenhavam a cada envio; com `memo` nos painéis das abas e em cada entrada do log, de ~11.500 para ~950 componentes por movimento)*
 
 ## Plano depois da 2.11.0 (aprovado em 2026-11-02, revisto em 2026-11-03; fases 0, 2, 3, 5 e 6 saíram na 2.12.0)
 Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na branch `fix/correcoes-rolagem-efeitos`, como foi com a 2.10 e a 2.11. Primeiro o que mexe na jogatina; ordem por importância (2026-11-03): 0, 2, 3, 5, 6 e depois a 4; **hospedagem e instalador ficam por último**, talvez numa subida à parte. A ordem pode mudar. Dúvidas abertas ficam junto da fase e são respondidas quando ela começar.
@@ -137,7 +137,7 @@ Fases na ordem combinada, todas num **pacotão só** (a próxima versão), na br
 - [x] Cor do grid, por cena (painel Mapa, abaixo de *Mostrar grid*; preto fica sem campo).
 - [x] Tooltips mais bonitos, com protótipo. Escolhido o 5, pergaminho com título (`TipTitle` nas ferramentas do mapa).
 - [x] Ctrl+Z em desenho livre, setas, círculos e tochas (hoje só paredes). Histórico único em `client/src/map/mapHistory.ts` (era `wallHistory.ts`); cada ferramenta desfaz o dela; ação nova `maptorch:remove`.
-- [ ] Engasgo ao mover token, se incomodar na mesa (pendente da 2.11.0, no bloco N).
+- [x] Engasgo ao mover token (pendente da 2.11.0, no bloco N). *(feito em 2026-11-11, branch `feat/campanha`: medido com 10 mobs, 200 objetos e névoa; as abas escondidas do mestre e o log redesenhavam a cada envio; com `memo` nos painéis das abas e em cada entrada do log, de ~11.500 para ~950 componentes por movimento)*
 
 ### Fase 3. Dano na ficha
 - [x] Armas no template, com dano ("Martelo de pedra" 1d6+2): o mob criado já vem com elas e o mestre escolhe qual usar ao rolar (ficha ou ataques rápidos do painel Dados).
@@ -232,14 +232,23 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 - [x] O mestre cria tabelas (encontros, nomes, loot) e rola com um clique; resultado no log (só para ele, se quiser). Peso por linha, dados e outra tabela dentro do texto, cinco exemplos nos três idiomas.
 - [x] Rolar loot direto para dentro de um baú (entra na janela de edição; o baú muda ao salvar).
 
-### Passo 14. Diário da campanha (M)
-- [ ] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão.
+### Passo 14. Diário da campanha (M; desenho em [docs/design/diario.md](design/diario.md), aprovado em 2026-11-11, branch `feat/campanha`)
+- [x] Notas por sessão, missões em aberto e NPCs encontrados; o mestre escolhe o que os jogadores leem. Vai no arquivo de sessão. *(feito em 2026-11-11: entradas livres com etiqueta, nota secreta só do mestre, liberar uma a uma; o diário viaja em evento próprio, fora do estado)*
 
 ### Passo 15. Calendário e hora do jogo (P, feito em 2026-11-05)
 - [x] "Dia 3, 14h", avançando por descanso ou viagem; opcional: a luz do clima acompanha a hora. Painel *Hora do jogo* (aba *Ambiente*), hora no topo para todos, aviso no log.
 
-### Passo 16. Grid hexagonal (G, por último)
-- [ ] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar.
+### Passo 16. Grid hexagonal (G, por último; desenho em [docs/design/grid-hex.md](design/grid-hex.md), aprovado em 2026-11-12, em três fases)
+- [x] Grid de hexágonos (vertical e horizontal). Mexe em régua, áreas, paredes, névoa e tamanho dos tokens: planejar à parte antes de começar. *(feito em 2026-11-16, nas três fases abaixo)*
+  - [x] Fase 1: dá para jogar combate em hex (grid, tokens e formas, régua, baús; o resto apagado no hex). *(feito em 2026-11-13)*
+  - [x] Fase 2: áreas, fixar efeito, pincel de efeitos e pincel dos objetos em hex. *(feito em 2026-11-13)*
+  - [x] Fase 3: paredes, névoa e visão em hex. *(feito em 2026-11-16)*
+
+### Criação de mapa (combinada em 2026-11-16, branch `feat/campanha`, em três entregas)
+Trazer para dentro do app o que hoje se faz no Dungeondraft: o mestre monta o chão e o cenário do mapa. Arte desenhada (não foto), bonita a ponto de ser "o que o jogador vê"; peso do app não importa.
+- [x] Entrega 1: terreno pintado com pincel livre (grama, terra, pedra e água, misturados na borda). *(feito em 2026-11-16; desenho em [docs/design/terreno.md](design/terreno.md))*
+- [ ] Entrega 2: objetos com mais qualidade.
+- [x] Entrega 3: mapa vivo (água e árvores animadas). *(saiu na 2.14.0: [vento](design/vento.md) e [água animada](design/agua.md))*
 
 ### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)
 - [ ] Instalador no lugar do executável portátil, com atualização automática ou opcional. Sem certificado pago, o Windows mostra aviso; no Mac, sem assinatura, a atualização automática provavelmente não funciona.
@@ -252,4 +261,4 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 
 ## Ideias novas
 (entram aqui conforme surgirem e sobem para a seção certa quando decididas)
-- Editar a ficha (botão *Editar*) para um tamanho maior também levar o token para a casa livre mais próxima, como já faz a ficha importada (hoje a mesa ajeita na mão).
+- [x] Editar a ficha (botão *Editar*) para um tamanho maior também levar o token para a casa livre mais próxima, como já faz a ficha importada. *(feito em 2026-11-11, branch `feat/campanha`: a regra virou `moveOutIfGrown`, usada pela edição e pela importação)*

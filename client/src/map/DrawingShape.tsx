@@ -7,6 +7,7 @@ import { confirmAction } from "../confirm";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { undo, useMapUndo } from "./mapHistory";
+import { useShallow } from "zustand/react/shallow";
 
 /** Cores do guia visual: bronze, sangue, azul dos aliados, cobre e pergaminho. */
 export const DRAW_COLORS = ["#d8b47a", "#c94a52", "#5ba3e6", "#4fae8c", "#f1e6d0"];
@@ -48,7 +49,7 @@ export function DrawingShape({ d }: { d: Pick<Drawing, "kind" | "points" | "colo
  */
 export function DrawOptions({ drawings, gm, selfId }: { drawings: Drawing[]; gm: boolean; selfId: string }) {
   const t = useT();
-  const { drawMode, drawColor, drawWidth, drawHidden } = useApp();
+  const { drawMode, drawColor, drawWidth, drawHidden } = useApp(useShallow((s) => ({ drawMode: s.drawMode, drawColor: s.drawColor, drawWidth: s.drawWidth, drawHidden: s.drawHidden })));
   const modes: DrawMode[] = gm ? (Object.keys(MODE_LABEL) as DrawMode[]) : ["arrow", "erase"];
   const mode = modes.includes(drawMode) ? drawMode : "arrow";
   const mine = gm ? drawings : drawings.filter((d) => d.authorId === selfId);

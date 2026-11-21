@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
+import { EFFECT_PRESETS, geometryOf, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
@@ -109,14 +109,23 @@ export function tickCasterEffects(store: Store, casterId: string) {
  */
 export function moveFollowers(store: Store, c: Combatant, from: GridPos | null, to: GridPos | null) {
   if (!from || !to) return;
-  const dc = to.col - from.col;
-  const dr = to.row - from.row;
-  if (dc === 0 && dr === 0) return;
+  // O quanto o token andou, em casas, pela geometria da cena: no quadrado é a diferença de colunas e linhas; no
+  // hex (Passo 16) a linha não mede uma casa e as linhas ímpares são deslocadas, então vale a distância entre centros.
+  const geometry = geometryOf(store.game.battle.map.grid);
+  const before = geometry.center(from);
+  const after = geometry.center(to);
+  if (after.x === before.x && after.y === before.y) return;
   const lim = LIMITS.gridCoord;
-  const clamp = (n: number) => Math.max(-lim, Math.min(lim, n));
+  // Centésimos: no quadrado a meia casa continua exata; no hex a origem não cai na meia casa.
+  const place = (n: number) => Math.round(Math.max(-lim, Math.min(lim, n)) * 100) / 100;
+  const hundredth = (n: number) => Math.round(n * 100) / 100;
   for (const e of store.game.battle.effects) {
     if (e.followId !== c.id) continue;
-    e.area = { ...e.area, origin: { col: clamp(e.area.origin.col + dc), row: clamp(e.area.origin.row + dr) } };
+    // Parte do centro novo, exato, com a mesma distância (em centésimos) que a área tinha do centro antigo:
+    // somar o passo à origem já arredondada acumularia o erro a cada movimento.
+    const offsetX = hundredth(e.area.origin.col - before.x);
+    const offsetY = hundredth(e.area.origin.row - before.y);
+    e.area = { ...e.area, origin: { col: place(after.x + offsetX), row: place(after.y + offsetY) } };
   }
 }
 
@@ -185,7 +194,7 @@ export const effectHandlers: HandlerMap = {
     const { battle } = store.game;
     if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
     const fields = effectFields(store, player, payload);
-    const area = validArea(payload.area) ?? fail("Área inválida.");
+    const area = validArea(payload.area, store.game.battle.map.grid) ?? fail("Área inválida.");
     const { casterId, concentration } = fields;
     if (payload.follow === true && !casterId) fail("Para o efeito andar junto, escolha quem conjurou.");
 

@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { playSfx } from "../audio/engine";
 import { useApp } from "../store";
 import { glows, hasLightning, LightningClock, WeatherPainter } from "./weatherFx";
+import { SCENE_BLEND_SECONDS } from "./ground/sceneLight";
+import { useEased } from "./useEased";
 
 /** Luz da cena: cor multiplicada sobre o mapa e vinheta nas bordas. */
 const LIGHT_STYLE = {
@@ -22,10 +24,14 @@ function thunderDelay(at: number): number {
 /**
  * Clima e luz por cima do mapa (E26), iguais para todos; só o mestre muda. Não recebe cliques.
  * Os relâmpagos da tempestade clareiam a tela no mesmo instante para todos e trazem o trovão (E25).
+ * Com o chão em WebGL (docs/design/luz.md), `film` falso: a luz da cena vem da placa de vídeo, e a chuva, a neve e
+ * afins só escurecem com `dim` (o que brilha sozinho não muda).
  */
-export function WeatherOverlay({ weather, lights = [] }: { weather: WeatherState; lights?: ScreenLight[] }) {
+export function WeatherOverlay({ weather, lights = [], film = true, dim = 1 }: { weather: WeatherState; lights?: ScreenLight[]; film?: boolean; dim?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduce = useApp((s) => s.reduceFx);
+  // Escurece junto com a luz do chão (a mesma troca de meio segundo), não de uma vez.
+  const shade = useEased(dim, SCENE_BLEND_SECONDS * 1000);
   const light = LIGHT_STYLE[weather.light];
   const { kind, intensity, wind, startedAt } = weather;
 
@@ -77,7 +83,7 @@ export function WeatherOverlay({ weather, lights = [] }: { weather: WeatherState
   const mask = lights.length
     ? lights.map((l) => `radial-gradient(circle ${l.r}px at ${l.x}px ${l.y}px, rgb(0 0 0 / 0.05) 0%, rgb(0 0 0 / 0.15) 45%, rgb(0 0 0 / 0.6) 75%, #000 100%)`).join(", ")
     : undefined;
-  const lightLayer = light && (
+  const lightLayer = film && light && (
     <div
       className="map-light"
       style={{
@@ -91,7 +97,7 @@ export function WeatherOverlay({ weather, lights = [] }: { weather: WeatherState
   const glowing = !!kind && glows(kind);
   return (
     <>
-      {kind && !glowing && <canvas ref={canvasRef} className="map-weather" />}
+      {kind && !glowing && <canvas ref={canvasRef} className="map-weather" style={shade < 1 ? { filter: `brightness(${shade})` } : undefined} />}
       {lightLayer}
       {glowing && <canvas ref={canvasRef} className="map-weather" />}
     </>

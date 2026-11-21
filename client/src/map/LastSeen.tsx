@@ -1,5 +1,6 @@
-import type { LastSeen, MapConfig } from "@rpg/shared";
+import { geometryOf, sizeOfSpan, type LastSeen, type MapConfig } from "@rpg/shared";
 import { useT } from "../i18n";
+import { shapeCenterAt } from "./geometry";
 
 interface View {
   x: number;
@@ -20,15 +21,16 @@ export function LastSeenOverlay({ marks, grid, view, gm }: { marks: LastSeen[]; 
   return (
     <div className={`last-seen-layer${gm ? " gm" : ""}`}>
       {marks.map((m) => {
-        const size = m.span * cell;
+        const size = geometryOf(grid.grid).drawSpan(sizeOfSpan(m.span)) * cell;
+        const middle = shapeCenterAt(m.pos, sizeOfSpan(m.span), grid);
         return (
           <div
             key={m.id}
             className="last-seen"
             aria-label={t("lastSeen.label", { name: m.name })}
             style={{
-              left: view.x + (grid.offsetX + m.pos.col * grid.cellPx) * view.scale,
-              top: view.y + (grid.offsetY + m.pos.row * grid.cellPx) * view.scale,
+              left: view.x + middle.x * view.scale - size / 2,
+              top: view.y + middle.y * view.scale - size / 2,
               width: size,
               height: size,
               fontSize: Math.max(14, Math.min(size * 0.78, cell * 1.4)),

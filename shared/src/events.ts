@@ -1,5 +1,10 @@
 // Contrato dos eventos Socket.IO (ver SPEC.md §6).
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow } from "./types";
+import type { FloorStroke } from "./floor";
+import type { ReliefStroke } from "./relief";
+import type { TerrainChunk, TerrainStroke } from "./terrain";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
+import type { Bridge } from "./bridge";
+import type { Stair } from "./stair";
 import type { FogRect } from "./fog";
 import type { SheetCheckItem, SheetImportChoice, SheetKind } from "./sheetFile";
 import type { CatalogCollection, CatalogDetails, CatalogLang } from "./catalog";
@@ -109,12 +114,30 @@ export interface AreaBroadcast {
   area: Area | null;
 }
 
+/** Terreno que chega ao cliente: `reset` = este é o terreno inteiro (troque o seu); senão, só estes pedaços (`null` = apagado). */
+export interface TerrainBroadcast {
+  reset: boolean;
+  chunks: Record<string, TerrainChunk | null>;
+}
+
+/** Relevo: o inteiro (`reset`) ao entrar ou trocar de cena; depois, só os pedaços que mudaram (`null` = sem relevo). */
+export interface ReliefBroadcast {
+  reset: boolean;
+  chunks: Record<string, string | null>;
+}
+
+/** Piso: como o relevo (o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram). */
+export interface FloorBroadcast {
+  reset: boolean;
+  chunks: Record<string, string | null>;
+}
+
 export interface MapImagePayload {
   version: number;
   image: string | null;
 }
 
-export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle" | "gridColor">>;
+export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle" | "gridColor" | "grid">>;
 
 export interface TemplateInput extends CombatantInput {
   /** Presente = edição; ausente = criação. */
@@ -322,6 +345,19 @@ export interface ActionPayloads {
    * livre é cortado; seta e círculo tocados somem inteiros. Jogador: só nas próprias setas.
    */
   "draw:erase": { points: number[]; radius: number };
+  /** Mestre: linha de correnteza da água (x, y em casas, no sentido em que a água corre). */
+  "current:add": { points: number[] };
+  /** Mestre: apaga linhas de correnteza. */
+  "current:remove": { ids: string[] };
+  /** Pontes (docs/design/pontes.md): pôr, mudar (pontas, largura ou tipo) e apagar. */
+  "bridge:add": Omit<Bridge, "id">;
+  "bridge:update": { id: string } & Partial<Omit<Bridge, "id">>;
+  "bridge:remove": { ids: string[] };
+  "stair:add": Omit<Stair, "id">;
+  "stair:update": { id: string } & Partial<Omit<Stair, "id">>;
+  "stair:remove": { ids: string[] };
+  /** Troca os pontos de uma linha (continuar pela ponta; desfazer a continuação). */
+  "current:update": { id: string; points: number[] };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   /** Mestre: tocha fixa em qualquer ponto do mapa (em casas). */
   "maptorch:add": { col: number; row: number; style: MapTorchStyle };
@@ -356,11 +392,37 @@ export interface ActionPayloads {
   "table:remove": { id: string };
   /** Mestre: rola a tabela; `public` = todos veem (a tabela lembra a escolha). */
   "table:roll": { id: string; public: boolean };
+  /** Mestre: cria (sem `id`) ou edita uma entrada do diário (Passo 14). */
+  "journal:upsert": { id?: string; title: string; tag: JournalTag; text: string; note?: string; shared?: boolean; done?: boolean; day?: number | null };
+  /** Mestre: libera ou recolhe uma entrada para os jogadores. */
+  "journal:share": { id: string; shared: boolean };
+  "journal:remove": { id: string };
+  /** Mestre: uma passada do pincel de terreno (criação de mapa). */
+  "terrain:paint": TerrainStroke;
+  /** Mestre: repõe pedaços do terreno como estavam (`null` = apagar o pedaço); usado pelo Desfazer. */
+  "terrain:restore": { chunks: Record<string, TerrainChunk | null> };
+  /** Mestre: apaga todo o terreno da cena. */
+  "terrain:clear": Record<string, never>;
+  /** Mestre: uma passada do pincel de relevo (docs/design/relevo.md). */
+  "relief:paint": ReliefStroke;
+  /** Mestre: repõe pedaços do relevo como estavam (`null` = apagar o pedaço); usado pelo Desfazer. */
+  "relief:restore": { chunks: Record<string, string | null> };
+  /** Mestre: aplaina todo o relevo da cena. */
+  "relief:clear": Record<string, never>;
+  /** Mestre: uma passada de piso (docs/design/pisos.md): pincel, retângulo ou cômodo. */
+  "floor:paint": FloorStroke;
+  /** Mestre: repõe pedaços do piso como estavam (`null` = apagar o pedaço); usado pelo Desfazer. */
+  "floor:restore": { chunks: Record<string, string | null> };
+  /** Mestre: apaga todo o piso da cena. */
+  "floor:clear": Record<string, never>;
   /** Mestre: liga, acerta ou desliga (`null`) a hora do jogo (Passo 15). */
   "clock:set": { clock: { day: number; minutes: number; lightFollows: boolean } | null };
   /** Mestre: avança a hora do jogo (descanso, viagem). */
   "clock:advance": { minutes: number };
-  "wall:add": { from: GridPos; to: GridPos; door?: boolean; thickness?: number; style?: WallStyle };
+  /** Mestre: traça parede, porta ou janela; porta e janela por cima de paredes alinhadas cortam essas paredes (docs/design/paredes.md). */
+  "wall:add": { from: GridPos; to: GridPos; door?: boolean; window?: boolean; thickness?: number; style?: WallStyle };
+  /** Mestre: fecha ou abre a persiana da janela. */
+  "window:set": { id: string; closed: boolean };
   /** Mestre: troca o desenho das paredes (e portas); `null` volta ao desenho da cena. */
   "wall:style": { ids: string[]; style: WallStyle | null };
   "wall:remove": { id: string };
@@ -489,6 +551,14 @@ export interface ServerToClientEvents {
   ping: (payload: PingBroadcast) => void;
   /** O que o mestre está mostrando para a mesa (`null` = nada); vem ao mudar e ao entrar. */
   handout: (handout: Handout | null) => void;
+  /** Diário da campanha (Passo 14): vai à parte do estado, só quando muda e ao entrar; o jogador recebe só as liberadas, sem nota. */
+  journal: (entries: JournalEntry[]) => void;
+  /** Terreno pintado: o inteiro (`reset`) ao entrar ou trocar de cena; depois, só os pedaços que mudaram. */
+  terrain: (payload: TerrainBroadcast) => void;
+  /** Relevo: como o terreno, por evento próprio. */
+  relief: (payload: ReliefBroadcast) => void;
+  /** Piso: como o relevo, por evento próprio. */
+  floors: (payload: FloorBroadcast) => void;
   toast: (toast: Toast) => void;
   /** Efeito sonoro de uma vez, para todos (E25). */
   "sound:sfx": (source: SoundSource) => void;
@@ -548,6 +618,9 @@ export const LIMITS = {
   /** Desenhos do mestre no mapa ao mesmo tempo, números por desenho (x e y) e espessura do traço. */
   drawings: 150,
   drawingNumbers: 1200,
+  /** Linhas de correnteza por cena e números (x, y) por linha (água animada). */
+  currents: 60,
+  currentNumbers: 400,
   drawingWidth: { min: 1, max: 24 },
   /** Coordenada máxima (pixels do mapa) de um ponto de desenho. */
   drawingCoord: 100_000,
@@ -571,6 +644,14 @@ export const LIMITS = {
   chests: 40,
   /** Objetos por cena e tamanho (escala do desenho). */
   props: 800,
+  /** Pontes por cena e comprimento de uma ponte (casas). */
+  bridges: 64,
+  bridgeLength: { min: 1, max: 40 },
+  /** Escadas por cena (docs/design/escadas.md): comprimento do caminho e pontos dele; comprimento da escada de mão (casas). */
+  stairs: 64,
+  stairLength: { min: 1, max: 40 },
+  stairPoints: 16,
+  ladderLength: { min: 1, max: 4 },
   propSize: { min: 0.25, max: 4 },
   /** Casas de uma pintura (pincel de efeitos) e números (col e row) por pincelada. */
   paintCells: 5000,
@@ -586,6 +667,18 @@ export const LIMITS = {
   tableWeight: 99,
   tableTimes: 10,
   tableDepth: 5,
+  /** Diário da campanha (Passo 14): entradas, título, texto e nota (letras). */
+  journal: 200,
+  journalTitle: 80,
+  journalText: 4000,
+  journalNote: 2000,
+  /** Terreno pintado: pedaços de 8 × 8 casas por cena, pontos de traço por passada, raio (casas) e força do pincel. */
+  terrainChunks: 400,
+  terrainStrokePoints: 2000,
+  /** Lado máximo do retângulo de terreno (casas): a conta não pode travar o servidor. */
+  terrainRectSide: 64,
+  terrainRadius: { min: 0.5, max: 6 },
+  terrainStrength: { min: 0.1, max: 1 },
   /** Hora do jogo (Passo 15): maior dia e maior avanço de uma vez (30 dias, em minutos). */
   clockDay: 99_999,
   clockAdvance: 43_200,

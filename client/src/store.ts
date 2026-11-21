@@ -4,12 +4,20 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle, type BridgeKind, type BridgeWidth, type StairExit, type StairMaterial, type StairShape } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
 
-export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props";
+export type MapTool = "move" | "ruler" | "area" | "calibrate" | "draw" | "walls" | "torches" | "chests" | "ping" | "fog" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge" | "stair";
+
+/** Pincel do Piso (docs/design/pisos.md): material, sentido das tábuas, modo e raio (pincel e borracha), em casas. */
+export interface FloorBrush {
+  material: FloorMaterial;
+  vertical: boolean;
+  mode: "room" | "rect" | "brush" | "erase";
+  radius: number;
+}
 
 /** Tamanho inicial de cada forma, em pés (os exemplos mais comuns do 5e). */
 export const AREA_DEFAULT_FEET: Record<AreaKind, number> = { cone: 15, sphere: 20, cylinder: 20, line: 30, cube: 10 };
@@ -34,7 +42,7 @@ function readPrefs(): DicePrefs {
   }
 }
 
-interface AppStore extends DicePrefs {
+export interface AppStore extends DicePrefs {
   connected: boolean;
   /** Papel que esta conexão receberá (antes de entrar). */
   probedRole: Role | null;
@@ -115,6 +123,22 @@ interface AppStore extends DicePrefs {
   paintColor: string;
   paintErase: boolean;
   paintSize: number;
+  /**
+   * Ferramenta Terreno (mestre): um terreno, a borracha ou os modos da correnteza (riscar e apagar linhas); raio em
+   * casas, força e `shape` (pincel livre ou retângulo de canto a canto).
+   */
+  terrainBrush: { terrain: TerrainId | "erase" | "current" | "currentErase"; radius: number; strength: number; shape: "brush" | "rect" };
+  /** Pincel do Relevo (docs/design/relevo.md): nível e borda, ou (modo `dunes`) só a altura das dunas, de 0 a 3. */
+  reliefBrush: { level: number; soft: boolean; radius: number; mode: "level" | "dunes"; dune: number };
+  floorBrush: FloorBrush;
+  /** Ferramenta Ponte (docs/design/pontes.md): o tipo e a largura da próxima ponte. */
+  bridgeBrush: { kind: BridgeKind; width: BridgeWidth };
+  /** Ponte escolhida com a ferramenta Ponte (alças nas pontas; o painel muda tipo e largura dela). */
+  selectedBridgeId: string | null;
+  /** Ferramenta Escada (docs/design/escadas.md): formato, material, largura (ou diâmetro) e sentido da próxima escada. */
+  stairBrush: { shape: StairShape; material: StairMaterial; width: BridgeWidth; exit: StairExit };
+  /** Escada escolhida com a ferramenta Escada (alças nos pontos; o painel muda as opções dela). */
+  selectedStairId: string | null;
   /** Ferramenta Objetos (mestre): o tipo do próximo e o objeto escolhido (alças de tamanho e giro). */
   propKind: PropKind;
   selectedPropId: string | null;
@@ -130,6 +154,30 @@ interface AppStore extends DicePrefs {
   /** O que o mestre está mostrando para a mesa (chega à parte, com a imagem) e qual deles esta pessoa já fechou. */
   handout: Handout | null;
   handoutDismissed: string | null;
+  /** Diário da campanha (Passo 14): chega à parte, já filtrado (o jogador só tem as liberadas, sem nota). */
+  journal: JournalEntry[];
+  /** Já chegou o primeiro diário desta conexão (o que vem depois disso é novidade). */
+  journalLoaded: boolean;
+  /** Terreno pintado da cena (criação de mapa): chega à parte, pedaço a pedaço. */
+  terrain: TerrainChunks;
+  /** Relevo da cena (vem por evento próprio, como o terreno). */
+  relief: ReliefChunks;
+  /** Sobe quando o relevo chega inteiro (troca de cena, entrada). */
+  reliefEpoch: number;
+  /** Prévia da pincelada de relevo do mestre (até o servidor responder); `null` = sem pincelada. */
+  reliefPreview: ReliefChunks | null;
+  /** Piso da cena (vem por evento próprio, como o relevo). */
+  floors: FloorChunks;
+  /** Sobe quando o piso chega inteiro (troca de cena, entrada). */
+  floorEpoch: number;
+  /** Prévia da passada de piso do mestre (até o servidor responder); `null` = sem passada. */
+  floorPreview: FloorChunks | null;
+  /** Sobe a cada terreno inteiro recebido (entrar, trocar de cena, carregar arquivo, apagar tudo, Limpar campo). */
+  terrainEpoch: number;
+  /** Este aparelho não aguentou as plantas balançando (vento nas plantas): ficam paradas até recarregar a página. */
+  windStalled: boolean;
+  /** O chão em WebGL (terreno e água) falhou ou perdeu o contexto: o mapa volta ao desenho de antes. */
+  groundFailed: boolean;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
   hoverId: string | null;
 }
@@ -181,6 +229,13 @@ export const useApp = create<AppStore>(() => ({
   paintColor: "#d4a24c",
   paintErase: false,
   paintSize: 3,
+  terrainBrush: { terrain: "grass", radius: 1.5, strength: 1, shape: "brush" },
+  reliefBrush: { level: 1, soft: false, radius: 1.5, mode: "level", dune: 2 },
+  floorBrush: { material: "plank", vertical: false, mode: "room", radius: 1 },
+  bridgeBrush: { kind: "plank", width: 2 },
+  selectedBridgeId: null,
+  stairBrush: { shape: "path", material: "stone", width: 1, exit: "up" },
+  selectedStairId: null,
   propKind: "tree",
   selectedPropId: null,
   propMode: "place",
@@ -192,6 +247,18 @@ export const useApp = create<AppStore>(() => ({
   logOut: false,
   handout: null,
   handoutDismissed: null,
+  journal: [],
+  journalLoaded: false,
+  terrain: {},
+  terrainEpoch: 0,
+  relief: {},
+  reliefEpoch: 0,
+  reliefPreview: null,
+  floors: {},
+  floorEpoch: 0,
+  floorPreview: null,
+  windStalled: false,
+  groundFailed: false,
   ...readPrefs(),
 }));
 
@@ -247,7 +314,7 @@ export function openSheet(id: string) {
 }
 
 export function setTool(tool: MapTool) {
-  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null });
+  useApp.setState({ tool, calibRect: null, placing: null, selectedDoorId: null, selectedPropId: null, selectedBridgeId: null, selectedStairId: null });
 }
 
 /** Conjurados para pôr no mapa com cliques; `null` encerra (os que sobrarem ficam fora do mapa). */

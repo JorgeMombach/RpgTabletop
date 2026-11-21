@@ -1,4 +1,4 @@
-import { PROP_DEFAULTS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall } from "@rpg/shared";
+import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -10,7 +10,7 @@ import { useApp } from "../store";
  * último de qualquer uma. O histórico é deste navegador e desta cena (trocar de cena zera); "Apagar todas"
  * não entra (já tem confirmação).
  */
-export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props";
+export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | "props" | "terrain" | "relief" | "floor" | "bridge" | "stair";
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
@@ -29,8 +29,20 @@ type Step =
   | { scope: "props"; kind: "addedMany"; ids: string[] }
   | { scope: "props"; kind: "changed"; id: string; before: Partial<MapProp> }
   | { scope: "props"; kind: "removed"; props: MapProp[] }
+  | { scope: "bridge"; kind: "added"; id: string }
+  | { scope: "bridge"; kind: "changed"; id: string; before: Partial<Omit<Bridge, "id">> }
+  | { scope: "bridge"; kind: "removed"; bridges: Bridge[] }
+  | { scope: "stair"; kind: "added"; id: string }
+  | { scope: "stair"; kind: "changed"; id: string; before: Partial<Omit<Stair, "id">> }
+  | { scope: "stair"; kind: "removed"; stairs: Stair[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
-  | { scope: "paint"; kind: "erased"; groups: PaintGroup[] };
+  | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
+  | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
+  | { scope: "terrain"; kind: "currentAdded"; id: string }
+  | { scope: "terrain"; kind: "currentChanged"; id: string; before: number[] }
+  | { scope: "terrain"; kind: "currentsRemoved"; currents: WaterCurrent[] }
+  | { scope: "relief"; kind: "painted"; before: Record<string, string | null>; after: Record<string, string | null> }
+  | { scope: "floor"; kind: "painted"; before: Record<string, string | null>; after: Record<string, string | null> };
 
 /** Casas tiradas de uma pintura (para pôr de volta no desfazer). */
 interface PaintGroup {
@@ -43,7 +55,7 @@ const MAX_STEPS = 80;
 const steps: Step[] = [];
 
 /** Quantos passos de cada ferramenta dá para desfazer (para os botões saberem se ficam habilitados). */
-export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0 }));
+export const useMapUndo = create<Record<UndoScope, number>>(() => ({ walls: 0, drawings: 0, torches: 0, chests: 0, paint: 0, props: 0, terrain: 0, relief: 0, floor: 0, bridge: 0, stair: 0 }));
 
 function sync() {
   useMapUndo.setState({
@@ -53,6 +65,11 @@ function sync() {
     chests: steps.filter((s) => s.scope === "chests").length,
     paint: steps.filter((s) => s.scope === "paint").length,
     props: steps.filter((s) => s.scope === "props").length,
+    terrain: steps.filter((s) => s.scope === "terrain").length,
+    relief: steps.filter((s) => s.scope === "relief").length,
+    floor: steps.filter((s) => s.scope === "floor").length,
+    bridge: steps.filter((s) => s.scope === "bridge").length,
+    stair: steps.filter((s) => s.scope === "stair").length,
   });
 }
 
@@ -64,17 +81,29 @@ function push(step: Step) {
 
 // Outra cena, outros ids: o que estava na pilha não vale mais.
 let scene = useApp.getState().state?.sceneId;
+// Terreno inteiro novo (apagar tudo, Limpar campo, carregar arquivo): os passos de terreno não valem mais (senão o
+// desfazer de uma borracha que esvaziou um pedaço traria o pedaço de volta num campo limpo).
+let terrainEpoch = useApp.getState().terrainEpoch;
 useApp.subscribe((s) => {
   const now = s.state?.sceneId;
-  if (now === scene) return;
-  scene = now;
-  steps.length = 0;
-  sync();
+  if (now !== scene) {
+    scene = now;
+    steps.length = 0;
+    sync();
+  }
+  if (s.terrainEpoch !== terrainEpoch) {
+    terrainEpoch = s.terrainEpoch;
+    const kept = steps.filter((step) => step.scope !== "terrain");
+    if (kept.length !== steps.length) {
+      steps.splice(0, steps.length, ...kept);
+      sync();
+    }
+  }
 });
 
 /** Algo voltou com id novo: os passos anteriores que apontavam para o antigo passam a apontar para o novo. */
 function renamed(scope: UndoScope, from: string, to: string) {
-  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved" || s.kind === "changed") && s.id === from) s.id = to;
+  for (const s of steps) if (s.scope === scope && (s.kind === "added" || s.kind === "moved" || s.kind === "changed" || s.kind === "currentAdded" || s.kind === "currentChanged") && s.id === from) s.id = to;
 }
 
 /** Compara a lista de antes e a de depois de uma passada da borracha: o que sumiu e o que nasceu (pedaços). */
@@ -86,9 +115,15 @@ function diff<T extends { id: string }>(before: T[], after: T[]) {
 
 // ---------- Paredes ----------
 
-export async function addWall(from: GridPos, to: GridPos, door: boolean, thickness: number, style?: WallStyle): Promise<ActionResult> {
-  const res = await act("wall:add", { from, to, door, thickness, ...(style && { style }) });
-  if (res.ok && res.ids?.[0]) push({ scope: "walls", kind: "added", id: res.ids[0] });
+/** `opening`: porta ou janela; por cima de paredes alinhadas, corta essas paredes (desfazer volta tudo num passo). */
+export async function addWall(from: GridPos, to: GridPos, opening: "door" | "window" | null, thickness: number, style?: WallStyle): Promise<ActionResult> {
+  // As paredes que o servidor vai cortar (a mesma conta dele), para o desfazer pôr de volta.
+  const walls = useApp.getState().state?.battle.walls ?? [];
+  const { cut } = opening ? cutUnder({ from, to }, walls) : { cut: [] };
+  const res = await act("wall:add", { from, to, door: opening === "door", window: opening === "window", thickness, ...(style && { style }) });
+  if (!res.ok || !res.ids?.[0]) return res;
+  if (cut.length > 0) push({ scope: "walls", kind: "erased", removed: cut.map(copyWall), added: res.ids });
+  else push({ scope: "walls", kind: "added", id: res.ids[0] });
   return res;
 }
 
@@ -98,7 +133,7 @@ export async function removeWall(w: Wall): Promise<ActionResult> {
   return res;
 }
 
-const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to }, door: w.door && { ...w.door } });
+const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to }, door: w.door && { ...w.door }, window: w.window && { ...w.window } });
 
 /**
  * Uma passada da borracha (do apertar ao soltar) é um passo só: compara as paredes de antes e de depois.
@@ -111,14 +146,15 @@ export function recordWallErase(before: Wall[], after: Wall[]) {
 
 /** Põe de volta uma parede apagada (com o estado da porta). */
 async function restoreWall(wall: Wall) {
-  const { from, to, door, thickness, style } = wall;
-  const res = await act("wall:add", { from, to, door: !!door, thickness, ...(style && { style }) });
+  const { from, to, door, window, thickness, style } = wall;
+  const res = await act("wall:add", { from, to, door: !!door, window: !!window, thickness, ...(style && { style }) });
   const id = res.ok ? res.ids?.[0] : undefined;
   if (!id) return;
   renamed("walls", wall.id, id);
   if (door && (door.open || door.locked || door.secret)) {
     await act("door:set", { id, open: door.open, locked: !!door.locked, secret: !!door.secret });
   }
+  if (window?.closed) await act("window:set", { id, closed: true });
 }
 
 // ---------- Desenhos ----------
@@ -244,6 +280,59 @@ export async function addProps(items: Omit<MapProp, "id" | "above" | "blocks">[]
   return res;
 }
 
+/** Ponte nova (docs/design/pontes.md): desfazer apaga. */
+export async function addBridge(bridge: Omit<Bridge, "id">): Promise<ActionResult> {
+  const res = await act("bridge:add", bridge);
+  if (res.ok && res.ids?.[0]) push({ scope: "bridge", kind: "added", id: res.ids[0] });
+  return res;
+}
+
+/** Muda uma ponte (pontas, largura, tipo): desfazer volta só o que mudou. */
+export async function updateBridge(before: Bridge, changes: Partial<Omit<Bridge, "id">>): Promise<ActionResult> {
+  const previous: Partial<Omit<Bridge, "id">> = {};
+  if (changes.from) previous.from = before.from;
+  if (changes.to) previous.to = before.to;
+  if (changes.width !== undefined) previous.width = before.width;
+  if (changes.kind !== undefined) previous.kind = before.kind;
+  const res = await act("bridge:update", { id: before.id, ...changes });
+  if (res.ok) push({ scope: "bridge", kind: "changed", id: before.id, before: previous });
+  return res;
+}
+
+/** Apaga pontes: desfazer põe de volta (com ids novos). */
+export async function removeBridges(list: Bridge[]): Promise<ActionResult> {
+  const res = await act("bridge:remove", { ids: list.map((bridge) => bridge.id) });
+  if (res.ok) push({ scope: "bridge", kind: "removed", bridges: structuredClone(list) });
+  return res;
+}
+
+/** Escada nova (docs/design/escadas.md): desfazer apaga. */
+export async function addStair(stair: Omit<Stair, "id">): Promise<ActionResult> {
+  const res = await act("stair:add", stair);
+  if (res.ok && res.ids?.[0]) push({ scope: "stair", kind: "added", id: res.ids[0] });
+  return res;
+}
+
+/** Muda uma escada (pontos, formato, material, largura, sentido): desfazer volta só o que mudou. */
+export async function updateStair(before: Stair, changes: Partial<Omit<Stair, "id">>): Promise<ActionResult> {
+  const previous: Partial<Omit<Stair, "id">> = {};
+  if (changes.points) previous.points = before.points;
+  if (changes.shape !== undefined) previous.shape = before.shape;
+  if (changes.material !== undefined) previous.material = before.material;
+  if (changes.width !== undefined) previous.width = before.width;
+  if (changes.exit !== undefined) previous.exit = before.exit;
+  const res = await act("stair:update", { id: before.id, ...changes });
+  if (res.ok) push({ scope: "stair", kind: "changed", id: before.id, before: previous });
+  return res;
+}
+
+/** Apaga escadas: desfazer põe de volta (com ids novos). */
+export async function removeStairs(list: Stair[]): Promise<ActionResult> {
+  const res = await act("stair:remove", { ids: list.map((stair) => stair.id) });
+  if (res.ok) push({ scope: "stair", kind: "removed", stairs: structuredClone(list) });
+  return res;
+}
+
 export async function removeProps(list: MapProp[]): Promise<ActionResult> {
   const res = await act("prop:remove", { ids: list.map((p) => p.id) });
   if (res.ok) push({ scope: "props", kind: "removed", props: structuredClone(list) });
@@ -298,6 +387,150 @@ export async function erasePaint(cells: number[]): Promise<ActionResult> {
   return res;
 }
 
+// ---------- Piso ----------
+
+/**
+ * Uma passada de piso (cômodo, retângulo, ou o pincel do apertar ao soltar, em envios de até 2000 pontos), como o
+ * relevo: o passo do desfazer guarda os pedaços de antes e de depois (a mesma conta do servidor, só com os envios
+ * aceitos), e desfazer só repõe o que ainda está como a passada deixou.
+ */
+/**
+ * Pinceladas (terreno, relevo, piso) vão ao servidor uma de cada vez: numa conexão lenta, a segunda só parte depois
+ * da primeira, já com o resultado dela (senão o "antes" e o "depois" do desfazer saem errados e ele não faz nada).
+ */
+let strokeQueue: Promise<unknown> = Promise.resolve();
+function queued<T>(work: () => Promise<T>): Promise<T> {
+  const next = strokeQueue.then(work, work);
+  strokeQueue = next.catch(() => undefined);
+  return next;
+}
+
+export function paintFloorStroke(stroke: FloorStroke): Promise<ActionResult> {
+  return queued(() => paintFloorNow(stroke));
+}
+
+async function paintFloorNow(stroke: FloorStroke): Promise<ActionResult> {
+  const app = useApp.getState();
+  const base = app.floors;
+  const walls = app.state?.battle.walls ?? [];
+  const sceneStyle = app.state?.battle.map.wallStyle ?? "stone";
+  const applied: FloorChunks = { ...base };
+  const touched = new Set<string>();
+  const slices: FloorStroke[] = [];
+  if (stroke.shape.kind === "brush") {
+    const { points, radius } = stroke.shape;
+    for (let start = 0; start < points.length; start += LIMITS.terrainStrokePoints * 2) slices.push({ ...stroke, shape: { kind: "brush", radius, points: points.slice(start, start + LIMITS.terrainStrokePoints * 2) } });
+  } else slices.push(stroke);
+  let result: ActionResult = { ok: true };
+  for (const slice of slices) {
+    result = await act("floor:paint", slice);
+    if (!result.ok) break;
+    for (const key of paintFloor(applied, slice, walls, sceneStyle) ?? []) touched.add(key);
+  }
+  if (touched.size > 0) {
+    const before: Record<string, string | null> = {};
+    const after: Record<string, string | null> = {};
+    for (const key of touched) {
+      before[key] = base[key] ?? null;
+      after[key] = applied[key] ?? null;
+    }
+    push({ scope: "floor", kind: "painted", before, after });
+  }
+  return result;
+}
+
+// ---------- Terreno ----------
+
+/**
+ * Uma passada do pincel de relevo (do apertar ao soltar), em envios de até 2000 pontos, como o terreno: o passo do
+ * desfazer guarda os pedaços de antes e de depois, e desfazer só repõe o que ainda está como a passada deixou.
+ */
+export function paintReliefStroke(stroke: ReliefStroke): Promise<ActionResult> {
+  return queued(() => paintReliefNow(stroke));
+}
+
+async function paintReliefNow(stroke: ReliefStroke): Promise<ActionResult> {
+  const base = useApp.getState().relief;
+  const applied: ReliefChunks = { ...base };
+  const touched = new Set<string>();
+  let result: ActionResult = { ok: true };
+  for (let start = 0; start < stroke.points.length; start += LIMITS.terrainStrokePoints * 2) {
+    const slice: ReliefStroke = { ...stroke, points: stroke.points.slice(start, start + LIMITS.terrainStrokePoints * 2) };
+    result = await act("relief:paint", slice);
+    if (!result.ok) break;
+    for (const key of paintRelief(applied, slice)) touched.add(key);
+  }
+  if (touched.size > 0) {
+    const before: Record<string, string | null> = {};
+    const after: Record<string, string | null> = {};
+    for (const key of touched) {
+      before[key] = base[key] ?? null;
+      after[key] = applied[key] ?? null;
+    }
+    push({ scope: "relief", kind: "painted", before, after });
+  }
+  return result;
+}
+
+/**
+ * Uma passada do pincel de terreno (do apertar ao soltar), em envios de até 2000 pontos. O passo do desfazer guarda
+ * os pedaços de antes e os de depois (a mesma conta do servidor, só com os envios aceitos): desfazer só repõe o
+ * pedaço que ainda está como a passada deixou (depois de *Limpar campo* ou de *Apagar todo o terreno*, não volta nada).
+ */
+export function paintTerrainStroke(stroke: TerrainStroke): Promise<ActionResult> {
+  return queued(() => paintTerrainNow(stroke));
+}
+
+async function paintTerrainNow(stroke: TerrainStroke): Promise<ActionResult> {
+  const base = useApp.getState().terrain;
+  const applied: TerrainChunks = { ...base };
+  const touched = new Set<string>();
+  let result: ActionResult = { ok: true };
+  // O retângulo vai de uma vez (sem pontos); o pincel, em fatias do tamanho que o servidor aceita.
+  const slices: TerrainStroke[] = [];
+  if (stroke.rect) slices.push(stroke);
+  else for (let start = 0; start < stroke.points.length; start += LIMITS.terrainStrokePoints * 2) slices.push({ ...stroke, points: stroke.points.slice(start, start + LIMITS.terrainStrokePoints * 2) });
+  for (const slice of slices) {
+    result = await act("terrain:paint", slice);
+    if (!result.ok) break;
+    for (const key of paintTerrain(applied, slice)) touched.add(key);
+  }
+  if (touched.size > 0) {
+    const before: Record<string, TerrainChunk | null> = {};
+    const after: Record<string, TerrainChunk | null> = {};
+    for (const key of touched) {
+      before[key] = base[key] ?? null;
+      after[key] = applied[key] ?? null;
+    }
+    push({ scope: "terrain", kind: "painted", before, after });
+  }
+  return result;
+}
+
+/** Linha de correnteza riscada (água animada): desfazer apaga. */
+export async function addCurrent(points: number[]): Promise<ActionResult> {
+  const result = await act("current:add", { points });
+  const id = result.ok ? result.ids?.[0] : undefined;
+  if (id) push({ scope: "terrain", kind: "currentAdded", id });
+  return result;
+}
+
+/** Linha de correnteza continuada pela ponta: desfazer volta aos pontos de antes. */
+export async function updateCurrent(current: WaterCurrent, points: number[]): Promise<ActionResult> {
+  const result = await act("current:update", { id: current.id, points });
+  if (result.ok) push({ scope: "terrain", kind: "currentChanged", id: current.id, before: current.points });
+  return result;
+}
+
+/** Linhas de correnteza apagadas pela borracha: desfazer risca de novo (com id novo). */
+export async function removeCurrents(currents: WaterCurrent[]): Promise<ActionResult> {
+  const result = await act("current:remove", { ids: currents.map((current) => current.id) });
+  if (result.ok && currents.length > 0) push({ scope: "terrain", kind: "currentsRemoved", currents });
+  return result;
+}
+
+const sameChunk = (a: TerrainChunk | null, b: TerrainChunk | null) => TERRAINS.every((terrain) => a?.[terrain] === b?.[terrain]);
+
 // ---------- Desfazer ----------
 
 /** Desfaz o último passo da ferramenta (ou o último de qualquer uma, sem `scope`). */
@@ -341,6 +574,53 @@ export async function undo(scope?: UndoScope) {
     } else if (step.kind === "changed") {
       if (has(battle?.props, step.id)) await act("prop:update", { id: step.id, ...step.before });
     } else await restoreProps(step.props);
+  } else if (step.scope === "bridge") {
+    if (step.kind === "added") {
+      if (has(battle?.bridges, step.id)) await act("bridge:remove", { ids: [step.id] });
+    } else if (step.kind === "changed") {
+      if (has(battle?.bridges, step.id)) await act("bridge:update", { id: step.id, ...step.before });
+    } else {
+      // volta com id novo: os passos mais antigos que falam dela passam a usá-lo (desfazer em cadeia)
+      for (const { id: oldId, ...bridge } of step.bridges) {
+        const res = await act("bridge:add", bridge);
+        if (res.ok && res.ids?.[0]) renamed("bridge", oldId, res.ids[0]);
+      }
+    }
+  } else if (step.scope === "stair") {
+    if (step.kind === "added") {
+      if (has(battle?.stairs, step.id)) await act("stair:remove", { ids: [step.id] });
+    } else if (step.kind === "changed") {
+      if (has(battle?.stairs, step.id)) await act("stair:update", { id: step.id, ...step.before });
+    } else {
+      for (const { id: oldId, ...stair } of step.stairs) {
+        const res = await act("stair:add", stair);
+        if (res.ok && res.ids?.[0]) renamed("stair", oldId, res.ids[0]);
+      }
+    }
+  } else if (step.scope === "terrain" && step.kind === "currentAdded") {
+    if (has(battle?.currents, step.id)) await act("current:remove", { ids: [step.id] });
+  } else if (step.scope === "terrain" && step.kind === "currentChanged") {
+    if (has(battle?.currents, step.id)) await act("current:update", { id: step.id, points: step.before });
+  } else if (step.scope === "terrain" && step.kind === "currentsRemoved") {
+    for (const current of step.currents) {
+      const res = await act("current:add", { points: current.points });
+      if (res.ok && res.ids?.[0]) renamed("terrain", current.id, res.ids[0]);
+    }
+  } else if (step.scope === "floor") {
+    const now = useApp.getState().floors;
+    const chunks: Record<string, string | null> = {};
+    for (const [key, after] of Object.entries(step.after)) if ((now[key] ?? null) === after) chunks[key] = step.before[key] ?? null;
+    if (Object.keys(chunks).length > 0) await act("floor:restore", { chunks });
+  } else if (step.scope === "relief") {
+    const now = useApp.getState().relief;
+    const chunks: Record<string, string | null> = {};
+    for (const [key, after] of Object.entries(step.after)) if ((now[key] ?? null) === after) chunks[key] = step.before[key] ?? null;
+    if (Object.keys(chunks).length > 0) await act("relief:restore", { chunks });
+  } else if (step.scope === "terrain") {
+    const now = useApp.getState().terrain;
+    const chunks: Record<string, TerrainChunk | null> = {};
+    for (const [key, after] of Object.entries(step.after)) if (sameChunk(now[key] ?? null, after)) chunks[key] = step.before[key] ?? null;
+    if (Object.keys(chunks).length > 0) await act("terrain:restore", { chunks });
   } else if (step.scope === "paint") {
     if (step.kind === "painted") await act("effect:paint", { erase: true, preset: step.preset, color: step.color, cells: step.cells });
     else for (const g of step.groups) await act("effect:paint", { preset: g.preset, color: g.color, cells: g.cells });

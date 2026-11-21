@@ -13,6 +13,9 @@ import {
   type JoinResult,
   type MapPoint,
   type Ruler,
+  type FloorBroadcast,
+  type ReliefBroadcast,
+  type TerrainBroadcast,
   type ServerToClientEvents,
   APP_VERSION,
 } from "@rpg/shared";
@@ -35,7 +38,7 @@ import { serveClient } from "./static";
 import { refreshLibrary, soundSource } from "./actions/sound";
 import { whoIs } from "./actions/dice";
 import { audioType, saveSound, soundPath } from "./sounds";
-import { viewFor } from "./view";
+import { journalFor, viewFor } from "./view";
 import { trackLastSeen, updateSight } from "./sight";
 import { collectHits, type HpMemory } from "./hits";
 
@@ -136,6 +139,7 @@ export function createApp(opts: AppOptions) {
   const SESSION_ROOM = "session";
   let sentImageVersion = 0;
   let sentHandoutVersion = 0;
+  let sentJournalVersion = 0;
   const hpMemory: HpMemory = new Map();
 
   function mapImage() {
@@ -157,6 +161,27 @@ export function createApp(opts: AppOptions) {
     io.to(sid).emit("view:preview", viewFor(store, target, host));
   }
 
+  /** Terreno pintado: o inteiro ou só os pedaços que mudaram desde o último envio. */
+  function terrainPayload(reset: boolean): TerrainBroadcast {
+    const terrain = store.game.battle.terrain ?? {};
+    if (reset || store.terrainDirty === "all") return { reset: true, chunks: { ...terrain } };
+    return { reset: false, chunks: Object.fromEntries([...store.terrainDirty].map((key) => [key, terrain[key] ?? null])) };
+  }
+
+  /** Piso: o inteiro ou só os pedaços que mudaram desde o último envio. */
+  function floorsPayload(reset: boolean): FloorBroadcast {
+    const floors = store.game.battle.floors ?? {};
+    if (reset || store.floorsDirty === "all") return { reset: true, chunks: { ...floors } };
+    return { reset: false, chunks: Object.fromEntries([...store.floorsDirty].map((key) => [key, floors[key] ?? null])) };
+  }
+
+  /** Relevo: o inteiro ou só os pedaços que mudaram desde o último envio. */
+  function reliefPayload(reset: boolean): ReliefBroadcast {
+    const relief = store.game.battle.relief ?? {};
+    if (reset || store.reliefDirty === "all") return { reset: true, chunks: { ...relief } };
+    return { reset: false, chunks: Object.fromEntries([...store.reliefDirty].map((key) => [key, relief[key] ?? null])) };
+  }
+
   function broadcast() {
     // Visão dos personagens (névoa): recalcula se alguém andou ou uma porta mexeu, e guarda o explorado.
     updateSight(store);
@@ -171,6 +196,22 @@ export function createApp(opts: AppOptions) {
       sentHandoutVersion = store.handoutVersion;
       io.to(SESSION_ROOM).emit("handout", store.handout);
     }
+    // Terreno pintado: fora do estado (é pesado), só os pedaços que mudaram (ou o inteiro, ao trocar de cena).
+    if (store.terrainDirty === "all" || store.terrainDirty.size > 0) {
+      io.to(SESSION_ROOM).emit("terrain", terrainPayload(false));
+      store.terrainDirty = new Set();
+    }
+    if (store.reliefDirty === "all" || store.reliefDirty.size > 0) {
+      io.to(SESSION_ROOM).emit("relief", reliefPayload(false));
+      store.reliefDirty = new Set();
+    }
+    if (store.floorsDirty === "all" || store.floorsDirty.size > 0) {
+      io.to(SESSION_ROOM).emit("floors", floorsPayload(false));
+      store.floorsDirty = new Set();
+    }
+    // Diário da campanha (Passo 14): fora do estado, só quando muda; cada um recebe o que pode ler.
+    const journalChanged = store.journalVersion !== sentJournalVersion;
+    sentJournalVersion = store.journalVersion;
     // Golpes e curas (L6): cada um recebe só os dos tokens que enxerga (oculto e coberto pela névoa ficam de fora).
     // Com a regra "Esconder dano e cura dos inimigos", o jogador recebe só os dos aliados.
     const hits = collectHits(store, hpMemory);
@@ -183,6 +224,7 @@ export function createApp(opts: AppOptions) {
       const mine = hits.filter((h) => seen.has(h.id));
       for (const sid of player.sockets) {
         io.to(sid).emit("state:full", view);
+        if (journalChanged) io.to(sid).emit("journal", journalFor(store, player));
         if (mine.length) io.to(sid).emit("fx:hp", mine);
         if (viewAs.has(sid)) sendPreview(sid);
       }
@@ -226,6 +268,10 @@ export function createApp(opts: AppOptions) {
     void socket.join(SESSION_ROOM);
     if (store.game.battle.map.image) socket.emit("map:image", mapImage());
     if (store.handout) socket.emit("handout", store.handout);
+    socket.emit("journal", journalFor(store, player));
+    socket.emit("terrain", terrainPayload(true));
+    socket.emit("relief", reliefPayload(true));
+    socket.emit("floors", floorsPayload(true));
     return { ok: true, self: toPublic(player), sessionToken: player.token };
   }
 
@@ -295,7 +341,7 @@ export function createApp(opts: AppOptions) {
     socket.on("area:update", (area) => {
       const player = socket.data.playerId ? store.players.get(socket.data.playerId) : undefined;
       if (!player) return;
-      socket.to(SESSION_ROOM).emit("area", { playerId: player.id, name: whoIs(store, player), area: validArea(area) });
+      socket.to(SESSION_ROOM).emit("area", { playerId: player.id, name: whoIs(store, player), area: validArea(area, store.game.battle.map.grid) });
     });
 
     // Salvar e carregar sessão (E18): só o mestre.

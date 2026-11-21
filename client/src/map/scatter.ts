@@ -1,10 +1,10 @@
-import type { MapProp, PropKind } from "@rpg/shared";
+import { randomPointIn, type GridKind, type MapProp, type PropKind } from "@rpg/shared";
 
 /**
  * Pincel de espalhar (cenário, passo 3): distribui objetos nas casas pintadas, sem encavalar. Cada conjunto diz o
  * que entra e com que peso; cada objeto sai com tamanho, giro e variação sorteados.
  */
-export const SCATTER_SETS = ["forest", "grove", "rocks", "rubble"] as const;
+export const SCATTER_SETS = ["forest", "grove", "rocks", "rubble", "field"] as const;
 export type ScatterSet = (typeof SCATTER_SETS)[number];
 
 interface SetEntry {
@@ -17,6 +17,7 @@ const SETS: Record<ScatterSet, SetEntry[]> = {
   // Floresta: árvores fechadas, arbustos entre elas, um toco ou tronco aqui e ali.
   forest: [
     { kind: "tree", weight: 6, size: [0.85, 1.3] },
+    { kind: "pine", weight: 2, size: [0.85, 1.3] },
     { kind: "bush", weight: 3, size: [0.8, 1.3] },
     { kind: "stump", weight: 0.5, size: [0.8, 1.2] },
     { kind: "log", weight: 0.5, size: [0.8, 1.1] },
@@ -43,6 +44,13 @@ const SETS: Record<ScatterSet, SetEntry[]> = {
     { kind: "stones", weight: 2, size: [0.8, 1.2] },
     { kind: "planks", weight: 1.2, size: [0.7, 1] },
     { kind: "boulder", weight: 0.8, size: [0.5, 0.9] },
+  ],
+  // Campo: grama alta balançando, flores, um ou outro arbusto e pedra (vento nas plantas).
+  field: [
+    { kind: "tallGrass", weight: 6, size: [0.8, 1.4] },
+    { kind: "flowers", weight: 2, size: [0.8, 1.2] },
+    { kind: "bush", weight: 1, size: [0.7, 1.1] },
+    { kind: "stones", weight: 0.3, size: [0.7, 1] },
   ],
 };
 
@@ -73,6 +81,9 @@ const ROOM: Record<PropKind, number> = {
   mushrooms: 0.25,
   flowers: 0.35,
   bridge: 1.5,
+  pine: 0.8,
+  palm: 0.85,
+  tallGrass: 0.35,
 };
 
 /** Aleatório com semente (a mesma pincelada sai igual no protótipo). */
@@ -92,7 +103,15 @@ export type ScatterProp = Omit<MapProp, "id" | "above" | "blocks">;
  * Espalha objetos do conjunto nas casas (`cells` = "col,row"), evitando os que já estão no mapa (`taken`).
  * `density` vai de 0,2 (ralo) a 1 (fechado). Devolve no máximo `max` objetos.
  */
-export function scatter(set: ScatterSet, cells: Set<string>, density: number, taken: Pick<MapProp, "kind" | "col" | "row" | "size">[], random: () => number, max = 300): ScatterProp[] {
+export function scatter(
+  set: ScatterSet,
+  cells: Set<string>,
+  density: number,
+  taken: Pick<MapProp, "kind" | "col" | "row" | "size">[],
+  random: () => number,
+  kind: GridKind | undefined,
+  max = 300,
+): ScatterProp[] {
   const picks = SETS[set];
   const total = picks.reduce((s, p) => s + p.weight, 0);
   const list = [...cells].map((k) => k.split(",").map(Number) as [number, number]);
@@ -110,8 +129,10 @@ export function scatter(set: ScatterSet, cells: Set<string>, density: number, ta
     const mine = Math.round((tries * pick.weight) / total);
     for (let t = 0; t < mine && out.length < max; t++) {
       const [c, r] = list[Math.floor(random() * list.length)];
-      const col = c + random();
-      const row = r + random();
+      // Um ponto dentro da casa pincelada (no hex, dentro do hexágono).
+      const point = randomPointIn({ col: c, row: r }, kind, random);
+      const col = point.x;
+      const row = point.y;
       const size = Math.round((pick.size[0] + random() * (pick.size[1] - pick.size[0])) * 100) / 100;
       const room = ROOM[pick.kind] * size;
       if (placed.some((p) => Math.hypot(p.col - col, p.row - row) < (p.r + room) * squeeze)) continue;

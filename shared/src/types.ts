@@ -1,6 +1,11 @@
 // Modelo de dados compartilhado entre servidor e cliente (ver SPEC.md §4).
 import type { Area } from "./events";
 import type { FogState } from "./fog";
+import type { Bridge } from "./bridge";
+import type { Stair } from "./stair";
+import type { FloorChunks } from "./floor";
+import type { ReliefChunks } from "./relief";
+import type { TerrainChunks } from "./terrain";
 
 export type Role = "gm" | "player";
 
@@ -258,6 +263,13 @@ export interface MobTemplate {
   source?: string;
 }
 
+/**
+ * Grade da cena (Passo 16): quadrado; hex de pontas para cima, com linhas ímpares meio hex à direita
+ * ("odd-r"); ou hex de lado reto em cima, com colunas ímpares meio hex para baixo ("odd-q").
+ */
+export const GRID_KINDS = ["square", "hexRows", "hexCols"] as const;
+export type GridKind = (typeof GRID_KINDS)[number];
+
 export interface MapConfig {
   showGrid: boolean;
   cellPx: number;
@@ -274,6 +286,8 @@ export interface MapConfig {
   tableStyle?: TableStyle;
   /** Cor das linhas do grid desta cena (#rrggbb, desenhada meio transparente). Ausente = preto. */
   gridColor?: string;
+  /** Grade da cena (Passo 16). Ausente = quadrado (arquivos antigos abrem iguais). */
+  grid?: GridKind;
 }
 
 /** Mesa em volta do mapa: madeira escura, tapete de couro (padrão de jogo novo) ou ardósia. */
@@ -556,8 +570,15 @@ export interface Wall {
   /** Espessura do desenho, em casas (0,1 a 1; L5). Ausente = a de sempre (`WALL_THICKNESS`). Bloqueia pela linha do meio. */
   thickness?: number;
   door?: Door;
+  /** Janela (docs/design/paredes.md); uma parede é porta, janela ou nenhuma das duas. */
+  window?: WallWindow;
   /** Desenho desta parede; sem ele, o da cena. */
   style?: WallStyle;
+}
+
+/** Janela: deixa ver e passar a luz; com a persiana fechada (`closed`), não. Não impede passar (registro, ADR-06). */
+export interface WallWindow {
+  closed?: boolean;
 }
 
 /** Desenhos de tocha fixa que o mestre escolhe: fincada, de ferro ou braseiro. */
@@ -611,7 +632,10 @@ export type LootInput = LootEntry extends infer E ? (E extends LootEntry ? Omit<
  * Baú no mapa (Fase 6, docs/design/baus.md): uma casa, com nome e desenho. Trancado, só o mestre abre;
  * invisível, só o mestre vê. O jogador recebe `loot` vazio até a primeira abertura.
  */
-/** Objetos do cenário (passo 2, docs/design/cenario.md), desenhados por código no cliente; da estátua em diante, a segunda leva. */
+/**
+ * Objetos do cenário (passo 2, docs/design/cenario.md), desenhados por código no cliente; da estátua em diante, a
+ * segunda leva; pinheiro, palmeira e grama alta vieram com o vento nas plantas.
+ */
 export const PROP_KINDS = [
   "tree",
   "bush",
@@ -638,6 +662,10 @@ export const PROP_KINDS = [
   "mushrooms",
   "flowers",
   "bridge",
+  // Vento nas plantas (docs/design/vento.md).
+  "pine",
+  "palm",
+  "tallGrass",
 ] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 
@@ -671,6 +699,9 @@ export const PROP_DEFAULTS: Record<PropKind, { above: boolean; blocks: boolean; 
   mushrooms: { above: false, blocks: false, foot: 0.25 },
   flowers: { above: false, blocks: false, foot: 0.3 },
   bridge: { above: false, blocks: false, foot: 0.6 },
+  pine: { above: true, blocks: true, foot: 0.25 },
+  palm: { above: true, blocks: false, foot: 0.15 },
+  tallGrass: { above: false, blocks: false, foot: 0.3 },
 };
 
 /**
@@ -717,6 +748,15 @@ export interface LootResults {
   lines: { lootId: string; name: string; rolls: { who: string; d20: number }[]; gave: { who: string; qty: number; coins?: Coins }[] }[];
 }
 
+/**
+ * Linha de correnteza (água animada, docs/design/agua.md): o mestre risca no sentido em que a água corre. Pares x, y
+ * em casas (centésimos). A água perto da linha corre seguindo a curva; longe de toda linha, é lago.
+ */
+export interface WaterCurrent {
+  id: string;
+  points: number[];
+}
+
 /** O que muda de uma cena (mapa) para outra: imagem e grid, mobs, NPCs, efeitos, desenhos, paredes e clima. */
 export interface SceneContent {
   map: MapConfig & { image: string | null; imageVersion: number };
@@ -728,9 +768,21 @@ export interface SceneContent {
   torches: MapTorch[];
   chests: MapChest[];
   props: MapProp[];
+  /** Pontes (docs/design/pontes.md). */
+  bridges: Bridge[];
+  /** Escadas (docs/design/escadas.md). */
+  stairs: Stair[];
+  /** Linhas de correnteza da água (água animada). */
+  currents: WaterCurrent[];
   weather: WeatherState;
   /** Névoa de guerra da cena (G). */
   fog: FogState;
+  /** Terreno pintado da cena (criação de mapa). Ausente = sem terreno. */
+  terrain?: TerrainChunks;
+  /** Relevo da cena (docs/design/relevo.md). Ausente = chão plano. */
+  relief?: ReliefChunks;
+  /** Piso da cena (docs/design/pisos.md). Ausente = sem piso. */
+  floors?: FloorChunks;
 }
 
 /** Cena guardada (não ativa): o conteúdo dela e onde cada aliado estava nela. */
@@ -796,8 +848,19 @@ export interface GameState {
     torches: MapTorch[];
     chests: MapChest[];
     props: MapProp[];
+    /** Pontes (docs/design/pontes.md). */
+    bridges: Bridge[];
+    /** Escadas (docs/design/escadas.md). */
+    stairs: Stair[];
+    currents: WaterCurrent[];
     weather: WeatherState;
     fog: FogState;
+    /** Terreno pintado da cena (criação de mapa). Ausente = sem terreno. Vai por evento próprio, fora do estado. */
+    terrain?: TerrainChunks;
+    /** Relevo da cena. Ausente = chão plano. Vai por evento próprio, fora do estado. */
+    relief?: ReliefChunks;
+    /** Piso da cena. Ausente = sem piso. Vai por evento próprio, fora do estado. */
+    floors?: FloorChunks;
   };
   log: LogEntry[];
   /** Cenas da sessão, na ordem do painel; a ativa é `sceneId` (o conteúdo dela está em `battle`). */
@@ -811,6 +874,33 @@ export interface GameState {
   tables: RollTable[];
   /** Calendário e hora do jogo (Passo 15); `null` = desligado. */
   clock: GameClock | null;
+  /** Diário da campanha (Passo 14): não vai no `state:full`, segue em evento próprio (`journal`), filtrado por jogador. */
+  journal: JournalEntry[];
+}
+
+/** Etiquetas das entradas do diário (Passo 14). */
+export const JOURNAL_TAGS = ["session", "quest", "npc", "place", "other"] as const;
+export type JournalTag = (typeof JOURNAL_TAGS)[number];
+
+/**
+ * Entrada do diário da campanha (Passo 14, docs/design/diario.md). O jogador recebe só as liberadas (`shared`),
+ * sempre sem `note`. Campos opcionais ficam ausentes quando vazios ou falsos.
+ */
+export interface JournalEntry {
+  id: string;
+  title: string;
+  tag: JournalTag;
+  /** O que os jogadores leem quando a entrada é liberada. */
+  text: string;
+  /** Nota só do mestre: nunca vai para os jogadores. */
+  note?: string;
+  shared?: true;
+  /** Só em missão (`quest`): concluída. */
+  done?: true;
+  /** Dia do jogo (como o da Hora do jogo). */
+  day?: number;
+  /** Hora da última mudança (ms): ordena e marca novidade. */
+  updatedAt: number;
 }
 
 /** Hora do jogo (Passo 15): "Dia 3, 14:00". Com `lightFollows`, a luz do clima segue a hora (dia, entardecer, noite). */
@@ -948,6 +1038,12 @@ export interface ClientState {
     torches: MapTorch[];
     chests: MapChest[];
     props: MapProp[];
+    /** Pontes (docs/design/pontes.md). */
+    bridges: Bridge[];
+    /** Escadas (docs/design/escadas.md). */
+    stairs: Stair[];
+    /** Linhas de correnteza: todos recebem (a água corre na tela de cada um; a linha só aparece para o mestre). */
+    currents: WaterCurrent[];
     lootCount: LootCountView | null;
     lootResults: LootResults | null;
     weather: WeatherState;

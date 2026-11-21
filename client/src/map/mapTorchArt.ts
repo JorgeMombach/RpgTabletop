@@ -64,7 +64,7 @@ function shadow(ctx: Ctx, x: number, y: number, s: number) {
 }
 
 /** Cabo de madeira inclinado, cabeça enrolada em pano. */
-function stick(ctx: Ctx, x: number, y: number, s: number, t: number, seed: number) {
+function stick(ctx: Ctx, x: number, y: number, s: number, t: number, seed: number, fire: boolean) {
   const f = flicker(t, seed);
   const tilt = 0.14;
   const L = s * 0.62;
@@ -111,13 +111,14 @@ function stick(ctx: Ctx, x: number, y: number, s: number, t: number, seed: numbe
   ctx.restore();
   const hx = x + Math.sin(tilt) * (L + s * 0.06);
   const hy = y - Math.cos(tilt) * (L + s * 0.06);
+  if (!fire) return;
   halo(ctx, hx, hy - s * 0.12, s * 0.42, 0.55);
   flame(ctx, hx, hy, s * 0.42 * (1 + f * 0.09), s * 0.145, f * s * 0.035);
   sparks(ctx, hx, hy - s * 0.2, s, t, seed);
 }
 
 /** Cabo escuro com anéis de bronze e um cesto de ferro com brasas. */
-function iron(ctx: Ctx, x: number, y: number, s: number, t: number, seed: number) {
+function iron(ctx: Ctx, x: number, y: number, s: number, t: number, seed: number, fire: boolean) {
   const f = flicker(t, seed);
   const L = s * 0.56;
   const w = s * 0.05;
@@ -166,13 +167,14 @@ function iron(ctx: Ctx, x: number, y: number, s: number, t: number, seed: number
   ctx.moveTo(x - cw, top - ch);
   ctx.lineTo(x + cw, top - ch);
   ctx.stroke();
+  if (!fire) return;
   halo(ctx, x, top - ch - s * 0.1, s * 0.42, 0.55);
   flame(ctx, x, top - ch * 0.75, s * 0.42 * (1 + f * 0.09), s * 0.135, f * s * 0.035);
   sparks(ctx, x, top - ch - s * 0.1, s, t, seed);
 }
 
 /** Tigela de ferro com brasas, vista de cima como o mapa. */
-function brazier(ctx: Ctx, x: number, y: number, s: number, t: number, seed: number) {
+function brazier(ctx: Ctx, x: number, y: number, s: number, t: number, seed: number, fire: boolean) {
   const f = flicker(t, seed);
   const r = s * 0.3;
   const cy = y - s * 0.3;
@@ -217,6 +219,7 @@ function brazier(ctx: Ctx, x: number, y: number, s: number, t: number, seed: num
     ctx.ellipse(x + Math.cos(a) * d, cy + Math.sin(a) * d, r * 0.1, r * 0.07, a, 0, full);
     ctx.fill();
   }
+  if (!fire) return;
   halo(ctx, x, cy - s * 0.08, s * 0.5, 0.5 + f * 0.06);
   flame(ctx, x, cy + r * 0.12, s * 0.48 * (1 + f * 0.09), s * 0.17, f * s * 0.04);
   sparks(ctx, x, cy - s * 0.15, s, t, seed);
@@ -224,6 +227,20 @@ function brazier(ctx: Ctx, x: number, y: number, s: number, t: number, seed: num
 
 const DRAW: Record<MapTorchStyle, typeof stick> = { stick, iron, brazier };
 
-export function drawMapTorch(ctx: Ctx, style: MapTorchStyle, x: number, y: number, s: number, t: number, seed: number) {
-  DRAW[style](ctx, x, y, s, t, seed);
+/** `fire` falso: só o corpo (com o chão em WebGL, a chama nova vem da placa de vídeo, docs/design/luz.md). */
+export function drawMapTorch(ctx: Ctx, style: MapTorchStyle, x: number, y: number, s: number, t: number, seed: number, fire = true) {
+  DRAW[style](ctx, x, y, s, t, seed, fire);
+}
+
+/**
+ * Onde fica a base da chama de cada desenho, a partir da base da tocha, para a altura `s` (as mesmas contas de
+ * `stick`, `iron` e `brazier`): a chama nova da placa de vídeo nasce aí.
+ */
+export function torchFlameAnchor(style: MapTorchStyle, s: number): { x: number; y: number } {
+  if (style === "stick") {
+    const reach = s * 0.62 + s * 0.06;
+    return { x: Math.sin(0.14) * reach, y: -Math.cos(0.14) * reach };
+  }
+  if (style === "iron") return { x: 0, y: -s * 0.56 - s * 0.17 * 0.75 };
+  return { x: 0, y: -s * 0.3 + s * 0.3 * 0.12 };
 }

@@ -20,6 +20,7 @@ import {
   type Abilities,
   type Coins,
   type Combatant,
+  type GridKind,
   type CombatState,
   type InventoryItem,
   type Recharge,
@@ -48,15 +49,23 @@ import {
   type BossPhase,
   type TableRules,
   type RollTable,
+  type JournalEntry,
 } from "@rpg/shared";
 import { parseDrawing } from "./actions/drawings";
+import { parseCurrent } from "./actions/currents";
 import { normalizeExpression } from "./dice";
-import { gridColorOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { gridColorOf, gridKindOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { markFloors, parseFloorChunks } from "./actions/floor";
+import { markRelief, parseReliefChunks } from "./actions/relief";
+import { markTerrain, parseTerrainChunks } from "./actions/terrain";
 import { parseChest } from "./actions/chests";
 import { parseProp } from "./actions/props";
+import { parseBridge } from "./actions/bridges";
+import { parseStair } from "./actions/stairs";
 import { parseWall } from "./actions/walls";
 import { parseTable } from "./tables";
 import { parseClock } from "./actions/clock";
+import { parseJournalEntry } from "./actions/journal";
 import { parseMapTorch } from "./actions/mapTorches";
 import { weatherFromFile } from "./actions/weather";
 import type { ServerPlayer, Store } from "./store";
@@ -403,12 +412,12 @@ function bossPhases(raw: unknown): BossPhase[] {
   });
 }
 
-function effect(raw: unknown, combatantIds: Set<string>): MapEffect {
+function effect(raw: unknown, combatantIds: Set<string>, grid: GridKind | undefined): MapEffect {
   const e = obj(raw, "efeito");
   const out: MapEffect = {
     id: requireString(e.id, "Efeito"),
     ...effectState(e, combatantIds),
-    area: validArea(e.area) ?? fail("Arquivo inválido: área do efeito."),
+    area: validArea(e.area, grid) ?? fail("Arquivo inválido: área do efeito."),
     active: bool(e.active, "efeito ligado"),
   };
   // Efeito que anda com o token: se o combatente não existe mais, só fica parado.
@@ -533,6 +542,16 @@ function rollTables(raw: unknown): RollTable[] {
   return out;
 }
 
+/** Diário da campanha (Passo 14), conferido como se o mestre o escrevesse; ids não se repetem. */
+function journalEntries(raw: unknown): JournalEntry[] {
+  const out = list(raw, "diário", LIMITS.journal).map((r): JournalEntry => {
+    const e = obj(r, "diário");
+    return { id: requireString(e.id, "Diário"), ...parseJournalEntry(e), updatedAt: int(e.updatedAt, "diário", 0, Number.MAX_SAFE_INTEGER) };
+  });
+  if (new Set(out.map((e) => e.id)).size !== out.length) fail("Arquivo inválido: {what}.", { what: "diário" });
+  return out;
+}
+
 /** Valores de um modelo do log: textos curtos ou números. */
 function logParams(raw: unknown): Record<string, string | number> {
   const out: Record<string, string | number> = {};
@@ -625,6 +644,8 @@ export function parseSession(raw: unknown): ParsedSession {
     tables: rollTables(g.tables ?? []),
     // Hora do jogo (Passo 15); arquivos antigos: desligada.
     clock: parseClock(g.clock),
+    // Diário da campanha (Passo 14); arquivos antigos: vazio.
+    journal: journalEntries(g.journal ?? []),
   };
 
   const counters = obj(f.mobCounters ?? {}, "numeração dos mobs");
@@ -648,6 +669,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     if (!by || by.type !== c.type || by.summonerId) fail("Arquivo inválido: invocado sem invocador.");
   }
   const rotation = int(m.rotation ?? 0, "rotação do mapa", 0, 270);
+  // Arquivos anteriores ao grid hex não têm (quadrado). Lido antes dos efeitos: a origem das áreas depende dele.
+  const grid = m.grid !== undefined ? gridKindOf(m.grid) : undefined;
   if (rotation % 90 !== 0) fail("Arquivo inválido: rotação do mapa.");
   return {
     map: {
@@ -665,10 +688,11 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       ...(m.tableStyle !== undefined && { tableStyle: tableStyleOf(m.tableStyle) }),
       // Arquivos anteriores à 2.12 não têm (preto).
       ...(m.gridColor !== undefined && { gridColor: gridColorOf(m.gridColor) }),
+      ...(grid && { grid }),
     },
     mobs,
     npcs,
-    effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids)),
+    effects: list(b.effects ?? [], "efeitos", LIMITS.effects).map((e) => effect(e, ids, grid)),
     // Arquivos anteriores à 2.8 não têm desenhos nem paredes.
     drawings: list(b.drawings ?? [], "desenhos", LIMITS.drawings).map((d) => {
       const raw = obj(d, "desenho");
@@ -682,9 +706,20 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
     chests: list(b.chests ?? [], "baús", LIMITS.chests).map(parseChest),
     // Objetos do cenário (2.13); arquivos anteriores não têm.
     props: list(b.props ?? [], "objetos", LIMITS.props).map((p) => ({ id: requireString(obj(p, "objeto").id, "Objeto"), ...parseProp(p) })),
+    // Pontes (docs/design/pontes.md); arquivos anteriores não têm.
+    bridges: list(b.bridges ?? [], "pontes", LIMITS.bridges).map((bridge) => ({ id: requireString(obj(bridge, "ponte").id, "Ponte"), ...parseBridge(bridge) })),
+    // Escadas (docs/design/escadas.md); arquivos anteriores não têm.
+    stairs: list(b.stairs ?? [], "escadas", LIMITS.stairs).map((stair) => ({ id: requireString(obj(stair, "escada").id, "Escada"), ...parseStair(stair) })),
+    // Correnteza da água; arquivos anteriores não têm.
+    currents: list(b.currents ?? [], "correntezas", LIMITS.currents).map((c) => ({ id: requireString(obj(c, "correnteza").id, "Correnteza"), ...parseCurrent(c) })),
     weather: weatherFromFile(b.weather),
     // Arquivos anteriores à névoa: sem névoa.
     fog: b.fog === undefined ? emptyFog() : fogFromFile(b.fog),
+    // Arquivos anteriores ao terreno pintado não têm.
+    ...(b.terrain !== undefined && { terrain: parseTerrainChunks(b.terrain) }),
+    ...(b.relief !== undefined && { relief: parseReliefChunks(b.relief) }),
+    // Arquivos anteriores aos pisos não têm.
+    ...(b.floors !== undefined && { floors: parseFloorChunks(b.floors) }),
   };
 }
 
@@ -784,6 +819,11 @@ export function importSession(store: Store, gm: ServerPlayer, raw: unknown) {
   // A versão nova faz o servidor reenviar a imagem do mapa a todos.
   game.battle.map.imageVersion = store.game.battle.map.imageVersion + 1;
   store.game = game;
+  // O diário (Passo 14) também vai à parte: a versão nova faz cada um receber o do arquivo.
+  store.journalVersion++;
+  markTerrain(store, "all");
+  markRelief(store, "all");
+  markFloors(store, "all");
   // Disputa de loot não vai no arquivo: o baú volta aberto, no modo Pegar.
   store.lootCount = null;
   store.lootResults = null;

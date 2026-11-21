@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poeira das dunas</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="wind"><b>Clima</b><button data-v="0">Sem vento</button><button data-v="1" class="on">Vento</button><button data-v="2">Tempestade de areia</button></div>
+  <div class="group" id="dir"><b>Direção</b><button data-v="1" class="on">→</button><button data-v="-1">←</button></div>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button></div>
+  <span id="ms"></span>
+</header>
+<p>Dunas (altura 3) com vento: a crista de cada duna solta um véu fino de areia, puxado para o lado do vento, que se desfaz logo depois; de perto, grãos voando. Na tempestade de areia, mais forte e mais longo. Sem vento, nada.</p>
+<canvas id="view"></canvas>
+<script>
+const COLS = 32, ROWS = 18;
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0, 1); }`;
+const FS = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec2 uCanvas, uPan; uniform float uCellPx, uTime, uWind, uDir;
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uElev;
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+float speck(vec2 c, float scale, float chance, float seed) { vec2 g = c * scale + seed; vec2 id = floor(g); vec2 at = 0.5 + (hash2(id) - 0.5) * 0.6; return hash(id + seed) > chance ? 1.0 - smoothstep(0.18, 0.32, length(fract(g) - at)) : 0.0; }
+// Onda das dunas (a mesma do relevo): 0 no vale, 1 na crista.
+float duneWave(vec2 c) { float phase = dot(c, vec2(0.79, 0.33)) * 0.55 + noise(c * 0.15) * 5.0; return pow(0.5 + 0.5 * sin(phase), 1.6); }
+float height(vec2 c) {
+  float dune = duneWave(c) * 0.55 * 1.5 * 1.4;
+  vec2 dir = normalize(vec2(1.0, 0.35 + (noise(c * 0.12) - 0.5) * 0.5));
+  float phase = dot(c, dir) * 12.0 + noise(c * 0.5) * 2.0;
+  return dune + pow(0.5 + 0.5 * sin(phase), 2.2) * 0.01;
+}
+// Poeira: um véu baixo de areia correndo por todo o campo de dunas, no sentido do vento, com rajadas que atravessam
+// o mapa inteiro; as cristas (e logo atrás delas) soltam mais. Aqui o campo inteiro é duna; no app, a área pintada.
+float dust(vec2 c) {
+  if (uWind < 0.5) return 0.0;
+  vec2 w = vec2(uDir, 0.12 * uDir);
+  vec2 n = vec2(-w.y, w.x);
+  bool storm = uWind > 1.5;
+  float speed = storm ? 3.5 : 1.8;
+  float along = dot(c, w) - uTime * speed;
+  float across = dot(c, n);
+  // cristas: mais areia nelas e um pouco atrás (olhando contra o vento)
+  float crest = 0.0;
+  for (int k = 0; k < 6; k++) {
+    float d = float(k) / 5.0 * 1.5;
+    crest = max(crest, smoothstep(0.86, 0.99, duneWave(c - w * d)) * (1.0 - d / 1.5));
+  }
+  // rajadas: faixas largas que viajam com o vento pelo campo todo
+  float gust = smoothstep(0.3, 0.8, noise(vec2(along * 0.18, across * 0.35)));
+  // fiapos compridos que correm com o vento
+  float wisp = fbm(vec2(along * 0.45, across * 3.0)) * 0.7 + fbm(vec2(along * 1.2, across * 8.0) + 7.0) * 0.3;
+  float streaks = smoothstep(0.45, 0.7, wisp);
+  // Por todo o campo: fiapos bem visíveis correndo com o vento (mais nas rajadas); as cristas só reforçam.
+  float field = streaks * mix(0.25, 1.0, gust) * (storm ? 0.75 : 0.28);
+  float fromCrest = crest * (0.3 + 0.7 * streaks) * (storm ? 0.45 : 0.18);
+  return clamp(field + fromCrest, 0.0, 1.0);
+}
+void main() {
+  vec2 px = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 c = (px - uPan) / uCellPx;
+  float e = 0.5 / uCellPx;
+  float h = height(c);
+  vec3 nrm = normalize(vec3(-(height(c + vec2(e, 0.0)) - h) / e * 1.8, -(height(c + vec2(0.0, e)) - h) / e * 1.8, 1.0));
+  vec3 L = normalize(vec3(-uSunDir, uElev));
+  float flatLit = max(L.z, 0.35);
+  float shadow = 1.0, rise = uElev / length(uSunDir);
+  for (int i = 1; i <= 20; i++) { float t = float(i) * 0.15; float above = height(c - uSunDir * t) - (h + rise * t); shadow = min(shadow, clamp(1.0 - (above - 0.02) * 6.0, 0.0, 1.0)); }
+  vec3 light = uAmbient + uSun * 0.8 * max(dot(nrm, L), 0.0) / flatLit * shadow;
+  vec3 sand = vec3(0.86, 0.74, 0.52) * (0.93 + 0.1 * fbm(c * 2.0)) * (0.96 + 0.06 * noise(c * 80.0));
+  sand = mix(sand, sand * 0.62, speck(c, 90.0, 0.97, 0.0));
+  vec3 col = sand * light;
+  // véu de poeira por cima, iluminado de leve pela cena
+  float veil = dust(c);
+  // véu claro e um pouco lavado (areia fina contra a luz), sem a sombra das dunas
+  vec3 dustColor = vec3(1.0, 0.95, 0.84) * (uAmbient + uSun * 0.8) * 1.15;
+  col = mix(col, dustColor, veil);
+  // grãos voando (de perto): pontinhos que andam rápido com o vento, só onde há véu
+  if (uWind > 0.5) {
+    vec2 moving = c - vec2(uDir, 0.12 * uDir) * uTime * (uWind > 1.5 ? 6.0 : 3.5);
+    float grain = speck(moving, 26.0, 0.93, 3.0) * smoothstep(0.05, 0.3, veil + 0.1);
+    col = mix(col, vec3(0.95, 0.85, 0.65) * (uAmbient + uSun * 0.7), grain * 0.8);
+  }
+  vec2 g = abs(fract(c) - 0.5);
+  col *= 1.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.1;
+  outColor = vec4(col, 1.0);
+}`;
+function compile(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram(); gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS)); gl.bindAttribLocation(prog, 0, "aPos"); gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const LIGHTS = { day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], elev: 1.24 }, dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], elev: 0.28 } };
+const state = { wind: 1, dir: 1, light: "day", zoom: 1, pan: [0, 0] };
+const CSS_W = 1280, CSS_H = 720;
+function resize() { const k = window.devicePixelRatio || 1; canvas.style.width = CSS_W + "px"; canvas.style.height = CSS_H + "px"; canvas.width = Math.round(CSS_W * k); canvas.height = Math.round(CSS_H * k); }
+function draw(time) {
+  const t0 = performance.now();
+  const L = LIGHTS[state.light], n = Math.hypot(...L.dir);
+  const k = canvas.width / CSS_W;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.useProgram(prog);
+  const U = (name) => gl.getUniformLocation(prog, name);
+  gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), state.pan[0] * k, state.pan[1] * k);
+  gl.uniform1f(U("uCellPx"), (CSS_W / COLS) * k * state.zoom); gl.uniform1f(U("uTime"), time);
+  gl.uniform1f(U("uWind"), state.wind); gl.uniform1f(U("uDir"), state.dir);
+  gl.uniform3f(U("uAmbient"), ...L.ambient); gl.uniform3f(U("uSun"), ...L.sun); gl.uniform2f(U("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(U("uElev"), L.elev);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${(performance.now() - t0).toFixed(0)} ms por quadro`;
+}
+function loop(now) { draw(now / 1000); requestAnimationFrame(loop); }
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); })); }
+wire("wind", (v) => (state.wind = +v));
+wire("dir", (v) => (state.dir = +v));
+wire("light", (v) => (state.light = v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "1" ? [0, 0] : [-600, -350]; });
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; state.pan = [e.clientX - drag[0], e.clientY - drag[1]]; };
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

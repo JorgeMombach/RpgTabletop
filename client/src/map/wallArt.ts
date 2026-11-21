@@ -10,16 +10,6 @@ import { rng, textured, WOODS } from "./wallKit";
  * `wallArtMore.ts`. Parede comum vira imagem guardada; porta é desenhada ao vivo (são poucas e mudam de estado).
  */
 
-/** Semente a partir das pontas da parede (a mesma parede sai sempre igual, em qualquer tela). */
-export function wallSeed(ax: number, ay: number, bx: number, by: number): number {
-  let h = 2166136261;
-  for (const n of [ax, ay, bx, by]) {
-    h ^= Math.round(n * 100);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
 function dropShadow(ctx: CanvasRenderingContext2D, path: Path2D, t: number, color: string) {
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,.7)";
@@ -184,7 +174,7 @@ function woodWall(ctx: CanvasRenderingContext2D, L: number, t: number, seed: num
 }
 
 /** `cell` (lado da casa, nas mesmas unidades) dá o passo dos esteios da cerca, da grade e do arame. */
-const WALL_DRAW: Record<WallStyle, (ctx: CanvasRenderingContext2D, L: number, t: number, seed: number, cell: number) => void> = {
+export const WALL_DRAW: Record<WallStyle, (ctx: CanvasRenderingContext2D, L: number, t: number, seed: number, cell: number) => void> = {
   stone: stoneWall,
   rock: rockWall,
   wood: woodWall,
@@ -226,13 +216,18 @@ export function wallArt(style: WallStyle, L: number, t: number, seed: number, px
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(2, Math.ceil((L + pad * 2) * k));
   canvas.height = Math.max(2, Math.ceil(pad * 2 * k));
-  const ctx = canvas.getContext("2d")!;
-  ctx.scale(k, k);
-  ctx.translate(pad, pad);
-  WALL_DRAW[style](ctx, L, t, seed, cell);
+  const ctx = canvas.getContext("2d");
+  // Sem contexto 2D (canvas recusado pelo navegador): a imagem fica vazia, a parede some em vez de quebrar o mapa.
+  if (ctx) {
+    ctx.scale(k, k);
+    ctx.translate(pad, pad);
+    WALL_DRAW[style](ctx, L, t, seed, cell);
+  }
   const art = { canvas, pad };
   cache.set(key, art);
-  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
+  // a mais antiga sai quando passa do teto
+  const oldest = cache.keys().next();
+  if (cache.size > CACHE_MAX && !oldest.done) cache.delete(oldest.value);
   return art;
 }
 
@@ -413,4 +408,65 @@ function drawGate(ctx: CanvasRenderingContext2D, L: number, t: number, seed: num
   gatePost(ctx, 0, t, post);
   gatePost(ctx, L, t, post);
   if (look.locked) lockMark(ctx, L, t);
+}
+
+// ---------- janela ----------
+
+export interface WindowLook {
+  /** Persiana fechada: corta a visão e a luz. */
+  closed: boolean;
+  /** Escolhida pelo mestre na ferramenta Paredes. */
+  selected: boolean;
+  /** Estilo das paredes da cena (o batente acompanha). */
+  style: WallStyle;
+}
+
+/**
+ * Janela vista de cima, no eixo dela (de 0 a L), entre batentes (docs/design/paredes.md): parapeito fino com vidro e
+ * travessa; com a persiana fechada, tábuas por cima. Desenho provisório (o definitivo vem no lote das portas).
+ */
+/** Contorno branco da porta ou janela escolhida, no vão (quando o desenho vem da placa de vídeo). */
+/**
+ * Contorno branco da porta ou janela escolhida (com o desenho vindo da placa de vídeo). Porta aberta: o contorno gira
+ * com a folha (o mesmo ângulo do desenho, `swing` × 80°) e marca a folha, não o vão.
+ */
+export function drawOpeningSelection(ctx: CanvasRenderingContext2D, L: number, t: number, openSwing: number | null = null) {
+  ctx.save();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = t * 0.09;
+  if (openSwing === null) ctx.strokeRect(0, -t * 0.6, L, t * 1.2);
+  else {
+    ctx.rotate((openSwing * 80 * Math.PI) / 180);
+    ctx.strokeRect(t * 0.25, -t * 0.6, L - t * 0.5, t * 1.2);
+  }
+  ctx.restore();
+}
+
+export function drawWindow(ctx: CanvasRenderingContext2D, L: number, t: number, look: WindowLook) {
+  const wood = look.style === "wood" || look.style === "palisade";
+  const sill = new Path2D();
+  sill.rect(t * 0.3, -t * 0.22, L - t * 0.6, t * 0.44);
+  ctx.fillStyle = "#1d1712";
+  ctx.fill(sill);
+  const glass = ctx.createLinearGradient(0, -t * 0.16, 0, t * 0.16);
+  glass.addColorStop(0, "rgba(196,226,240,.9)");
+  glass.addColorStop(1, "rgba(120,160,185,.9)");
+  ctx.fillStyle = glass;
+  ctx.fillRect(t * 0.36, -t * 0.15, L - t * 0.72, t * 0.3);
+  ctx.fillStyle = "#3a2a1a";
+  ctx.fillRect(L / 2 - t * 0.04, -t * 0.18, t * 0.08, t * 0.36);
+  if (look.closed) {
+    const width = (L - t * 0.72) / 4;
+    for (let index = 0; index < 4; index++) {
+      ctx.fillStyle = WOODS[index % WOODS.length];
+      ctx.fillRect(t * 0.36 + index * width, -t * 0.2, width - t * 0.02, t * 0.4);
+    }
+  }
+  jamb(ctx, 0, t, wood);
+  jamb(ctx, L, t, wood);
+  if (look.selected) {
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = t * 0.09;
+    ctx.stroke(sill);
+  }
 }

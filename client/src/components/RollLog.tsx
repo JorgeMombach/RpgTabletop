@@ -6,6 +6,7 @@ import { EmptyState } from "./EmptyState";
 import { IconDice5, IconEyeOff, IconLock, IconRefresh } from "@tabler/icons-react";
 import { act } from "../actions";
 import { useApp } from "../store";
+import { memo } from "react";
 
 /** Ouro do 20 natural (L6), o mesmo do resultado no mapa. */
 export const GOLD = "#f3cf6a";
@@ -59,7 +60,11 @@ export function RollLog({ log, selfId }: { log: LogEntry[]; selfId: string }) {
   );
 }
 
-function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: boolean }) {
+/**
+ * Uma entrada do log. Memorizada: o `shareEqual` mantém as entradas antigas como o mesmo objeto, então um envio
+ * que não mexe no log (mover um token) não redesenha as rolagens já mostradas.
+ */
+const Entry = memo(function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: boolean }) {
   const lang = useLang((st) => st.lang);
   const reduceFx = useApp((s) => s.reduceFx);
   // 20 ou 1 natural (L6): filete na cor; o reflexo dourado do crítico passa uma vez, só na rolagem que acabou de sair.
@@ -132,7 +137,7 @@ function Entry({ e, selfId, rolling }: { e: LogEntry; selfId: string; rolling: b
       )}
     </Paper>
   );
-}
+});
 
 /** Rolagem numa tabela aleatória (Passo 13): "Tabela · Encontro", "d8: 5 → 6 goblins (2d4)"; o mestre rola de novo dali. */
 function TableBody({ e, mine }: { e: LogEntry; mine: boolean }) {

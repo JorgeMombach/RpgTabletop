@@ -1,10 +1,10 @@
 import Konva from "konva";
 import { useEffect, useRef } from "react";
 import { Circle, Group, Layer, Shape } from "react-konva";
-import { sizeSpan, TORCH_BRIGHT_FEET, TORCH_FEET, type CombatantView, type LightId, type MapConfig, type MapTorch } from "@rpg/shared";
+import { geometryOf, TORCH_BRIGHT_FEET, TORCH_FEET, type CombatantView, type LightId, type MapConfig, type MapTorch } from "@rpg/shared";
 import { useApp } from "../store";
 import { useTokenDrag } from "./dragFollow";
-import { cellCenter } from "./geometry";
+import { cellCenter, shapeCenterAt } from "./geometry";
 import { torchPoint } from "./MapTorches";
 
 /**
@@ -34,10 +34,12 @@ function flame(ctx: Konva.Context, h: number, w: number, lean: number) {
 
 /** Centro do token no mapa (como o Token calcula). */
 export function tokenCenter(c: CombatantView, grid: MapConfig) {
-  const span = sizeSpan(c.size);
-  const off = c.size === "tiny" ? grid.cellPx * 0.22 : ((span - 1) * grid.cellPx) / 2;
-  const b = cellCenter(c.pos!, grid);
-  return { x: b.x + off, y: b.y + off, span };
+  const span = geometryOf(grid.grid).drawSpan(c.size);
+  if (c.size === "tiny") {
+    const b = cellCenter(c.pos!, grid);
+    return { x: b.x + grid.cellPx * 0.22, y: b.y + grid.cellPx * 0.22, span };
+  }
+  return { ...shapeCenterAt(c.pos!, c.size, grid), span };
 }
 
 /** Selo da tocha no canto de baixo à direita do token: chama em camadas, tremulando. */
@@ -65,17 +67,27 @@ export function TorchBadge({ id, radius }: { id: string; radius: number }) {
       <Shape
         ref={ref}
         sceneFunc={(ctx) => {
-          const f = flicker(t.current, seed);
+          const time = t.current;
+          const f = flicker(time, seed);
           const h = radius * 1.35 * (1 + f * 0.08);
           const w = radius * 0.62;
           const lean = f * radius * 0.12;
+          // A chama nova (docs/design/luz.md): a cor do meio oscila entre laranja e amarelo, e uma língua menor dança ao lado.
+          const shift = 0.5 + 0.5 * Math.sin(time * 2.3 + seed * 5) * Math.cos(time * 1.3 + seed);
+          const middle = `rgb(255 ${Math.round(128 + shift * 76)} ${Math.round(46 + shift * 51)})`;
           ctx.save();
           ctx.translate(0, radius * 0.6);
-          // Fora: laranja avermelhado; dentro: amarelo; miolo: quase branco.
+          ctx.save();
+          ctx.translate(Math.sin(time * 4.1 + seed) * radius * 0.22, 0);
+          flame(ctx, h * 0.62, w * 0.6, -lean * 0.8);
+          ctx.fillStyle = "#e9541c";
+          ctx.fill();
+          ctx.restore();
+          // Fora: laranja avermelhado; meio: a cor do instante; miolo: amarelo-claro.
           const layers: [number, string][] = [
-            [1, "#e2551f"],
-            [0.7, "#f59a2c"],
-            [0.4, "#fff1b8"],
+            [1, "#e9541c"],
+            [0.7, middle],
+            [0.4, "#fff0c0"],
           ];
           for (const [k, color] of layers) {
             flame(ctx, h * k, w * k, lean * k);

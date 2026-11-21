@@ -10,6 +10,7 @@ import { socket } from "../socket";
 import { useApp } from "../store";
 import { ClearBattleDialog } from "./ClearBattleDialog";
 import { Panel } from "./Panel";
+import { useShallow } from "zustand/react/shallow";
 
 /** Resumo do arquivo para a confirmação (o servidor valida tudo de novo ao carregar). */
 function summary(f: Partial<SessionFile>): string {
@@ -32,8 +33,8 @@ export function SessionPanel() {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [clearing, setClearing] = useState(false);
-  const { state, savedSnapshot, savedAt } = useApp();
-  const unsaved = isUnsaved(state, savedSnapshot);
+  const { state, journal, savedSnapshot, savedAt } = useApp(useShallow((s) => ({ state: s.state, journal: s.journal, savedSnapshot: s.savedSnapshot, savedAt: s.savedAt })));
+  const unsaved = isUnsaved(state, journal, savedSnapshot);
 
   // Navegador: fechar a aba com alterações não salvas mostra o aviso padrão dele (o texto não é personalizável).
   // No app do mestre quem cuida disso é o CloseGuard, com o modal "Salvar e sair".

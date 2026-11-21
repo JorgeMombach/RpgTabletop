@@ -1,4 +1,4 @@
-import { cellsAroundPoint, inRows, isRevealed, sizeSpan, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type LogEntry, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
+import { cellsAroundPoint, cellsAroundPointIn, geometryOf, inRows, isRevealed, type GridKind, type ClientState, type Combatant, type CombatantView, type Drawing, type FogState, type GridPos, type HostInfo, type JournalEntry, type LogEntry, type MapConfig, type MapEffect, type MapChest, type MapProp, type MapTorch, type Wall } from "@rpg/shared";
 import { toPublic, type ServerPlayer, type Store } from "./store";
 import { currentSight } from "./sight";
 
@@ -41,7 +41,9 @@ function paintedCells(flat: number[]): GridPos[] {
   return out;
 }
 
-function inSight(fog: FogState, sight: Record<string, number[]>) {
+function inSight(fog: FogState, sight: Record<string, number[]>, kind: GridKind | undefined) {
+  const geometry = geometryOf(kind);
+  const square = !kind || kind === "square";
   // Agora: revelado pelo mestre ou na visão dos aliados. Alguma vez: também o explorado (com a visão ligada).
   const now = (c: GridPos) => isRevealed(fog, c.col, c.row) || inRows(sight, c.col, c.row);
   const ever = (c: GridPos) => now(c) || (fog.vision && inRows(fog.explored, c.col, c.row));
@@ -49,35 +51,49 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
   const anyEver = (cells: GridPos[]) => !fog.enabled || cells.some(ever);
   const cells = (c: Combatant) => {
     if (!c.pos) return true;
-    const span = sizeSpan(c.size);
-    const out: GridPos[] = [];
-    for (let dc = 0; dc < span; dc++) for (let dr = 0; dr < span; dr++) out.push({ col: c.pos.col + dc, row: c.pos.row + dr });
-    return anyNow(out);
+    // A forma inteira (no quadrado, o lado × lado de sempre; no hex, a forma do tamanho).
+    return anyNow(geometry.footprint(c.pos, c.size));
   };
   // Inimigos só aparecem onde se vê agora; o resto do mapa (efeitos, desenhos, paredes) também no explorado.
   return {
     combatant: cells,
     // Pintura: aparece se alguma casa pintada já foi vista.
-    effect: (e: MapEffect) => anyEver(e.cells ? paintedCells(e.cells) : cellsAroundPoint(e.area.origin.col, e.area.origin.row)),
+    effect: (e: MapEffect) => anyEver(e.cells ? paintedCells(e.cells) : cellsAroundPointIn({ x: e.area.origin.col, y: e.area.origin.row }, kind)),
     drawing: (d: Drawing, grid: MapConfig) => {
       const pts: GridPos[] = [];
       for (let i = 0; i + 1 < d.points.length; i += 2) {
-        pts.push({ col: Math.floor((d.points[i] - grid.offsetX) / grid.cellPx), row: Math.floor((d.points[i + 1] - grid.offsetY) / grid.cellPx) });
+        pts.push(geometry.cellAt({ x: (d.points[i] - grid.offsetX) / grid.cellPx, y: (d.points[i + 1] - grid.offsetY) / grid.cellPx }));
       }
       return anyEver(pts);
     },
-    torch: (t: MapTorch) => anyEver([{ col: Math.floor(t.col), row: Math.floor(t.row) }]),
+    torch: (t: MapTorch) => anyEver([geometry.cellAt({ x: t.col, y: t.row })]),
     chest: (c: MapChest) => anyEver([{ col: c.col, row: c.row }]),
-    prop: (p: MapProp) => anyEver(cellsAroundPoint(p.col, p.row)),
+    prop: (p: MapProp) => anyEver(cellsAroundPointIn({ x: p.col, y: p.row }, kind)),
     // Parede: aparece se alguma casa encostada nela (em qualquer canto do caminho) estiver revelada.
     wall: (w: Wall) => {
-      // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um.
-      const steps = Math.max(1, Math.ceil(Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row))));
       const pts: GridPos[] = [];
+      if (square) {
+        // Pontas podem ser fracionadas (traço livre): um passo por casa, no mínimo um; o canto mais perto de cada passo.
+        const steps = Math.max(1, Math.ceil(Math.max(Math.abs(w.to.col - w.from.col), Math.abs(w.to.row - w.from.row))));
+        for (let i = 0; i <= steps; i++) {
+          const col = Math.round(w.from.col + ((w.to.col - w.from.col) * i) / steps);
+          const row = Math.round(w.from.row + ((w.to.row - w.from.row) * i) / steps);
+          pts.push(...cellsAroundPoint(col, row));
+        }
+        return anyEver(pts);
+      }
+      // Hex (Passo 16): um ponto a cada meia casa do caminho e os hexes com o centro perto dele (o raio do hex mais
+      // meio passo). Assim todo hex que a parede cruza entra, mesmo cortado só na ponta.
+      const length = Math.hypot(w.to.col - w.from.col, w.to.row - w.from.row);
+      const steps = Math.max(1, Math.ceil(length / 0.5));
+      const reach = 1 / Math.sqrt(3) + 0.26;
       for (let i = 0; i <= steps; i++) {
-        const col = Math.round(w.from.col + ((w.to.col - w.from.col) * i) / steps);
-        const row = Math.round(w.from.row + ((w.to.row - w.from.row) * i) / steps);
-        pts.push(...cellsAroundPoint(col, row));
+        const point = { x: w.from.col + ((w.to.col - w.from.col) * i) / steps, y: w.from.row + ((w.to.row - w.from.row) * i) / steps };
+        const cell = geometry.cellAt(point);
+        for (const near of [cell, ...geometry.neighbors(cell)]) {
+          const center = geometry.center(near);
+          if (Math.hypot(center.x - point.x, center.y - point.y) <= reach) pts.push(near);
+        }
       }
       return anyEver(pts);
     },
@@ -88,7 +104,7 @@ function inSight(fog: FogState, sight: Record<string, number[]>) {
 export function chestsFor(store: Store, gm: boolean): MapChest[] {
   const { chests, fog } = store.game.battle;
   if (gm) return chests;
-  const sight = inSight(fog, currentSight(store));
+  const sight = inSight(fog, currentSight(store), store.game.battle.map.grid);
   return chests.filter((c) => !c.hidden && sight.chest(c)).map((c) => (c.opened ? c : { ...c, loot: [] }));
 }
 
@@ -102,7 +118,7 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
   const { image, ...map } = game.battle.map;
   const fog = game.battle.fog;
   const visible = currentSight(store);
-  const sight = inSight(fog, visible);
+  const sight = inSight(fog, visible, game.battle.map.grid);
   const chests = chestsFor(store, gm);
   const seesChest = (id: string) => chests.some((c) => c.id === id);
 
@@ -135,6 +151,12 @@ export function viewFor(store: Store, player: ServerPlayer, host: HostInfo): Cli
       chests,
       // Objeto do cenário coberto pela névoa nem chega.
       props: gm ? game.battle.props : game.battle.props.filter(sight.prop),
+      // Ponte vai para todos, como o chão (a névoa a cobre na tela do jogador).
+      bridges: game.battle.bridges,
+      // Escada também vai para todos, como as pontes.
+      stairs: game.battle.stairs,
+      // Correnteza vai para todos, como o terreno (que não passa pela névoa): a água corre igual em cada tela.
+      currents: game.battle.currents,
       // A disputa do loot vai para todos (o baú abre na tela de cada um).
       // ...mas só de baú que a pessoa recebe (coberto pela névoa, nem a disputa nem o resultado chegam).
       lootCount: store.lootCount && seesChest(store.lootCount.chestId) ? { chestId: store.lootCount.chestId, remainingMs: Math.max(0, store.lootCount.endsAt - Date.now()), wants: store.lootCount.wants } : null,
@@ -178,4 +200,15 @@ function visibleEntry(e: LogEntry, playerId: string): boolean {
 /** Rolagem secreta na tela de quem rolou: às cegas, sem os dados nem o total (nem no texto). */
 function blindEntry(e: LogEntry): LogEntry {
   return { ...e, text: e.label ?? "", roll: { expr: e.roll!.expr, mode: e.roll!.mode, terms: [], total: 0 } };
+}
+
+/**
+ * Diário da campanha (Passo 14) para quem vai receber: o mestre lê tudo; o jogador só as entradas liberadas,
+ * montadas de novo sem a nota do mestre (não basta esconder o campo).
+ */
+export function journalFor(store: Store, player: ServerPlayer): JournalEntry[] {
+  if (player.role === "gm") return store.game.journal;
+  return store.game.journal
+    .filter((e) => e.shared)
+    .map(({ id, title, tag, text, shared, done, day, updatedAt }) => ({ id, title, tag, text, shared, updatedAt, ...(done && { done }), ...(day !== undefined && { day }) }));
 }

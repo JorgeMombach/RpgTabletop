@@ -7,6 +7,7 @@ import { pushHits } from "./map/hits";
 import { toast } from "./notify";
 import { IS_LOG_WINDOW } from "./logWindow";
 import { PING_MS, useApp } from "./store";
+import { receiveJournal } from "./journal";
 
 const TOKEN_KEY = "rpg.sessionToken";
 const NAME_KEY = "rpg.name";
@@ -103,7 +104,8 @@ socket.on("connect", async () => {
 });
 
 socket.on("disconnect", () => {
-  useApp.setState({ connected: false });
+  // O diário que chegar ao reconectar é uma primeira chegada: o que mudou enquanto estava fora fica só na bolinha.
+  useApp.setState({ connected: false, journalLoaded: false });
 });
 
 /** Último pedido de reenvio da imagem do mapa: um por versão, e no máximo a cada 3 s. */
@@ -184,6 +186,45 @@ socket.on("ruler", ({ playerId, name, ruler }) => {
 let pingSeq = 0;
 // O que o mestre mostra para a mesa: abre de novo para todos quando é algo novo.
 socket.on("handout", (handout) => useApp.setState({ handout }));
+// Diário da campanha (Passo 14): fora do estado, só quando muda e ao entrar.
+socket.on("journal", receiveJournal);
+
+// Piso: como o relevo, o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram.
+socket.on("floors", ({ reset, chunks }) => {
+  useApp.setState((s) => {
+    const floors = reset ? {} : { ...s.floors };
+    for (const [key, chunk] of Object.entries(chunks)) {
+      if (chunk) floors[key] = chunk;
+      else delete floors[key];
+    }
+    // Outra cena (ou entrou agora): a prévia de uma passada pela metade era da cena anterior.
+    return reset ? { floors, floorEpoch: s.floorEpoch + 1, floorPreview: null } : { floors };
+  });
+});
+
+// Relevo: como o terreno, o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram.
+socket.on("relief", ({ reset, chunks }) => {
+  useApp.setState((s) => {
+    const relief = reset ? {} : { ...s.relief };
+    for (const [key, chunk] of Object.entries(chunks)) {
+      if (chunk) relief[key] = chunk;
+      else delete relief[key];
+    }
+    return reset ? { relief, reliefEpoch: s.reliefEpoch + 1, reliefPreview: null } : { relief };
+  });
+});
+
+// Terreno pintado: o inteiro ao entrar ou trocar de cena; depois, só os pedaços que mudaram (`null` = apagado).
+socket.on("terrain", ({ reset, chunks }) => {
+  useApp.setState((s) => {
+    const terrain = reset ? {} : { ...s.terrain };
+    for (const [key, chunk] of Object.entries(chunks)) {
+      if (chunk) terrain[key] = chunk;
+      else delete terrain[key];
+    }
+    return reset ? { terrain, terrainEpoch: s.terrainEpoch + 1 } : { terrain };
+  });
+});
 
 socket.on("ping", ({ playerId, name, at, look }) => {
   const id = ++pingSeq;

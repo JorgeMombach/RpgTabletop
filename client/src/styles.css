@@ -2848,3 +2848,133 @@ button[data-disabled] > .ability-cell {
   border-radius: 4px;
   padding: 2px 0;
 }
+
+/* Diário da campanha (Passo 14): janela com lista à esquerda e a entrada à direita; no celular, uma de cada vez. */
+.journal-head {
+  border-bottom: 1px solid var(--mantine-color-dark-5);
+}
+.journal-split {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  height: min(640px, calc(100dvh - 160px));
+}
+.journal-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--mantine-color-dark-5);
+}
+.journal-tools {
+  border-bottom: 1px solid var(--mantine-color-dark-5);
+}
+.journal-list .journal-rows {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 6px 8px;
+}
+.journal-main {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.journal-group {
+  font-family: var(--mantine-font-family-headings);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mantine-color-dark-3);
+  padding: 10px 6px 4px;
+}
+.journal-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 4px;
+  min-width: 0;
+}
+.journal-row:hover {
+  background: var(--mantine-color-dark-6);
+}
+.journal-row.active {
+  background: var(--mantine-color-dark-6);
+  box-shadow: inset 0 0 0 1px var(--mantine-color-bronze-6);
+}
+.journal-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 4px;
+}
+.journal-row-icon {
+  flex: none;
+  color: var(--mantine-color-dark-2);
+}
+.journal-row-title {
+  flex: 1;
+  min-width: 0;
+}
+.journal-row-day {
+  flex: none;
+}
+.journal-row.done .journal-row-title {
+  color: var(--mantine-color-dark-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--mantine-color-dark-3);
+}
+.journal-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mantine-color-bronze-4);
+}
+.journal-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px 110px;
+  gap: 8px;
+}
+.journal-secret {
+  /* marrom de couro escuro (bronze-9 sobre dark-7) e borda tracejada em bronze, pelas variáveis do tema */
+  background: color-mix(in srgb, var(--mantine-color-bronze-9) 35%, var(--mantine-color-dark-7));
+  border: 1px dashed var(--mantine-color-bronze-8);
+}
+.journal-secret textarea {
+  background: rgba(0, 0, 0, 0.25);
+}
+.journal-read-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 62ch;
+}
+.col .journal-rows .journal-group:first-child {
+  padding-top: 2px;
+}
+.journal-split.single {
+  grid-template-columns: minmax(0, 1fr);
+  height: calc(100dvh - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+.journal-split.single .journal-list {
+  border-right: 0;
+}
+.journal-split.single.list .journal-main,
+.journal-split.single.entry .journal-list {
+  display: none;
+}
+.journal-split.single .journal-row-main {
+  padding: 10px 8px;
+}
+
+/* Amostra de material do Piso (docs/design/pisos.md): a escolhida ganha o contorno de bronze. */
+.floor-swatch {
+  display: block;
+  border-radius: var(--mantine-radius-sm);
+  outline-offset: 2px;
+}
+.floor-swatch[data-active] {
+  outline: 2px solid var(--mantine-color-bronze-5);
+}

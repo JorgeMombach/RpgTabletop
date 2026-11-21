@@ -3,12 +3,13 @@ import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import Konva from "konva";
 import { useEffect, useMemo, useRef } from "react";
 import { Layer, Shape } from "react-konva";
-import { LIMITS, type FogRect, type FogState, type GridPos, type MapConfig } from "@rpg/shared";
+import { brushCells, LIMITS, type FogRect, type FogState, type GridPos, type MapConfig } from "@rpg/shared";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
 import { useT } from "../i18n";
 import { useApp } from "../store";
 import { buildMask, FOG_TILE, fogTexture, type MaskArea } from "./fogRender";
+import { useShallow } from "zustand/react/shallow";
 
 /** Névoa vista pelo mestre: bruma acinzentada e translúcida (aparece até no grid sem imagem). */
 const GM_FOG_OPACITY = 0.62;
@@ -65,7 +66,7 @@ export async function sendFog(draft: FogDraft) {
   }
 }
 
-type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY">;
+type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "grid">;
 
 /** Intervalos por linha viram retângulos de uma linha. */
 function rowsToRects(rows: Record<string, number[]>): FogRect[] {
@@ -90,7 +91,8 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
 
   // A máscara só muda quando o que se vê muda. O estado chega como objetos novos a cada envio (qualquer token
   // andando, qualquer rolagem): por isso a comparação é pelo conteúdo, não pelo objeto. Refazer é caro.
-  const maskKey = fog.enabled ? JSON.stringify([fog.vision, fog.revealed, fog.vision ? fog.explored : 0, fog.vision ? sight : 0]) : "";
+  // O grid entra na chave: o mesmo revelado desenha outra forma no quadrado e no hex.
+  const maskKey = fog.enabled ? JSON.stringify([grid.grid ?? "square", fog.vision, fog.revealed, fog.vision ? fog.explored : 0, fog.vision ? sight : 0]) : "";
   const mask = useMemo(() => {
     if (!fog.enabled) return null;
     const areas: MaskArea[] = [];
@@ -98,7 +100,7 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
     for (const rect of rowsToRects(fog.revealed)) areas.push({ rect, amount: 1 });
     if (fog.vision) for (const rect of rowsToRects(sight)) areas.push({ rect, amount: 1 });
     if (draft?.reveal) for (const rect of draft.rects) areas.push({ rect, amount: 1 });
-    return buildMask(areas, draft && !draft.reveal ? draft.rects : []);
+    return buildMask(areas, draft && !draft.reveal ? draft.rects : [], grid.grid);
   }, [maskKey, draft]);
 
   // Fumaça andando devagar (sem animação com "Reduzir efeitos").
@@ -162,7 +164,10 @@ export function FogLayer({ fog, sight, grid, gm, draft }: { fog: FogState; sight
 /** Opções da ferramenta Névoa (mestre): ligar, revelar ou cobrir, pincel ou retângulo, revelar o mapa e cobrir tudo. */
 export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (() => void) | null }) {
   const t = useT();
-  const { fogReveal, fogShape, fogBrush } = useApp();
+  const { fogReveal, fogShape, fogBrush } = useApp(useShallow((s) => ({ fogReveal: s.fogReveal, fogShape: s.fogShape, fogBrush: s.fogBrush })));
+  // Cena hex (Passo 16): o tamanho do pincel aparece em hexes (1, 7, 19).
+  const kind = useApp((s) => s.state?.battle.map.grid);
+  const hex = kind === "hexRows" || kind === "hexCols";
 
   async function coverAll() {
     const ok = await confirmAction({ title: t("fog.coverAllTitle"), message: t("fog.coverAllMessage"), confirmLabel: t("fog.coverAll") });
@@ -228,7 +233,7 @@ export function FogOptions({ fog, onRevealMap }: { fog: FogState; onRevealMap: (
           <SegmentedControl
             size="xs"
             disabled={!fog.enabled}
-            data={["1", "3", "5"].map((n) => ({ value: n, label: t("fog.brushSize", { n }) }))}
+            data={["1", "3", "5"].map((n) => ({ value: n, label: hex ? t("map.hexes", { n: brushCells({ col: 0, row: 0 }, Number(n), kind).length }) : t("fog.brushSize", { n }) }))}
             value={String(fogBrush)}
             onChange={(v) => useApp.setState({ fogBrush: Number(v) })}
             aria-label={t("fog.brushSizeLabel")}

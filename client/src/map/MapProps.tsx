@@ -3,11 +3,13 @@ import { IconArrowBackUp, IconDice5, IconTrash } from "@tabler/icons-react";
 import type Konva from "konva";
 import { memo, useEffect, useRef } from "react";
 import { Image as KImage, Layer, Transformer } from "react-konva";
-import { LIMITS, PROP_KINDS, type CombatantView, type MapConfig, type MapProp, type PropKind } from "@rpg/shared";
+import { brushCells, LIMITS, PROP_KINDS, type CombatantView, type MapConfig, type MapProp, type PropKind, type WeatherState } from "@rpg/shared";
 import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
+import { cellCenter } from "./geometry";
 import { removeProps, undo, updateProp, useMapUndo } from "./mapHistory";
-import { drawProp, PROP_EXTENT, propImage } from "./propArt";
+import { drawProp, plantLayers, PROP_EXTENT, propImage, SWAYING } from "./propArt";
+import { PlantNode, useWindClock, type PlantRegistry } from "./PlantWind";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
 
 export const PROP_LABEL: Record<PropKind, MessageKey> = {
@@ -36,6 +38,9 @@ export const PROP_LABEL: Record<PropKind, MessageKey> = {
   mushrooms: "props.mushrooms",
   flowers: "props.flowers",
   bridge: "props.bridge",
+  pine: "props.pine",
+  palm: "props.palm",
+  tallGrass: "props.tallGrass",
 };
 
 /** Centro do objeto em pixels do mapa. */
@@ -52,8 +57,10 @@ export function propSpot(x: number, y: number, g: MapConfig, snap: boolean): { c
 /**
  * Um objeto do cenário: a imagem guardada do desenho (feita uma vez por tipo, semente e resolução), girada no
  * centro. Com a ferramenta Objetos, o mestre arrasta (Shift encaixa no centro da casa) e clica para escolher.
+ * Em `memo`: pôr ou mexer num objeto redesenha só ele, não a camada inteira.
  */
-function PropNode({ p, grid, scale, editing, faded, onPick }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean; onPick: () => void }) {
+const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean }) {
+  const onPick = () => useApp.setState({ selectedPropId: p.id });
   const { x, y } = centerOf(p, grid);
   const side = PROP_EXTENT[p.kind] * 2 * grid.cellPx * p.size;
   const image = propImage(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1));
@@ -113,7 +120,7 @@ function PropNode({ p, grid, scale, editing, faded, onPick }: { p: MapProp; grid
       }}
     />
   );
-}
+});
 
 interface PropLayerProps {
   props: MapProp[];
@@ -125,13 +132,16 @@ interface PropLayerProps {
   tokens: CombatantView[];
   /** Onde estão os tokens (`tokenSpots`): só isso importa da lista de tokens, para a copa ficar transparente. */
   tokenKey: string;
+  /** Clima da cena: o vento nas plantas fica mais forte e muda de lado com ele. */
+  weather: WeatherState;
 }
 
 /**
  * Objetos de uma camada: os de baixo (abaixo das tochas e da névoa) ou os de cima dos tokens (copas). Copa com token
  * embaixo fica meio transparente, para não esconder ninguém. O escolhido ganha as alças de tamanho e giro.
  * Em `memo` (`samePropLayer`): o mapa redesenha a cada passo do WASD, e com centenas de objetos refazer a camada
- * à toa engasgava a visão.
+ * à toa engasgava a visão. Com vento (fora da edição, sem *Reduzir efeitos* e se o aparelho aguenta), as plantas
+ * balançam (`PlantWind.tsx`).
  */
 export const MapPropLayer = memo(function MapPropLayer({
   props,
@@ -141,9 +151,18 @@ export const MapPropLayer = memo(function MapPropLayer({
   editing,
   selectedId,
   tokens,
+  weather,
 }: PropLayerProps) {
   const list = props.filter((p) => p.above === (layer === "above"));
   const tr = useRef<Konva.Transformer>(null);
+  const layerRef = useRef<Konva.Layer>(null);
+  const registry = useRef<PlantRegistry>(new Map()).current;
+  const windTime = useRef(0);
+  const reduceFx = useApp((s) => s.reduceFx);
+  const windStalled = useApp((s) => s.windStalled);
+  const windOn = !editing && !reduceFx && !windStalled;
+  const swaying = windOn && list.some((p) => SWAYING[p.kind]);
+  useWindClock(layerRef, registry, windTime, weather, swaying);
   const picked = editing && list.some((p) => p.id === selectedId) ? selectedId : null;
   useEffect(() => {
     const t = tr.current;
@@ -157,13 +176,21 @@ export const MapPropLayer = memo(function MapPropLayer({
     if (layer !== "above") return false;
     const { x, y } = centerOf(p, grid);
     const r = grid.cellPx * p.size;
-    return tokens.some((c) => c.pos && Math.hypot(grid.offsetX + (c.pos.col + 0.5) * grid.cellPx - x, grid.offsetY + (c.pos.row + 0.5) * grid.cellPx - y) < r);
+    return tokens.some((c) => {
+      if (!c.pos) return false;
+      const center = cellCenter(c.pos, grid);
+      return Math.hypot(center.x - x, center.y - y) < r;
+    });
   };
   return (
-    <Layer listening={editing}>
-      {list.map((p) => (
-        <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={under(p)} onPick={() => useApp.setState({ selectedPropId: p.id })} />
-      ))}
+    <Layer ref={layerRef} listening={editing}>
+      {list.map((p) => {
+        const faded = under(p);
+        // Copa transparente (token embaixo) fica parada: as duas copas meio transparentes, uma sobre a outra, somariam.
+        const layers = windOn && !faded ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
+        if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} registry={registry} time={windTime} />;
+        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} />;
+      })}
       {editing && (
         <Transformer
           ref={tr}
@@ -187,7 +214,7 @@ export const MapPropLayer = memo(function MapPropLayer({
 }, samePropLayer);
 
 function samePropLayer(a: PropLayerProps, b: PropLayerProps): boolean {
-  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey;
+  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey && a.weather === b.weather;
 }
 
 /** Chave das posições dos tokens no mapa (muda só quando algum anda). */
@@ -213,7 +240,7 @@ export function PropIcon({ kind, size = 34 }: { kind: PropKind; size?: number })
  * Opções da ferramenta Objetos (mestre): o catálogo (o próximo a pôr) e, com um objeto escolhido, variar, camada,
  * atrapalhar a visão, tamanho e apagar. Em `memo`: o mapa redesenha a cada passo do WASD.
  */
-const SET_LABEL: Record<ScatterSet, MessageKey> = { forest: "props.setForest", grove: "props.setGrove", rocks: "props.setRocks", rubble: "props.setRubble" };
+const SET_LABEL: Record<ScatterSet, MessageKey> = { forest: "props.setForest", grove: "props.setGrove", rocks: "props.setRocks", rubble: "props.setRubble", field: "props.setField" };
 
 export const PropOptions = memo(function PropOptions({ selected }: { selected: MapProp | null }) {
   const t = useT();
@@ -224,6 +251,9 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
   const scatterDensity = useApp((s) => s.scatterDensity);
   const undoCount = useMapUndo((s) => s.props);
   const brush = mode !== "place";
+  // Cena hex (Passo 16): o tamanho do pincel aparece em hexes.
+  const grid = useApp((s) => s.state?.battle.map.grid);
+  const hex = grid === "hexRows" || grid === "hexCols";
   return (
     <Box>
       <Group gap="xs" wrap="wrap" mb={6}>
@@ -253,7 +283,7 @@ export const PropOptions = memo(function PropOptions({ selected }: { selected: M
         {brush && (
           <SegmentedControl
             size="xs"
-            data={["3", "5", "9"].map((n) => ({ value: n, label: t("fog.brushSize", { n }) }))}
+            data={["3", "5", "9"].map((n) => ({ value: n, label: hex ? t("map.hexes", { n: brushCells({ col: 0, row: 0 }, Number(n), grid).length }) : t("fog.brushSize", { n }) }))}
             value={String(scatterSize)}
             onChange={(v) => useApp.setState({ scatterSize: Number(v) })}
             aria-label={t("fog.brushSizeLabel")}

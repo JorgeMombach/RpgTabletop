@@ -1,7 +1,7 @@
 import { Circle, Group, Line, Text } from "react-konva";
-import type { Area, AreaKind, MapConfig } from "@rpg/shared";
+import { areaAnchor, type Area, type AreaKind, type MapConfig } from "@rpg/shared";
 import { t, type MessageKey } from "../i18n";
-import type { Point } from "./geometry";
+import { toCellUnits, type Point } from "./geometry";
 
 export const AREA_LABEL: Record<AreaKind, MessageKey> = {
   cone: "area.cone",
@@ -23,14 +23,13 @@ export const AREA_MEASURE: Record<AreaKind, MessageKey> = {
 /** Largura da linha no 5e. */
 const LINE_WIDTH_FT = 5;
 
-type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell">;
+type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell" | "grid">;
 
 /** Ponto do mundo para a origem da área (células, com meio quadrado de precisão). */
 export function areaOrigin(p: Point, g: Grid): { col: number; row: number } {
-  return {
-    col: Math.round(((p.x - g.offsetX) / g.cellPx) * 2) / 2,
-    row: Math.round(((p.y - g.offsetY) / g.cellPx) * 2) / 2,
-  };
+  // Quadrado: meia casa (centro, canto ou meio do lado); hex (Passo 16): centro ou vértice do hex.
+  const anchor = areaAnchor(toCellUnits(p, g), g.grid);
+  return { col: anchor.x, row: anchor.y };
 }
 
 function originPoint(a: Area, g: Grid): Point {

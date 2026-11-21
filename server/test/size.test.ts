@@ -83,4 +83,25 @@ describe("tamanho das criaturas", () => {
     const overlapsThorin = u.pos!.col <= 5 && u.pos!.col + 1 >= 5 && u.pos!.row <= 5 && u.pos!.row + 1 >= 5;
     assert.equal(overlapsThorin, false);
   });
+
+  it("editar para um tamanho maior que encosta em alguém leva só ele para a casa livre mais próxima", async () => {
+    const g = await gm();
+    const [ogro] = idsOf(await act(g, "mob:add", { name: "Ogro", hpMax: 59, dexMod: -1 }));
+    const [goblin] = idsOf(await act(g, "mob:add", { name: "Goblin", hpMax: 7, dexMod: 2 }));
+    const [lobo] = idsOf(await act(g, "mob:add", { name: "Lobo", hpMax: 11, dexMod: 2 }));
+    await act(g, "token:move", { id: ogro, pos: { col: 5, row: 5 } });
+    await act(g, "token:move", { id: goblin, pos: { col: 6, row: 5 } });
+    await act(g, "token:move", { id: lobo, pos: { col: 20, row: 20 } });
+    assert.ok((await act(g, "combatant:update", { id: ogro, size: "large" })).ok);
+    const mobs = game().battle.mobs;
+    const o = mobs.find((m) => m.id === ogro)!;
+    assert.deepEqual(mobs.find((m) => m.id === goblin)!.pos, { col: 6, row: 5 }, "o goblin não é empurrado");
+    const cells = blockedCells([o]).map((cell) => `${cell.col},${cell.row}`);
+    assert.equal(cells.includes("6,5"), false, "o ogro grande não fica em cima do goblin");
+    assert.ok(Math.abs(o.pos!.col - 5) <= 2 && Math.abs(o.pos!.row - 5) <= 2, "vai para perto de onde estava");
+
+    // Com espaço sobrando, crescer não mexe na posição.
+    assert.ok((await act(g, "combatant:update", { id: lobo, size: "huge" })).ok);
+    assert.deepEqual(game().battle.mobs.find((m) => m.id === lobo)!.pos, { col: 20, row: 20 });
+  });
 });

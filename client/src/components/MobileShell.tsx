@@ -10,6 +10,7 @@ import { select, useApp } from "../store";
 import { D20Emblem } from "./D20Emblem";
 import { DiceOverlay } from "./DiceOverlay";
 import { HandoutButton, HandoutModal } from "./Handout";
+import { JournalButton, JournalWindow } from "./JournalWindow";
 import { SheetImportModal } from "./SheetImportModal";
 import { AboutModal } from "./About";
 import { Memo } from "./Shell";
@@ -98,6 +99,7 @@ export function MobileShell({ state }: { state: ClientState }) {
           </Badge>
         )}
         <HandoutButton compact />
+        <JournalButton />
         <SettingsButton state={state} />
         <Menu position="bottom-end" withinPortal>
           <Menu.Target>
@@ -168,6 +170,7 @@ export function MobileShell({ state }: { state: ClientState }) {
       <AboutModal opened={about} onClose={() => setAbout(false)} />
       <SheetImportModal gm={false} />
       <HandoutModal />
+      <JournalWindow fullScreen />
     </div>
   );
 }

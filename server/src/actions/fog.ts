@@ -1,13 +1,13 @@
-import { cellsToRects, footprint, LIMITS, paintFog, roomCells, sizeSpan, type FogRect, type FogState } from "@rpg/shared";
+import { cellsToRects, geometryOf, LIMITS, sizeOfSpan, paintFog, roomCells, type FogRect, type FogState } from "@rpg/shared";
 import { forgetSight } from "../sight";
-import { fail, requireInt } from "../validate";
+import { fail, isRecord, requireInt } from "../validate";
 import type { Store } from "../store";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
 
 function fogRect(raw: unknown): FogRect {
-  if (typeof raw !== "object" || raw === null) fail("Área da névoa inválida.");
-  const r = raw as Record<string, unknown>;
+  if (!isRecord(raw)) fail("Área da névoa inválida.");
+  const r = raw;
   const lim = LIMITS.gridCoord;
   const side = LIMITS.fogRectSide;
   return {
@@ -21,16 +21,15 @@ function fogRect(raw: unknown): FogRect {
 /** Cobriu: as marcas de "visto por último" que ficaram embaixo somem, e quem sumiu agora não deixa marca. */
 function covered(store: Store, fog: FogState, rects: FogRect[]) {
   const inside = (col: number, row: number) => rects.some((r) => col >= r.col && col < r.col + r.w && row >= r.row && row < r.row + r.h);
-  fog.lastSeen = fog.lastSeen.filter((m) => {
-    for (let dc = 0; dc < m.span; dc++) for (let dr = 0; dr < m.span; dr++) if (inside(m.pos.col + dc, m.pos.row + dr)) return false;
-    return true;
-  });
+  // A marca guarda só o lado da forma: no hex (Passo 16) a forma vem da geometria pelo tamanho.
+  const geometry = geometryOf(store.game.battle.map.grid);
+  fog.lastSeen = fog.lastSeen.filter((m) => !geometry.footprint(m.pos, sizeOfSpan(m.span)).some((p) => inside(p.col, p.row)));
   // NPC que ficou embaixo é esquecido (se alguém ainda o vê, a visão encontra de novo).
   const npcs = store.game.battle.npcs;
   fog.foundNpcs = fog.foundNpcs.filter((id) => {
     const pos = npcs.find((c) => c.id === id)?.pos;
     if (!pos) return true;
-    return !footprint(pos, sizeSpan(npcs.find((c) => c.id === id)?.size)).some((p) => inside(p.col, p.row));
+    return !geometry.footprint(pos, npcs.find((c) => c.id === id)?.size).some((p) => inside(p.col, p.row));
   });
   forgetSight(store);
 }
@@ -57,11 +56,11 @@ export const fogHandlers: HandlerMap = {
   "fog:room": (store, player, payload) => {
     requireGm(player);
     if (typeof payload?.reveal !== "boolean") fail("Informe se é para revelar ou cobrir.");
-    const raw = (payload.cell ?? {}) as unknown as Record<string, unknown>;
+    const raw: Record<string, unknown> = isRecord(payload.cell) ? payload.cell : {};
     const lim = LIMITS.gridCoord;
     const cell = { col: requireInt(raw.col, "Coluna", -lim, lim), row: requireInt(raw.row, "Linha", -lim, lim) };
     const { battle } = store.game;
-    const cells = roomCells(cell, battle.walls, LIMITS.fogRoom);
+    const cells = roomCells(cell, battle.walls, LIMITS.fogRoom, battle.map.grid);
     if (!cells) fail("Essa área não está fechada por paredes e portas: feche o cômodo ou use o pincel ou o retângulo.");
     const rects = cellsToRects(cells);
     for (const r of rects) paintFog(battle.fog, r, payload.reveal);

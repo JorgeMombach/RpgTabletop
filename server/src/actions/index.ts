@@ -3,6 +3,7 @@ import { combatantHandlers } from "./combatants";
 import { conditionHandlers } from "./conditions";
 import { diceHandlers } from "./dice";
 import { drawingHandlers } from "./drawings";
+import { currentHandlers } from "./currents";
 import { effectHandlers } from "./effects";
 import { initiativeHandlers } from "./initiative";
 import { magicHandlers } from "./magic";
@@ -19,11 +20,20 @@ import { wallHandlers } from "./walls";
 import { mapTorchHandlers } from "./mapTorches";
 import { chestHandlers } from "./chests";
 import { propHandlers } from "./props";
+import { bridgeHandlers } from "./bridges";
+import { stairHandlers } from "./stairs";
 import { weatherHandlers } from "./weather";
 import { tableHandlers } from "./tables";
 import { clockHandlers } from "./clock";
+import { journalHandlers } from "./journal";
+import { floorHandlers } from "./floor";
+import { reliefHandlers } from "./relief";
+import { terrainHandlers } from "./terrain";
 
 export const handlers: HandlerMap = {
+  ...terrainHandlers,
+  ...reliefHandlers,
+  ...floorHandlers,
   ...combatantHandlers,
   ...diceHandlers,
   ...mapHandlers,
@@ -32,6 +42,7 @@ export const handlers: HandlerMap = {
   ...conditionHandlers,
   ...effectHandlers,
   ...drawingHandlers,
+  ...currentHandlers,
   ...wallHandlers,
   ...sceneHandlers,
   ...handoutHandlers,
@@ -39,6 +50,8 @@ export const handlers: HandlerMap = {
   ...mapTorchHandlers,
   ...chestHandlers,
   ...propHandlers,
+  ...bridgeHandlers,
+  ...stairHandlers,
   ...ruleHandlers,
   ...soundHandlers,
   ...sheetHandlers,
@@ -47,4 +60,5 @@ export const handlers: HandlerMap = {
   ...weatherHandlers,
   ...tableHandlers,
   ...clockHandlers,
+  ...journalHandlers,
 };

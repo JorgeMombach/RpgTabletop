@@ -1,18 +1,23 @@
 import { Button, SimpleGrid, Text, Tooltip } from "@mantine/core";
-import { IconBox, IconBrush, IconFlame, IconTree, IconWall } from "@tabler/icons-react";
+import { IconBox, IconBrush, IconBuildingBridge2, IconFlame, IconStairs, IconLayoutBoardSplit, IconMountain, IconTexture, IconTree, IconWall } from "@tabler/icons-react";
 import { useT, type MessageKey } from "../i18n";
 import { TOOL_KEYS } from "../map/BattleMap";
+import { FloorOptions } from "../map/floor/FloorOptions";
+import { BridgeOptions } from "../map/bridge/BridgeOptions";
+import { StairOptions } from "../map/stair/StairOptions";
 import { MapChestOptions } from "../map/MapChests";
 import { PropOptions } from "../map/MapProps";
 import { MapTorchOptions } from "../map/MapTorches";
 import { PaintOptions } from "../map/PaintOptions";
+import { ReliefOptions } from "../map/terrain/ReliefOptions";
+import { TerrainOptions } from "../map/terrain/TerrainOptions";
 import { WallOptions } from "../map/WallShape";
 import { setTool, useApp, type MapTool } from "../store";
 import { TipTitle } from "./TipTitle";
 import { Panel } from "./Panel";
 
 /** Ferramentas de construção do mapa (passo 4 do cenário): saíram da barra do mapa e ficam neste painel. */
-export const BUILD_TOOLS = ["walls", "torches", "chests", "props", "paint"] as const satisfies readonly MapTool[];
+export const BUILD_TOOLS = ["walls", "torches", "chests", "props", "paint", "terrain", "relief", "floor", "bridge", "stair"] as const satisfies readonly MapTool[];
 export type BuildTool = (typeof BUILD_TOOLS)[number];
 export const isBuildTool = (tool: MapTool): tool is BuildTool => (BUILD_TOOLS as readonly MapTool[]).includes(tool);
 
@@ -22,6 +27,11 @@ const TOOLS: Record<BuildTool, { text: MessageKey; tip: MessageKey; icon: typeof
   chests: { text: "chests.tool", tip: "chests.toolTip", icon: IconBox },
   props: { text: "props.tool", tip: "props.toolTip", icon: IconTree },
   paint: { text: "paint.tool", tip: "paint.toolTip", icon: IconBrush },
+  terrain: { text: "terrain.tool", tip: "terrain.toolTip", icon: IconTexture },
+  relief: { text: "relief.tool", tip: "relief.toolTip", icon: IconMountain },
+  floor: { text: "floor.tool", tip: "floor.toolTip", icon: IconLayoutBoardSplit },
+  bridge: { text: "bridge.tool", tip: "bridge.toolTip", icon: IconBuildingBridge2 },
+  stair: { text: "stair.tool", tip: "stair.toolTip", icon: IconStairs },
 };
 
 /**
@@ -36,10 +46,12 @@ export function BuildPanel() {
   const sceneStyle = useApp((s) => s.state?.battle.map.wallStyle ?? "stone");
   const torchCount = useApp((s) => s.state?.battle.torches.length ?? 0);
   const selectedProp = useApp((s) => s.state?.battle.props.find((p) => p.id === s.selectedPropId) ?? null);
+  const selectedBridge = useApp((s) => s.state?.battle.bridges.find((bridge) => bridge.id === s.selectedBridgeId) ?? null);
+  const selectedStair = useApp((s) => s.state?.battle.stairs.find((stair) => stair.id === s.selectedStairId) ?? null);
 
   return (
     <Panel title={t("build.title")} anchor="build">
-      <SimpleGrid cols={5} spacing={4} role="radiogroup" aria-label={t("build.pick")}>
+      <SimpleGrid cols={3} spacing={4} role="radiogroup" aria-label={t("build.pick")}>
         {BUILD_TOOLS.map((id) => {
           const { text, tip, icon: Icon } = TOOLS[id];
           const active = tool === id;
@@ -68,6 +80,11 @@ export function BuildPanel() {
       {tool === "chests" && <MapChestOptions />}
       {tool === "props" && <PropOptions selected={selectedProp} />}
       {tool === "paint" && <PaintOptions />}
+      {tool === "terrain" && <TerrainOptions />}
+      {tool === "relief" && <ReliefOptions />}
+      {tool === "floor" && <FloorOptions />}
+      {tool === "bridge" && <BridgeOptions selected={selectedBridge} />}
+      {tool === "stair" && <StairOptions selected={selectedStair} />}
       {!isBuildTool(tool) && (
         <Text size="xs" c="dimmed">
           {t("build.hint")}

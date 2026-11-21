@@ -1,13 +1,14 @@
 import Konva from "konva";
 import { useEffect, useMemo, useRef } from "react";
 import { Circle, Group, Line, Shape } from "react-konva";
-import type { MapConfig, MapEffect } from "@rpg/shared";
+import { geometryOf, isHex, type MapConfig, type MapEffect } from "@rpg/shared";
 import { areaPolygon } from "./AreaShape";
+import { cellAt, cellCenter } from "./geometry";
 import { drawFx, newFxState, type FxArea } from "./effectFx";
 import { effectTexture, TILE } from "./effectTextures";
 import { useDragOffset } from "./dragFollow";
 
-type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell">;
+type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell" | "grid">;
 
 /** Ponto dentro do polígono (pontos achatados x0, y0, x1, y1…), para sortear partículas só na área. */
 function inPolygon(pts: number[], x: number, y: number): boolean {
@@ -55,11 +56,28 @@ export function EffectShape({ effect, grid, scale }: { effect: MapEffect; grid: 
   const radius = (area.feet / grid.feetPerCell) * grid.cellPx;
   const points = useMemo(() => (round || cells ? [] : areaPolygon(area, grid)), [round, cells, area, grid]);
   const feather = grid.cellPx * FEATHER;
+  // Cantos do hex em volta do centro (em pixels), iguais para qualquer casa; `null` no quadrado.
+  const hexCorners = useMemo(() => {
+    if (!isHex(grid)) return null;
+    const geometry = geometryOf(grid.grid);
+    const origin = geometry.center({ col: 0, row: 0 });
+    return geometry.polygon({ col: 0, row: 0 }).map((corner) => ({ x: (corner.x - origin.x) * grid.cellPx, y: (corner.y - origin.y) * grid.cellPx }));
+  }, [grid]);
 
   /** Desenha o formato da área (círculo, polígono ou as casas pintadas) como caminho. */
   const tracePath = (ctx: Pick<CanvasRenderingContext2D, "beginPath" | "arc" | "moveTo" | "lineTo" | "rect" | "closePath">) => {
     ctx.beginPath();
     if (cells) {
+      // Hex (Passo 16): cada casa pintada é o hexágono dela; no quadrado, o quadrado de sempre.
+      if (hexCorners) {
+        for (let i = 0; i + 1 < cells.length; i += 2) {
+          const center = cellCenter({ col: cells[i], row: cells[i + 1] }, grid);
+          ctx.moveTo(center.x + hexCorners[0].x, center.y + hexCorners[0].y);
+          for (let corner = 1; corner < hexCorners.length; corner++) ctx.lineTo(center.x + hexCorners[corner].x, center.y + hexCorners[corner].y);
+          ctx.closePath();
+        }
+        return;
+      }
       for (let i = 0; i + 1 < cells.length; i += 2) ctx.rect(grid.offsetX + cells[i] * grid.cellPx, grid.offsetY + cells[i + 1] * grid.cellPx, grid.cellPx, grid.cellPx);
       return;
     }
@@ -76,8 +94,21 @@ export function EffectShape({ effect, grid, scale }: { effect: MapEffect; grid: 
       const rows = cells.filter((_, i) => i % 2 === 1);
       const [c0, r0] = [Math.min(...cols), Math.min(...rows)];
       const set = new Set(cols.map((c, i) => `${c},${rows[i]}`));
-      box = { x: grid.offsetX + c0 * grid.cellPx, y: grid.offsetY + r0 * grid.cellPx, w: (Math.max(...cols) - c0 + 1) * grid.cellPx, h: (Math.max(...rows) - r0 + 1) * grid.cellPx };
-      inside = (x, y) => set.has(`${Math.floor((x - grid.offsetX) / grid.cellPx)},${Math.floor((y - grid.offsetY) / grid.cellPx)}`);
+      if (hexCorners) {
+        // Caixa que cobre os hexes pintados: os centros mais a folga do hexágono.
+        const centers = cols.map((c, i) => cellCenter({ col: c, row: rows[i] }, grid));
+        const reachX = Math.max(...hexCorners.map((corner) => Math.abs(corner.x)));
+        const reachY = Math.max(...hexCorners.map((corner) => Math.abs(corner.y)));
+        const xs = centers.map((center) => center.x);
+        const ys = centers.map((center) => center.y);
+        box = { x: Math.min(...xs) - reachX, y: Math.min(...ys) - reachY, w: Math.max(...xs) - Math.min(...xs) + reachX * 2, h: Math.max(...ys) - Math.min(...ys) + reachY * 2 };
+      } else {
+        box = { x: grid.offsetX + c0 * grid.cellPx, y: grid.offsetY + r0 * grid.cellPx, w: (Math.max(...cols) - c0 + 1) * grid.cellPx, h: (Math.max(...rows) - r0 + 1) * grid.cellPx };
+      }
+      inside = (x, y) => {
+        const cell = cellAt({ x, y }, grid);
+        return set.has(`${cell.col},${cell.row}`);
+      };
     } else if (round) {
       box = { x: origin.x - radius, y: origin.y - radius, w: radius * 2, h: radius * 2 };
       inside = (x, y) => (x - origin.x) ** 2 + (y - origin.y) ** 2 <= radius * radius;
@@ -89,7 +120,7 @@ export function EffectShape({ effect, grid, scale }: { effect: MapEffect; grid: 
     }
     // Folga em volta: a borda difusa passa um pouco da área.
     return { box: { x: box.x - feather, y: box.y - feather, w: box.w + feather * 2, h: box.h + feather * 2 }, inside };
-  }, [cells, grid, round, origin.x, origin.y, radius, points, feather]);
+  }, [cells, grid, round, origin.x, origin.y, radius, points, feather, hexCorners]);
 
   // Um quadro por frame só na camada dos efeitos (os tokens não redesenham).
   useEffect(() => {

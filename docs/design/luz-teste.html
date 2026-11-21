@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Teste luz WebGL</title>
+<style>
+  body { margin: 0; background: #17120f; color: #e8dcc4; font: 15px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0 8px 0 0; font-weight: 600; }
+  button { background: #2a211b; color: #e8dcc4; border: 1px solid #5a4636; border-radius: 6px; padding: 5px 12px; font: inherit; cursor: pointer; }
+  button.on { background: #8a6a3e; border-color: #d8b47a; color: #fff; }
+  label { display: flex; gap: 6px; align-items: center; }
+  canvas { display: block; cursor: grab; }
+  small { color: #a89880; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Luz (shader): teste</h1>
+  <button data-mode="day">Dia</button>
+  <button data-mode="dusk">Entardecer</button>
+  <button data-mode="night" class="on">Noite</button>
+  <button data-mode="moon">Luar</button>
+  <label><input type="checkbox" id="tokenTorch" checked> Token com tocha</label>
+  <label><input type="checkbox" id="legacy"> Como é hoje</label>
+  <small>Arraste as tochas.</small>
+</header>
+<canvas id="map" width="1024" height="640"></canvas>
+<script src="propart.js"></script>
+<script>
+const W = 1024, H = 640, CELL = 48;
+const px = (cells) => cells * CELL;
+
+// ---------- cena: duas salas de pedra, porta, corredor, árvores lá fora ----------
+// Paredes em casas (x1, y1, x2, y2). Vãos = portas abertas.
+const WALLS = [
+  [3, 2, 15, 2], [3, 2, 3, 11], [3, 11, 7, 11], [8, 11, 15, 11], [15, 2, 15, 5], [15, 6.5, 15, 11],
+  [9, 2, 9, 5.5], [9, 7, 9, 11],
+  // pilar no meio da sala da direita
+  [11.6, 5.6, 12.4, 5.6], [12.4, 5.6, 12.4, 6.4], [12.4, 6.4, 11.6, 6.4], [11.6, 6.4, 11.6, 5.6],
+];
+const torches = [{ x: px(5.2), y: px(4.2) }, { x: px(17.5), y: px(8) }];
+const token = { x: px(13.5), y: px(8.5) };
+
+function load(src) { return new Promise((resolve) => { const image = new Image(); image.onload = () => resolve(image); image.src = src; }); }
+
+function drawBase(grass, stone) {
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = ctx.createPattern(grass, "repeat");
+  ctx.fillRect(0, 0, W, H);
+  // Piso de pedra das salas.
+  ctx.save();
+  ctx.beginPath(); ctx.rect(px(3), px(2), px(12), px(9)); ctx.clip();
+  ctx.filter = "brightness(1.7) saturate(0.4)";
+  ctx.fillStyle = ctx.createPattern(stone, "repeat");
+  ctx.fillRect(px(3), px(2), px(12), px(9));
+  ctx.filter = "none";
+  // Grade das lajes.
+  ctx.strokeStyle = "rgba(20,15,10,.35)"; ctx.lineWidth = 1;
+  for (let x = 3; x <= 15; x++) { ctx.beginPath(); ctx.moveTo(px(x), px(2)); ctx.lineTo(px(x), px(11)); ctx.stroke(); }
+  for (let y = 2; y <= 11; y++) { ctx.beginPath(); ctx.moveTo(px(3), px(y)); ctx.lineTo(px(15), px(y)); ctx.stroke(); }
+  ctx.restore();
+  // Árvores lá fora (o desenho do app).
+  for (const [x, y, seed] of [[18.5, 3, 4], [20.5, 10.5, 9], [1.3, 7, 2], [6, 12.6, 6]]) {
+    ctx.save(); ctx.translate(px(x), px(y)); window.drawProp(ctx, "tree", CELL, seed); ctx.restore();
+  }
+  // Paredes: pedra escura com luz por cima.
+  ctx.lineCap = "square";
+  for (const [x1, y1, x2, y2] of WALLS) {
+    ctx.strokeStyle = "#2b2622"; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(px(x1), px(y1)); ctx.lineTo(px(x2), px(y2)); ctx.stroke();
+    ctx.strokeStyle = "#6e6458"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(px(x1), px(y1)); ctx.lineTo(px(x2), px(y2)); ctx.stroke();
+  }
+  // Token (anel na cor do jogador).
+  ctx.beginPath(); ctx.arc(token.x, token.y, CELL * 0.42, 0, Math.PI * 2);
+  ctx.fillStyle = "#3a5a8a"; ctx.fill();
+  ctx.lineWidth = 4; ctx.strokeStyle = "#8fb4e8"; ctx.stroke();
+  ctx.fillStyle = "#e8dcc4"; ctx.font = "bold 20px Segoe UI"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("A", token.x, token.y + 1);
+  return canvas;
+}
+
+// ---------- luz da cena ----------
+const MODES = {
+  day:   { ambient: [0.62, 0.62, 0.6],  sun: [0.5, 0.48, 0.44], sunDir: [0.55, 0.83], shadowLen: 34,  torch: 0.12, legacyColor: [1, 1, 1] },
+  dusk:  { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], sunDir: [0.97, 0.25], shadowLen: 150, torch: 0.55, legacyColor: [1, 0.77, 0.59] },
+  night: { ambient: [0.08, 0.1, 0.19],  sun: [0, 0, 0],          sunDir: [0.6, 0.8],   shadowLen: 0,   torch: 1.0,  legacyColor: [0.27, 0.32, 0.49] },
+  moon:  { ambient: [0.16, 0.2, 0.33],  sun: [0.17, 0.21, 0.33], sunDir: [0.45, 0.89], shadowLen: 60,  torch: 1.0,  legacyColor: [0.59, 0.67, 0.84] },
+};
+let target = MODES.night;
+const current = JSON.parse(JSON.stringify(MODES.night));
+
+// ---------- WebGL ----------
+const canvas = document.getElementById("map");
+const gl = canvas.getContext("webgl2");
+const MAX_WALLS = 32, MAX_LIGHTS = 4;
+const VERT = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main() { vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5); gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 outColor;
+uniform sampler2D uBase;
+uniform vec2 uRes;
+uniform vec4 uWalls[${MAX_WALLS}]; uniform int uWallCount;
+uniform vec4 uLights[${MAX_LIGHTS}]; uniform int uLightCount;  // x, y, raio (px), força
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uShadowLen, uTime, uTorch, uLegacy;
+uniform vec3 uLegacyColor;
+
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+
+// Cor da chama no instante: oscila entre laranja e amarelo (a luz no chão acompanha).
+float flameShift(float i) { return noise(vec2(uTime * 2.3 + i * 5.0, i * 3.1)); }
+vec3 flameColor(float i) { return mix(vec3(1.0, 0.5, 0.18), vec3(1.0, 0.8, 0.38), flameShift(i)); }
+
+// Chama vista de cima, em gota para cima (como as chamas do app): q em unidades da chama, base em (0, 0).
+// Devolve cor pré-multiplicada (rgb) e cobertura (a).
+vec4 flame(vec2 q, float i) {
+  float t = uTime;
+  float height = 1.0 + 0.36 * (noise(vec2(t * 9.0, i)) - 0.5);
+  float up = clamp(-q.y / height, 0.0, 1.2);
+  // Dança de lado a lado, mais forte na ponta.
+  q.x += (noise(vec2(q.y * 2.5 - t * 7.0, i * 4.0)) - 0.5) * 0.7 * up;
+  q.x += sin(t * 5.3 + i * 2.0) * 0.12 * up;
+  // Gota cheia: base redonda (meio círculo), corpo largo afinando até a ponta.
+  float width = q.y > 0.0 ? sqrt(max(0.0, 0.36 - q.y * q.y * 4.0)) : 0.6 * pow(max(1.0 - up / height, 0.0), 0.9);
+  float edge = abs(q.x) - width;
+  float body = 1.0 - smoothstep(-0.08, 0.06, edge);
+  // Limites: a ponta some no alto e a base não passa do meio círculo.
+  body *= 1.0 - smoothstep(height * 0.92, height * 1.02, -q.y);
+  body *= 1.0 - smoothstep(0.26, 0.31, q.y);
+  // Camadas: laranja-avermelhado por fora, a cor do instante, miolo amarelo-claro.
+  float inner = 1.0 - smoothstep(-0.3, -0.08, edge + 0.04);
+  float core = (1.0 - smoothstep(-0.2, -0.02, edge + 0.2)) * smoothstep(0.85, 0.15, up);
+  vec3 tint = flameColor(i);
+  vec3 color = mix(vec3(0.92, 0.32, 0.1), tint, inner);
+  color = mix(color, vec3(1.0, 0.94, 0.7), core);
+  return vec4(color * body, body);
+}
+
+// O trecho a-b cruza alguma parede?
+bool blocked(vec2 a, vec2 b) {
+  vec2 r = b - a;
+  for (int k = 0; k < ${MAX_WALLS}; k++) {
+    if (k >= uWallCount) break;
+    vec2 p = uWalls[k].xy, s = uWalls[k].zw - uWalls[k].xy;
+    float denom = r.x * s.y - r.y * s.x;
+    if (abs(denom) < 1e-6) continue;
+    vec2 qp = p - a;
+    float t = (qp.x * s.y - qp.y * s.x) / denom;
+    float u = (qp.x * r.y - qp.y * r.x) / denom;
+    if (t > 0.001 && t < 0.999 && u >= 0.0 && u <= 1.0) return true;
+  }
+  return false;
+}
+
+void main() {
+  vec2 p = vUv * uRes;
+  vec3 base = texture(uBase, vUv).rgb;
+  vec3 light = uAmbient;
+  vec3 glow = vec3(0.0);
+  // Sol (ou lua): a parede, com altura, joga sombra comprida para o lado oposto ao do sol. Sombra macia: 5 raios.
+  if (uShadowLen > 0.0) {
+    float lit = 0.0;
+    for (int k = 0; k < 5; k++) {
+      float spread = (float(k) - 2.0) * 0.06;
+      vec2 dir = normalize(uSunDir + vec2(-uSunDir.y, uSunDir.x) * spread);
+      float len = uShadowLen * (0.85 + 0.075 * float(k));
+      lit += blocked(p, p - dir * len) ? 0.0 : 1.0;
+    }
+    light += uSun * (lit / 5.0);
+  }
+  // Tochas: luz quente que cai devagar, tremula, e para nas paredes (sombra macia: a chama tem tamanho).
+  for (int i = 0; i < ${MAX_LIGHTS}; i++) {
+    if (i >= uLightCount) break;
+    vec2 center = uLights[i].xy;
+    float radius = uLights[i].z;
+    float flick = 0.86 + 0.14 * noise(vec2(uTime * 7.0 + float(i) * 13.0, float(i)));
+    float wobble = 1.0 + 0.04 * (noise(vec2(uTime * 3.0, float(i) * 7.0)) - 0.5);
+    float d = distance(p, center);
+    float r = radius * wobble;
+    if (d < r) {
+      float vis = 0.0;
+      for (int k = 0; k < 6; k++) {
+        float angle = float(k) / 6.0 * 6.2832 + uTime * 0.7;
+        vis += blocked(center + vec2(cos(angle), sin(angle)) * 7.0, p) ? 0.0 : 1.0;
+      }
+      vis /= 6.0;
+      float fall = pow(1.0 - d / r, 1.7);
+      vec3 warm = mix(vec3(1.0, 0.6, 0.3), vec3(1.0, 0.78, 0.45), flameShift(float(i)));
+      light += warm * fall * vis * uTorch * abs(uLights[i].w) * flick * 1.6;
+    }
+    // Brilho em volta da chama (não escurece: brilha sozinho).
+    glow += flameColor(float(i)) * exp(-d / (10.0 * flick)) * uTorch * 0.5;
+  }
+  vec3 color = base * light + glow;
+  // As tochas por cima: cabo de madeira com aro de ferro, chama em camadas e faíscas subindo.
+  for (int i = 0; i < ${MAX_LIGHTS}; i++) {
+    if (i >= uLightCount) break;
+    vec2 local = p - uLights[i].xy;
+    float fi = float(i);
+    // Tocha que o token carrega: selo no canto de baixo à direita do token, com a chama dentro.
+    if (uLights[i].w < 0.0) {
+      vec2 badge = local - vec2(16.0, 16.0);
+      float disc = 1.0 - smoothstep(7.5, 8.5, length(badge));
+      float rim = disc * smoothstep(5.8, 7.0, length(badge));
+      color = mix(color, vec3(0.08, 0.07, 0.09), disc);
+      color = mix(color, flameColor(fi) * 0.95, rim);
+      vec4 small = flame((badge - vec2(0.0, 3.0)) / vec2(6.0, 10.0), fi);
+      color = color * (1.0 - small.a) + small.rgb;
+      color += flameColor(fi) * exp(-length(badge) / 9.0) * 0.35 * uTorch;
+      continue;
+    }
+    // Tocha fixa (~0,75 casa): cabo de madeira descendo da chama, com copo de ferro em cima.
+    local /= 0.55;
+    vec2 handle = local - vec2(0.0, 18.0);
+    float stick = (1.0 - smoothstep(2.4, 3.4, abs(handle.x))) * (1.0 - smoothstep(13.0, 14.0, abs(handle.y)));
+    vec3 wood = mix(vec3(0.3, 0.19, 0.1), vec3(0.52, 0.34, 0.18), smoothstep(-2.5, 2.5, -handle.x));
+    color = mix(color, wood * mix(0.75, 1.25, flameShift(fi)), stick);
+    vec2 cup = local - vec2(0.0, 5.0);
+    float cupShape = (1.0 - smoothstep(6.0, 7.0, abs(cup.x) + max(cup.y, 0.0) * 0.6)) * (1.0 - smoothstep(3.0, 4.0, abs(cup.y)));
+    color = mix(color, mix(vec3(0.2, 0.19, 0.18), vec3(0.5, 0.45, 0.4), smoothstep(3.0, -3.0, cup.x)) * mix(0.8, 1.3, flameShift(fi)), cupShape);
+    // Duas línguas de fogo: uma menor dançando ao lado, a principal por cima.
+    vec2 side = vec2(sin(uTime * 4.1 + fi) * 4.0, -1.0);
+    vec4 tongue = flame((local - side) / vec2(11.0, 20.0), fi + 0.37);
+    color = color * (1.0 - tongue.a) + tongue.rgb;
+    vec4 fire = flame(local / vec2(17.0, 32.0), fi);
+    color = color * (1.0 - fire.a) + fire.rgb * mix(0.9, 1.15, flameShift(fi));
+    for (int k = 0; k < 5; k++) {
+      float seed = fi * 17.0 + float(k) * 3.7;
+      float life = fract(uTime * (0.55 + 0.25 * hash(vec2(seed, 1.0))) + hash(vec2(seed, 2.0)));
+      vec2 spark = vec2((hash(vec2(seed, 3.0)) - 0.5) * 12.0 + sin(uTime * 3.0 + seed) * 4.0 * life, -14.0 - life * 46.0);
+      float glint = 1.0 - smoothstep(0.6, 1.6, distance(local, spark));
+      color += vec3(1.0, 0.65, 0.25) * glint * (1.0 - life) * uTorch;
+    }
+  }
+  // "Como é hoje": película multiplicada + furo redondo em volta de cada tocha (atravessa paredes), sem sombras.
+  if (uLegacy > 0.5) {
+    float hole = 0.0;
+    vec3 glowOld = vec3(0.0);
+    for (int i = 0; i < ${MAX_LIGHTS}; i++) {
+      if (i >= uLightCount) break;
+      float d = distance(p, uLights[i].xy) / uLights[i].z;
+      hole = max(hole, 1.0 - smoothstep(0.0, 1.0, d));
+      glowOld += vec3(1.0, 0.6, 0.25) * (1.0 - smoothstep(0.0, 0.5, d)) * 0.25 * uTorch;
+    }
+    vec3 film = mix(uLegacyColor, vec3(1.0), hole);
+    color = base * film;
+    color = 1.0 - (1.0 - color) * (1.0 - glowOld);
+  }
+  // Vinheta leve nas bordas (como hoje).
+  vec2 edge = vUv * (1.0 - vUv);
+  color *= mix(0.75, 1.0, smoothstep(0.0, 0.08, min(edge.x, edge.y)));
+  outColor = vec4(color, 1.0);
+}`;
+function shader(type, source) { const sh = gl.createShader(type); gl.shaderSource(sh, source); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; }
+const program = gl.createProgram();
+gl.attachShader(program, shader(gl.VERTEX_SHADER, VERT)); gl.attachShader(program, shader(gl.FRAGMENT_SHADER, FRAG));
+gl.linkProgram(program); gl.useProgram(program);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(program, "aPos"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const uniform = (name) => gl.getUniformLocation(program, name);
+
+Promise.all([load("grass_01.webp"), load("stone_01.webp")]).then(([grass, stone]) => {
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, drawBase(grass, stone));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.uniform1i(uniform("uBase"), 0);
+  gl.uniform2f(uniform("uRes"), W, H);
+  const walls = new Float32Array(MAX_WALLS * 4);
+  WALLS.forEach((wall, index) => walls.set(wall.map(px), index * 4));
+  gl.uniform4fv(uniform("uWalls[0]"), walls);
+  gl.uniform1i(uniform("uWallCount"), WALLS.length);
+  let last = performance.now();
+  function frame(now) {
+    const k = Math.min(1, (now - last) / 600); last = now;
+    // Transição suave entre dia, entardecer, noite e luar.
+    for (const key of ["ambient", "sun", "sunDir", "legacyColor"]) current[key] = current[key].map((value, index) => value + (target[key][index] - value) * k);
+    for (const key of ["shadowLen", "torch"]) current[key] += (target[key] - current[key]) * k;
+    const lights = new Float32Array(MAX_LIGHTS * 4);
+    torches.forEach((torch, index) => lights.set([torch.x, torch.y, px(5), 1], index * 4));
+    let count = torches.length;
+    if (document.getElementById("tokenTorch").checked) lights.set([token.x, token.y, px(5) + CELL * 0.42, -1], count++ * 4);
+    gl.uniform4fv(uniform("uLights[0]"), lights);
+    gl.uniform1i(uniform("uLightCount"), count);
+    gl.uniform3f(uniform("uAmbient"), ...current.ambient);
+    gl.uniform3f(uniform("uSun"), ...current.sun);
+    const len = Math.hypot(...current.sunDir) || 1;
+    gl.uniform2f(uniform("uSunDir"), current.sunDir[0] / len, current.sunDir[1] / len);
+    gl.uniform1f(uniform("uShadowLen"), current.shadowLen);
+    gl.uniform1f(uniform("uTorch"), current.torch);
+    gl.uniform3f(uniform("uLegacyColor"), ...current.legacyColor);
+    gl.uniform1f(uniform("uLegacy"), document.getElementById("legacy").checked ? 1 : 0);
+    gl.uniform1f(uniform("uTime"), now / 1000);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+});
+
+for (const button of document.querySelectorAll("button[data-mode]")) {
+  button.onclick = () => {
+    target = MODES[button.dataset.mode];
+    document.querySelectorAll("button[data-mode]").forEach((other) => other.classList.toggle("on", other === button));
+  };
+}
+// Arrastar as tochas.
+let dragging = null;
+canvas.onpointerdown = (event) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = (event.clientX - rect.left) * (W / rect.width), y = (event.clientY - rect.top) * (H / rect.height);
+  dragging = torches.find((torch) => Math.hypot(torch.x - x, torch.y - y) < 30) ?? null;
+  if (dragging) canvas.setPointerCapture(event.pointerId);
+};
+canvas.onpointermove = (event) => {
+  if (!dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  dragging.x = (event.clientX - rect.left) * (W / rect.width);
+  dragging.y = (event.clientY - rect.top) * (H / rect.height);
+};
+canvas.onpointerup = () => { dragging = null; };
+</script>
+</body>
+</html>

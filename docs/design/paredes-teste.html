@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paredes emendadas</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; font-weight: 600; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p.note { margin: 0 16px 8px; color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="mode"><b>Versão</b><button data-v="before">Antes</button><button data-v="after" class="on">Depois</button></div>
+  <div class="group" id="style"><b>Parede</b><button data-v="stone" class="on">Pedra lavrada</button><button data-v="rock">Rocha</button><button data-v="wood">Madeira</button><button data-v="brick">Tijolo</button><button data-v="mixed">Misturado</button></div>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button><button data-v="night">Noite</button></div>
+  <div class="group"><b>Porta</b><button id="door">Abrir</button></div>
+  <div class="group"><b>Luz de dentro</b><input id="indoor" type="range" min="0" max="1" step="0.05" value="0.45"><span id="indoorValue"></span></div>
+</header>
+<p class="note">Cômodo da esquerda: 4 paredes separadas + porta + parede em T por dentro + um traço sobreposto no topo. Direita: cômodo com diagonais. Embaixo: um L aberto e um X. O piso de terra dentro dos cômodos é só para o teste.</p>
+<canvas id="view"></canvas>
+<script>
+const CELL = 48, COLS = 20, ROWS = 14;
+const W = COLS * CELL, H = ROWS * CELL;
+const T = 0.22; // espessura da parede, em casas
+
+// Paredes como o mestre traça hoje: cada uma um traço solto.
+const WALLS = [
+  { a: [2, 2], b: [9, 2] }, { a: [7, 2], b: [11, 2] }, // o segundo sobrepõe o primeiro e passa adiante
+  { a: [9, 2], b: [9, 8] }, { a: [2, 8], b: [2, 2] },
+  { a: [2, 8], b: [5, 8] }, { a: [5, 8], b: [6, 8], door: true }, { a: [6, 8], b: [9, 8] },
+  { a: [6, 2], b: [6, 5] }, // em T, por dentro
+  { a: [12, 2], b: [17, 2], room2: true }, { a: [17, 2], b: [18.5, 5], room2: true }, { a: [18.5, 5], b: [15, 8.5], room2: true },
+  { a: [15, 8.5], b: [12, 6.5], room2: true }, { a: [12, 6.5], b: [12, 2], room2: true },
+  { a: [11, 11], b: [16, 11] }, { a: [16, 11], b: [16, 13] }, // L aberto
+  { a: [2, 11], b: [7, 11] }, { a: [4.5, 9.5], b: [4.5, 12.8] }, // X
+];
+const TORCHES = [[4, 5], [14.5, 4.5], [13, 12.3]];
+const SCENES = {
+  day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], shadow: 34 / 48, torch: 0.12 },
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], shadow: 150 / 48, torch: 0.55 },
+  moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], dir: [0.45, 0.89], shadow: 60 / 48, torch: 1 },
+  night: { ambient: [0.08, 0.1, 0.19], sun: [0, 0, 0], dir: [0.6, 0.8], shadow: 0, torch: 1 },
+};
+const state = { mode: "after", style: "stone", light: "day", doorOpen: false, indoor: 0.45 };
+
+// ---------- utilidades ----------
+const sub = (p, q) => [p[0] - q[0], p[1] - q[1]];
+const add = (p, q) => [p[0] + q[0], p[1] + q[1]];
+const mul = (p, k) => [p[0] * k, p[1] * k];
+const cross = (p, q) => p[0] * q[1] - p[1] * q[0];
+const dot = (p, q) => p[0] * q[0] + p[1] * q[1];
+const len = (p) => Math.hypot(p[0], p[1]);
+const norm = (p) => { const l = len(p) || 1; return [p[0] / l, p[1] / l]; };
+const key = (p) => `${p[0].toFixed(3)},${p[1].toFixed(3)}`;
+function hash(...values) { let h = 2166136261; for (const v of values) { h ^= Math.round(v * 1000) | 0; h = Math.imul(h, 16777619); } h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15; return (h >>> 0) / 4294967296; }
+const px = (p) => [p[0] * CELL, p[1] * CELL];
+function shade(hex, k) { const n = parseInt(hex.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k))); return `rgb(${c[0]},${c[1]},${c[2]})`; }
+const grainCanvas = (() => { const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d"); const img = g.createImageData(128, 128); for (let i = 0; i < img.data.length; i += 4) { const v = 150 + Math.random() * 105; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; } g.putImageData(img, 0, 0); return c; })();
+function grain(ctx, x, y, w, h, alpha) { const pattern = ctx.createPattern(grainCanvas, "repeat"); pattern.setTransform(new DOMMatrix().scale(0.35)); ctx.save(); ctx.globalCompositeOperation = "multiply"; ctx.globalAlpha = alpha; ctx.fillStyle = pattern; ctx.fillRect(x, y, w, h); ctx.restore(); }
+const INK = "#1d1712";
+
+// ---------- emenda: corta nos cruzamentos, junta repetidos, monta cadeias ----------
+function splitWalls(walls) {
+  const edges = new Map();
+  walls.forEach((wall, i) => {
+    const p = wall.a, r = sub(wall.b, wall.a);
+    const ts = [0, 1];
+    walls.forEach((other, j) => {
+      if (i === j) return;
+      const q = other.a, s = sub(other.b, other.a), d = cross(r, s);
+      if (Math.abs(d) < 1e-9) {
+        if (Math.abs(cross(sub(q, p), r)) > 1e-6) return; // paralelas, sem encostar
+        for (const e of [other.a, other.b]) { const t = dot(sub(e, p), r) / dot(r, r); if (t > 1e-6 && t < 1 - 1e-6) ts.push(t); }
+        return;
+      }
+      const t = cross(sub(q, p), s) / d, u = cross(sub(q, p), r) / d;
+      if (t > -1e-6 && t < 1 + 1e-6 && u > -1e-6 && u < 1 + 1e-6) ts.push(Math.min(1, Math.max(0, t)));
+    });
+    ts.sort((x, y) => x - y);
+    for (let k = 0; k < ts.length - 1; k++) {
+      if (ts[k + 1] - ts[k] < 1e-6) continue;
+      const a = add(p, mul(r, ts[k])), b = add(p, mul(r, ts[k + 1]));
+      const id = [key(a), key(b)].sort().join("|");
+      if (!edges.has(id) || wall.door) edges.set(id, { a, b, door: !!wall.door, style: wallStyle(wall) });
+    }
+  });
+  return [...edges.values()];
+}
+function wallStyle(wall) { return state.style === "mixed" ? (wall.room2 ? "brick" : "stone") : state.style; }
+
+function buildGraph(edges) {
+  const nodes = new Map();
+  const node = (p) => { const k = key(p); if (!nodes.has(k)) nodes.set(k, { p, edges: [] }); return nodes.get(k); };
+  edges.forEach((edge, index) => { edge.index = index; node(edge.a).edges.push(edge); node(edge.b).edges.push(edge); });
+  return nodes;
+}
+const otherEnd = (edge, k) => (key(edge.a) === k ? edge.b : edge.a);
+
+/** Em cada nó, quais paredes seguem uma na outra: duas no nó (mesmo desenho) ou as mais alinhadas num T/X. */
+function pairings(nodes) {
+  const paired = new Map(); // `${k}|${edgeIndex}` -> edge que continua
+  for (const [k, n] of nodes) {
+    const walls = n.edges.filter((e) => !e.door);
+    const angle = (e) => { const d = sub(otherEnd(e, k), n.p); return Math.atan2(d[1], d[0]); };
+    const used = new Set();
+    if (walls.length === 2 && n.edges.length === 2 && walls[0].style === walls[1].style) {
+      paired.set(`${k}|${walls[0].index}`, walls[1]); paired.set(`${k}|${walls[1].index}`, walls[0]);
+      continue;
+    }
+    const candidates = [];
+    for (let i = 0; i < walls.length; i++) for (let j = i + 1; j < walls.length; j++) {
+      let diff = Math.abs(angle(walls[i]) - angle(walls[j])); if (diff > Math.PI) diff = 2 * Math.PI - diff;
+      if (Math.PI - diff < 0.35 && walls[i].style === walls[j].style) candidates.push([Math.PI - diff, walls[i], walls[j]]);
+    }
+    candidates.sort((x, y) => x[0] - y[0]);
+    for (const [, e1, e2] of candidates) {
+      if (used.has(e1) || used.has(e2)) continue;
+      used.add(e1); used.add(e2);
+      paired.set(`${k}|${e1.index}`, e2); paired.set(`${k}|${e2.index}`, e1);
+    }
+  }
+  return paired;
+}
+
+function chains(edges, nodes) {
+  const paired = pairings(nodes);
+  const seen = new Set();
+  const out = [];
+  const walk = (edge, from) => {
+    const pts = [from];
+    let current = edge, at = from;
+    for (;;) {
+      seen.add(current);
+      const next = otherEnd(current, key(at));
+      pts.push(next);
+      const follow = paired.get(`${key(next)}|${current.index}`);
+      if (!follow || seen.has(follow)) {
+        const closed = follow && follow === edge && key(next) === key(pts[0]);
+        return { pts: closed ? pts.slice(0, -1) : pts, closed: !!closed, style: edge.style };
+      }
+      current = follow; at = next;
+    }
+  };
+  for (const edge of edges) {
+    if (edge.door || seen.has(edge)) continue;
+    // começa numa ponta que não continua (senão é um laço e fica para depois)
+    for (const end of [edge.a, edge.b]) if (!seen.has(edge) && !paired.get(`${key(end)}|${edge.index}`)) out.push(withEnds(walk(edge, end), nodes));
+  }
+  for (const edge of edges) if (!edge.door && !seen.has(edge)) out.push(withEnds(walk(edge, edge.a), nodes));
+  return out;
+}
+function withEnds(chain, nodes) {
+  const end = (p) => (nodes.get(key(p)).edges.length > 1 ? "butt" : "free");
+  chain.ends = chain.closed ? ["closed", "closed"] : [end(chain.pts[0]), end(chain.pts[chain.pts.length - 1])];
+  return chain;
+}
+
+/** "Antes": cada traço solto, passando um pouco das pontas, como hoje. */
+function looseChains() {
+  return WALLS.filter((w) => !w.door).map((w) => ({ pts: [w.a, w.b], closed: false, style: wallStyle(w), ends: ["free", "free"] }));
+}
+
+/** Contorno com quina em ângulo: lados esquerdo e direito de cada ponto. */
+function outline(chain, t) {
+  const { pts, closed } = chain;
+  const n = pts.length;
+  const segDir = []; for (let i = 0; i < (closed ? n : n - 1); i++) segDir.push(norm(sub(pts[(i + 1) % n], pts[i])));
+  const normal = (d) => [-d[1], d[0]];
+  const left = [], right = [];
+  for (let k = 0; k < n; k++) {
+    let nrm, m = t / 2;
+    const prev = closed ? segDir[(k - 1 + n) % n] : segDir[k - 1];
+    const next = closed ? segDir[k % n] : segDir[k];
+    if (prev && next) { nrm = norm(add(normal(prev), normal(next))); m = (t / 2) / Math.max(0.3, dot(nrm, normal(next))); }
+    else nrm = normal(prev || next);
+    let p = pts[k];
+    if (!closed && k === 0 && chain.ends[0] === "free") p = sub(p, mul(next, t * 0.12));
+    if (!closed && k === n - 1 && chain.ends[1] === "free") p = add(p, mul(prev, t * 0.12));
+    left.push(add(p, mul(nrm, m))); right.push(sub(p, mul(nrm, m)));
+  }
+  return { left, right, segDir };
+}
+function outlinePath(chain, t) {
+  const { left, right } = outline(chain, t);
+  const path = new Path2D();
+  if (chain.closed) {
+    left.forEach((p, i) => (i ? path.lineTo(...px(p)) : path.moveTo(...px(p)))); path.closePath();
+    right.slice().reverse().forEach((p, i) => (i ? path.lineTo(...px(p)) : path.moveTo(...px(p)))); path.closePath();
+  } else {
+    left.forEach((p, i) => (i ? path.lineTo(...px(p)) : path.moveTo(...px(p))));
+    right.slice().reverse().forEach((p) => path.lineTo(...px(p))); path.closePath();
+  }
+  return path;
+}
+
+// ---------- texturas ao longo da cadeia ----------
+/** Blocos de uma fiada ao longo do comprimento (mesmo bloco dos dois lados da quina). */
+function courses(seed, row, phase, from, to, widthOf) {
+  const out = []; let s = -2 - phase, j = 0;
+  while (s < to) { const w = widthOf(hash(seed, row, j)); if (s + w > from) out.push({ s, w, j }); s += w; j++; }
+  return out;
+}
+const STONE = ["#a39a8a", "#948b7b", "#ada493", "#8a8273", "#9c9281", "#b5ab98"];
+const WOOD = ["#8b5a2b", "#7d5026", "#966534", "#714720"];
+const BRICK = ["#9a4a32", "#8a412c", "#a5553a", "#7e3a27", "#93503a"];
+
+function drawStone(ctx, x0, x1, t, seed) {
+  const h = t / 2, gap = t * 0.06;
+  ctx.fillStyle = "#4a443c"; ctx.fillRect(x0, -t / 2, x1 - x0, t);
+  for (let row = 0; row < 2; row++) for (const b of courses(seed, row, row * h * 0.6, x0, x1, (r) => h * (1.1 + r * 1.3))) {
+    const y0 = -t / 2 + row * h, tone = STONE[Math.floor(hash(seed, row, b.j, 7) * STONE.length)];
+    const block = new Path2D(); block.roundRect(b.s + gap / 2, y0 + gap / 2, b.w - gap, h - gap, h * 0.22);
+    const g = ctx.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, shade(tone, 0.15)); g.addColorStop(1, shade(tone, -0.22));
+    ctx.fillStyle = g; ctx.fill(block);
+    ctx.save(); ctx.clip(block); grain(ctx, b.s, y0, b.w, h, 0.4);
+    if (hash(seed, row, b.j, 9) < 0.18) { ctx.fillStyle = "rgba(92,120,60,.55)"; ctx.beginPath(); ctx.ellipse(b.s + b.w * hash(seed, b.j, 3), y0 + h * 0.7, b.w * 0.25, h * 0.25, 0, 0, 7); ctx.fill(); }
+    ctx.restore();
+    ctx.strokeStyle = "rgba(255,246,225,.45)"; ctx.lineWidth = t * 0.035;
+    ctx.beginPath(); ctx.moveTo(b.s + gap * 1.5, y0 + gap * 1.1); ctx.lineTo(b.s + b.w - gap * 1.5, y0 + gap * 1.1); ctx.stroke();
+    ctx.strokeStyle = "rgba(20,15,10,.5)"; ctx.lineWidth = t * 0.025; ctx.stroke(block);
+  }
+}
+function drawWood(ctx, x0, x1, t, seed) {
+  const rows = 3, h = t / rows;
+  ctx.fillStyle = "#3a2614"; ctx.fillRect(x0, -t / 2, x1 - x0, t);
+  for (let row = 0; row < rows; row++) for (const b of courses(seed, row, row * t * 0.9, x0, x1, (r) => t * (2.2 + r * 2.5))) {
+    const y0 = -t / 2 + row * h, tone = WOOD[Math.floor(hash(seed, row, b.j, 5) * WOOD.length)];
+    const plank = new Path2D(); plank.rect(b.s + t * 0.02, y0 + t * 0.015, b.w - t * 0.04, h - t * 0.03);
+    const g = ctx.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, shade(tone, 0.12)); g.addColorStop(1, shade(tone, -0.2));
+    ctx.fillStyle = g; ctx.fill(plank);
+    ctx.save(); ctx.clip(plank);
+    ctx.strokeStyle = "rgba(40,22,8,.35)"; ctx.lineWidth = t * 0.012;
+    for (let k = 0; k < 3; k++) { const yy = y0 + h * (0.25 + k * 0.25); ctx.beginPath(); for (let x = b.s; x <= b.s + b.w; x += t * 0.2) ctx.lineTo(x, yy + Math.sin(x / t * 3 + hash(seed, b.j, k) * 9) * h * 0.08); ctx.stroke(); }
+    grain(ctx, b.s, y0, b.w, h, 0.3); ctx.restore();
+    ctx.fillStyle = "#2a2a2e"; for (const x of [b.s + t * 0.12, b.s + b.w - t * 0.12]) { ctx.beginPath(); ctx.arc(x, y0 + h / 2, t * 0.025, 0, 7); ctx.fill(); }
+  }
+}
+function drawBrick(ctx, x0, x1, t, seed) {
+  const rows = 4, h = t / rows, bl = t * 0.5;
+  ctx.fillStyle = "#c9bfae"; ctx.fillRect(x0, -t / 2, x1 - x0, t);
+  for (let row = 0; row < rows; row++) for (const b of courses(seed, row, (row % 2) * bl / 2, x0, x1, () => bl)) {
+    const y0 = -t / 2 + row * h, tone = BRICK[Math.floor(hash(seed, row, b.j, 3) * BRICK.length)];
+    ctx.fillStyle = tone; ctx.fillRect(b.s + t * 0.02, y0 + t * 0.02, bl - t * 0.04, h - t * 0.04);
+    ctx.fillStyle = "rgba(255,230,200,.22)"; ctx.fillRect(b.s + t * 0.02, y0 + t * 0.02, bl - t * 0.04, h * 0.18);
+  }
+  grain(ctx, x0, -t / 2, x1 - x0, t, 0.35);
+}
+const PATTERN = { stone: drawStone, wood: drawWood, brick: drawBrick };
+
+/** Rocha: pedras irregulares ao longo do caminho (no mundo, então a quina sai natural). */
+function rockBlobs(chain, t, seed) {
+  const blobs = []; const { pts, closed } = chain;
+  const n = closed ? pts.length : pts.length - 1;
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], L = len(sub(b, a)), d = norm(sub(b, a));
+    for (let x = 0; x < L; x += t * 0.42) {
+      const k = hash(seed, Math.round((s + x) * 100));
+      const side = (hash(seed, Math.round((s + x) * 100), 2) - 0.5) * t * 0.25;
+      const c = add(add(a, mul(d, x)), mul([-d[1], d[0]], side));
+      const r = t * (0.5 + k * 0.3), sides = 7, poly = [];
+      for (let v = 0; v < sides; v++) { const ang = (v / sides) * Math.PI * 2 + k * 3; const rr = r * (0.75 + hash(seed, v, Math.round((s + x) * 100)) * 0.35); poly.push(add(c, [Math.cos(ang) * rr, Math.sin(ang) * rr])); }
+      blobs.push({ poly, tone: STONE[Math.floor(k * STONE.length)] });
+    }
+    s += L;
+  }
+  if (!closed) { const last = pts[pts.length - 1]; blobs.push({ poly: Array.from({ length: 7 }, (_, v) => add(last, [Math.cos(v) * t * 0.55, Math.sin(v) * t * 0.55])), tone: STONE[2] }); }
+  return blobs.map((b) => { const path = new Path2D(); b.poly.forEach((p, i) => (i ? path.lineTo(...px(p)) : path.moveTo(...px(p)))); path.closePath(); return { path, tone: b.tone, c: px(b.poly[0]) }; });
+}
+
+// ---------- desenho ----------
+const view = document.getElementById("view");
+const dpr = Math.min(2, window.devicePixelRatio || 1);
+view.width = W * dpr; view.height = H * dpr; view.style.width = W + "px"; view.style.height = H + "px";
+const ctx = view.getContext("2d"); ctx.scale(dpr, dpr);
+const layer = () => { const c = document.createElement("canvas"); c.width = W; c.height = H; return c; };
+const ground = layer(), light = layer(), wallLayer = layer(), wallLight = layer();
+const grass = new Image(); grass.src = "grass_01.webp"; const dirt = new Image(); dirt.src = "dirt_01.webp";
+
+function rooms(edges, nodes) {
+  // Faces do desenho das paredes (portas contam como fechadas): cada meia-aresta segue para a próxima à direita.
+  const half = []; const out = new Map();
+  for (const e of edges) { half.push({ from: e.a, to: e.b }, { from: e.b, to: e.a }); }
+  for (const h of half) { const k = key(h.from); if (!out.has(k)) out.set(k, []); out.get(k).push(h); }
+  for (const list of out.values()) for (const h of list) h.angle = Math.atan2(h.to[1] - h.from[1], h.to[0] - h.from[0]);
+  const used = new Set(), faces = [];
+  for (const start of half) {
+    if (used.has(start)) continue;
+    const poly = []; let h = start, guard = 0;
+    while (!used.has(h) && guard++ < 500) {
+      used.add(h); poly.push(h.from);
+      const back = Math.atan2(h.from[1] - h.to[1], h.from[0] - h.to[0]);
+      const options = out.get(key(h.to));
+      let best = null, bestTurn = Infinity;
+      for (const o of options) { let turn = (o.angle - back + 4 * Math.PI) % (2 * Math.PI); if (turn < 1e-9) turn = 2 * Math.PI; if (turn < bestTurn) { bestTurn = turn; best = o; } }
+      h = best;
+    }
+    let area = 0; for (let i = 0; i < poly.length; i++) area += cross(poly[i], poly[(i + 1) % poly.length]);
+    faces.push({ poly, area: area / 2 });
+  }
+  return faces.filter((f) => f.area < -0.01).map((f) => f.poly);
+}
+
+function lightPolygon(origin, reach, segs) {
+  const angles = []; for (let i = 0; i < 64; i++) angles.push((i / 64) * Math.PI * 2);
+  for (const s of segs) for (const p of [s.a, s.b]) { if (len(sub(p, origin)) > reach * 1.5) continue; const a = Math.atan2(p[1] - origin[1], p[0] - origin[0]); angles.push(a - 1e-4, a, a + 1e-4); }
+  angles.sort((x, y) => x - y);
+  return angles.map((a) => { const d = [Math.cos(a), Math.sin(a)]; let dist = reach; for (const s of segs) { const r = sub(s.b, s.a), den = cross(d, r); if (Math.abs(den) < 1e-12) continue; const q = sub(s.a, origin); const t = cross(q, r) / den, u = cross(q, d) / den; if (t > 1e-9 && u >= 0 && u <= 1) dist = Math.min(dist, t); } return add(origin, mul(d, dist)); });
+}
+
+function draw() {
+  const scene = SCENES[state.light];
+  const walls = WALLS.map((w) => (w.door ? { ...w, open: state.doorOpen } : w));
+  const edges = splitWalls(walls);
+  const nodes = buildGraph(edges);
+  const roomPolys = rooms(edges, nodes);
+  const roomPath = new Path2D(); for (const poly of roomPolys) { poly.forEach((p, i) => (i ? roomPath.lineTo(...px(p)) : roomPath.moveTo(...px(p)))); roomPath.closePath(); }
+  const list = state.mode === "after" ? chains(edges, nodes) : looseChains();
+  const t = T * CELL;
+
+  // chão
+  const g = ground.getContext("2d");
+  g.fillStyle = g.createPattern(grass, "repeat") || "#5a7a3a"; g.fillRect(0, 0, W, H);
+  g.save(); g.clip(roomPath); g.fillStyle = "#b39a76"; g.fillRect(0, 0, W, H); grain(g, 0, 0, W, H, 0.5); g.restore();
+  g.strokeStyle = "rgba(0,0,0,.12)"; g.lineWidth = 1; for (let c = 0; c <= COLS; c++) { g.beginPath(); g.moveTo(c * CELL, 0); g.lineTo(c * CELL, H); g.stroke(); } for (let r = 0; r <= ROWS; r++) { g.beginPath(); g.moveTo(0, r * CELL); g.lineTo(W, r * CELL); g.stroke(); }
+
+  // luz: fora com sombras; dentro dos cômodos, sem sombra e um pouco mais baixa; tochas por cima
+  const clampRgb = (c) => `rgb(${c.map((v) => Math.round(Math.min(1, v) * 255)).join(",")})`;
+  const outdoor = scene.ambient.map((a, i) => a + scene.sun[i]);
+  const indoor = scene.ambient.map((a, i) => a + scene.sun[i] * state.indoor);
+  const l = light.getContext("2d");
+  l.globalCompositeOperation = "source-over"; l.filter = "none";
+  l.fillStyle = clampRgb(outdoor); l.fillRect(0, 0, W, H);
+  if (scene.shadow > 0) {
+    l.save(); const outside = new Path2D(); outside.rect(0, 0, W, H); outside.addPath(roomPath); l.clip(outside, "evenodd");
+    l.filter = "blur(3px)"; l.fillStyle = clampRgb(scene.ambient);
+    const d = mul(norm(scene.dir), scene.shadow);
+    for (const e of edges) { if (e.door && state.doorOpen) continue; l.beginPath(); for (const p of [e.a, e.b, add(e.b, d), add(e.a, d)]) l.lineTo(...px(p)); l.closePath(); l.fill(); }
+    l.restore(); l.filter = "none";
+  }
+  l.save(); l.clip(roomPath); l.fillStyle = clampRgb(indoor); l.fillRect(0, 0, W, H); l.restore();
+  const blockers = edges.filter((e) => !(e.door && state.doorOpen));
+  const torchLight = (target) => {
+    target.globalCompositeOperation = "lighter";
+    for (const torch of TORCHES) {
+      const poly = lightPolygon(torch, 5, blockers);
+      target.save(); target.beginPath(); poly.forEach((p) => target.lineTo(...px(p))); target.closePath(); target.clip();
+      const [cx, cy] = px(torch); const grad = target.createRadialGradient(cx, cy, 0, cx, cy, 5 * CELL);
+      const k = scene.torch; grad.addColorStop(0, `rgba(${255 * k},${170 * k},${90 * k},1)`); grad.addColorStop(0.5, `rgba(${120 * k},${70 * k},${30 * k},1)`); grad.addColorStop(1, "rgba(0,0,0,1)");
+      target.fillStyle = grad; target.fillRect(0, 0, W, H); target.restore();
+    }
+    target.globalCompositeOperation = "source-over";
+  };
+  torchLight(l);
+
+  // paredes: sombras, contorno de tinta de todas, depois o corpo (as emendas somem)
+  const w = wallLayer.getContext("2d"); w.clearRect(0, 0, W, H);
+  const paths = list.map((chain) => ({ chain, path: outlinePath(chain, T), blobs: chain.style === "rock" ? rockBlobs(chain, T, hash(...chain.pts[0])) : null }));
+  w.save(); w.shadowColor = "rgba(0,0,0,.55)"; w.shadowBlur = t * 0.6; w.shadowOffsetY = t * 0.2; w.fillStyle = INK;
+  for (const { path, blobs } of paths) { if (blobs) blobs.forEach((b) => w.fill(b.path)); else w.fill(path); }
+  w.restore();
+  w.lineJoin = "round"; w.strokeStyle = INK; w.lineWidth = t * 0.22;
+  for (const { path, blobs } of paths) { if (blobs) blobs.forEach((b) => w.stroke(b.path)); else w.stroke(path); }
+  for (const { chain, path, blobs } of paths) {
+    if (blobs) {
+      for (const b of blobs) { const gr = w.createRadialGradient(b.c[0] - t * 0.2, b.c[1] - t * 0.2, 0, b.c[0], b.c[1], t * 0.9); gr.addColorStop(0, shade(b.tone, 0.2)); gr.addColorStop(1, shade(b.tone, -0.3)); w.fillStyle = gr; w.fill(b.path); }
+      for (const b of blobs) { w.save(); w.clip(b.path); grain(w, 0, 0, W, H, 0.35); w.restore(); w.strokeStyle = "rgba(25,18,12,.6)"; w.lineWidth = t * 0.04; w.stroke(b.path); }
+      continue;
+    }
+    const { segDir } = outline(chain, T);
+    const seed = Math.floor(hash(...chain.pts[0], chain.pts.length) * 1e6);
+    let s = 0;
+    const n = chain.closed ? chain.pts.length : chain.pts.length - 1;
+    const { left, right } = outline(chain, T);
+    for (let i = 0; i < n; i++) {
+      const a = chain.pts[i], b = chain.pts[(i + 1) % chain.pts.length], L = len(sub(b, a));
+      const quad = new Path2D(); for (const p of [left[i], left[(i + 1) % left.length], right[(i + 1) % right.length], right[i]]) quad.lineTo(...px(p)); quad.closePath();
+      w.save(); w.clip(quad); w.translate(...px(a)); w.rotate(Math.atan2(segDir[i][1], segDir[i][0]));
+      w.translate(-s * CELL, 0);
+      PATTERN[chain.style](w, (s - T * 2) * CELL, (s + L + T * 2) * CELL, t, seed);
+      w.restore();
+      s += L;
+    }
+  }
+  // portas: batentes e folha
+  for (const e of edges.filter((x) => x.door)) {
+    const [ax, ay] = px(e.a), [bx, by] = px(e.b); const L = Math.hypot(bx - ax, by - ay);
+    w.save(); w.translate(ax, ay); w.rotate(Math.atan2(by - ay, bx - ax));
+    for (const x of [0, L]) { w.fillStyle = INK; w.fillRect(x - t * 0.62, -t * 0.62, t * 1.24, t * 1.24); w.fillStyle = "#6b6358"; w.fillRect(x - t * 0.5, -t * 0.5, t, t); w.fillStyle = "rgba(255,245,225,.35)"; w.fillRect(x - t * 0.5, -t * 0.5, t, t * 0.18); }
+    const leaf = () => { w.fillStyle = INK; w.fillRect(t * 0.4, -t * 0.28, L - t * 0.8, t * 0.56); for (let k = 0; k < 4; k++) { w.fillStyle = WOOD[k % 4]; w.fillRect(t * 0.45 + k * (L - t * 0.9) / 4, -t * 0.22, (L - t * 0.9) / 4 - 1, t * 0.44); } w.fillStyle = "#3a3a40"; for (const fx of [0.3, 0.7]) w.fillRect(t * 0.4 + (L - t * 0.8) * fx - 2, -t * 0.28, 4, t * 0.56); };
+    if (state.doorOpen) { w.translate(t * 0.4, 0); w.rotate(Math.PI / 2); w.translate(-t * 0.4, 0); }
+    leaf(); w.restore();
+  }
+  // as paredes pegam a luz de fora (o topo delas fica no sol) e das tochas
+  const wl = wallLight.getContext("2d"); wl.globalCompositeOperation = "source-over"; wl.fillStyle = clampRgb(outdoor); wl.fillRect(0, 0, W, H); torchLight(wl);
+  const lit = layer(); const lc = lit.getContext("2d");
+  lc.drawImage(wallLayer, 0, 0); lc.globalCompositeOperation = "multiply"; lc.drawImage(wallLight, 0, 0); lc.globalCompositeOperation = "destination-in"; lc.drawImage(wallLayer, 0, 0);
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(ground, 0, 0);
+  ctx.globalCompositeOperation = "multiply"; ctx.drawImage(light, 0, 0); ctx.globalCompositeOperation = "source-over";
+  ctx.drawImage(lit, 0, 0);
+  window.debug = { rooms: roomPolys.length, chains: list.length, edges: edges.length };
+}
+
+function wire(id, prop) { document.querySelectorAll(`#${id} button`).forEach((b) => b.onclick = () => { state[prop] = b.dataset.v; document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); draw(); }); }
+wire("mode", "mode"); wire("style", "style"); wire("light", "light");
+document.getElementById("door").onclick = (e) => { state.doorOpen = !state.doorOpen; e.target.textContent = state.doorOpen ? "Fechar" : "Abrir"; e.target.classList.toggle("on", state.doorOpen); draw(); };
+const indoorInput = document.getElementById("indoor"), indoorValue = document.getElementById("indoorValue");
+indoorInput.oninput = () => { state.indoor = +indoorInput.value; indoorValue.textContent = Math.round(state.indoor * 100) + "% do sol"; draw(); };
+indoorValue.textContent = "45% do sol";
+let loaded = 0; for (const img of [grass, dirt]) img.onload = () => { if (++loaded === 2) draw(); };
+draw();
+</script>
+</body>
+</html>

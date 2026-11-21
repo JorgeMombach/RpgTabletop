@@ -158,6 +158,40 @@ function glow(r: number, g: number, b: number) {
   return canvas;
 }
 
+/**
+ * Língua de chama: gota com a base redonda embaixo e a ponta fina em cima, centro claro e borda que some. Desenhada
+ * uma vez por cor, em pé; quem desenha inclina. A base fica a 70% da altura (o ponto de apoio da chama).
+ */
+function flameTongue(r: number, g: number, b: number) {
+  const key = `tongue:${r},${g},${b}`;
+  const hit = sprites.get(key);
+  if (hit) return hit;
+  const width = 64;
+  const height = 96;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d")!;
+  const cx = width / 2;
+  const baseY = height * 0.7;
+  const radius = width * 0.3;
+  // Borda macia: a gota desfocada (sem suporte a filtro, sai só mais nítida).
+  ctx.filter = "blur(4px)";
+  const grad = ctx.createRadialGradient(cx, baseY, 0, cx, baseY - radius, height * 0.7);
+  grad.addColorStop(0, `rgba(${r},${g},${b},1)`);
+  grad.addColorStop(0.45, `rgba(${r},${g},${b},0.7)`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(cx, height * 0.06);
+  ctx.bezierCurveTo(cx + radius * 0.35, baseY - radius * 1.6, cx + radius * 1.1, baseY - radius * 0.7, cx + radius, baseY);
+  ctx.arc(cx, baseY, radius, 0, Math.PI);
+  ctx.bezierCurveTo(cx - radius * 1.1, baseY - radius * 0.7, cx - radius * 0.35, baseY - radius * 1.6, cx, height * 0.06);
+  ctx.fill();
+  sprites.set(key, canvas);
+  return canvas;
+}
+
 interface Particle {
   x: number;
   y: number;
@@ -167,8 +201,24 @@ interface Particle {
   life: number;
   size: number;
   seed: number;
-  /** Raio elétrico: os pontos do zigue-zague. */
-  path?: number[];
+  /** Raio elétrico: o arco principal e os galhos, cada um uma lista de pontos (x, y, x, y…). */
+  bolts?: number[][];
+}
+
+/** Uma raiz (ou galho de raiz): pontos relativos ao canto da área, espessura na base e semente do balanço da ponta. */
+interface RootPath {
+  points: number[];
+  width: number;
+  seed: number;
+}
+
+/** Raízes desenhadas para a área: o corpo parado vai pronto num canvas; só as pontas se mexem. */
+interface RootsDrawing {
+  w: number;
+  h: number;
+  color: string;
+  paths: RootPath[];
+  image: HTMLCanvasElement;
 }
 
 /** Estado de cada efeito na tela (partículas vivas, último quadro). */
@@ -177,6 +227,9 @@ export interface FxState {
   b: Particle[];
   c: Particle[];
   last: number;
+  roots?: RootsDrawing;
+  /** Clarão do eletrificado: 1 quando acende, cai até 0 em uma fração de segundo. */
+  flash?: number;
 }
 
 export function newFxState(): FxState {
@@ -236,42 +289,66 @@ const fire: Painter = (ctx, st, t, dt, area, cell) => {
   ctx.fillRect(box.x, box.y, box.w, box.h);
   ctx.restore();
 
-  // Calor esticado na vertical, subindo em duas velocidades: línguas de fogo.
-  const heat = noiseTexture("fire", 11, [4, 8, 16, 32], (v) => [255, 90 + v * 140, 10 + v * 30, smooth(0.55, 0.9, v) * 255]);
-  drawTiled(ctx, heat, box, cell * 2.2, Math.sin(t * 0.7) * cell * 0.3, -t * cell * 2.2, 0.6, "lighter", 2.4);
-  drawTiled(ctx, heat, box, cell * 1.4, Math.cos(t * 0.9) * cell * 0.2, -t * cell * 3.4, 0.4, "lighter", 2.8);
+  // Brasas: rachaduras no chão que acendem e apagam devagar, em duas escalas fora de compasso.
+  const cracks = noiseTexture("fire-cracks", 13, [6, 12, 24], (v) => [255, 110 + v * 80, 20, smooth(0.9, 0.985, ridge(v)) * 255]);
+  drawTiled(ctx, cracks, box, cell * 3.2, 0, 0, 0.12 + Math.sin(t * 1.7) * 0.07, "lighter");
+  drawTiled(ctx, cracks, box, cell * 2.1, cell * 0.6, cell * 0.4, 0.08 + Math.sin(t * 2.3 + 1) * 0.05, "lighter");
 
-  // Chamas: sobem, encolhem e passam de amarelo-claro a vermelho.
+  // Calor que ferve no lugar: as camadas rodam devagar em volta de onde estão (visto de cima, fogo não "anda").
+  const heat = noiseTexture("fire", 11, [4, 8, 16, 32], (v) => [255, 90 + v * 140, 10 + v * 30, smooth(0.55, 0.9, v) * 255]);
+  const flicker = Math.sin(t * 9) * 0.06 + Math.sin(t * 15.7) * 0.04;
+  drawTiled(ctx, heat, box, cell * 2.2, Math.sin(t * 0.6) * cell * 0.3, Math.cos(t * 0.5) * cell * 0.3, 0.55 + flicker, "lighter", 1.3);
+  drawTiled(ctx, heat, box, cell * 1.4, Math.cos(t * 0.8) * cell * 0.2, -Math.sin(t * 0.7) * cell * 0.25, 0.4 + flicker, "lighter", 1.5);
+
+  // Chamas: línguas que nascem, crescem e encolhem quase no mesmo lugar, balançando com o vento. Por fora a
+  // laranja; dentro, menor, a amarela-clara.
   st.a = step(st.a, dt);
-  keep(st.a, budget(area, cell, 1.6, 140), () => ({
+  keep(st.a, budget(area, cell, 1.5, 120), () => ({
     ...spawnPoint(area),
-    vx: (Math.random() - 0.5) * cell * 0.2,
-    vy: -cell * (0.8 + Math.random()),
+    vx: (Math.random() - 0.5) * cell * 0.1,
+    vy: -cell * (0.1 + Math.random() * 0.2),
     age: 0,
-    life: 0.5 + Math.random() * 0.7,
-    size: cell * (0.55 + Math.random() * 0.5),
+    life: 0.35 + Math.random() * 0.4,
+    size: cell * (0.6 + Math.random() * 0.5),
     seed: Math.random() * 10,
   }));
+  const wind = Math.sin(t * 0.4) * 0.15;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   for (const p of st.a) {
     const k = p.age / p.life;
-    const img = k < 0.3 ? glow(255, 236, 170) : k < 0.65 ? glow(255, 130, 25) : glow(190, 35, 8);
-    const w = p.size * (1 - k * 0.6);
-    ctx.globalAlpha = Math.sin(Math.PI * Math.min(1, k * 1.2)) * 0.6;
-    sprite(ctx, img, p.x + Math.sin(t * 6 + p.seed) * cell * 0.08, p.y - w * 0.5, w, w * 1.7);
+    const rise = Math.pow(Math.sin(Math.PI * k), 0.7);
+    const width = p.size * (0.85 + Math.sin(t * 11 + p.seed) * 0.12);
+    const height = p.size * 1.9 * rise;
+    const lean = wind + Math.sin(t * 2.6 + p.seed) * 0.18;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(lean);
+    // Brilho na base junta as línguas num fogo só.
+    ctx.globalAlpha = rise * 0.25;
+    ctx.drawImage(glow(255, 110, 20), -width * 0.6, -width * 0.6, width * 1.2, width * 1.2);
+    ctx.globalAlpha = rise * 0.5;
+    const outer = k < 0.7 ? flameTongue(255, 120, 20) : flameTongue(200, 45, 10);
+    ctx.drawImage(outer, -width / 2, -height * 0.7, width, height);
+    ctx.globalAlpha = rise * 0.6;
+    ctx.drawImage(flameTongue(255, 230, 150), -width * 0.3, -height * 0.5, width * 0.6, height * 0.6);
+    ctx.restore();
   }
-  // Fagulhas que sobem balançando.
+  // Fagulhas: saltam para os lados e sobem um pouco, piscando.
   st.b = step(st.b, dt);
-  keep(st.b, budget(area, cell, 0.35, 40), () => ({
-    ...spawnPoint(area),
-    vx: 0,
-    vy: -cell * (1 + Math.random()),
-    age: 0,
-    life: 0.8 + Math.random() * 1.2,
-    size: cell * (0.06 + Math.random() * 0.06),
-    seed: Math.random() * 10,
-  }));
+  keep(st.b, budget(area, cell, 0.35, 40), () => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = cell * (0.3 + Math.random() * 0.5);
+    return {
+      ...spawnPoint(area),
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - cell * 0.3,
+      age: 0,
+      life: 0.6 + Math.random() * 0.8,
+      size: cell * (0.06 + Math.random() * 0.06),
+      seed: Math.random() * 10,
+    };
+  });
   for (const p of st.b) {
     ctx.globalAlpha = (1 - p.age / p.life) * (0.6 + Math.sin(t * 20 + p.seed) * 0.4);
     sprite(ctx, glow(255, 200, 90), p.x + Math.sin(t * 3 + p.seed) * cell * 0.15, p.y, p.size * 2);
@@ -355,47 +432,100 @@ const wet: Painter = (ctx, st, t, dt, area, cell) => {
   ripples(ctx, st, dt, area, cell, 0.05, 1);
 };
 
-const electric: Painter = (ctx, st, _t, dt, area, cell) => {
+/**
+ * Arco elétrico de (x1, y1) a (x2, y2): o meio de cada trecho é empurrado de lado, cada vez menos (deslocamento do
+ * ponto médio). Sai curvo e irregular, sem cara de zigue-zague de régua.
+ */
+function arcPoints(x1: number, y1: number, x2: number, y2: number, bend: number, levels: number): number[] {
+  if (levels === 0) return [x1, y1, x2, y2];
+  const length = Math.hypot(x2 - x1, y2 - y1) || 1;
+  const push = (Math.random() - 0.5) * 2 * bend;
+  const mx = (x1 + x2) / 2 - ((y2 - y1) / length) * push;
+  const my = (y1 + y2) / 2 + ((x2 - x1) / length) * push;
+  const first = arcPoints(x1, y1, mx, my, bend * 0.55, levels - 1);
+  const second = arcPoints(mx, my, x2, y2, bend * 0.55, levels - 1);
+  return [...first, ...second.slice(2)];
+}
+
+/** Linha arredondada pelos pontos: curva passando pelos meios dos trechos. */
+function smoothLine(ctx: Ctx, points: number[]) {
+  ctx.beginPath();
+  ctx.moveTo(points[0], points[1]);
+  for (let i = 2; i < points.length - 2; i += 2) {
+    ctx.quadraticCurveTo(points[i], points[i + 1], (points[i] + points[i + 2]) / 2, (points[i + 1] + points[i + 3]) / 2);
+  }
+  ctx.lineTo(points[points.length - 2], points[points.length - 1]);
+  ctx.stroke();
+}
+
+/** Um raio: arco principal entre dois pontos da área e um ou dois galhos curtos saindo do meio dele. */
+function makeBolt(area: FxArea, cell: number): Particle {
+  const from = spawnPoint(area);
+  let to = spawnPoint(area);
+  for (let i = 0; i < 6; i++) {
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    if (distance > cell * 0.8 && distance < cell * 2.2) break;
+    to = spawnPoint(area);
+  }
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  const main = arcPoints(from.x, from.y, to.x, to.y, length * 0.22, 4);
+  const bolts = [main];
+  const heading = Math.atan2(to.y - from.y, to.x - from.x);
+  const branchCount = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < branchCount; i++) {
+    const at = 2 * Math.floor((main.length / 2) * (0.3 + Math.random() * 0.4));
+    const angle = heading + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.4);
+    const reach = length * (0.3 + Math.random() * 0.2);
+    const sx = main[at];
+    const sy = main[at + 1];
+    bolts.push(arcPoints(sx, sy, sx + Math.cos(angle) * reach, sy + Math.sin(angle) * reach, reach * 0.25, 3));
+  }
+  return { ...from, vx: 0, vy: 0, age: 0, life: 0.15 + Math.random() * 0.25, size: 0, seed: Math.random() * 10, bolts };
+}
+
+const electric: Painter = (ctx, st, t, dt, area, cell) => {
   const { box } = area;
   fill(ctx, box, "rgba(20, 50, 110, 0.35)");
-  // Brilho que tremula, com clarões de vez em quando.
-  const flash = Math.random() < dt * 1.5 ? 0.35 : 0;
+  // Clarão de vez em quando: acende de uma vez e apaga em ~0,2 s (nunca preso num quadro só).
+  st.flash = Math.max(0, (st.flash ?? 0) - dt * 5);
+  if (Math.random() < dt * 0.6) st.flash = 1;
+  // Carga no chão: anda devagar em volta do lugar e tremula suave (sem pular de posição).
   const charge = noiseTexture("electric", 97, [6, 12, 24], (v) => [120, 200, 255, smooth(0.6, 0.9, v) * 255]);
-  drawTiled(ctx, charge, box, cell * 3, Math.random() * cell * 0.2, Math.random() * cell * 0.2, 0.25 + Math.random() * 0.15 + flash, "lighter");
+  const hum = Math.sin(t * 7) * 0.04 + Math.sin(t * 13.3) * 0.03;
+  drawTiled(ctx, charge, box, cell * 3, Math.sin(t * 0.5) * cell * 0.4, Math.cos(t * 0.4) * cell * 0.4, 0.28 + hum + st.flash * 0.3, "lighter");
+  drawTiled(ctx, charge, box, cell * 2, -Math.cos(t * 0.6) * cell * 0.3, Math.sin(t * 0.55) * cell * 0.3, 0.15 + hum, "lighter");
 
-  // Raios: zigue-zagues curtos que estalam e somem em frações de segundo.
+  // Raios: arcos curvos com galhos, que piscam enquanto vivem; o halo azul some mais devagar que o núcleo branco.
   st.a = step(st.a, dt);
-  const want = budget(area, cell, 0.25, 14);
-  while (st.a.length < want && Math.random() < 0.6) {
-    const from = spawnPoint(area);
-    const ang = Math.random() * Math.PI * 2;
-    const len = cell * (0.8 + Math.random() * 2.2);
-    const segs = 6 + Math.floor(Math.random() * 5);
-    const path: number[] = [];
-    for (let i = 0; i <= segs; i++) {
-      const k = i / segs;
-      const jitter = i === 0 || i === segs ? 0 : (Math.random() - 0.5) * cell * 0.45;
-      path.push(from.x + Math.cos(ang) * len * k - Math.sin(ang) * jitter, from.y + Math.sin(ang) * len * k + Math.cos(ang) * jitter);
-    }
-    st.a.push({ ...from, vx: 0, vy: 0, age: 0, life: 0.06 + Math.random() * 0.18, size: 0, seed: 0, path });
-  }
+  if (st.a.length < budget(area, cell, 0.25, 14) && Math.random() < dt * 8) st.a.push(makeBolt(area, cell));
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
   for (const p of st.a) {
-    const a = 1 - p.age / p.life;
-    const line = () => {
-      ctx.beginPath();
-      for (let i = 0; i < p.path!.length; i += 2) ctx[i ? "lineTo" : "moveTo"](p.path![i], p.path![i + 1]);
-      ctx.stroke();
-    };
-    ctx.strokeStyle = `rgba(90, 170, 255, ${a * 0.45})`;
-    ctx.lineWidth = cell * 0.14;
-    line();
-    ctx.strokeStyle = `rgba(235, 248, 255, ${a})`;
-    ctx.lineWidth = Math.max(1, cell * 0.035);
-    line();
+    const k = p.age / p.life;
+    const blink = Math.sin(p.age * 70 + p.seed) > -0.3 ? 1 : 0.35;
+    const halo = Math.pow(1 - k, 0.5);
+    const core = Math.pow(1 - k, 1.5) * blink;
+    for (const [index, points] of (p.bolts ?? []).entries()) {
+      const thin = index === 0 ? 1 : 0.6;
+      ctx.strokeStyle = `rgba(80, 160, 255, ${halo * 0.35})`;
+      ctx.lineWidth = cell * 0.16 * thin;
+      smoothLine(ctx, points);
+      ctx.strokeStyle = `rgba(170, 220, 255, ${core * 0.6})`;
+      ctx.lineWidth = cell * 0.07 * thin;
+      smoothLine(ctx, points);
+      ctx.strokeStyle = `rgba(240, 250, 255, ${core})`;
+      ctx.lineWidth = Math.max(1, cell * 0.025 * thin);
+      smoothLine(ctx, points);
+    }
+    // Onde o raio toca o chão, um brilho.
+    const main = p.bolts?.[0];
+    if (main) {
+      ctx.globalAlpha = halo * 0.5;
+      for (const end of [0, main.length - 2]) sprite(ctx, glow(150, 210, 255), main[end], main[end + 1], cell * 0.5);
+      ctx.globalAlpha = 1;
+    }
   }
   ctx.restore();
   glints(ctx, st, dt, area, cell, 0.3, [180, 225, 255]);
@@ -621,14 +751,132 @@ const plants: Painter = (ctx, _st, t, _dt, area, cell, color) => {
   drawTiled(ctx, dapple, box, cell * 4, t * cell * 0.15, 0, 0.12, "lighter");
 };
 
-const roots: Painter = (ctx, _st, t, _dt, area, cell, color) => {
+/** A cor do efeito (`#rrggbb`) clareada (`factor` > 1) ou escurecida (< 1). */
+function shade(color: string, factor: number, alpha = 1): string {
+  const value = parseInt(color.slice(1), 16);
+  const channel = (shift: number) => Math.min(255, Math.round(((value >> shift) & 255) * factor));
+  return `rgba(${channel(16)}, ${channel(8)}, ${channel(0)}, ${alpha})`;
+}
+
+/** Quantos pontos do fim de cada raiz ficam de fora do desenho parado: a ponta que rasteja. */
+const ROOT_TIP = 3;
+
+/**
+ * Raízes para a área: cada uma nasce num ponto de dentro, serpenteia e se divide em galhos mais finos, até sair da
+ * área ou acabar o comprimento. Pontos relativos ao canto do `box` (a área pode andar junto com um token).
+ */
+function growRoots(area: FxArea, cell: number): RootPath[] {
   const { box } = area;
-  // Terra revolvida por baixo; raízes "respiram" (se apertam e soltam).
+  const paths: RootPath[] = [];
+  const segment = cell * 0.14;
+  const grow = (x: number, y: number, angle: number, length: number, width: number, depth: number) => {
+    const points = [x - box.x, y - box.y];
+    let heading = angle;
+    const branchAt = new Set(depth > 0 ? [0.35 + Math.random() * 0.15, 0.6 + Math.random() * 0.15] : []);
+    const steps = Math.max(2, Math.round(length / segment));
+    for (let i = 1; i <= steps; i++) {
+      heading += (Math.random() - 0.5) * 0.6;
+      const nx = x + Math.cos(heading) * segment;
+      const ny = y + Math.sin(heading) * segment;
+      if (!area.inside(nx, ny)) break;
+      x = nx;
+      y = ny;
+      points.push(x - box.x, y - box.y);
+      for (const at of branchAt) {
+        if (i !== Math.round(steps * at)) continue;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        grow(x, y, heading + side * (0.6 + Math.random() * 0.5), length * (0.4 + Math.random() * 0.2), width * 0.55, depth - 1);
+      }
+    }
+    // Curta demais para ter corpo e ponta: fica de fora.
+    if (points.length >= (ROOT_TIP + 2) * 2) paths.push({ points, width, seed: Math.random() * 10 });
+  };
+  const count = budget(area, cell, 1.7, 48);
+  // Começos espalhados: de quatro pontos sorteados, fica o mais longe dos que já existem (sem bolos nem buracos).
+  const starts: { x: number; y: number }[] = [];
+  const distance = (point: { x: number; y: number }) => Math.min(Infinity, ...starts.map((other) => Math.hypot(point.x - other.x, point.y - other.y)));
+  for (let i = 0; i < count; i++) {
+    const candidates = Array.from({ length: 4 }, () => spawnPoint(area));
+    const start = candidates.reduce((best, candidate) => (distance(candidate) > distance(best) ? candidate : best));
+    starts.push(start);
+    grow(start.x, start.y, Math.random() * Math.PI * 2, cell * (0.8 + Math.random() * 0.7), cell * (0.07 + Math.random() * 0.06), 2);
+  }
+  return paths;
+}
+
+/** Traço que afina da base à ponta (segmento a segmento), de `from` a `to` (índices de ponto). */
+function taperedStroke(ctx: Ctx, path: RootPath, from: number, to: number, offset: number, scale: number) {
+  const total = path.points.length / 2 - 1;
+  for (let i = from; i < to; i++) {
+    ctx.lineWidth = Math.max(1, path.width * scale * (1 - (i / total) * 0.8));
+    ctx.beginPath();
+    ctx.moveTo(path.points[i * 2] + offset, path.points[i * 2 + 1] + offset);
+    ctx.lineTo(path.points[i * 2 + 2] + offset, path.points[i * 2 + 3] + offset);
+    ctx.stroke();
+  }
+}
+
+/** O corpo parado das raízes (sem as pontas), com sombra, cor do efeito e um risco de luz. Em dobro de resolução. */
+function paintRoots(paths: RootPath[], w: number, h: number, color: string, cell: number): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  const scale = 2;
+  canvas.width = Math.max(1, Math.ceil(w * scale));
+  canvas.height = Math.max(1, Math.ceil(h * scale));
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(scale, scale);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const passes: [string, number, number][] = [
+    ["rgba(15, 8, 2, 0.55)", cell * 0.05, 1.25],
+    [shade(color, 0.75), 0, 1],
+    [shade(color, 1.35, 0.7), -cell * 0.015, 0.35],
+  ];
+  for (const [style, offset, widthScale] of passes) {
+    ctx.strokeStyle = style;
+    for (const path of paths) taperedStroke(ctx, path, 0, path.points.length / 2 - 1 - ROOT_TIP, offset, widthScale);
+  }
+  return canvas;
+}
+
+const roots: Painter = (ctx, st, t, _dt, area, cell, color) => {
+  const { box } = area;
+  // Terra revolvida por baixo, parada.
   const soil = noiseTexture("soil", 127, [4, 8, 16], (v) => [40, 26, 12, smooth(0.3, 0.75, v) * 230]);
   drawTiled(ctx, soil, box, cell * 3, 0, 0, 0.7);
-  // Duas camadas de raízes (uma maior, deslocada) para cobrir o chão.
-  base(ctx, "roots", color, box, cell * (1.2 + Math.sin(t * 0.9) * 0.02), Math.sin(t * 0.5) * cell * 0.03, 0);
-  base(ctx, "roots", color, box, cell * 1.9, cell * 0.9, cell * 0.6 + Math.sin(t * 0.4) * cell * 0.03, 0.8);
+  // Raízes novas só quando a área muda de tamanho (ou de cor); andando com um token, as mesmas vão junto.
+  let drawing = st.roots;
+  if (!drawing || drawing.w !== box.w || drawing.h !== box.h || drawing.color !== color) {
+    const paths = drawing && drawing.w === box.w && drawing.h === box.h ? drawing.paths : growRoots(area, cell);
+    drawing = { w: box.w, h: box.h, color, paths, image: paintRoots(paths, box.w, box.h, color, cell) };
+    st.roots = drawing;
+  }
+  ctx.drawImage(drawing.image, box.x, box.y, box.w, box.h);
+  // Pontas que rastejam: os últimos pontos de cada raiz balançam de lado, mais quanto mais perto da ponta.
+  ctx.save();
+  ctx.translate(box.x, box.y);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const path of drawing.paths) {
+    const count = path.points.length / 2;
+    const first = count - 1 - ROOT_TIP;
+    const tip: RootPath = { ...path, points: path.points.slice(first * 2) };
+    for (let j = 1; j <= ROOT_TIP; j++) {
+      const k = first + j;
+      const dx = path.points[k * 2] - path.points[k * 2 - 2];
+      const dy = path.points[k * 2 + 1] - path.points[k * 2 - 1];
+      const length = Math.hypot(dx, dy) || 1;
+      const sway = Math.sin(t * 0.8 + path.seed + j * 0.7) * cell * 0.03 * j;
+      tip.points[j * 2] += (-dy / length) * sway;
+      tip.points[j * 2 + 1] += (dx / length) * sway;
+    }
+    // As pontas leem a espessura da raiz inteira: o traço continua afinando de onde o corpo parou.
+    const tipPath: RootPath = { ...tip, points: [...path.points.slice(0, first * 2), ...tip.points] };
+    ctx.strokeStyle = "rgba(15, 8, 2, 0.55)";
+    taperedStroke(ctx, tipPath, first, count - 1, cell * 0.05, 1.25);
+    ctx.strokeStyle = shade(color, 0.75);
+    taperedStroke(ctx, tipPath, first, count - 1, 0, 1);
+  }
+  ctx.restore();
 };
 
 const ice: Painter = (ctx, st, t, dt, area, cell, color) => {

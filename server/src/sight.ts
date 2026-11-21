@@ -1,4 +1,4 @@
-import { cellsToRects, inRows, isRevealed, paintRows, propOccluders, sizeSpan, sightCells, TORCH_FEET, visionFeet, type Combatant, type GridPos } from "@rpg/shared";
+import { cellsToRects, geometryOf, inRows, isHex, isRevealed, paintRows, propOccluders, sizeOfSpan, sizeSpan, sightCells, TORCH_FEET, visionFeet, type Combatant, type GridPos } from "@rpg/shared";
 import { allCombatants } from "./combat";
 import type { Store } from "./store";
 
@@ -18,7 +18,7 @@ function keyOf(store: Store): string {
     game.allies.map((a) => (a.pos ? [a.pos.col, a.pos.row, a.size ?? "", a.darkvision ? 1 : 0] : 0)),
     lightsOf(store).map((c) => [c.pos!.col, c.pos!.row, c.size ?? ""]),
     battle.torches.map((t) => [t.col, t.row]),
-    battle.walls.map((w) => [w.from.col, w.from.row, w.to.col, w.to.row, w.door ? (w.door.open ? 1 : 2) : 0, w.style ?? ""]),
+    battle.walls.map((w) => [w.from.col, w.from.row, w.to.col, w.to.row, w.door ? (w.door.open ? 1 : 2) : 0, w.window ? (w.window.closed ? 2 : 1) : 0, w.style ?? ""]),
     battle.props.filter((p) => p.blocks).map((p) => [p.kind, p.col, p.row, p.size]),
   ]);
 }
@@ -42,20 +42,27 @@ export function updateSight(store: Store): Rows {
   const key = keyOf(store);
   const hit = cache.get(store);
   if (hit && hit.key === key) return hit.rows;
+  const hex = isHex(battle.map);
+  const geometry = geometryOf(battle.map.grid);
   // Alcance da cena: o mesmo para todos, sem luz, visão no escuro nem tocha.
   const feetOf = (a: Combatant) => fog.range ?? visionFeet(battle.weather.light, !!a.darkvision, !!a.torch);
-  const viewers = allies.flatMap((a) => (a.pos ? [{ pos: a.pos, span: sizeSpan(a.size), feet: feetOf(a) }] : []));
+  const viewers = allies.flatMap((a) => (a.pos ? [{ pos: a.pos, span: sizeSpan(a.size), feet: feetOf(a), size: a.size }] : []));
   // De dia (ou com alcance da cena) a luz da tocha não muda nada.
   const lights =
     battle.weather.light === "day" || fog.range !== null
       ? []
       : [
-          ...lightsOf(store).map((c) => ({ pos: c.pos!, span: sizeSpan(c.size), feet: TORCH_FEET })),
-          // Tocha fixa: o centro da "casa" de luz cai no ponto exato dela.
-          ...battle.torches.map((t) => ({ pos: { col: t.col - 0.5, row: t.row - 0.5 }, span: 1, feet: TORCH_FEET })),
+          ...lightsOf(store).map((c) => ({ pos: c.pos!, span: sizeSpan(c.size), feet: TORCH_FEET, size: c.size })),
+          // Tocha fixa: o centro da "casa" de luz cai no ponto exato dela (no hex, o ponto vai em `point`).
+          ...battle.torches.map((t) => ({
+            pos: hex ? geometry.cellAt({ x: t.col, y: t.row }) : { col: t.col - 0.5, row: t.row - 0.5 },
+            span: 1,
+            feet: TORCH_FEET,
+            ...(hex && { point: { x: t.col, y: t.row } }),
+          })),
         ];
   const rows: Rows = {};
-  for (const r of cellsToRects(sightCells(viewers, [...battle.walls, ...propOccluders(battle.props)], battle.map.feetPerCell, lights))) {
+  for (const r of cellsToRects(sightCells(viewers, [...battle.walls, ...propOccluders(battle.props)], battle.map.feetPerCell, lights, undefined, battle.map.grid))) {
     paintRows(rows, r, true);
     paintRows(fog.explored, r, true);
   }
@@ -68,11 +75,9 @@ export function currentSight(store: Store): Rows {
   return updateSight(store);
 }
 
-/** Casas que um combatente ocupa. */
-function cellsOf(pos: GridPos, span: number): GridPos[] {
-  const out: GridPos[] = [];
-  for (let dc = 0; dc < span; dc++) for (let dr = 0; dr < span; dr++) out.push({ col: pos.col + dc, row: pos.row + dr });
-  return out;
+/** Casas que um combatente ocupa, pelo lado da forma (no hex, a forma da geometria para esse tamanho). */
+function cellsOf(store: Store, pos: GridPos, span: number): GridPos[] {
+  return geometryOf(store.game.battle.map.grid).footprint(pos, sizeOfSpan(span));
 }
 
 /** Inimigos à vista do grupo no último envio (onde estavam), para saber quem acabou de sumir. */
@@ -94,14 +99,14 @@ export function trackLastSeen(store: Store) {
   const sight = currentSight(store);
   const seenNow = (cells: GridPos[]) => cells.some((p) => isRevealed(fog, p.col, p.row) || inRows(sight, p.col, p.row));
   const found = new Set(fog.foundNpcs);
-  for (const c of battle.npcs) if (c.pos && !c.hidden && seenNow(cellsOf(c.pos, sizeSpan(c.size)))) found.add(c.id);
+  for (const c of battle.npcs) if (c.pos && !c.hidden && seenNow(cellsOf(store, c.pos, sizeSpan(c.size)))) found.add(c.id);
   fog.foundNpcs = battle.npcs.filter((c) => found.has(c.id)).map((c) => c.id);
   const enemies = battle.mobs;
   const now = new Map<string, { name: string; pos: GridPos; span: number }>();
   for (const c of enemies) {
     if (!c.pos || c.hidden) continue;
     const span = sizeSpan(c.size);
-    if (seenNow(cellsOf(c.pos, span))) now.set(c.id, { name: c.name, pos: c.pos, span });
+    if (seenNow(cellsOf(store, c.pos, span))) now.set(c.id, { name: c.name, pos: c.pos, span });
   }
   const before = inView.get(store);
   // Quem estava à vista e sumiu (ainda na batalha e não ocultado): marca onde foi visto.
@@ -116,7 +121,7 @@ export function trackLastSeen(store: Store) {
   }
   fog.lastSeen = fog.lastSeen.filter((m) => {
     const c = enemies.find((e) => e.id === m.id);
-    return c && !c.hidden && !now.has(m.id) && !seenNow(cellsOf(m.pos, m.span));
+    return c && !c.hidden && !now.has(m.id) && !seenNow(cellsOf(store, m.pos, m.span));
   });
   inView.set(store, now);
 }

@@ -5,6 +5,9 @@ import type { Store } from "../store";
 import { fail } from "../validate";
 import { defaultWeather } from "../weather";
 import { requireGm } from "./combatants";
+import { markFloors } from "./floor";
+import { markRelief } from "./relief";
+import { markTerrain } from "./terrain";
 import type { HandlerMap } from "./types";
 import { syncLight } from "./clock";
 
@@ -30,6 +33,9 @@ function emptyScene(store: Store): StoredScene {
     torches: [],
     chests: [],
     props: [],
+    bridges: [],
+    stairs: [],
+    currents: [],
     weather: defaultWeather(),
     fog: emptyFog(),
     allyPos: {},
@@ -41,8 +47,8 @@ function storeActive(store: Store): StoredScene {
   const { battle, allies } = store.game;
   const allyPos: Record<string, GridPos> = {};
   for (const a of allies) if (a.pos) allyPos[a.id] = a.pos;
-  const { map, mobs, npcs, effects, drawings, walls, torches, chests, props, weather, fog } = battle;
-  return { map, mobs, npcs, effects, drawings, walls, torches, chests, props, weather, fog, allyPos };
+  const { map, mobs, npcs, effects, drawings, walls, torches, chests, props, bridges, stairs, currents, weather, fog, terrain, relief, floors } = battle;
+  return { map, mobs, npcs, effects, drawings, walls, torches, chests, props, bridges, stairs, currents, weather, fog, ...(terrain && { terrain }), ...(relief && { relief }), ...(floors && { floors }), allyPos };
 }
 
 export const sceneHandlers: HandlerMap = {
@@ -91,6 +97,16 @@ export const sceneHandlers: HandlerMap = {
     // Versão nova da imagem: o servidor reenvia o mapa a todos.
     const imageVersion = game.battle.map.imageVersion + 1;
     Object.assign(game.battle, content, { map: { ...content.map, imageVersion } });
+    // Terreno é da cena: a que abre fica com o dela (ou nenhum), e todos recebem o inteiro.
+    if (content.terrain) game.battle.terrain = content.terrain;
+    else delete game.battle.terrain;
+    if (content.relief) game.battle.relief = content.relief;
+    else delete game.battle.relief;
+    if (content.floors) game.battle.floors = content.floors;
+    else delete game.battle.floors;
+    markTerrain(store, "all");
+    markRelief(store, "all");
+    markFloors(store, "all");
     for (const a of game.allies) a.pos = allyPos[a.id] ?? null;
     // O "Desfazer" de remoção é da cena que saiu.
     store.removedMobs.clear();

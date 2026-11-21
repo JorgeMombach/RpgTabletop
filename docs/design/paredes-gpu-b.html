@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paredes na placa: lote b</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="thick"><b>Espessura</b><button data-v="0.18">Fina (padrão)</button><button data-v="0.3" class="on">Média</button><button data-v="0.55">Grossa</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button></div>
+  <span id="ms"></span>
+</header>
+<p>Em cima: <b>paliçada</b>, <b>muralha</b>, <b>cerca de madeira</b>, <b>grade de ferro</b>. Embaixo: <b>arame farpado</b>, <b>sebe</b>, <b>muro baixo de pedra</b>. As vazadas deixam ver o chão entre esteios, barras e arames; a sombra também. Arraste para mover.</p>
+<canvas id="view"></canvas>
+<script>
+const COLS = 32, ROWS = 18, PANEL = [8, 9];
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VS = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0, 1); }`;
+const COMMON = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform sampler2D uGrass, uStone, uStone2, uDirt;
+uniform vec2 uCanvas, uPan, uPanel; uniform float uCellPx, uThick;
+uniform vec3 uAmbient, uSun; uniform vec2 uSunDir; uniform float uElev;
+uniform vec4 uSeg[4];
+float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+vec2 hash2(vec2 p) { return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+vec3 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y), r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec3(id, sqrt(d2) - sqrt(d1)); }
+// Trecho mais perto: x = ao longo (somado do índice, para não repetir), y = lado, z = índice, w = folga até a borda.
+vec4 wallAt(vec2 p, float halfWidth) {
+  vec4 best = vec4(0.0, 0.0, -1.0, -9.0);
+  for (int i = 0; i < 4; i++) {
+    vec2 a = uSeg[i].xy, b = uSeg[i].zw, d = b - a;
+    float len = length(d); vec2 u = d / len, n = vec2(-u.y, u.x);
+    float along = dot(p - a, u), across = dot(p - a, n);
+    float alongOut = max(-along - halfWidth, along - len - halfWidth);
+    float inside = min(halfWidth - abs(across), -alongOut);
+    if (inside > best.w) best = vec4(along, across, float(i), inside);
+  }
+  return best;
+}
+`;
+// Cada estilo: largura (em espessuras), altura (casas) e cor. `w` = wallAt; `t` = espessura.
+const STYLES = [
+  { name: "palisade", half: 0.6, height: `
+    float d = 2.0 * hw; float k = floor(w.x / d); vec2 local = vec2(w.x - (k + 0.5) * d, w.y);
+    float r = length(local) / hw;
+    return r < 1.0 ? 0.85 - r * 0.3 - pow(r, 6.0) * 0.2 : 0.0;`, color: `
+    float d = 2.0 * hw; float k = floor(w.x / d); vec2 local = vec2(w.x - (k + 0.5) * d, w.y);
+    float r = length(local) / hw;
+    vec3 wood = mix(vec3(0.6, 0.42, 0.24), vec3(0.5, 0.33, 0.18), hash(vec2(k, w.z)));
+    wood *= 0.85 + 0.15 * sin(r * 18.0 + noise(local * 30.0) * 3.0);
+    wood = mix(wood, vec3(0.28, 0.18, 0.1), smoothstep(0.75, 0.95, r));
+    return wood * (0.9 + 0.2 * fbm(p * 20.0));`, rim: "r" },
+  { name: "rampart", half: 1.0, height: `
+    float base = 0.7;
+    // ameias no lado de fora (y > 0): blocos altos alternando com vãos
+    // ameias: blocos de ~0,35 casa alternados com vãos, no terço de fora
+    float merlon = fract(w.x / 0.7);
+    if (w.y > hw * 0.3) base = merlon < 0.5 ? 1.0 : 0.72;
+    float fx = fract(w.x / 0.35);
+    float joint = min(fx, 1.0 - fx) * 0.35;
+    return base * (0.94 + 0.06 * smoothstep(0.0, t * 0.05, joint));`, color: `
+    float row = floor((w.y + hw) / (hw * 0.66));
+    float j = floor(w.x / (t * 0.9) + row * 0.5);
+    vec3 col = texture(uStone, p * 0.3 + vec2(j * 0.31, row)).rgb * vec3(1.04, 1.0, 0.94);
+    col *= 0.82 + 0.28 * hash(vec2(j, row));
+    col *= 0.86 + 0.28 * fbm(p * 14.0);
+    // ameias claras, vãos e passadiço mais escuros (lê como muralha de cima)
+    bool outer = w.y > hw * 0.3;
+    if (outer && fract(w.x / 0.7) < 0.5) col *= 1.12; else col *= 0.82;
+    return col;`, rim: "" },
+  { name: "fence", half: 0.45, height: `
+    float postAt = abs(fract(w.x + 0.5) - 0.5);
+    if (postAt < t * 0.25 && abs(w.y) < t * 0.25) return 0.5;
+    if (abs(abs(w.y) - t * 0.16) < t * 0.07) return 0.38;
+    return 0.0;`, color: `
+    float postAt = abs(fract(w.x + 0.5) - 0.5);
+    vec3 wood = vec3(0.55, 0.38, 0.21) * (0.85 + 0.25 * fbm(vec2(w.x * 4.0, w.y * 40.0)));
+    if (postAt < t * 0.25 && abs(w.y) < t * 0.25) wood *= 0.85;
+    return wood;`, rim: "" },
+  { name: "iron", half: 0.35, height: `
+    float postAt = abs(fract(w.x + 0.5) - 0.5);
+    if (postAt < t * 0.18 && abs(w.y) < t * 0.18) return 0.75;
+    float barAt = abs(fract(w.x / (t * 0.45) + 0.5) - 0.5) * t * 0.45;
+    if (length(vec2(barAt, w.y)) < t * 0.06) return 0.62;
+    if (abs(w.y) < t * 0.03) return 0.55;
+    return 0.0;`, color: `
+    return vec3(0.2, 0.2, 0.22) * (0.9 + 0.3 * fbm(p * 30.0));`, rim: "" },
+  { name: "barbed", half: 0.3, height: `
+    float postAt = abs(fract(w.x / 1.5 + 0.5) - 0.5) * 1.5;
+    if (length(vec2(postAt, w.y)) < t * 0.18) return 0.48;
+    float wire = min(abs(w.y - t * 0.12), abs(w.y + t * 0.12));
+    float barb = abs(fract(w.x / 0.16 + 0.5) - 0.5) * 0.16;
+    if (wire < 0.012 || (barb < 0.014 && wire < 0.035)) return 0.36;
+    return 0.0;`, color: `
+    float postAt = abs(fract(w.x / 1.5 + 0.5) - 0.5) * 1.5;
+    if (length(vec2(postAt, w.y)) < t * 0.18) return vec3(0.45, 0.32, 0.2) * (0.85 + 0.25 * noise(p * 40.0));
+    return vec3(0.5, 0.5, 0.52);`, rim: "" },
+  { name: "hedge", half: 1.1, wobble: true, height: `
+    vec3 clump = voronoi(p * 4.2);
+    float dome = 1.0 - smoothstep(0.0, 0.55, length(fract(p * 4.2) - 0.5 - (hash2(clump.xy) - 0.5) * 0.4));
+    float edge = clamp(w.w / hw, 0.0, 1.0);
+    return 0.62 * pow(edge, 0.45) * (0.85 + 0.15 * dome) + (fbm(p * 18.0) - 0.5) * 0.05;`, color: `
+    vec3 clump = voronoi(p * 4.2);
+    vec3 leaf = mix(vec3(0.2, 0.36, 0.14), vec3(0.3, 0.46, 0.18), hash(clump.xy));
+    leaf *= 0.75 + 0.45 * noise(p * 46.0);
+    leaf = mix(leaf, vec3(0.45, 0.58, 0.25), step(0.9, noise(p * 60.0)) * 0.6);
+    return leaf;`, rim: "" },
+  { name: "lowstone", half: 0.7, height: `
+    vec3 stone = voronoi(vec2(w.x, w.y * 1.6) * 3.2);
+    float dome = 1.0 - stone.z;
+    float gap = smoothstep(0.02, 0.09, stone.z);
+    return 0.3 * gap * (0.8 + 0.2 * hash(stone.xy)) * smoothstep(0.0, 0.03, w.w);`, color: `
+    vec3 stone = voronoi(vec2(w.x, w.y * 1.6) * 3.2);
+    vec3 col = texture(uStone, p * 0.4 + hash(stone.xy)).rgb * mix(vec3(1.05, 1.0, 0.92), vec3(0.85, 0.82, 0.78), hash(stone.xy + 3.0));
+    col *= 0.85 + 0.3 * fbm(p * 16.0);
+    col = mix(col, vec3(0.34, 0.44, 0.22), smoothstep(0.55, 0.75, fbm(p * 5.0)) * 0.45);
+    return col;`, rim: "" },
+];
+const programs = STYLES.map((style) => {
+  const FS = COMMON + `
+float styleHeight(vec2 p) {
+  float t = uThick, hw = t * ${style.half.toFixed(2)}${style.wobble ? " * (0.8 + fbm(p * 1.3) * 0.5)" : ""};
+  vec4 w = wallAt(p, hw);
+  if (w.w < 0.0) return 0.0;
+  ${style.height}
+}
+vec3 styleColor(vec2 p) {
+  float t = uThick, hw = t * ${style.half.toFixed(2)}${style.wobble ? " * (0.8 + fbm(p * 1.3) * 0.5)" : ""};
+  vec4 w = wallAt(p, hw);
+  ${style.color}
+}
+void main() {
+  vec2 px = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 world = (px - uPan) / uCellPx;
+  vec2 p = world - uPanel;
+  vec3 ground = texture(uGrass, world / 8.0).rgb;
+  float bladeAngle = noise(world * 1.3) * 3.14;
+  vec2 bladeUv = mat2(cos(bladeAngle), -sin(bladeAngle), sin(bladeAngle), cos(bladeAngle)) * world;
+  ground *= 0.9 + 0.2 * noise(bladeUv * vec2(42.0, 9.0));
+  float h = styleHeight(p);
+  float e = 0.5 / uCellPx;
+  vec2 grad = vec2(styleHeight(p + vec2(e, 0)) - h, styleHeight(p + vec2(0, e)) - h) / e;
+  vec3 n = normalize(vec3(-grad, 1.0));
+  vec3 L = normalize(vec3(-uSunDir, uElev));
+  float flatLit = max(L.z, 0.35);
+  float shadow = 1.0, rise = uElev / length(uSunDir);
+  for (int i = 1; i <= 20; i++) {
+    float t = float(i) * 0.05;
+    float above = styleHeight(p - uSunDir * t) - (h + rise * t);
+    shadow = min(shadow, clamp(1.0 - (above - 0.01) * 12.0, 0.0, 1.0));
+  }
+  vec3 light = uAmbient + uSun * 0.8 * max(dot(n, L), 0.0) / flatLit * shadow;
+  vec3 col;
+  if (h > 0.001) {
+    col = styleColor(p) * light;
+    // contorno de tinta onde a parede encontra o chão, largura em pixels
+    float ink = 1.0 - smoothstep(0.0, max(fwidth(h) * 2.0, 0.002), h - 0.001);
+    float outline = clamp(length(grad) * 0.004 * uCellPx, 0.0, 1.0);
+    col = mix(col, vec3(0.1, 0.075, 0.06), max(ink, step(0.5, outline) * 0.0) * 0.9);
+  } else {
+    col = ground * light;
+  }
+  // contorno: ponto do chão colado numa peça (1 a 2 pixels)
+  float nearH = max(max(styleHeight(p + vec2(1.5 / uCellPx, 0.0)), styleHeight(p - vec2(1.5 / uCellPx, 0.0))), max(styleHeight(p + vec2(0.0, 1.5 / uCellPx)), styleHeight(p - vec2(0.0, 1.5 / uCellPx))));
+  if (h <= 0.001 && nearH > 0.001) col = mix(col, vec3(0.1, 0.075, 0.06), 0.85);
+  vec2 g = abs(fract(world) - 0.5);
+  col *= 1.0 - smoothstep(0.485, 0.5, max(g.x, g.y)) * 0.1;
+  outColor = vec4(col, 1.0);
+}`;
+  const compile = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(style.name + ": " + gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram(); gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS)); gl.bindAttribLocation(prog, 0, "aPos"); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(style.name + ": " + gl.getProgramInfoLog(prog));
+  return prog;
+});
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const images = ["grass_01.webp", "stone_01.webp", "stone_02.webp", "dirt_01.webp"], names = ["uGrass", "uStone", "uStone2", "uDirt"];
+let loaded = 0;
+images.forEach((src, i) => { const img = new Image(); img.onload = () => { const tx = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, tx); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); if (++loaded === images.length) draw(); }; img.src = src; });
+// A mesma cena em cada quadro (8 × 9 casas): quina (L), T e uma diagonal com ponta solta.
+const SEG = [[1, 2, 6.5, 2], [6.5, 2, 6.5, 7.5], [3.5, 2, 3.5, 5], [1.2, 5.5, 4.2, 7.6]];
+const LIGHTS = {
+  day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], dir: [0.55, 0.83], elev: 1.24 },
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], dir: [0.97, 0.25], elev: 0.28 },
+  moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], dir: [0.45, 0.89], elev: 0.7 },
+};
+const state = { light: "day", thick: 0.3, zoom: 1, pan: [0, 0] };
+const CSS_W = 1280, CSS_H = 720;
+function resize() { const k = window.devicePixelRatio || 1; canvas.style.width = CSS_W + "px"; canvas.style.height = CSS_H + "px"; canvas.width = Math.round(CSS_W * k); canvas.height = Math.round(CSS_H * k); }
+function draw() {
+  const L = LIGHTS[state.light], n = Math.hypot(...L.dir);
+  const k = canvas.width / CSS_W;
+  const cellPx = (CSS_W / COLS) * k * state.zoom;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.09, 0.075, 0.06, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.enable(gl.SCISSOR_TEST);
+  const t0 = performance.now();
+  programs.forEach((prog, index) => {
+    const panel = [(index % 4) * PANEL[0], Math.floor(index / 4) * PANEL[1]];
+    // recorte do quadro na tela (px do canvas; o y do WebGL sobe)
+    const x0 = state.pan[0] * k + panel[0] * cellPx, y0 = state.pan[1] * k + panel[1] * cellPx;
+    gl.scissor(Math.round(x0), Math.round(canvas.height - (y0 + PANEL[1] * cellPx)), Math.round(PANEL[0] * cellPx), Math.round(PANEL[1] * cellPx));
+    gl.useProgram(prog);
+    const U = (name) => gl.getUniformLocation(prog, name);
+    names.forEach((name, unit) => gl.uniform1i(U(name), unit));
+    gl.uniform4fv(U("uSeg"), SEG.flat());
+    gl.uniform2f(U("uPanel"), panel[0], panel[1]);
+    gl.uniform2f(U("uCanvas"), canvas.width, canvas.height); gl.uniform2f(U("uPan"), state.pan[0] * k, state.pan[1] * k);
+    gl.uniform1f(U("uCellPx"), cellPx); gl.uniform1f(U("uThick"), state.thick);
+    gl.uniform3f(U("uAmbient"), ...L.ambient); gl.uniform3f(U("uSun"), ...L.sun); gl.uniform2f(U("uSunDir"), L.dir[0] / n, L.dir[1] / n); gl.uniform1f(U("uElev"), L.elev);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  });
+  gl.disable(gl.SCISSOR_TEST);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+  document.getElementById("ms").textContent = `${(performance.now() - t0).toFixed(0)} ms por quadro`;
+}
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); draw(); })); }
+wire("light", (v) => (state.light = v));
+wire("thick", (v) => (state.thick = +v));
+wire("zoom", (v) => { state.zoom = +v; state.pan = v === "1" ? [0, 0] : [-60, -60]; });
+let drag = null;
+canvas.onpointerdown = (e) => (drag = [e.clientX - state.pan[0], e.clientY - state.pan[1]]);
+window.onpointerup = () => (drag = null);
+canvas.onpointermove = (e) => { if (!drag) return; state.pan = [e.clientX - drag[0], e.clientY - drag[1]]; draw(); };
+resize();
+</script>
+</body>
+</html>

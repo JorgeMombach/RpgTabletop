@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Group, Kbd, Modal, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
 import { IconKeyboard } from "@tabler/icons-react";
 import type { ClientState } from "@rpg/shared";
-import { Fragment, useEffect, type ReactNode } from "react";
+import { Fragment, memo, useEffect, type ReactNode } from "react";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useT, type MessageKey } from "../i18n";
@@ -84,7 +84,10 @@ function keys(...parts: (string | { text: string })[]) {
   );
 }
 
-function ShortcutsHelp({ gm }: { gm: boolean }) {
+/** A ajuda monta todas as linhas: em `memo`, para não refazer tudo (fechada) a cada envio do servidor. */
+const ShortcutsHelp = memo(ShortcutsHelpWindow);
+
+function ShortcutsHelpWindow({ gm }: { gm: boolean }) {
   const t = useT();
   const open = useShortcutsHelp((s) => s.open);
   const k = (key: MessageKey) => t(key);
@@ -118,6 +121,11 @@ function ShortcutsHelp({ gm }: { gm: boolean }) {
         { keys: keys("J"), label: k("chests.tool"), gm: true },
         { keys: keys("O"), label: k("props.tool"), gm: true },
         { keys: keys("E"), label: k("paint.tool"), gm: true },
+        { keys: keys("M"), label: k("terrain.tool"), gm: true },
+        { keys: keys("N"), label: k("relief.tool"), gm: true },
+        { keys: keys("K"), label: k("floor.tool"), gm: true },
+        { keys: keys("U"), label: k("bridge.tool"), gm: true },
+        { keys: keys("Y"), label: k("stair.tool"), gm: true },
         { keys: keys("F"), label: k("fog.tool"), gm: true },
         { keys: keys("Shift", { text: k("keys.drag") }), label: k("keys.quickRuler") },
         { keys: keys("Alt", { text: k("keys.click") }), label: k("keys.quickPing") },

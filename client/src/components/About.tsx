@@ -1,4 +1,5 @@
 import { Anchor, Divider, Group, Modal, Stack, Table, Text, Title, UnstyledButton } from "@mantine/core";
+import { memo } from "react";
 import { APP_VERSION } from "@rpg/shared";
 import { useT, type MessageKey } from "../i18n";
 import { D20Emblem } from "./D20Emblem";
@@ -16,6 +17,7 @@ const CREDITS: { name: string; url: string; license: string; use: MessageKey }[]
   { name: "three.js", url: "https://threejs.org", license: "MIT", use: "about.use.dice3d" },
   { name: "Tabler Icons", url: "https://tabler.io/icons", license: "MIT", use: "about.use.icons" },
   { name: "game-icons.net (Lorc, Delapouite, sbed, Skoll)", url: "https://game-icons.net", license: "CC BY 3.0", use: "about.use.gameIcons" },
+  { name: "Hand-Painted Watercolor Terrain Textures (Jonas Voland / Voxel Core Lab)", url: "https://voxelcorelab.itch.io/watercolor-terrain-textures", license: "CC0 1.0", use: "about.use.terrain" },
   { name: "Open5e", url: "https://open5e.com", license: "MIT", use: "about.use.open5e" },
   { name: "System Reference Document 5.1 (Wizards of the Coast LLC)", url: "https://dnd.wizards.com/resources/systems-reference-document", license: "CC BY 4.0", use: "about.use.srd" },
   { name: "node-qrcode", url: "https://github.com/soldair/node-qrcode", license: "MIT", use: "about.use.qr" },
@@ -24,7 +26,8 @@ const CREDITS: { name: string; url: string; license: string; use: MessageKey }[]
 ];
 
 /** Janela "Sobre": versão, autor, o que o app é, créditos e licenças de terceiros. */
-export function AboutModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+/** Em `memo`: fechada, não redesenha a cada envio do servidor. */
+export const AboutModal = memo(function AboutModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const t = useT();
   return (
     <Modal opened={opened} onClose={onClose} size="lg" centered title={t("about.title")}>
@@ -82,10 +85,10 @@ export function AboutModal({ opened, onClose }: { opened: boolean; onClose: () =
       </Stack>
     </Modal>
   );
-}
+});
 
 /** A versão no topo abre o "Sobre". */
-export function AboutLink({ onOpen }: { onOpen: () => void }) {
+export const AboutLink = memo(function AboutLink({ onOpen }: { onOpen: () => void }) {
   const t = useT();
   return (
     <UnstyledButton onClick={onOpen} aria-label={t("about.open")} title={t("about.open")}>
@@ -94,4 +97,4 @@ export function AboutLink({ onOpen }: { onOpen: () => void }) {
       </Text>
     </UnstyledButton>
   );
-}
+});

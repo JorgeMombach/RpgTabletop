@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Konva from "konva";
 import { Circle, Group, Path, Rect, RegularPolygon, Shape as KShape, Text } from "react-konva";
-import { feetBetween, sizeSpan, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
-import { cellAt, cellCenter, initials, sameCell } from "./geometry";
+import { geometryOf, type CombatantView, type GridPos, type MapConfig } from "@rpg/shared";
+import { cellAt, cellCenter, initials, sameCell, shapeOffset, toWorld } from "./geometry";
 import { isDown } from "../format";
 import { t } from "../i18n";
 import { useApp } from "../store";
@@ -301,17 +301,20 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
   useLayoutEffect(() => endTokenDrag(c.id), [c.id, c.pos?.col, c.pos?.row]);
   if (!c.pos) return null;
   const fxConditions = conditionFxOf(c.conditions.map((x) => x.name));
-  // Tamanho (E26+): `pos` é a casa de cima à esquerda; o token cobre `span` × `span` casas.
-  const span = sizeSpan(c.size);
+  // Tamanho (E26+): no quadrado `pos` é a casa de cima à esquerda e o token cobre `span` × `span` casas; no hex
+  // (Passo 16) a forma é a da geometria e o token fica no meio dela, com `span` hexes de diâmetro.
+  const geometry = geometryOf(grid.grid);
+  const span = geometry.drawSpan(c.size);
   // Miúdo fica no canto de baixo à direita da casa: dividindo a casa, não esconde quem já está nela.
-  const off = c.size === "tiny" ? grid.cellPx * 0.22 : ((span - 1) * grid.cellPx) / 2;
+  const off = c.size === "tiny" ? { x: grid.cellPx * 0.22, y: grid.cellPx * 0.22 } : shapeOffset(c.size, grid);
   const centerOf = (p: GridPos) => {
     const b = cellCenter(p, grid);
-    return { x: b.x + off, y: b.y + off };
+    return { x: b.x + off.x, y: b.y + off.y };
   };
-  /** Casa de cima à esquerda para o token com centro em `p`. */
-  const cornerAt = (p: { x: number; y: number }) => cellAt({ x: p.x - off, y: p.y - off }, grid);
-  const center = centerOf(c.pos);
+  /** `pos` do token com centro em `p` (volta do meio da forma para a casa de referência). */
+  const cornerAt = (p: { x: number; y: number }) => cellAt({ x: p.x - off.x, y: p.y - off.y }, grid);
+  const tokenPos = c.pos;
+  const center = centerOf(tokenPos);
   // Conjurado: mesmo formato do lado de quem conjurou, um pouco menor e com selo (E21).
   const summon = !!c.summonerId;
   // Miúdo fica bem menor (divide a casa); conjurado, um pouco menor; grandes cobrem as casas todas.
@@ -471,7 +474,7 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
           return;
         }
         if (dragStart.current) {
-          setDragFeet(feetBetween(dragStart.current, cornerAt(e.target.position()), grid.feetPerCell));
+          setDragFeet(geometry.distance(dragStart.current, cornerAt(e.target.position())) * grid.feetPerCell);
           const p = e.target.position();
           const o = centerOf(dragStart.current);
           useTokenDrag.setState({ id: c.id, dx: p.x - o.x, dy: p.y - o.y });
@@ -479,6 +482,25 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
       }}
       onDragEnd={handleDragEnd}
     >
+      {/* Hex (Passo 16): os hexes que a criatura grande ocupa, de leve, com o token escolhido ou sendo arrastado. */}
+      {grid.grid && grid.grid !== "square" && span > 1 && (selected || dragFeet !== null) && (
+        <KShape
+          listening={false}
+          fill={`${c.color}26`}
+          stroke={`${c.color}99`}
+          strokeWidth={grid.cellPx * 0.025}
+          sceneFunc={(kctx, shape) => {
+            for (const cell of geometry.footprint(tokenPos, c.size)) {
+              const corners = geometry.polygon(cell).map((corner) => toWorld(corner, grid));
+              kctx.beginPath();
+              kctx.moveTo(corners[0].x - center.x, corners[0].y - center.y);
+              for (const corner of corners.slice(1)) kctx.lineTo(corner.x - center.x, corner.y - center.y);
+              kctx.closePath();
+              kctx.fillStrokeShape(shape);
+            }
+          }}
+        />
+      )}
       {active && <TokenFx kind={fxKind} boss={boss} r={r} active selected={false} over={false} />}
 
       {/* Voando (Passo 10): a sombra fica no chão, embaixo do token. */}
