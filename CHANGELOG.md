@@ -6,6 +6,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Alterado
+- **Sombra do entardecer mais curta:** no entardecer, paredes, relevo, pontes, pisos e escadas fazem sombra de ~2 casas por altura de parede (antes ~3), menos espichada pelo mapa.
+
 ## [2.14.0] - 2026-11-21
 
 ### Adicionado
