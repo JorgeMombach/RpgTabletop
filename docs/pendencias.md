@@ -1,4 +1,4 @@
-# Pendências da branch `feat/campanha`
+# Pendências das branches `feat/campanha` (2.14.0, lançada sem a rodada de testes) e `feat/objetos`
 
 Roteiro para a rodada de testes e correções antes de lançar a versão. Duas partes:
 
@@ -154,7 +154,24 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Terreno em retângulo: cantos nas casas (Shift: meia casa), borracha em retângulo, prévia, desfazer; lado máximo 64 casas.
 - [ ] Pincel do terreno: pinta do tamanho do círculo, uma passada cobre (força 1), força menor carrega aos poucos; borda fina; mapas antigos com a borda um pouco menos irregular; sem engasgo num mapa grande.
 
+### Objetos na placa de vídeo (troca de motor, etapa 1; [docs/design/objetos.md](design/objetos.md))
+- [ ] Os 28 tipos como nas páginas aprovadas ([objetos-teste.html](design/objetos-teste.html) e [objetos-catalogo-teste.html](design/objetos-catalogo-teste.html)): dia, entardecer, luar e noite com tocha; perto e longe nítidos; *Variar* troca o desenho; mapa salvo antes abre com os objetos no lugar.
+- [ ] Sombra: de dia curta, no entardecer ~2 casas por parede (também nas paredes e no relevo); a dos maciços sai do pé, a das árvores liga pelo tronco; carroça e pedregulho sem sombra em cima de si; token na sombra da árvore escurece; sem lua, nada.
+- [ ] Vento: árvore, arbusto, pinheiro, palmeira, grama alta e flores balançam (mais forte com clima de vento); parados com *Objetos* aberta, com *Reduzir efeitos* e no aparelho lento; copa com token embaixo fica transparente e parada.
+- [ ] Edição: escolher, arrastar (Shift encaixa), alças de tamanho e giro (o desenho acompanha), Delete, Ctrl+C / Ctrl+V, *Desfazer*, *Acima/Abaixo*, *Bloqueia a visão*; pincel *Espalhar* (todos os conjuntos) e *Apagar*.
+- [ ] Relevo: objeto em cima do patamar aparece por cima da face; perto do penhasco nada some.
+- [ ] Ícones do painel *Objetos* no desenho novo (o antigo aparece um instante na primeira vez).
+- [ ] Sem WebGL 2 (ou chão desligado): os objetos voltam ao desenho antigo, com o vento antigo.
+- [ ] **Desempenho (não medido: o navegador do agente roda em segundo plano):** no app compilado, com uma floresta de ~500 objetos (pincel *Espalhar*, 9×9, densidade cheia), andar no WASD sem engasgo; espalhar a floresta sem travar; uma cena com ~800 objetos afastada até ver todos (nada some); a primeira vez de cada tipo (compilação) sem pausa longa; comparar com a 2.14.0.
+
 ## Pendências pequenas
+
+### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
+- [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).
+- [ ] Sombra de um objeto baixo pode escurecer uma copa alta por cima dela (a máscara não sabe a altura de quem recebe); fica para a etapa 2 (sombra por objeto).
+- [ ] Árvore na beira do patamar faz a sombra curta lá embaixo (a base no relevo não alonga a sombra; ver `propPass.ts` `setProps`).
+- [ ] Cordas, cajado e outras peças finas a muitas casas de altura podem mostrar a sombra em degraus de perto (28 amostras; `PROP_SHADOW_FRAGMENT`).
+- [ ] Ícone do painel feito com `readPixels` (síncrono): 28 ícones na primeira abertura do painel; se travar, fazer aos poucos (`iconOf`).
 
 ### Pontes e píer ([docs/design/pontes.md](design/pontes.md))
 - [ ] Nível das pontas lido do ponto fino mais perto (processador) e o chão interpolado (placa): no relevo suave pode sobrar um fio de sombra na ponta em terra (`bridgePass.ts` `setBridges`).

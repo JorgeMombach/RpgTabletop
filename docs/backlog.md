@@ -247,7 +247,7 @@ Decidido em 2026-11-04: catálogo embutido e separado do bestiário (não import
 ### Criação de mapa (combinada em 2026-11-16, branch `feat/campanha`, em três entregas)
 Trazer para dentro do app o que hoje se faz no Dungeondraft: o mestre monta o chão e o cenário do mapa. Arte desenhada (não foto), bonita a ponto de ser "o que o jogador vê"; peso do app não importa.
 - [x] Entrega 1: terreno pintado com pincel livre (grama, terra, pedra e água, misturados na borda). *(feito em 2026-11-16; desenho em [docs/design/terreno.md](design/terreno.md))*
-- [ ] Entrega 2: objetos com mais qualidade.
+- [x] Entrega 2: objetos com mais qualidade. *(feito em 2026-11-21, branch `feat/objetos`: os 28 tipos na placa de vídeo, etapa 1 da troca de motor; desenho em [docs/design/objetos.md](design/objetos.md))*
 - [x] Entrega 3: mapa vivo (água e árvores animadas). *(saiu na 2.14.0: [vento](design/vento.md) e [água animada](design/agua.md))*
 
 ### Fase 7. Instalador e hospedagem (em espera desde 2026-11-04: envolve custo; fica para depois da 2.13)

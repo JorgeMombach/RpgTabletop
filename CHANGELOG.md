@@ -7,6 +7,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 ## [Não lançado]
 
 ### Alterado
+- **Objetos redesenhados, nítidos e com luz:** os 28 objetos do cenário (árvores, pinheiros, palmeiras, arbustos, flores, grama alta, pedras, troncos, barris, caixotes, mesas, estantes, camas, carroça, poço, pilar, estátua, altar, barraca, sacos, ossos e o resto) agora são desenhados pela placa de vídeo, no estilo do chão: folhas e pedra em aquarela, madeira com veio, ferro, tecido e osso desenhados ponto a ponto, contorno fino e nítidos em qualquer zoom. Cada parte pega o sol (ou a lua) de um lado e fica na sombra do outro; a tocha ilumina o lado virado para ela. Fazem sombra pela luz da cena (a dos objetos maciços sai do pé; a da árvore liga pelo tronco), e o token que entra na sombra escurece. Árvores, arbustos, pinheiros, palmeiras, grama alta e flores balançam com o vento. Duas árvores continuam nunca saindo iguais, e os mapas salvos abrem com os mesmos objetos. Os ícones do painel *Objetos* também mudaram. Sem WebGL 2, fica o desenho de antes.
 - **Sombra do entardecer mais curta:** no entardecer, paredes, relevo, pontes, pisos e escadas fazem sombra de ~2 casas por altura de parede (antes ~3), menos espichada pelo mapa.
 
 ## [2.14.0] - 2026-11-21
