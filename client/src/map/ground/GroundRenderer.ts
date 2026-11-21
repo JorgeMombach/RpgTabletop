@@ -427,7 +427,11 @@ export class GroundRenderer {
     this.drawProps(view, width, height, state, lightKey, reliefLight, time);
     if (!this.light.active) return;
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
-    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight));
+    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => {
+      this.relief.drawShadowMask(view, lightWidth, lightHeight);
+      // sombra dos objetos (docs/design/objetos.md), na mesma máscara
+      this.props.drawShadowMask(view, this.light.scene, time);
+    });
     this.copyTo(this.lightImage);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);

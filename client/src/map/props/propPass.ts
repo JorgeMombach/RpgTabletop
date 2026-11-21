@@ -2,8 +2,8 @@ import { reliefSampler, type MapProp, type PropKind, type ReliefChunks } from "@
 import { bindTextures, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "../ground/glKit";
 import { faceLight, type SceneLight } from "../ground/sceneLight";
 import { FULLSCREEN_VERTEX } from "../ground/terrainShader";
-import { PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
-import { PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, propBakeFragment, SHAPED_KINDS } from "./propShader";
+import { PROP_CAST, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
+import { PROP_CASTS, PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_SHADOW_FRAGMENT, PROP_SHADOW_VERTEX, propBakeFragment, SHAPED_KINDS } from "./propShader";
 
 /** Tipos que já saem da placa de vídeo (os outros continuam no desenho do Konva até a Tarefa 6). */
 export const GPU_PROP_KINDS: ReadonlySet<PropKind> = SHAPED_KINDS;
@@ -36,6 +36,7 @@ interface Placed {
 export class PropPass {
   private readonly bakes: ProgramCache<PropKind>;
   private readonly draws: ProgramCache<"draw">;
+  private readonly shadows: ProgramCache<"shadow">;
   private readonly shapeTexture: WebGLTexture;
   private readonly slopeTexture: WebGLTexture;
   private readonly framebuffer: WebGLFramebuffer | null;
@@ -60,6 +61,7 @@ export class PropPass {
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.bakes = new ProgramCache(gl, FULLSCREEN_VERTEX);
     this.draws = new ProgramCache(gl, PROP_DRAW_VERTEX, "aCorner");
+    this.shadows = new ProgramCache(gl, PROP_SHADOW_VERTEX, "aCorner");
     const layers = ATLAS_LAYERS.small + ATLAS_LAYERS.large;
     const arrayTexture = () => {
       const texture = gl.createTexture();
@@ -103,12 +105,13 @@ export class PropPass {
 
   /** Programa compilando ou forma da tela ainda por assar. */
   get pending(): boolean {
-    return !this.empty && (this.bakes.pending || this.draws.pending || this.waiting);
+    return !this.empty && (this.bakes.pending || this.draws.pending || this.shadows.pending || this.waiting);
   }
 
   /** Começa a compilar o desenho e as formas dos tipos da placa (ferramenta Objetos aberta, cena com objetos). */
   warm() {
     this.draws.warm("draw", () => PROP_DRAW_FRAGMENT);
+    this.shadows.warm("shadow", () => PROP_SHADOW_FRAGMENT);
     for (const kind of GPU_PROP_KINDS) this.bakes.warm(kind, () => propBakeFragment(kind));
   }
 
@@ -148,11 +151,11 @@ export class PropPass {
     return this.wind !== null && this.wind.strength > 0 && this.placed.some(({ prop }) => prop.kind === "tree" || prop.kind === "pine" || prop.kind === "bush");
   }
 
-  private onScreen(view: GroundView): Placed[] {
-    const left = (-view.stageX / view.scale - view.offsetX) / view.cellPx;
-    const top = (-view.stageY / view.scale - view.offsetY) / view.cellPx;
-    const right = left + view.width / view.scale / view.cellPx;
-    const bottom = top + view.height / view.scale / view.cellPx;
+  private onScreen(view: GroundView, margin = 0): Placed[] {
+    const left = (-view.stageX / view.scale - view.offsetX) / view.cellPx - margin;
+    const top = (-view.stageY / view.scale - view.offsetY) / view.cellPx - margin;
+    const right = left + view.width / view.scale / view.cellPx + margin * 2;
+    const bottom = top + view.height / view.scale / view.cellPx + margin * 2;
     return this.placed.filter(({ prop }) => {
       const box = propBounds(prop, this.drag?.id === prop.id ? this.drag.drag : null);
       return box.right >= left && box.left <= right && box.bottom >= top && box.top <= bottom;
@@ -223,27 +226,11 @@ export class PropPass {
     const { gl } = this;
     this.draws.beginDraw();
     const tier = this.atlas.currentTier;
-    const rows: Float32Array[] = [];
-    for (const { prop, base } of this.onScreen(view)) {
-      if (prop.above !== (layer === "above")) continue;
-      const found = this.atlas.slotFor(`${prop.kind}|${prop.seed}|${tier}`, slotClassOf(prop.kind), this.frame);
-      if (!found) continue;
-      if (found.fresh) {
-        // ainda não assada: devolve o lugar e espera o próximo quadro
-        this.atlas.forget(`${prop.kind}|${prop.seed}|${tier}`);
-        this.waiting = true;
-        continue;
-      }
-      const drag = this.drag?.id === prop.id ? this.drag.drag : null;
-      rows.push(propRow({ prop, base, faded: this.faded.has(prop.id), drag }, found.slot));
-    }
+    const rows = this.readyRows(this.onScreen(view).filter(({ prop }) => prop.above === (layer === "above")));
     if (rows.length === 0) return;
     const program = this.draws.get("draw", () => PROP_DRAW_FRAGMENT);
     if (!program) return;
-    const data = new Float32Array(rows.length * PROP_ROW_FLOATS);
-    rows.forEach((row, index) => data.set(row, index * PROP_ROW_FLOATS));
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.instances);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STREAM_DRAW);
+    this.upload(rows);
     gl.useProgram(program.program);
     gl.viewport(0, 0, width, height);
     gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
@@ -277,10 +264,77 @@ export class PropPass {
     gl.disable(gl.BLEND);
   }
 
+  /** Linhas dos objetos que já têm forma no atlas; os que ainda não têm esperam o próximo quadro. */
+  private readyRows(list: Placed[]): Float32Array[] {
+    const tier = this.atlas.currentTier;
+    const rows: Float32Array[] = [];
+    for (const { prop, base } of list) {
+      const key = `${prop.kind}|${prop.seed}|${tier}`;
+      const found = this.atlas.slotFor(key, slotClassOf(prop.kind), this.frame);
+      if (!found) continue;
+      if (found.fresh) {
+        // ainda não assada: devolve o lugar e espera o próximo quadro
+        this.atlas.forget(key);
+        this.waiting = true;
+        continue;
+      }
+      const drag = this.drag?.id === prop.id ? this.drag.drag : null;
+      rows.push(propRow({ prop, base, faded: this.faded.has(prop.id), drag }, found.slot));
+    }
+    return rows;
+  }
+
+  private upload(rows: Float32Array[]) {
+    const { gl } = this;
+    const data = new Float32Array(rows.length * PROP_ROW_FLOATS);
+    rows.forEach((row, index) => data.set(row, index * PROP_ROW_FLOATS));
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instances);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STREAM_DRAW);
+  }
+
+  /**
+   * A sombra dos objetos na máscara de sombra do passo da luz (alvo e viewport já ligados, meia resolução), pela
+   * maior, como a do relevo: a silhueta de cada um empurrada para longe do sol (sem sol nem lua, nada).
+   */
+  drawShadowMask(view: GroundView, scene: SceneLight, time: number) {
+    const { gl } = this;
+    this.shadows.beginDraw();
+    if (this.empty || scene.shadowCells <= 0.01) return;
+    // folga: a sombra mais comprida (altura 1,25 × tamanho até 4) de um objeto fora da tela pode cair dentro
+    const rows = this.readyRows(this.onScreen(view, 5 * scene.shadowCells + 2).filter(({ prop }) => PROP_CAST[prop.kind] > 0));
+    if (rows.length === 0) return;
+    const program = this.shadows.get("shadow", () => PROP_SHADOW_FRAGMENT);
+    if (!program) return;
+    this.upload(rows);
+    gl.useProgram(program.program);
+    gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
+    gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
+    gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
+    gl.uniform2f(uniformOf(gl, program, "uSunShift"), scene.sunDirection[0] * scene.shadowCells, scene.sunDirection[1] * scene.shadowCells);
+    gl.uniform1fv(uniformOf(gl, program, "uExtents"), PROP_EXTENTS);
+    gl.uniform1fv(uniformOf(gl, program, "uCasts"), PROP_CASTS);
+    gl.uniform1f(uniformOf(gl, program, "uAtlas"), ATLAS);
+    gl.uniform1f(uniformOf(gl, program, "uPoints"), PROP_TIERS[this.atlas.currentTier]);
+    gl.uniform1f(uniformOf(gl, program, "uTime"), time);
+    gl.uniform1f(uniformOf(gl, program, "uWind"), this.wind?.strength ?? 0);
+    gl.uniform2f(uniformOf(gl, program, "uWindDir"), ...(this.wind?.direction ?? [1, 0]));
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.shapeTexture);
+    gl.uniform1i(uniformOf(gl, program, "uShape"), 3);
+    gl.enable(gl.BLEND);
+    gl.blendEquation(gl.MAX);
+    gl.bindVertexArray(this.vertexArray);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, rows.length);
+    gl.bindVertexArray(null);
+    gl.blendEquation(gl.FUNC_ADD);
+    gl.disable(gl.BLEND);
+  }
+
   dispose() {
     const { gl } = this;
     this.bakes.dispose();
     this.draws.dispose();
+    this.shadows.dispose();
     gl.deleteTexture(this.shapeTexture);
     gl.deleteTexture(this.slopeTexture);
     gl.deleteFramebuffer(this.framebuffer);

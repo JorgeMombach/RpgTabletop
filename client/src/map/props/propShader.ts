@@ -1,6 +1,6 @@
 import { PROP_KINDS, type PropKind } from "@rpg/shared";
 import { NO_UNROLL } from "../ground/glKit";
-import { PROP_EXTENT } from "./propLayout";
+import { PROP_CAST, PROP_EXTENT } from "./propLayout";
 
 /**
  * Objetos na placa de vídeo (docs/design/objetos.md), portados da página aprovada (`docs/design/objetos-teste.html`).
@@ -385,5 +385,100 @@ void main() {
   color *= relativeShade(n);
   float alpha = clamp(px + 0.5, 0.0, 1.0) * (vKind.w > 0.5 ? 0.45 : 1.0);
   outColor = vec4(color * alpha, alpha);
+}
+`;
+
+/** Alturas da sombra por tipo (na ordem de `PROP_KINDS`), para o uniform `uCasts`. */
+export const PROP_CASTS = new Float32Array(PROP_KINDS.map((kind) => PROP_CAST[kind]));
+
+/**
+ * Sombra de cada objeto na máscara do passo da luz (meia resolução): um retângulo que cobre o objeto e a silhueta
+ * empurrada para longe do sol pela altura do tipo (`uCasts` × tamanho × `uSunShift`).
+ */
+export const PROP_SHADOW_VERTEX = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec4 aPlace;
+layout(location = 2) in vec4 aKind;
+layout(location = 3) in vec4 aSlot;
+uniform vec4 uMapGrid;
+uniform vec3 uStage;
+uniform vec2 uScreen;
+uniform vec2 uSunShift;   // para onde a sombra cai, em casas por casa de altura
+uniform float uExtents[${PROP_KINDS.length}];
+uniform float uCasts[${PROP_KINDS.length}];
+out vec2 vWorld;
+flat out vec4 vPlace;
+flat out vec4 vKind;
+flat out vec4 vSlot;
+flat out vec2 vShift;
+void main() {
+  int kind = int(aKind.x + 0.5);
+  float reach = uExtents[kind] * aPlace.z * 1.42;
+  vec2 shift = uSunShift * uCasts[kind] * aPlace.z;
+  // caixa que cobre o objeto e a sombra dele
+  vec2 low = min(aPlace.xy, aPlace.xy + shift) - reach;
+  vec2 high = max(aPlace.xy, aPlace.xy + shift) + reach;
+  vec2 world = mix(low, high, aCorner * 0.5 + 0.5);
+  vec2 screen = (world * uMapGrid.z + uMapGrid.xy) * uStage.z + uStage.xy;
+  gl_Position = vec4(screen.x / uScreen.x * 2.0 - 1.0, 1.0 - screen.y / uScreen.y * 2.0, 0.0, 1.0);
+  vWorld = world;
+  vPlace = aPlace;
+  vKind = aKind;
+  vSlot = aSlot;
+  vShift = shift;
+}
+`;
+
+export const PROP_SHADOW_FRAGMENT = `#version 300 es
+precision highp float;
+precision highp sampler2DArray;
+${NO_UNROLL}
+in vec2 vWorld;
+flat in vec4 vPlace;
+flat in vec4 vKind;
+flat in vec4 vSlot;
+flat in vec2 vShift;
+out vec4 outColor;
+uniform sampler2DArray uShape;
+uniform float uAtlas, uPoints;
+uniform float uTime, uWind;
+uniform vec2 uWindDir;
+${NOISE}
+vec3 atlasAt(vec2 q) {
+  float reach = vSlot.w / (2.0 * uPoints);
+  vec2 inside = clamp((q / reach * 0.5 + 0.5) * vSlot.w, vec2(0.5), vec2(vSlot.w - 0.5));
+  return vec3((vSlot.yz + inside) / uAtlas, vSlot.x);
+}
+vec2 swayAt(vec2 pos, float seed) {
+  float ph = seed * 0.37 - dot(pos, uWindDir) * 0.35;
+  float g = sin(uTime * 1.1 + ph) * 0.6 + sin(uTime * 2.3 + ph * 1.7) * 0.3 + sin(uTime * 4.1 + ph * 2.9) * 0.1;
+  return uWindDir * uWind * (0.45 + 0.55 * g);
+}
+/** Distância até a borda do objeto (casas do mapa) no ponto p do mapa, com o vento das plantas. */
+float silhouette(vec2 p) {
+  int kind = int(vKind.x + 0.5);
+  float c = cos(vPlace.w), s = sin(vPlace.w);
+  vec2 q = mat2(c, -s, s, c) * (p - vPlace.xy) / vPlace.z;
+  vec2 sway = vKind.w > 0.5 ? vec2(0.0) : mat2(c, -s, s, c) * swayAt(vPlace.xy, mod(vKind.y, 997.0) + 0.5) / vPlace.z;
+  if (kind == ${KIND_INDEX("tree")}) q -= sway * 0.07;
+  else if (kind == ${KIND_INDEX("bush")}) q -= sway * 0.04;
+  else if (kind == ${KIND_INDEX("pine")}) q -= sway * 0.1 * clamp(1.0 - length(q) / 1.2, 0.0, 1.0);
+  return (textureLod(uShape, atlasAt(q), 0.0).r - 0.5) / 2.0 * vPlace.z;
+}
+float sdSegment(vec2 p, vec2 a, vec2 b, float w) { vec2 pa = p - a, ba = b - a; float t = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0); return w - length(pa - ba * t); }
+void main() {
+  int kind = int(vKind.x + 0.5);
+  // dentro do próprio objeto não há sombra dele (a carroça não escurece a si mesma)
+  if (silhouette(vWorld) > 0.0) discard;
+  float lift = length(vShift);
+  float soft = 0.05 + lift * 0.06;
+  float shadow = smoothstep(-soft, soft, silhouette(vWorld - vShift)) * 0.85;
+  // tronco: liga a sombra da copa ao pé da árvore
+  if (kind == ${KIND_INDEX("tree")} || kind == ${KIND_INDEX("pine")}) {
+    float trunk = sdSegment(vWorld, vPlace.xy, vPlace.xy + vShift * 0.8, 0.07 * vPlace.z);
+    shadow = max(shadow, smoothstep(-0.03, 0.03, trunk) * 0.8);
+  }
+  outColor = vec4(shadow, 0.0, 0.0, 1.0);
 }
 `;
