@@ -40,7 +40,7 @@ export const PROP_EXTENT: Record<PropKind, number> = {
 
 /**
  * Altura da sombra de cada tipo, em casas (no tamanho 1): a silhueta vai para longe do sol por essa altura (a mesma
- * conta da sombra das paredes). Os seis do teste aprovado; os outros, da página de catálogo (por ora, sem sombra).
+ * conta da sombra das paredes). Os seis do teste aprovado e os 22 da página de catálogo.
  */
 export const PROP_CAST: Record<PropKind, number> = {
   tree: 1.25,
@@ -49,28 +49,29 @@ export const PROP_CAST: Record<PropKind, number> = {
   boulder: 0.45,
   barrel: 0.8,
   cart: 0.55,
-  stones: 0,
-  log: 0,
-  stump: 0,
-  rubble: 0,
-  crate: 0,
-  crates: 0,
-  planks: 0,
-  table: 0,
-  pillar: 0,
-  statue: 0,
-  bones: 0,
-  altar: 0,
-  tent: 0,
-  well: 0,
-  shelf: 0,
-  bed: 0,
-  sacks: 0,
-  mushrooms: 0,
-  flowers: 0,
-  bridge: 0,
-  palm: 0,
-  tallGrass: 0,
+  // os da página de catálogo aprovada (docs/design/objetos-catalogo-teste.html)
+  stones: 0.15,
+  log: 0.3,
+  stump: 0.35,
+  rubble: 0.1,
+  crate: 0.7,
+  crates: 1.1,
+  planks: 0.25,
+  table: 0.75,
+  pillar: 1.7,
+  statue: 1.9,
+  bones: 0.05,
+  altar: 0.55,
+  tent: 1.0,
+  well: 0.6,
+  shelf: 1.6,
+  bed: 0.6,
+  sacks: 0.4,
+  mushrooms: 0.2,
+  flowers: 0.15,
+  bridge: 0.3,
+  palm: 1.6,
+  tallGrass: 0.4,
 };
 
 /** Pontos por casa da forma guardada, da melhor resolução à menor (o detalhe fino é calculado na hora). */

@@ -96,7 +96,7 @@ describe("linha de dados de cada objeto", () => {
   });
 
   it("todo tipo tem altura de sombra definida", () => {
-    for (const kind of PROP_KINDS) assert.ok(PROP_CAST[kind] >= 0, kind);
+    for (const kind of PROP_KINDS) assert.ok(PROP_CAST[kind] > 0, kind);
     assert.equal(PROP_CAST.tree, 1.25);
     assert.equal(PROP_CAST.cart, 0.55);
   });
