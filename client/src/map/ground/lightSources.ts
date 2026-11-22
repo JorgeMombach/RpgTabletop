@@ -3,6 +3,7 @@ import { torchFlameAnchor } from "../mapTorchArt";
 import { TORCH_CELLS } from "../MapTorches";
 import { tokenCenter } from "../Torch";
 import type { LightSource } from "./lightPass";
+import { HELD_TORCH_ABOVE, TOKEN_HEIGHT, TORCH_HEIGHT } from "./shadowCasters";
 
 /** Peça sendo arrastada agora (tocha ou token): a luz e a chama acompanham (`dragFollow`). */
 export interface Dragging {
@@ -27,7 +28,7 @@ export function lightSources(tokens: CombatantView[], torches: MapTorch[], grid:
     const flame = { x: x + anchor.x, y: y + anchor.y };
     // A chama fica acima da base no desenho: encostada numa parede, a luz sai do lado da base, não do outro cômodo.
     const origin = stopAtWall({ x, y }, flame, blockers);
-    return { id: torch.id, x: origin.x, y: origin.y, reach, kind: "fixed", flame };
+    return { id: torch.id, x: origin.x, y: origin.y, reach, kind: "fixed", flame, height: TORCH_HEIGHT[torch.style], skip: 0 };
   });
   const held = tokens
     .filter((token) => token.torch && token.pos)
@@ -40,6 +41,9 @@ export function lightSources(tokens: CombatantView[], torches: MapTorch[], grid:
         y: (center.y - grid.offsetY) / grid.cellPx + offset.y,
         reach: reach + center.span / 2,
         kind: "held",
+        // acima da cabeça, no centro: o token não faz sombra da própria tocha
+        height: TOKEN_HEIGHT[token.size ?? "medium"] + HELD_TORCH_ABOVE,
+        skip: center.span / 2,
       };
     });
   return [...fixed, ...held];

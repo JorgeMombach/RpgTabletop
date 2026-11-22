@@ -20,6 +20,10 @@ export interface LightSource {
   kind: "fixed" | "held";
   /** Tocha fixa: onde fica a base da chama (o corpo é desenhado no Konva). */
   flame?: { x: number; y: number };
+  /** Altura da chama (casas), para a sombra de objetos e tokens (docs/design/sombras.md). */
+  height: number;
+  /** Raio do portador (casas): a tocha do token não faz sombra dele mesmo. Fixa: 0. */
+  skip: number;
 }
 
 export interface LightingInput {
@@ -81,6 +85,8 @@ export class LightPass {
   private readonly flame: Program;
   /** Sombra do sol e da lua de objetos e tokens, pelo mapa de alturas (docs/design/sombras.md). */
   private readonly heightSun: Program;
+  /** Textura vazia (1 × 1) para o mapa de alturas quando não há (o sampler não pode ficar sem textura). */
+  private readonly blank: WebGLTexture;
   private readonly triangle: WebGLBuffer;
   private readonly framebuffer: WebGLFramebuffer | null;
   private lightTexture: WebGLTexture | null = null;
@@ -116,6 +122,7 @@ export class LightPass {
     this.torch = linkProgram(gl, GEOMETRY_VERTEX, TORCH_FRAGMENT, "aCell");
     this.flame = linkProgram(gl, GEOMETRY_VERTEX, FLAME_FRAGMENT, "aCell");
     this.heightSun = linkProgram(gl, FULLSCREEN_VERTEX, HEIGHT_SUN_FRAGMENT, "aPos");
+    this.blank = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)), gl.NEAREST, gl.CLAMP_TO_EDGE);
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
     this.framebuffer = gl.createFramebuffer();
   }
@@ -362,8 +369,16 @@ export class LightPass {
     this.setView(this.torch, view);
     gl.uniform1f(uniformOf(gl, this.torch, "uTime"), time);
     gl.uniform1f(uniformOf(gl, this.torch, "uWeight"), 1 / SOFT_ORIGINS.length);
+    // Sombra de objetos e tokens pelo mapa de alturas (docs/design/sombras.md); sem ele, a luz de antes.
+    gl.uniform1i(uniformOf(gl, this.torch, "uUseHeights"), heights ? 1 : 0);
+    if (heights) {
+      gl.uniform4f(uniformOf(gl, this.torch, "uHeightArea"), heights.area.x, heights.area.y, heights.area.cols, heights.area.rows);
+      bindTextures(gl, this.torch, [["uHeights", heights.texture]]);
+    } else bindTextures(gl, this.torch, [["uHeights", this.blank]]);
     for (const mesh of this.torches) {
       gl.uniform2f(uniformOf(gl, this.torch, "uCenter"), mesh.source.x, mesh.source.y);
+      gl.uniform1f(uniformOf(gl, this.torch, "uTorchHeight"), mesh.source.height);
+      gl.uniform1f(uniformOf(gl, this.torch, "uTorchSkip"), mesh.source.skip);
       gl.uniform1f(uniformOf(gl, this.torch, "uReach"), mesh.source.reach);
       gl.uniform1f(uniformOf(gl, this.torch, "uSeed"), mesh.seed);
       gl.uniform1f(uniformOf(gl, this.torch, "uStrength"), scene.torch);
@@ -436,6 +451,6 @@ export class LightPass {
     this.releaseTorches();
     if (this.shadows) this.gl.deleteBuffer(this.shadows.buffer);
     for (const roof of [this.roofs.rooms, this.roofs.patches]) if (roof) this.gl.deleteBuffer(roof.buffer);
-    for (const texture of [this.lightTexture, this.shadowTexture, this.roofTexture]) if (texture) this.gl.deleteTexture(texture);
+    for (const texture of [this.lightTexture, this.shadowTexture, this.roofTexture, this.blank]) if (texture) this.gl.deleteTexture(texture);
   }
 }

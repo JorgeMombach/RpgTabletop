@@ -62,6 +62,22 @@ void main() {
   outColor = vec4((uAmbient + uSun * mix(1.0 - shadow, uIndoor, roof)) * 0.5, 1.0);
 }`;
 
+/**
+ * Leitura do mapa de alturas (docs/design/sombras.md): a altura em casas num ponto do mapa (fora da área: chão). E o
+ * começo dos passos, um pouco diferente em cada pixel (a borda da sombra sai macia, sem degraus).
+ */
+export const HEIGHT_SAMPLE = `
+uniform sampler2D uHeights;
+uniform vec4 uHeightArea;   // canto e tamanho, em casas
+float heightAt(vec2 cell) {
+  vec2 uv = (cell - uHeightArea.xy) / uHeightArea.zw;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 0.0;
+  return textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0).r * 4.0;
+}
+float stepJitter() { return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); }
+`;
+
+
 /** Luz de uma tocha dentro do recorte dela: cai devagar, tremula e tem a cor da chama (somada, pela metade). */
 export const TORCH_FRAGMENT = `#version 300 es
 precision highp float;
@@ -70,13 +86,35 @@ in vec2 vCell;
 out vec4 outColor;
 uniform vec2 uCenter;
 uniform float uReach, uSeed, uStrength, uWeight, uTime;
+uniform float uTorchHeight, uTorchSkip;
+uniform int uUseHeights;
 ${NOISE}
+${HEIGHT_SAMPLE}
+/**
+ * Quanto de sombra de objetos e tokens (docs/design/sombras.md): do ponto até a tocha, o raio vai da altura do ponto à
+ * da chama; quem estiver acima dele faz sombra (o portador, dentro de uTorchSkip, não conta). A conta da página aprovada.
+ */
+float heightShade() {
+  if (uUseHeights == 0) return 0.0;
+  float h0 = heightAt(vCell);
+  vec2 to = uCenter - vCell;
+  float dist = length(to);
+  float jitter = stepJitter();
+  float shade = 0.0;
+  for (int i = 0; i < 16 + uNoUnroll; i++) {
+    float k = (float(i) + jitter) / 17.0;
+    vec2 at = vCell + to * k;
+    float above = distance(at, uCenter) < uTorchSkip ? -1.0 : heightAt(at) - mix(h0, uTorchHeight, k);
+    shade = max(shade, smoothstep(0.02, 0.06 + dist * (1.0 - k) * 0.04, above));
+  }
+  return shade;
+}
 void main() {
   float d = distance(vCell, uCenter);
   float wobble = 1.0 + 0.04 * (noise(vec2(uTime * 3.0, uSeed * 7.0)) - 0.5);
   float fall = pow(max(1.0 - d / (uReach * wobble), 0.0), 1.7);
   vec3 warm = mix(vec3(1.0, 0.6, 0.3), vec3(1.0, 0.78, 0.45), flameShift(uSeed));
-  outColor = vec4(warm * fall * uStrength * flicker(uSeed) * 1.6 * uWeight * 0.5, 1.0);
+  outColor = vec4(warm * fall * uStrength * flicker(uSeed) * 1.6 * uWeight * 0.5 * (1.0 - heightShade()), 1.0);
 }`;
 
 /** Mapa de luz para a tela: dobra de volta e aplica o brilho mínimo (o do mestre). */
@@ -150,20 +188,6 @@ void main() {
   outColor = vec4(color, clamp(max(cover, max(color.r, max(color.g, color.b))), 0.0, 1.0));
 }`;
 
-/**
- * Leitura do mapa de alturas (docs/design/sombras.md): a altura em casas num ponto do mapa (fora da área: chão). E o
- * começo dos passos, um pouco diferente em cada pixel (a borda da sombra sai macia, sem degraus).
- */
-export const HEIGHT_SAMPLE = `
-uniform sampler2D uHeights;
-uniform vec4 uHeightArea;   // canto e tamanho, em casas
-float heightAt(vec2 cell) {
-  vec2 uv = (cell - uHeightArea.xy) / uHeightArea.zw;
-  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 0.0;
-  return textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0).r * 4.0;
-}
-float stepJitter() { return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); }
-`;
 
 /**
  * Sombra do sol ou da lua de objetos e tokens (docs/design/sombras.md), na máscara de sombra (pela maior): do ponto,
