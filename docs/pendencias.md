@@ -164,7 +164,22 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Sem WebGL 2 (ou chão desligado): os objetos voltam ao desenho antigo, com o vento antigo.
 - [ ] **Desempenho (não medido: o navegador do agente roda em segundo plano):** no app compilado, com uma floresta de ~500 objetos (pincel *Espalhar*, 9×9, densidade cheia), andar no WASD sem engasgo; espalhar a floresta sem travar; uma cena com ~800 objetos afastada até ver todos (nada some); a primeira vez de cada tipo (compilação) sem pausa longa; comparar com a 2.14.0.
 
+### Sombras de tochas, tokens e objetos (troca de motor, etapa 2; [docs/design/sombras.md](design/sombras.md))
+- [ ] À noite: fogueira (braseiro) na floresta faz sombras longas atrás das árvores; tocha de ferro passa por cima de um caixote baixo; estante e estátua fazem sombra grande; tudo como em [sombras-teste.html](design/sombras-teste.html).
+- [ ] Token com tocha andando e sendo arrastado: a sombra dos vizinhos gira e estica; sem anel escuro em volta dele; ele faz sombra do token ao lado.
+- [ ] De dia, nenhum leque de sombra de tocha; sombras curtas do sol em objetos e tokens; no entardecer, longas.
+- [ ] Tokens sem a sombrinha antiga com o chão na placa; com o chão desligado (ou sem WebGL 2), a sombrinha volta.
+- [ ] Copa alta sobre um barril: o barril escurece pela sombra da copa, a copa não escurece pela do barril.
+- [ ] Objeto ou token logo fora da tela: a sombra dele entra na tela.
+- [ ] **Desempenho (não medido pelo agente):** à noite, floresta de ~300 objetos, 10 tochas fixas e 4 tokens com tocha andando: sem engasgo no WASD nem ao arrastar token; comparar com a 2.14.0.
+
 ## Pendências pequenas
+
+### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
+- [ ] Token voando faz sombra como se estivesse no chão (o mapa de alturas guarda só o topo).
+- [ ] O relevo não entra no mapa de alturas: o objeto em cima do patamar faz sombra pela altura dele, sem descer o penhasco.
+- [ ] Bem de perto, a faixa do mapa de alturas é cortada em 3/4 da tela por lado: a sombra de algo muito longe da tela não entra (`heightPass.ts`).
+- [ ] Moldura de chefe mantém a sombra própria das peças de ouro (só a do anel comum saiu; `tokenArt.ts`).
 
 ### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
 - [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).

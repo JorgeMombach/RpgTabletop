@@ -108,11 +108,12 @@ export function grain(): HTMLCanvasElement {
 }
 
 /** Anel de metal: brilho em cone (metal torneado), luz de cima, desgaste e relevo nas arestas. */
-function metalRing(ctx: CanvasRenderingContext2D, kind: FrameKind, rOut: number, rIn: number, m: Metal) {
+function metalRing(ctx: CanvasRenderingContext2D, kind: FrameKind, rOut: number, rIn: number, m: Metal, groundShadow: boolean) {
   const box = rOut * 1.3;
   ctx.save();
-  // Sombra no chão.
+  // Sombra no chão (com a sombra pela luz da cena, o mapa de alturas faz a de verdade).
   ctx.save();
+  if (!groundShadow) ctx.shadowColor = "transparent";
   ctx.shadowColor = "rgba(0,0,0,.65)";
   ctx.shadowBlur = rOut * 0.35;
   ctx.shadowOffsetY = rOut * 0.1;
@@ -393,11 +394,11 @@ function portrait(ctx: CanvasRenderingContext2D, kind: FrameKind, r: number, who
 // ---------- molduras ----------
 
 /** Bronze forjado: anel de metal grosso com rebites e a cor do token numa faixa fina por dentro. */
-function drawForged(ctx: CanvasRenderingContext2D, kind: FrameKind, R: number, who: Portrait) {
+function drawForged(ctx: CanvasRenderingContext2D, kind: FrameKind, R: number, who: Portrait, groundShadow: boolean) {
   const metal = METAL_OF[kind];
   const ringW = R * 0.18;
   const band = R * 0.055;
-  metalRing(ctx, kind, R, R - ringW, metal);
+  metalRing(ctx, kind, R, R - ringW, metal, groundShadow);
   ctx.save();
   ctx.clip(ringPath(kind, R - ringW, R - ringW - band), "evenodd");
   ctx.fillStyle = who.color;
@@ -588,6 +589,8 @@ export interface TokenArtSpec extends Portrait {
   boss: boolean;
   /** Raio do token em unidades do mapa. */
   r: number;
+  /** Sombrinha fixa no chão (sem a sombra pela luz da cena, docs/design/sombras.md). */
+  groundShadow: boolean;
 }
 
 export interface TokenArt {
@@ -615,7 +618,7 @@ export function tokenArt(spec: TokenArtSpec, pxPerUnit: number): TokenArt {
     avatarId = avatarIds.get(spec.avatar) ?? 0;
     if (!avatarId) avatarIds.set(spec.avatar, (avatarId = nextAvatarId++));
   }
-  const key = [spec.kind, spec.boss ? 1 : 0, spec.color, avatarId, spec.initials, spec.down ? 1 : 0, spec.r.toFixed(2), step].join("|");
+  const key = [spec.kind, spec.boss ? 1 : 0, spec.color, avatarId, spec.initials, spec.down ? 1 : 0, spec.r.toFixed(2), step, spec.groundShadow ? 1 : 0].join("|");
   const hit = cache.get(key);
   if (hit) {
     // Mais usado por último: fica no fim (o mais antigo sai primeiro).
@@ -632,7 +635,7 @@ export function tokenArt(spec: TokenArtSpec, pxPerUnit: number): TokenArt {
   ctx.translate(side / 2, side / 2);
   ctx.scale(k, k);
   if (spec.boss) drawBoss(ctx, spec.r, spec);
-  else drawForged(ctx, spec.kind, spec.r, spec);
+  else drawForged(ctx, spec.kind, spec.r, spec, spec.groundShadow);
   const art = { canvas, extent };
   if (fontReady() || spec.avatar) {
     cache.set(key, art);

@@ -61,7 +61,7 @@ import { Token } from "./Token";
 import { useImage } from "./useImage";
 import { LastSeenOverlay } from "./LastSeen";
 import { screenLights, tokenCenter, TorchGlowLayer } from "./Torch";
-import { tokenCaster } from "./ground/shadowCasters";
+import { tokenCaster, tokenGroundShadow } from "./ground/shadowCasters";
 import { MapTorchLayer, TORCH_DRAG_MIME } from "./MapTorches";
 import { ChestEditor, MapChestLayer } from "./MapChests";
 import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
@@ -1964,6 +1964,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                 selected={c.id === selectedId}
                 active={activeIds.has(c.id)}
                 plateNumber={plateNumbers.get(c.id)}
+                groundShadow={tokenGroundShadow(groundLit, lighting !== null)}
                 turnKey={state.battle.combat.turn}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing && !(state.pause && !gm) && !readOnly}
                 onSelect={() => select(c.id)}
