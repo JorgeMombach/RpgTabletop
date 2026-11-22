@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sombras</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; margin: 0 16px 16px; border: 1px solid #3a3025; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button><button data-v="night" class="on">Noite</button></div>
+  <div class="group" id="walk"><b>Tokens</b><button data-v="1" class="on">Andando</button><button data-v="0">Parados</button></div>
+  <div class="group" id="mode"><b>Sombras</b><button data-v="new" class="on">Novas</button><button data-v="today">Hoje</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.2">Perto</button></div>
+  <span id="ms"></span>
+</header>
+<p>Etapa 2 (sombra por objeto): floresta à esquerda, clareira com fogueira no meio, depósito à direita (com uma tocha alta). O token dourado carrega tocha. Sombras pelo mapa de alturas: cada ponto anda até o sol, a lua ou a tocha e vê se algo mais alto está no caminho. <b>Hoje</b>: tokens sem sombra e a luz das tochas atravessando os objetos (como no app agora).</p>
+<canvas id="view"></canvas>
+<script src="sombras.js"></script>
+</body>
+</html>
