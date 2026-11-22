@@ -56,7 +56,7 @@ A névoa desenhada na placa de vídeo, como mais um passo do desenho do chão (`
 
 ## Como fica (a conta da página aprovada)
 
-- **Casas** *(chamada minha: uma textura RGBA8 com 1 ponto por casa)*:
+- **Casas** *(chamada minha, no plano: uma máscara na metade da tela, desenhada com os triângulos de cada trecho de casas (no hex, o polígono de cada uma). Assim a grade hex e o mapa grande saem de graça; na página, era uma textura de 1 ponto por casa)*:
   - **R:** visível agora (`state.battle.sight`), com a pincelada em andamento do mestre (`FogDraft`);
   - **G:** explorado (`fog.explored`, só com a visão dos personagens);
   - **B:** revelado pelo mestre (`fog.revealed`).
@@ -105,8 +105,7 @@ A névoa desenhada na placa de vídeo, como mais um passo do desenho do chão (`
 
 ## Fica para o construtor
 
-- **Grade hexagonal:** a casa de cada pixel pela conta do hex (`gridGeometry`), na leitura das casas. A borda arredondada fica por leituras em volta, já que a leitura linear entre centros não serve para hex. O centro de cada aliado também vem da geometria.
-- **Área da textura das casas:** o retângulo do que foi revelado, explorado e visto, mais a tela, com teto de tamanho. Fora dela, nunca visto.
+- **Grade hexagonal:** o centro e o alcance de cada aliado vêm da geometria (`shapeCenter`, `drawSpan`), como no servidor.
 - **Como a névoa entra no `GroundRenderer`:** as entradas (névoa, visão, aliados, objetos que bloqueiam, quem é mestre), o laço da fumaça, e se a imagem da névoa sai junto com a das copas ou à parte.
 - **Visão sem os personagens** (`fog.vision` desligado): só o revelado pelo mestre, com a borda por casa e os fiapos.
 - Medir no teste do dono antes de lançar (roteiro em `docs/pendencias.md`).
