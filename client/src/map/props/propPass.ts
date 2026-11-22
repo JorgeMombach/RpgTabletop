@@ -2,8 +2,8 @@ import { reliefSampler, type MapProp, type PropKind, type ReliefChunks } from "@
 import { bindTextures, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "../ground/glKit";
 import { faceLight, SCENE_LIGHT, type SceneLight } from "../ground/sceneLight";
 import { FULLSCREEN_VERTEX } from "../ground/terrainShader";
-import { PROP_CAST, PROP_EXTENT, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
-import { PROP_CASTS, PROP_SOLIDS, PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_SHADOW_FRAGMENT, PROP_SHADOW_VERTEX, propBakeFragment, SHAPED_KINDS } from "./propShader";
+import { PROP_EXTENT, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
+import { PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_HEIGHT_FRAGMENT, propBakeFragment, SHAPED_KINDS } from "./propShader";
 
 /** Tipos que saem da placa de vídeo (todos; o desenho do Konva fica só sem WebGL 2). */
 export const GPU_PROP_KINDS: ReadonlySet<PropKind> = SHAPED_KINDS;
@@ -41,7 +41,7 @@ interface Placed {
 export class PropPass {
   private readonly bakes: ProgramCache<PropKind>;
   private readonly draws: ProgramCache<"draw">;
-  private readonly shadows: ProgramCache<"shadow">;
+  private readonly heights: ProgramCache<"height">;
   private readonly shapeTexture: WebGLTexture;
   private readonly slopeTexture: WebGLTexture;
   private readonly framebuffer: WebGLFramebuffer | null;
@@ -62,7 +62,7 @@ export class PropPass {
   private readonly icons = new Map<string, HTMLCanvasElement>();
   /** Ficou forma da tela sem assar (precisa de mais quadros). */
   private waiting = false;
-  /** Faixa em volta da tela (casas) de onde a sombra pode cair dentro: a última pedida pela sombra. */
+  /** Faixa em volta da tela (casas) de onde a sombra pode cair dentro: a última pedida pelo mapa de alturas. */
   private shadowMargin = 0;
   /** Sobe a cada mudança que muda o desenho (objetos, arrasto, transparência, forma assada). */
   version = 0;
@@ -70,7 +70,7 @@ export class PropPass {
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.bakes = new ProgramCache(gl, FULLSCREEN_VERTEX);
     this.draws = new ProgramCache(gl, PROP_DRAW_VERTEX, "aCorner");
-    this.shadows = new ProgramCache(gl, PROP_SHADOW_VERTEX, "aCorner");
+    this.heights = new ProgramCache(gl, PROP_DRAW_VERTEX, "aCorner");
     const layers = ATLAS_LAYERS.small + ATLAS_LAYERS.large;
     const arrayTexture = () => {
       const texture = gl.createTexture();
@@ -114,13 +114,13 @@ export class PropPass {
 
   /** Programa compilando ou forma da tela ainda por assar. */
   get pending(): boolean {
-    return !this.empty && (this.bakes.pending || this.draws.pending || this.shadows.pending || this.waiting);
+    return !this.empty && (this.bakes.pending || this.draws.pending || this.heights.pending || this.waiting);
   }
 
   /** Começa a compilar o desenho e as formas dos tipos da placa (ferramenta Objetos aberta, cena com objetos). */
   warm() {
     this.draws.warm("draw", () => PROP_DRAW_FRAGMENT);
-    this.shadows.warm("shadow", () => PROP_SHADOW_FRAGMENT);
+    this.heights.warm("height", () => PROP_HEIGHT_FRAGMENT);
     for (const kind of GPU_PROP_KINDS) this.bakes.warm(kind, () => propBakeFragment(kind));
   }
 
@@ -374,29 +374,25 @@ export class PropPass {
   }
 
   /**
-   * A sombra dos objetos na máscara de sombra do passo da luz (alvo e viewport já ligados, meia resolução), pela
-   * maior, como a do relevo: a silhueta de cada um empurrada para longe do sol (sem sol nem lua, nada).
+   * Os objetos no mapa de alturas (docs/design/sombras.md), no alvo e viewport já ligados (a meia resolução da luz),
+   * pela maior: os da tela e os da faixa em volta (`margin`, casas), de onde a sombra ou a luz de uma tocha alcança.
    */
-  drawShadowMask(view: GroundView, scene: SceneLight, time: number) {
+  drawHeights(view: GroundView, width: number, height: number, time: number, margin: number) {
     const { gl } = this;
-    this.shadows.beginDraw();
-    if (this.empty || scene.shadowCells <= 0.01) return;
-    // folga: a sombra mais comprida (altura até 1,9 × tamanho até 4, menos o que já está na tela) de um objeto fora
-    // da tela pode cair dentro; o `bake` seguinte assa as formas dessa faixa
-    this.shadowMargin = 5 * scene.shadowCells + 2;
-    const rows = this.readyRows(this.onScreen(view, this.shadowMargin).filter(({ prop }) => PROP_CAST[prop.kind] > 0), false);
+    this.heights.beginDraw();
+    this.shadowMargin = margin;
+    if (this.empty) return;
+    const rows = this.readyRows(this.onScreen(view, margin), false);
     if (rows.length === 0) return;
-    const program = this.shadows.get("shadow", () => PROP_SHADOW_FRAGMENT);
+    const program = this.heights.get("height", () => PROP_HEIGHT_FRAGMENT);
     if (!program) return;
     this.upload(rows);
     gl.useProgram(program.program);
+    gl.viewport(0, 0, width, height);
     gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
     gl.uniform3f(uniformOf(gl, program, "uStage"), view.stageX, view.stageY, view.scale);
     gl.uniform2f(uniformOf(gl, program, "uScreen"), view.width, view.height);
-    gl.uniform2f(uniformOf(gl, program, "uSunShift"), scene.sunDirection[0] * scene.shadowCells, scene.sunDirection[1] * scene.shadowCells);
     gl.uniform1fv(uniformOf(gl, program, "uExtents"), PROP_EXTENTS);
-    gl.uniform1fv(uniformOf(gl, program, "uCasts"), PROP_CASTS);
-    gl.uniform1fv(uniformOf(gl, program, "uSolid"), PROP_SOLIDS);
     gl.uniform1f(uniformOf(gl, program, "uAtlas"), ATLAS);
     gl.uniform1f(uniformOf(gl, program, "uPoints"), PROP_TIERS[this.atlas.currentTier]);
     gl.uniform1f(uniformOf(gl, program, "uTime"), time);
@@ -418,7 +414,7 @@ export class PropPass {
     const { gl } = this;
     this.bakes.dispose();
     this.draws.dispose();
-    this.shadows.dispose();
+    this.heights.dispose();
     gl.deleteTexture(this.shapeTexture);
     gl.deleteTexture(this.slopeTexture);
     gl.deleteFramebuffer(this.framebuffer);

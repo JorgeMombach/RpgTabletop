@@ -60,7 +60,8 @@ import { EffectTipLayer, hideEffectTip, showEffectTip } from "./EffectTip";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
 import { LastSeenOverlay } from "./LastSeen";
-import { screenLights, TorchGlowLayer } from "./Torch";
+import { screenLights, tokenCenter, TorchGlowLayer } from "./Torch";
+import { tokenCaster } from "./ground/shadowCasters";
 import { MapTorchLayer, TORCH_DRAG_MIME } from "./MapTorches";
 import { ChestEditor, MapChestLayer } from "./MapChests";
 import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
@@ -1441,6 +1442,16 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   const tokenKey = tokenSpots(tokens);
+  // Tokens que fazem sombra (docs/design/sombras.md): disco em casas, refeito só quando um token anda ou muda de tamanho.
+  const tokenCasters = useMemo(
+    () =>
+      tokens.map((c) => {
+        const center = tokenCenter(c, grid);
+        return tokenCaster(c.id, { x: (center.x - grid.offsetX) / grid.cellPx, y: (center.y - grid.offsetY) / grid.cellPx }, center.span, c.size ?? "medium");
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tokenKey resume onde os tokens estão
+    [tokenKey, tokens.map((c) => c.size).join("|"), grid],
+  );
   // Copas com token embaixo (meio transparentes e paradas): só refaz quando um token anda ou os objetos mudam.
   const fadedProps = useMemo(
     () => new Set(state.battle.props.filter((p) => p.above && propUnderToken(p, tokens, grid)).map((p) => p.id)),
@@ -1713,6 +1724,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               stairs={state.battle.stairs}
               stairRelief={relief}
               fadedProps={fadedProps}
+              tokenCasters={tokenCasters}
               weather={state.battle.weather}
             />
           )}

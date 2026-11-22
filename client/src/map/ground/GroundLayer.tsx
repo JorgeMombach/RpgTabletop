@@ -7,6 +7,8 @@ import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/t
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
 import { usePropDrag } from "../props/propDrag";
+import { useTokenDrag } from "../dragFollow";
+import type { TokenCaster } from "./shadowCasters";
 import { notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
 import type { LightingInput } from "./lightPass";
 import type { ReliefJob, ReliefResult } from "./reliefTypes";
@@ -68,7 +70,10 @@ export const GroundLayer = memo(function GroundLayer({
   stairRelief,
   fadedProps,
   weather,
+  tokenCasters,
 }: {
+  /** Tokens que fazem sombra (docs/design/sombras.md), em casas; o arrasto é aplicado aqui. */
+  tokenCasters: TokenCaster[];
   /** Copas com token embaixo (docs/design/objetos.md): meio transparentes e paradas. */
   fadedProps: ReadonlySet<string>;
   /** Clima da cena: o vento nas plantas. */
@@ -348,6 +353,17 @@ export const GroundLayer = memo(function GroundLayer({
     renderer.setPropFaded(fadedProps);
     setVersion((value) => value + 1);
   }, [renderer, fadedProps]);
+
+  // Tokens no mapa de alturas: o arrastado anda junto (só o chão redesenha, não o mapa inteiro).
+  const tokenDrag = useTokenDrag();
+  useEffect(() => {
+    if (!renderer) return;
+    const shifted = tokenDrag.id
+      ? tokenCasters.map((caster) => (caster.id === tokenDrag.id ? { ...caster, x: caster.x + tokenDrag.dx / grid.cellPx, y: caster.y + tokenDrag.dy / grid.cellPx } : caster))
+      : tokenCasters;
+    renderer.setTokenCasters(shifted);
+    setVersion((value) => value + 1);
+  }, [renderer, tokenCasters, tokenDrag, grid.cellPx]);
 
   // Vento nas plantas: parado com a ferramenta Objetos, com Reduzir efeitos e no aparelho que não aguenta.
   const propWindOff = useApp((state) => state.tool === "props" || state.reduceFx || state.windStalled);

@@ -12,6 +12,8 @@ import { StairPass } from "./stairPass";
 import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
 import { PropPass } from "../props/propPass";
+import { HeightPass } from "./heightPass";
+import type { TokenCaster } from "./shadowCasters";
 import type { PropDrag } from "../props/propLayout";
 import type { WaterGpuField } from "./waterTypes";
 
@@ -25,6 +27,8 @@ import type { WaterGpuField } from "./waterTypes";
 
 /** Densidade máxima da tela para o chão (acima disso o ganho não paga o peso). */
 const MAX_PIXEL_RATIO = 2;
+/** Folga do mapa de alturas em volta da tela (casas): o alcance de uma tocha (20 + 20 ft) com sobra. */
+const TORCH_MARGIN = 10;
 /** Pontos finos por pedaço (lado). */
 const CHUNK_SIDE = 32;
 
@@ -58,6 +62,8 @@ export class GroundRenderer {
   private readonly stairs: StairPass;
   /** Objetos (docs/design/objetos.md): formas num atlas, desenhados nas duas saídas de objetos. */
   private readonly props: PropPass;
+  /** Mapa de alturas (docs/design/sombras.md): objetos e tokens, refeito a cada desenho da luz. */
+  private readonly heights: HeightPass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -130,6 +136,7 @@ export class GroundRenderer {
     this.bridges = new BridgePass(gl);
     this.stairs = new StairPass(gl);
     this.props = new PropPass(gl);
+    this.heights = new HeightPass(gl);
   }
 
   /**
@@ -194,6 +201,11 @@ export class GroundRenderer {
     const dirt = this.watercolors[TERRAINS.indexOf("dirtDark")];
     if (this.gl.isContextLost() || !leaves || !stone || !dirt) return null;
     return this.props.iconOf(kind, side, { leaves, stone, dirt });
+  }
+
+  /** Tokens que fazem sombra (posição em casas, raio e altura), já com o arrasto: o mapa de alturas é refeito no desenho. */
+  setTokenCasters(casters: TokenCaster[]) {
+    this.heights.setTokens(casters);
   }
 
   /** Planta balançando na cena: o chão precisa de quadros. */
@@ -436,11 +448,10 @@ export class GroundRenderer {
     this.drawProps(view, width, height, state, lightKey, reliefLight, time);
     if (!this.light.active) return;
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
-    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => {
-      this.relief.drawShadowMask(view, lightWidth, lightHeight);
-      // sombra dos objetos (docs/design/objetos.md), na mesma máscara
-      this.props.drawShadowMask(view, this.light.scene, time);
-    });
+    // Mapa de alturas na resolução da luz, com a folga da sombra mais comprida e do alcance das tochas.
+    const shadowMargin = Math.max(5 * this.light.scene.shadowCells + 2, TORCH_MARGIN);
+    this.heights.draw(view, Math.max(1, Math.ceil(width / 2)), Math.max(1, Math.ceil(height / 2)), this.props, time, shadowMargin);
+    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight));
     this.copyTo(this.lightImage);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
@@ -638,6 +649,7 @@ export class GroundRenderer {
     this.bridges.dispose();
     this.stairs.dispose();
     this.props.dispose();
+    this.heights.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();
