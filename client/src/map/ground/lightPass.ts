@@ -1,6 +1,7 @@
 import { blockersNear, lightPolygon, stopAtWall, sunShadows, triangulate, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
 import { bindTextures, cellRectOnScreen, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
-import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
+import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, HEIGHT_SUN_FRAGMENT, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
+import type { HeightMap } from "./heightPass";
 import { blendSceneLight, INDOOR_SUN, SCENE_BLEND_SECONDS, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
 
@@ -78,6 +79,8 @@ export class LightPass {
   private readonly torch: Program;
   private readonly lightOut: Program;
   private readonly flame: Program;
+  /** Sombra do sol e da lua de objetos e tokens, pelo mapa de alturas (docs/design/sombras.md). */
+  private readonly heightSun: Program;
   private readonly triangle: WebGLBuffer;
   private readonly framebuffer: WebGLFramebuffer | null;
   private lightTexture: WebGLTexture | null = null;
@@ -112,6 +115,7 @@ export class LightPass {
     this.shadow = linkProgram(gl, GEOMETRY_VERTEX, SHADOW_FRAGMENT, "aCell");
     this.torch = linkProgram(gl, GEOMETRY_VERTEX, TORCH_FRAGMENT, "aCell");
     this.flame = linkProgram(gl, GEOMETRY_VERTEX, FLAME_FRAGMENT, "aCell");
+    this.heightSun = linkProgram(gl, FULLSCREEN_VERTEX, HEIGHT_SUN_FRAGMENT, "aPos");
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
     this.framebuffer = gl.createFramebuffer();
   }
@@ -280,7 +284,7 @@ export class LightPass {
   }
 
   /** Mapa de luz no canvas (já ligado e do tamanho certo). `time` em segundos. */
-  renderLight(view: GroundView, time: number, width: number, height: number, extraShadow?: (width: number, height: number) => void) {
+  renderLight(view: GroundView, time: number, width: number, height: number, extraShadow?: (width: number, height: number) => void, heights: HeightMap | null = null) {
     const { gl } = this;
     const input = this.input;
     if (!input) return;
@@ -309,6 +313,22 @@ export class LightPass {
     }
     // Sombra do relevo (docs/design/relevo.md), na mesma máscara.
     extraShadow?.(lightWidth, lightHeight);
+    // Sombra de objetos e tokens pelo mapa de alturas (docs/design/sombras.md), na mesma máscara, pela maior.
+    if (heights && scene.shadowCells > 0.01) {
+      gl.useProgram(this.heightSun.program);
+      this.setView(this.heightSun, view);
+      useVertices(gl, this.triangle);
+      gl.uniform2f(uniformOf(gl, this.heightSun, "uCanvas"), lightWidth, lightHeight);
+      gl.uniform2f(uniformOf(gl, this.heightSun, "uSunDir"), scene.sunDirection[0], scene.sunDirection[1]);
+      gl.uniform1f(uniformOf(gl, this.heightSun, "uShadowCells"), scene.shadowCells);
+      gl.uniform4f(uniformOf(gl, this.heightSun, "uHeightArea"), heights.area.x, heights.area.y, heights.area.cols, heights.area.rows);
+      bindTextures(gl, this.heightSun, [["uHeights", heights.texture]]);
+      gl.enable(gl.BLEND);
+      gl.blendEquation(gl.MAX);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.blendEquation(gl.FUNC_ADD);
+      gl.disable(gl.BLEND);
+    }
     // 1b. Telhado invisível: cômodos (1) e o sol das janelas por cima (0).
     this.drawInto(this.roofTexture, lightWidth, lightHeight);
     gl.clearColor(0, 0, 0, 1);

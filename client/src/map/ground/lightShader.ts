@@ -149,3 +149,47 @@ void main() {
   // zero e cor acesa, o navegador pode zerar o brilho ao copiar a imagem. Com a mistura "tela", dá o mesmo resultado.
   outColor = vec4(color, clamp(max(cover, max(color.r, max(color.g, color.b))), 0.0, 1.0));
 }`;
+
+/**
+ * Leitura do mapa de alturas (docs/design/sombras.md): a altura em casas num ponto do mapa (fora da área: chão). E o
+ * começo dos passos, um pouco diferente em cada pixel (a borda da sombra sai macia, sem degraus).
+ */
+export const HEIGHT_SAMPLE = `
+uniform sampler2D uHeights;
+uniform vec4 uHeightArea;   // canto e tamanho, em casas
+float heightAt(vec2 cell) {
+  vec2 uv = (cell - uHeightArea.xy) / uHeightArea.zw;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 0.0;
+  return textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0).r * 4.0;
+}
+float stepJitter() { return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); }
+`;
+
+/**
+ * Sombra do sol ou da lua de objetos e tokens (docs/design/sombras.md), na máscara de sombra (pela maior): do ponto,
+ * anda até a luz; quem estiver acima do raio (que sobe 1/shadowCells por casa) faz sombra. A conta da página aprovada.
+ */
+export const HEIGHT_SUN_FRAGMENT = `#version 300 es
+precision highp float;
+${NO_UNROLL}
+out vec4 outColor;
+uniform vec4 uMapGrid;
+uniform vec3 uStage;
+uniform vec2 uScreen, uCanvas;
+uniform vec2 uSunDir;        // para onde a sombra cai
+uniform float uShadowCells;  // comprimento da sombra por casa de altura
+${HEIGHT_SAMPLE}
+void main() {
+  vec2 screen = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y) * (uScreen / uCanvas);
+  vec2 p = ((screen - uStage.xy) / uStage.z - uMapGrid.xy) / uMapGrid.z;
+  float h0 = heightAt(p);
+  float jitter = stepJitter();
+  float reach = 2.6 * uShadowCells;
+  float shade = 0.0;
+  for (int i = 0; i < 32 + uNoUnroll; i++) {
+    float d = (float(i) + jitter) / 32.0 * reach;
+    float above = heightAt(p - uSunDir * d) - (h0 + d / uShadowCells);
+    shade = max(shade, smoothstep(0.02, 0.06 + d * 0.05, above));
+  }
+  outColor = vec4(shade * 0.85, 0.0, 0.0, 1.0);
+}`;

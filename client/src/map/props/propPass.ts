@@ -374,15 +374,15 @@ export class PropPass {
   }
 
   /**
-   * Os objetos no mapa de alturas (docs/design/sombras.md), no alvo e viewport já ligados (a meia resolução da luz),
-   * pela maior: os da tela e os da faixa em volta (`margin`, casas), de onde a sombra ou a luz de uma tocha alcança.
+   * Os objetos no mapa de alturas (docs/design/sombras.md), no alvo e viewport já ligados, pela maior. `view` já é a
+   * tela com a faixa em volta; `margin` (casas) fica para o próximo `bake` assar as formas dessa faixa.
    */
   drawHeights(view: GroundView, width: number, height: number, time: number, margin: number) {
     const { gl } = this;
     this.heights.beginDraw();
     this.shadowMargin = margin;
     if (this.empty) return;
-    const rows = this.readyRows(this.onScreen(view, margin), false);
+    const rows = this.readyRows(this.onScreen(view), false);
     if (rows.length === 0) return;
     const program = this.heights.get("height", () => PROP_HEIGHT_FRAGMENT);
     if (!program) return;

@@ -34,6 +34,23 @@ void main() {
   outColor = vec4(uHeight / 4.0, 0.0, 0.0, 1.0);
 }`;
 
+/** Lado máximo do mapa de alturas (px). */
+const MAX_SIDE = 2048;
+
+/** Área coberta pelo mapa de alturas, em casas. */
+export interface HeightArea {
+  x: number;
+  y: number;
+  cols: number;
+  rows: number;
+}
+
+/** O mapa de alturas pronto, para quem anda nele (a luz do sol, da lua e das tochas). */
+export interface HeightMap {
+  texture: WebGLTexture;
+  area: HeightArea;
+}
+
 export class HeightPass {
   private readonly disc: Program;
   private readonly square: WebGLBuffer;
@@ -48,9 +65,12 @@ export class HeightPass {
     this.framebuffer = gl.createFramebuffer();
   }
 
-  /** O mapa de alturas do último desenho (`null` antes do primeiro). */
-  get texture(): WebGLTexture | null {
-    return this.target;
+  /** Área do mapa de alturas no último desenho, em casas: canto e tamanho (a tela mais a faixa em volta). */
+  private area: HeightArea = { x: 0, y: 0, cols: 1, rows: 1 };
+
+  /** O mapa de alturas do último desenho e a área que ele cobre (`null` antes do primeiro). */
+  get output(): HeightMap | null {
+    return this.target ? { texture: this.target, area: this.area } : null;
   }
 
   /** Tokens que fazem sombra (os que este cliente recebe, já com o arrasto). */
@@ -58,9 +78,24 @@ export class HeightPass {
     this.casters = casters;
   }
 
-  /** Desenha o mapa de alturas (`width` × `height`: a resolução da luz); `margin` = folga em casas em volta da tela. */
-  draw(view: GroundView, width: number, height: number, props: PropPass, time: number, margin: number) {
+  /**
+   * Desenha o mapa de alturas: a tela mais `margin` casas em volta (de onde uma sombra ou a luz de uma tocha alcança a
+   * tela), na densidade `ratio` (pixels do mapa por pixel CSS da tela: a da luz), com teto de tamanho.
+   */
+  draw(view: GroundView, ratio: number, props: PropPass, time: number, margin: number) {
     const { gl } = this;
+    // folga em pixels CSS, no máximo 3/4 da tela de cada lado (bem de perto, a sombra de longe fica de fora)
+    const extra = Math.min(margin * view.cellPx * view.scale, Math.max(view.width, view.height) * 0.75);
+    const wide: GroundView = { ...view, stageX: view.stageX + extra, stageY: view.stageY + extra, width: view.width + extra * 2, height: view.height + extra * 2 };
+    const density = Math.min(ratio, MAX_SIDE / wide.width, MAX_SIDE / wide.height);
+    const width = Math.max(1, Math.ceil(wide.width * density));
+    const height = Math.max(1, Math.ceil(wide.height * density));
+    this.area = {
+      x: (-wide.stageX / wide.scale - wide.offsetX) / wide.cellPx,
+      y: (-wide.stageY / wide.scale - wide.offsetY) / wide.cellPx,
+      cols: wide.width / wide.scale / wide.cellPx,
+      rows: wide.height / wide.scale / wide.cellPx,
+    };
     if (!this.target || this.size.width !== width || this.size.height !== height) {
       if (this.target) gl.deleteTexture(this.target);
       this.target = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.LINEAR, gl.CLAMP_TO_EDGE);
@@ -71,13 +106,13 @@ export class HeightPass {
     gl.viewport(0, 0, width, height);
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    props.drawHeights(view, width, height, time, margin);
+    props.drawHeights(wide, width, height, time, margin);
     if (this.casters.length > 0) {
       gl.useProgram(this.disc.program);
       useVertices(gl, this.square);
-      gl.uniform4f(uniformOf(gl, this.disc, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
-      gl.uniform3f(uniformOf(gl, this.disc, "uStage"), view.stageX, view.stageY, view.scale);
-      gl.uniform2f(uniformOf(gl, this.disc, "uScreen"), view.width, view.height);
+      gl.uniform4f(uniformOf(gl, this.disc, "uMapGrid"), wide.offsetX, wide.offsetY, wide.cellPx, 0);
+      gl.uniform3f(uniformOf(gl, this.disc, "uStage"), wide.stageX, wide.stageY, wide.scale);
+      gl.uniform2f(uniformOf(gl, this.disc, "uScreen"), wide.width, wide.height);
       gl.enable(gl.BLEND);
       gl.blendEquation(gl.MAX);
       for (const caster of this.casters) {

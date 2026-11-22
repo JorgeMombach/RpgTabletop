@@ -450,8 +450,9 @@ export class GroundRenderer {
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
     // Mapa de alturas na resolução da luz, com a folga da sombra mais comprida e do alcance das tochas.
     const shadowMargin = Math.max(5 * this.light.scene.shadowCells + 2, TORCH_MARGIN);
-    this.heights.draw(view, Math.max(1, Math.ceil(width / 2)), Math.max(1, Math.ceil(height / 2)), this.props, time, shadowMargin);
-    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight));
+    // densidade da luz (meia resolução do canvas), em pixels por pixel CSS da tela
+    this.heights.draw(view, Math.max(1, Math.ceil(width / 2)) / view.width, this.props, time, shadowMargin);
+    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight), this.heights.output);
     this.copyTo(this.lightImage);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
