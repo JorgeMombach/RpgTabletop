@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Névoa</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  .stage { position: relative; margin: 0 16px 16px; width: max-content; border: 1px solid #3a3025; }
+  .stage canvas { display: block; }
+  #overlay { position: absolute; left: 0; top: 0; }
+  p { margin: 0 16px 8px; color: #a8987c; max-width: 900px; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="fog"><b>Névoa</b><button data-v="new" class="on">Nova</button><button data-v="today">Hoje</button></div>
+  <div class="group" id="vision"><b>Borda da visão</b><button data-v="cell">Por casa</button><button data-v="both" class="on">Linha + casa</button><button data-v="line">Linha pura</button></div>
+  <div class="group" id="who"><b>Quem vê</b><button data-v="player" class="on">Jogador</button><button data-v="gm">Mestre</button></div>
+  <div class="group" id="door"><b>Portas</b><button data-v="0" class="on">Fechadas</button><button data-v="1">Abertas</button></div>
+  <div class="group" id="walk"><b>Tokens</b><button data-v="1" class="on">Andando</button><button data-v="0">Parados</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.2">Perto</button></div>
+  <div class="group" id="reset"><button data-v="1">Esquecer o explorado</button></div>
+  <span id="ms"></span>
+</header>
+<p>Etapa 3 (névoa de guerra): casa de dois cômodos à esquerda (porta à direita e embaixo), campo com pilares à direita, canto de cima à direita revelado pelo mestre. Os dois aliados andam de casa em casa com visão de 60 ft; o que já viram fica explorado. <b>Linha + casa</b>: só fica limpo o que a linha de visão alcança <i>e</i> as casas que o servidor manda. <b>Hoje</b>: a névoa atual do app.</p>
+<div class="stage"><canvas id="view"></canvas><canvas id="overlay"></canvas></div>
+<script src="nevoa.js"></script>
+</body>
+</html>
