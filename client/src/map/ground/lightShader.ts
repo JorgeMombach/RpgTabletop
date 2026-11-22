@@ -63,17 +63,20 @@ void main() {
 }`;
 
 /**
- * Leitura do mapa de alturas (docs/design/sombras.md): a altura em casas num ponto do mapa (fora da área: chão). E o
- * começo dos passos, um pouco diferente em cada pixel (a borda da sombra sai macia, sem degraus).
+ * Leitura do mapa de alturas (docs/design/sombras.md): a altura em casas num ponto do mapa (fora da área: chão) e,
+ * em `heightsAt`, tudo o que o mapa guarda ali, em casas: topo (x), onde começa a copa do ponto, tronco incluído (y,
+ * 0 fora de copa) e onde começa o que bloqueia (w; a copa começa no alto, o resto no chão; sem nada, 4). E o começo
+ * dos passos, um pouco diferente em cada pixel (a borda da sombra sai macia, sem degraus).
  */
 export const HEIGHT_SAMPLE = `
 uniform sampler2D uHeights;
 uniform vec4 uHeightArea;   // canto e tamanho, em casas
-float heightAt(vec2 cell) {
+vec4 heightsAt(vec2 cell) {
   vec2 uv = (cell - uHeightArea.xy) / uHeightArea.zw;
-  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 0.0;
-  return textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0).r * 4.0;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(0.0, 0.0, 0.0, 4.0);
+  return textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0) * 4.0;
 }
+float heightAt(vec2 cell) { return heightsAt(cell).x; }
 float stepJitter() { return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); }
 `;
 
@@ -92,11 +95,15 @@ ${NOISE}
 ${HEIGHT_SAMPLE}
 /**
  * Quanto de sombra de objetos e tokens (docs/design/sombras.md): do ponto até a tocha, o raio vai da altura do ponto à
- * da chama; quem estiver acima dele faz sombra (o portador, dentro de uTorchSkip, não conta). A conta da página aprovada.
+ * da chama; quem o raio atravessar faz sombra (o portador, dentro de uTorchSkip, não conta). A conta da página
+ * aprovada, com a copa começando no alto: a tocha abaixo dela passa por baixo e ilumina o chão embaixo da copa.
  */
 float heightShade() {
   if (uUseHeights == 0) return 0.0;
-  float h0 = heightAt(vCell);
+  vec4 here = heightsAt(vCell);
+  // embaixo da copa, com a tocha abaixo dela: o ponto recebe como chão (no tronco, sem a sombra dele mesmo)
+  bool under = uTorchHeight < here.y;
+  float h0 = under ? 0.0 : here.x;
   vec2 to = uCenter - vCell;
   float dist = length(to);
   float jitter = stepJitter();
@@ -104,7 +111,11 @@ float heightShade() {
   for (int i = 0; i < 16 + uNoUnroll; i++) {
     float k = (float(i) + jitter) / 17.0;
     vec2 at = vCell + to * k;
-    float above = distance(at, uCenter) < uTorchSkip ? -1.0 : heightAt(at) - mix(h0, uTorchHeight, k);
+    vec4 span = heightsAt(at);
+    float ray = mix(h0, uTorchHeight, k);
+    // dentro do objeto: abaixo do topo e, na copa, acima do começo (no chão, o começo não conta: a sombra no pé fica)
+    float inside = span.w > 0.001 ? min(span.x - ray, ray - span.w) : span.x - ray;
+    float above = distance(at, uCenter) < uTorchSkip || (under && distance(at, vCell) < 0.2) ? -1.0 : inside;
     shade = max(shade, smoothstep(0.02, 0.06 + dist * (1.0 - k) * 0.04, above));
   }
   return shade;

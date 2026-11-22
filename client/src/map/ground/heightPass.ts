@@ -4,7 +4,8 @@ import type { TokenCaster } from "./shadowCasters";
 
 /**
  * Mapa de alturas (docs/design/sombras.md): a altura de tudo o que faz sombra, na meia resolução da luz, refeito a
- * cada desenho da luz (os tokens andam). Altura / 4 no canal R, pela maior. Os objetos vêm da forma guardada no atlas
+ * cada desenho da luz (os tokens andam). Em casas / 4: topo no R e onde começa a copa no G, pela maior; onde começa o
+ * que bloqueia no A, pela menor (a copa começa no alto e a luz baixa passa por baixo dela; o resto, no chão; sem nada, 4). Os objetos vêm da forma guardada no atlas
  * (`PropPass.drawHeights`); os tokens, um disco no centro com a altura do tamanho. A luz anda nele até o sol, a lua
  * ou a tocha e vê se algo mais alto está no caminho.
  */
@@ -31,7 +32,7 @@ uniform vec3 uDisc;
 uniform float uHeight;
 void main() {
   if (distance(vWorld, uDisc.xy) > uDisc.z) discard;
-  outColor = vec4(uHeight / 4.0, 0.0, 0.0, 1.0);
+  outColor = vec4(uHeight / 4.0, 0.0, 0.0, 0.0);
 }`;
 
 /** Lado máximo do mapa de alturas (px). */
@@ -114,7 +115,7 @@ export class HeightPass {
       gl.uniform3f(uniformOf(gl, this.disc, "uStage"), wide.stageX, wide.stageY, wide.scale);
       gl.uniform2f(uniformOf(gl, this.disc, "uScreen"), wide.width, wide.height);
       gl.enable(gl.BLEND);
-      gl.blendEquation(gl.MAX);
+      gl.blendEquationSeparate(gl.MAX, gl.MIN);
       for (const caster of this.casters) {
         gl.uniform3f(uniformOf(gl, this.disc, "uDisc"), caster.x, caster.y, caster.radius);
         gl.uniform1f(uniformOf(gl, this.disc, "uHeight"), caster.height);

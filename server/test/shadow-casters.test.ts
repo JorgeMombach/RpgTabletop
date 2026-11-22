@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { HELD_TORCH_ABOVE, tokenCaster, tokenGroundShadow, TOKEN_HEIGHT, TORCH_HEIGHT } from "../../client/src/map/ground/shadowCasters";
+import { CANOPY_BOTTOM, HELD_TORCH_ABOVE, tokenCaster, tokenGroundShadow, TOKEN_HEIGHT, TORCH_HEIGHT } from "../../client/src/map/ground/shadowCasters";
 
 /** Sombra por objeto (docs/design/sombras.md): alturas de tokens e tochas no mapa de alturas. */
 
@@ -13,6 +13,11 @@ describe("alturas da sombra por objeto", () => {
 
   it("o disco do token tem o raio da metade do span e a altura do tamanho", () => {
     assert.deepEqual(tokenCaster("a", { x: 2, y: 3 }, 2, "large"), { id: "a", x: 2, y: 3, radius: 1, height: 2 });
+  });
+
+  it("a copa começa acima da tocha de um token médio e das tochas fixas (não apaga a tocha embaixo dela)", () => {
+    assert.ok(CANOPY_BOTTOM > TOKEN_HEIGHT.medium + HELD_TORCH_ABOVE);
+    assert.ok(CANOPY_BOTTOM > Math.max(...Object.values(TORCH_HEIGHT)));
   });
 
   it("a sombrinha fixa do token só sai com o chão na placa e a luz da cena", () => {

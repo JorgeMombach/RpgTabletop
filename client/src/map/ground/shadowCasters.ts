@@ -14,6 +14,13 @@ export const TORCH_HEIGHT: Record<MapTorchStyle, number> = { stick: 1.2, iron: 1
 /** A tocha do token fica acima da cabeça dele (no centro). */
 export const HELD_TORCH_ABOVE = 0.3;
 
+/**
+ * Onde a copa começa (casas, no tamanho 1; maior junto com a árvore, nunca menor): as copas (`above`) ficam acima da
+ * tocha de um token médio e das fixas, e a luz passa por baixo delas. Só o tronco vai até o chão. A sombra do sol e da
+ * lua continua pelo topo.
+ */
+export const CANOPY_BOTTOM = 1.7;
+
 /** Um token no mapa de alturas: um disco no centro dele, em casas. */
 export interface TokenCaster {
   id: string;

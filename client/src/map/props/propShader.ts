@@ -442,7 +442,9 @@ ${PLANT_SWAY}
 
 /**
  * Altura de cada objeto no mapa de alturas (docs/design/sombras.md): o mesmo retângulo do desenho, só dentro da
- * silhueta (com o vento das plantas), altura × tamanho / 4 no canal R, pela maior.
+ * silhueta (com o vento das plantas), altura × tamanho / 4 no canal R, pela maior. No canal A, onde o objeto começa
+ * (/ 4, pela menor): no chão, menos a copa (uCanopyBottom > 0), que começa acima das tochas baixas, fora o tronco. No
+ * G, onde começa a copa daquele ponto, tronco incluído (/ 4, pela maior): a tocha abaixo dela ilumina o ponto como chão.
  */
 export const PROP_HEIGHT_FRAGMENT = `#version 300 es
 precision highp float;
@@ -457,6 +459,7 @@ uniform sampler2DArray uShape;
 uniform float uAtlas, uPoints;
 uniform float uTime, uWind;
 uniform vec2 uWindDir;
+uniform float uCanopyBottom;
 vec3 atlasAt(vec2 q) {
   float reach = vSlot.w / (2.0 * uPoints);
   vec2 inside = clamp((q / reach * 0.5 + 0.5) * vSlot.w, vec2(0.5), vec2(vSlot.w - 0.5));
@@ -475,6 +478,7 @@ void main() {
 ${PLANT_SWAY}
   vec4 shape = textureLod(uShape, atlasAt(q), 0.0);
   if (shape.r < 0.5) discard;
-  outColor = vec4(shape.g * vPlace.z, 0.0, 0.0, 1.0);
+  float canopy = min(uCanopyBottom * max(vPlace.z, 1.0) / 4.0, 1.0);
+  outColor = vec4(shape.g * vPlace.z, canopy, 0.0, length(vLocal) > 0.12 ? canopy : 0.0);
 }
 `;

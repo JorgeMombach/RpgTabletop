@@ -167,6 +167,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Sombras de tochas, tokens e objetos (troca de motor, etapa 2; [docs/design/sombras.md](design/sombras.md))
 - [ ] À noite: fogueira (braseiro) na floresta faz sombras longas atrás das árvores; tocha de ferro passa por cima de um caixote baixo; estante e estátua fazem sombra grande; tudo como em [sombras-teste.html](design/sombras-teste.html).
 - [ ] Token com tocha andando e sendo arrastado: a sombra dos vizinhos gira e estica; sem anel escuro em volta dele; ele faz sombra do token ao lado.
+- [ ] Token com tocha embaixo da árvore, do pinheiro e da palmeira: a luz passa por baixo da copa e ilumina em volta (só o tronco faz uma sombra fina); sem ponto escuro no tronco. Token grande com tocha embaixo de árvore pequena: a copa faz sombra.
 - [ ] De dia, nenhum leque de sombra de tocha; sombras curtas do sol em objetos e tokens; no entardecer, longas.
 - [ ] Tokens sem a sombrinha antiga com o chão na placa; com o chão desligado (ou sem WebGL 2), a sombrinha volta.
 - [ ] Copa alta sobre um barril: o barril escurece pela sombra da copa, a copa não escurece pela do barril.
@@ -180,6 +181,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] O relevo não entra no mapa de alturas: o objeto em cima do patamar faz sombra pela altura dele, sem descer o penhasco.
 - [ ] Bem de perto, a faixa do mapa de alturas é cortada em 3/4 da tela por lado: a sombra de algo muito longe da tela não entra (`heightPass.ts`).
 - [ ] Moldura de chefe mantém a sombra própria das peças de ouro (só a do anel comum saiu; `tokenArt.ts`).
+- [ ] A copa começa a 1,7 casa (`CANOPY_BOTTOM`, × o tamanho da árvore se maior que 1): a tocha de token grande (2,3) entra na copa e escurece em volta dela; a copa fica sem sombra própria da tocha baixa (ilumina como o chão embaixo); token embaixo da copa vira coluna da altura da copa para as tochas.
 
 ### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
 - [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).

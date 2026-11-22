@@ -2,6 +2,7 @@ import { reliefSampler, type MapProp, type PropKind, type ReliefChunks } from "@
 import { bindTextures, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "../ground/glKit";
 import { faceLight, SCENE_LIGHT, type SceneLight } from "../ground/sceneLight";
 import { FULLSCREEN_VERTEX } from "../ground/terrainShader";
+import { CANOPY_BOTTOM } from "../ground/shadowCasters";
 import { PROP_EXTENT, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
 import { PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_HEIGHT_FRAGMENT, propBakeFragment, SHAPED_KINDS } from "./propShader";
 
@@ -374,7 +375,7 @@ export class PropPass {
   }
 
   /**
-   * Os objetos no mapa de alturas (docs/design/sombras.md), no alvo e viewport já ligados, pela maior. `view` já é a
+   * Os objetos no mapa de alturas (docs/design/sombras.md), no alvo já ligado: topo pela maior, começo pela menor. `view` já é a
    * tela com a faixa em volta; `margin` (casas) fica para o próximo `bake` assar as formas dessa faixa.
    */
   drawHeights(view: GroundView, width: number, height: number, time: number, margin: number) {
@@ -382,11 +383,10 @@ export class PropPass {
     this.heights.beginDraw();
     this.shadowMargin = margin;
     if (this.empty) return;
-    const rows = this.readyRows(this.onScreen(view), false);
-    if (rows.length === 0) return;
+    const placed = this.onScreen(view);
+    if (placed.length === 0) return;
     const program = this.heights.get("height", () => PROP_HEIGHT_FRAGMENT);
     if (!program) return;
-    this.upload(rows);
     gl.useProgram(program.program);
     gl.viewport(0, 0, width, height);
     gl.uniform4f(uniformOf(gl, program, "uMapGrid"), view.offsetX, view.offsetY, view.cellPx, 0);
@@ -401,11 +401,18 @@ export class PropPass {
     gl.activeTexture(gl.TEXTURE3);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.shapeTexture);
     gl.uniform1i(uniformOf(gl, program, "uShape"), 3);
+    // topo pela maior (R) e começo pela menor (A): as copas num desenho à parte, com o começo acima das tochas baixas
     gl.enable(gl.BLEND);
-    gl.blendEquation(gl.MAX);
-    gl.bindVertexArray(this.vertexArray);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, rows.length);
-    gl.bindVertexArray(null);
+    gl.blendEquationSeparate(gl.MAX, gl.MIN);
+    for (const canopy of [false, true]) {
+      const rows = this.readyRows(placed.filter(({ prop }) => prop.above === canopy), false);
+      if (rows.length === 0) continue;
+      this.upload(rows);
+      gl.uniform1f(uniformOf(gl, program, "uCanopyBottom"), canopy ? CANOPY_BOTTOM : 0);
+      gl.bindVertexArray(this.vertexArray);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, rows.length);
+      gl.bindVertexArray(null);
+    }
     gl.blendEquation(gl.FUNC_ADD);
     gl.disable(gl.BLEND);
   }

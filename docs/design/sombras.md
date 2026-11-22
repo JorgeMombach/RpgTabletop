@@ -49,6 +49,7 @@ Um **mapa de alturas** na placa de vídeo, refeito a cada desenho da luz: a altu
 
 - **Mapa de alturas** (`client/src/map/ground/heightPass.ts` *(chamada minha)*): textura RGBA8 na meia resolução da luz, altura/4 no canal R, pela maior (`MAX`). Entram:
   - objetos: o mesmo retângulo instanciado do desenho, lendo a altura do atlas (canal G) e só dentro da silhueta;
+  - copas (`above`: árvore, pinheiro, palmeira) *(achado na revisão final)*: além do topo, o mapa guarda onde a copa começa, 1,7 casa (× o tamanho, se maior que 1; `CANOPY_BOTTOM`), acima da tocha de um token médio (1,5) e das fixas. Só o tronco vai até o chão. A tocha abaixo da copa passa por baixo dela e ilumina o chão em volta e embaixo da copa (o ponto embaixo dela recebe como chão). Sem isso, a copa virava coluna maciça e apagava a tocha de quem estava embaixo da árvore. A sombra do sol e da lua continua pelo topo;
   - tokens: um disco do raio do token, altura pelo tamanho *(chamada minha: miúdo 0,5; pequeno 0,9; médio 1,2; grande 2; enorme 3; imenso 4 casas)*.
   - Feito a cada desenho da luz (tokens andam); só o que está na tela e na faixa de sombra em volta.
 - **Sol e lua** (passo da luz, máscara de sombra): a sombra de objetos e tokens passa a sair do mapa de alturas (32 passos até `2,6 × shadowCells`, raio subindo `1/shadowCells` por casa), na mesma máscara das paredes e do relevo (pela maior). A sombra por silhueta empurrada da etapa 1 (`PROP_SHADOW_FRAGMENT`) sai.
