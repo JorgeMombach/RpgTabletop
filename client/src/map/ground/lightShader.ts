@@ -82,17 +82,11 @@ float stepJitter() { return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0
 
 
 /** Luz de uma tocha dentro do recorte dela: cai devagar, tremula e tem a cor da chama (somada, pela metade). */
-export const TORCH_FRAGMENT = `#version 300 es
-precision highp float;
-${NO_UNROLL}
-in vec2 vCell;
-out vec4 outColor;
-uniform vec2 uCenter;
-uniform float uReach, uSeed, uStrength, uWeight, uTime;
-uniform float uTorchHeight, uTorchSkip;
-uniform int uUseHeights;
-${NOISE}
-${HEIGHT_SAMPLE}
+/**
+ * A marcha da tocha no mapa de alturas (docs/design/sombras.md), dividida entre a tocha e a luz dos efeitos: usa
+ * `vCell`, `uCenter`, `uTorchHeight`, `uTorchSkip` e `uUseHeights` (e `HEIGHT_SAMPLE` antes).
+ */
+const HEIGHT_SHADE = `
 /**
  * Quanto de sombra de objetos e tokens (docs/design/sombras.md): do ponto até a tocha, o raio vai da altura do ponto à
  * da chama; quem o raio atravessar faz sombra (o portador, dentro de uTorchSkip, não conta). A conta da página
@@ -120,6 +114,20 @@ float heightShade() {
   }
   return shade;
 }
+`;
+
+export const TORCH_FRAGMENT = `#version 300 es
+precision highp float;
+${NO_UNROLL}
+in vec2 vCell;
+out vec4 outColor;
+uniform vec2 uCenter;
+uniform float uReach, uSeed, uStrength, uWeight, uTime;
+uniform float uTorchHeight, uTorchSkip;
+uniform int uUseHeights;
+${NOISE}
+${HEIGHT_SAMPLE}
+${HEIGHT_SHADE}
 void main() {
   float d = distance(vCell, uCenter);
   float wobble = 1.0 + 0.04 * (noise(vec2(uTime * 3.0, uSeed * 7.0)) - 0.5);
@@ -227,4 +235,58 @@ void main() {
     shade = max(shade, smoothstep(0.02, 0.06 + d * 0.05, above));
   }
   outColor = vec4(shade * 0.85, 0.0, 0.0, 1.0);
+}`;
+
+/**
+ * Luz de um efeito de área (docs/design/efeitos.md): perto, pela área desfocada (a máscara do efeito); mais longe,
+ * caindo com a distância ao meio menos o raio da área (sem blocos). Tremido do fogo, pisca da eletricidade ou calma;
+ * a força segue a da tocha da cena; objetos e tokens fazem sombra pela marcha da tocha, a partir do meio.
+ */
+export const AREA_LIGHT_FRAGMENT = `#version 300 es
+precision highp float;
+${NO_UNROLL}
+in vec2 vCell;
+out vec4 outColor;
+uniform vec2 uCenter;
+uniform float uTime, uSeed, uStrength, uScene, uReach, uRadius;
+uniform vec3 uColor;
+uniform int uFlicker;            // 0 calmo, 1 fogo, 2 eletricidade
+uniform float uTorchHeight, uTorchSkip;
+uniform int uUseHeights;
+uniform sampler2D uMask;
+uniform vec4 uBox;               // caixa da máscara (casas, sem o arrasto)
+uniform vec2 uOffset;            // arrasto do token que o efeito acompanha
+${NOISE}
+${HEIGHT_SAMPLE}
+${HEIGHT_SHADE}
+float maskAt(vec2 cell, float cells) {
+  vec2 uv = (cell - uOffset - uBox.xy) / uBox.zw;
+  float lod = max(0.0, log2(max(1.0, cells * 8.0)) - 1.0);
+  vec2 step = vec2(cells * 0.35) / uBox.zw;
+  float sum = textureLod(uMask, uv, lod).r * 2.0;
+  sum += textureLod(uMask, uv + vec2(step.x, step.y), lod).r + textureLod(uMask, uv + vec2(-step.x, step.y), lod).r;
+  sum += textureLod(uMask, uv + vec2(step.x, -step.y), lod).r + textureLod(uMask, uv - step, lod).r;
+  return sum / 6.0;
+}
+void main() {
+  float near = maskAt(vCell, 1.0);
+  float dist = max(0.0, distance(vCell, uCenter) - uRadius);
+  float far = pow(clamp(1.0 - dist / uReach, 0.0, 1.0), 2.0);
+  float glow = clamp(near * 0.6 + far * 0.9, 0.0, 1.0);
+  float wave = uFlicker == 1 ? 0.85 + 0.15 * noise(vec2(uTime * 0.7 * 10.0, uSeed)) : uFlicker == 2 ? 0.6 + 0.4 * step(0.3, fract(sin(floor(uTime * 9.0) * 12.98) * 437.5)) : 1.0;
+  outColor = vec4(uColor * glow * uStrength * uScene * wave * (1.0 - heightShade()), 1.0);
+}`;
+
+/** Escuridão de um efeito (docs/design/efeitos.md): multiplica a luz por 1 − 0,93 × área. */
+export const AREA_DARK_FRAGMENT = `#version 300 es
+precision highp float;
+in vec2 vCell;
+out vec4 outColor;
+uniform sampler2D uMask;
+uniform vec4 uBox;
+uniform vec2 uOffset;
+void main() {
+  vec2 uv = (vCell - uOffset - uBox.xy) / uBox.zw;
+  float area = textureLod(uMask, uv, 2.0).r;
+  outColor = vec4(vec3(1.0 - 0.93 * smoothstep(0.15, 0.6, area)), 1.0);
 }`;
