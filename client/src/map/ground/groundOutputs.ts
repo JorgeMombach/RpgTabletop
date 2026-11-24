@@ -17,9 +17,11 @@ export const useGroundOutputs = create<{
   /** Névoa de guerra (docs/design/nevoa.md): a fumaça e o véu cinza que tira a cor do explorado. */
   fog: HTMLCanvasElement | null;
   fogTint: HTMLCanvasElement | null;
+  /** Efeitos de área (docs/design/efeitos.md), cor pré-multiplicada. */
+  effects: HTMLCanvasElement | null;
   /** Ícone de um tipo de objeto feito pela placa de vídeo (`null` = ainda não dá; sem motor, a função é `null`). */
   propIcon: ((kind: PropKind, side: number) => HTMLCanvasElement | null) | null;
-}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, propIcon: null }));
+}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, propIcon: null }));
 
 const drawnListeners = new Set<() => void>();
 
@@ -75,4 +77,18 @@ export function onFogDrawn(listener: () => void): () => void {
 
 export function notifyFogDrawn() {
   for (const listener of fogListeners) listener();
+}
+
+const effectListeners = new Set<() => void>();
+
+/** Chamado a cada desenho dos efeitos (eles animam até sem o chão redesenhar). Devolve como parar de ouvir. */
+export function onEffectsDrawn(listener: () => void): () => void {
+  effectListeners.add(listener);
+  return () => {
+    effectListeners.delete(listener);
+  };
+}
+
+export function notifyEffectsDrawn() {
+  for (const listener of effectListeners) listener();
 }

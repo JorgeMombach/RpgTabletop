@@ -22,7 +22,7 @@ import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
-import { GroundFogLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage } from "./ground/GroundOutputLayer";
+import { GroundEffectsImage, GroundFogLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage } from "./ground/GroundOutputLayer";
 import { fogLit, fogViewers, type FogRows, type FogScene } from "./ground/fogGeometry";
 import type { FogInput } from "./ground/fogPass";
 import { useTokenDrag } from "./dragFollow";
@@ -1770,6 +1770,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               fadedProps={fadedProps}
               tokenCasters={tokenCasters}
               fog={fogInput}
+              effects={groundLit ? state.battle.effects : null}
               weather={state.battle.weather}
             />
           )}
@@ -1782,8 +1783,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
           {/* Efeitos no mapa: acima da imagem e do grid, abaixo dos tokens (E19). */}
           <Layer listening={false}>
+            {/* com o chão na placa, o desenho sai dela (docs/design/efeitos.md); aqui fica só a borda */}
+            {groundLit && <GroundEffectsImage view={stageView} size={stageSize} />}
             {state.battle.effects.map((e) => (
-              <EffectShape key={e.id} effect={e} grid={grid} scale={view.scale} />
+              <EffectShape key={e.id} effect={e} grid={grid} scale={view.scale} outlineOnly={groundLit} />
             ))}
           </Layer>
 

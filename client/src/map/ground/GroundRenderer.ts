@@ -14,6 +14,8 @@ import { WaterPass } from "./waterPass";
 import { PropPass } from "../props/propPass";
 import { HeightPass } from "./heightPass";
 import { FogPass, type FogInput } from "./fogPass";
+import { EffectPass } from "../effects/effectPass";
+import type { MapConfig, MapEffect } from "@rpg/shared";
 import type { TokenCaster } from "./shadowCasters";
 import type { PropDrag } from "../props/propLayout";
 import type { WaterGpuField } from "./waterTypes";
@@ -67,6 +69,8 @@ export class GroundRenderer {
   private readonly heights: HeightPass;
   /** Névoa de guerra (docs/design/nevoa.md): máscaras da visão e a fumaça, nas duas saídas da névoa. */
   private readonly fog: FogPass;
+  /** Efeitos de área (docs/design/efeitos.md): máscara por efeito e desenho por tipo, na saída dos efeitos. */
+  private readonly effects: EffectPass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -86,6 +90,8 @@ export class GroundRenderer {
   /** A névoa (cor pré-multiplicada) e o véu cinza do explorado (a camada dele mistura por saturação). */
   readonly fogImage = document.createElement("canvas");
   readonly fogTintImage = document.createElement("canvas");
+  /** Os efeitos de área, acima do chão e abaixo dos tokens. */
+  readonly effectsImage = document.createElement("canvas");
   /** As imagens dos objetos mudaram no último desenho. */
   propsFresh = false;
   private propsDrawn = "";
@@ -144,6 +150,7 @@ export class GroundRenderer {
     this.props = new PropPass(gl);
     this.heights = new HeightPass(gl);
     this.fog = new FogPass(gl);
+    this.effects = new EffectPass(gl);
   }
 
   /**
@@ -218,6 +225,33 @@ export class GroundRenderer {
   /** A névoa da cena (`null`: desligada ou sem visão a desenhar pela placa). */
   setFog(input: FogInput | null) {
     this.fog.set(input);
+  }
+
+  /** Os efeitos de área da cena (`null`: desenhados pelo Konva). */
+  setEffects(effects: MapEffect[] | null, map: Pick<MapConfig, "feetPerCell" | "grid">) {
+    this.effects.set(effects ?? [], map);
+    if (effects) this.effects.warm();
+  }
+
+  /** Arrasto do token `id` (casas): os efeitos que o acompanham andam junto. */
+  setEffectFollow(id: string | null, dx: number, dy: number) {
+    this.effects.setFollow(id, dx, dy);
+  }
+
+  /** Efeitos animando: só a imagem deles é refeita (os que mexem na luz pedem o desenho inteiro: `effectsLit`). */
+  get effecting(): boolean {
+    return this.effects.animating || this.effects.pending;
+  }
+
+  /** Algum efeito acende ou apaga a luz (a luz tremula com ele). */
+  get effectsLit(): boolean {
+    return this.light.active && (this.effects.lights().length > 0 || this.effects.darkness().length > 0);
+  }
+
+  /** Só a imagem dos efeitos, no tamanho do último desenho. */
+  renderEffects(view: GroundView, time: number) {
+    if (this.gl.isContextLost()) return;
+    this.drawEffects(view, this.canvas.width, this.canvas.height, time);
   }
 
   /** Névoa ligada: a fumaça anda (precisa de quadros, mas só a névoa é refeita). */
@@ -469,8 +503,21 @@ export class GroundRenderer {
     this.copyTo(this.groundImage);
     this.drawWalls(view, width, height, state, lightKey, reliefLight);
     this.drawProps(view, width, height, state, lightKey, reliefLight, time);
+    this.drawEffects(view, width, height, time);
     if (this.light.active) this.drawLight(view, width, height, time);
     this.drawFog(view, width, height, time);
+  }
+
+  /** Os efeitos de área, copiados para a saída deles. */
+  private drawEffects(view: GroundView, width: number, height: number, time: number) {
+    const { gl } = this;
+    if (!this.effects.active) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.effects.draw(view, width, height, time);
+    this.copyTo(this.effectsImage);
   }
 
   /** A névoa e o véu cinza, cada um copiado para a sua saída. */
@@ -499,7 +546,7 @@ export class GroundRenderer {
     const shadowMargin = Math.max(5 * this.light.scene.shadowCells + 2, TORCH_MARGIN);
     // densidade da luz (meia resolução do canvas), em pixels por pixel CSS da tela
     this.heights.draw(view, Math.max(1, Math.ceil(width / 2)) / view.width, this.props, time, shadowMargin);
-    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight), this.heights.output);
+    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight), this.heights.output, this.effects.lights(), this.effects.darkness());
     this.copyTo(this.lightImage);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
@@ -702,6 +749,7 @@ export class GroundRenderer {
     this.props.dispose();
     this.heights.dispose();
     this.fog.dispose();
+    this.effects.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

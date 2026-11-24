@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { useEffect, useRef } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { onFogDrawn, onGroundDrawn, onPropsDrawn, onWallsDrawn, useGroundOutputs } from "./groundOutputs";
+import { onEffectsDrawn, onFogDrawn, onGroundDrawn, onPropsDrawn, onWallsDrawn, useGroundOutputs } from "./groundOutputs";
 
 /**
  * Uma saída do chão numa camada do mapa (docs/design/luz.md): `light` multiplica tudo o que está embaixo (a luz da
@@ -92,4 +92,18 @@ export function GroundFogLayer({ view, size }: { view: { x: number; y: number; s
       </Layer>
     </>
   );
+}
+
+/**
+ * Os efeitos de área da placa de vídeo (docs/design/efeitos.md), dentro da camada dos efeitos (acima do chão e do
+ * grid, abaixo dos tokens), presos à tela. Redesenha a cada quadro dos efeitos.
+ */
+export function GroundEffectsImage({ view, size }: { view: { x: number; y: number; scale: number }; size: { width: number; height: number } }) {
+  const image = useGroundOutputs((state) => state.effects);
+  const imageRef = useRef<Konva.Image>(null);
+
+  useEffect(() => onEffectsDrawn(() => imageRef.current?.getLayer()?.batchDraw()), [image]);
+
+  if (!image) return null;
+  return <KImage ref={imageRef} listening={false} image={image} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />;
 }
