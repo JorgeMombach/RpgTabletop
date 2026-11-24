@@ -13,6 +13,7 @@ import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
 import { PropPass } from "../props/propPass";
 import { HeightPass } from "./heightPass";
+import { FogPass, type FogInput } from "./fogPass";
 import type { TokenCaster } from "./shadowCasters";
 import type { PropDrag } from "../props/propLayout";
 import type { WaterGpuField } from "./waterTypes";
@@ -64,6 +65,8 @@ export class GroundRenderer {
   private readonly props: PropPass;
   /** Mapa de alturas (docs/design/sombras.md): objetos e tokens, refeito a cada desenho da luz. */
   private readonly heights: HeightPass;
+  /** Névoa de guerra (docs/design/nevoa.md): máscaras da visão e a fumaça, nas duas saídas da névoa. */
+  private readonly fog: FogPass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -80,6 +83,9 @@ export class GroundRenderer {
   /** Objetos de baixo (no lugar da camada de objetos de baixo) e de cima dos tokens (as copas). */
   readonly propsBelowImage = document.createElement("canvas");
   readonly propsAboveImage = document.createElement("canvas");
+  /** A névoa (cor pré-multiplicada) e o véu cinza do explorado (a camada dele mistura por saturação). */
+  readonly fogImage = document.createElement("canvas");
+  readonly fogTintImage = document.createElement("canvas");
   /** As imagens dos objetos mudaram no último desenho. */
   propsFresh = false;
   private propsDrawn = "";
@@ -137,6 +143,7 @@ export class GroundRenderer {
     this.stairs = new StairPass(gl);
     this.props = new PropPass(gl);
     this.heights = new HeightPass(gl);
+    this.fog = new FogPass(gl);
   }
 
   /**
@@ -206,6 +213,22 @@ export class GroundRenderer {
   /** Tokens que fazem sombra (posição em casas, raio e altura), já com o arrasto: o mapa de alturas é refeito no desenho. */
   setTokenCasters(casters: TokenCaster[]) {
     this.heights.setTokens(casters);
+  }
+
+  /** A névoa da cena (`null`: desligada ou sem visão a desenhar pela placa). */
+  setFog(input: FogInput | null) {
+    this.fog.set(input);
+  }
+
+  /** Névoa ligada: a fumaça anda (precisa de quadros, mas só a névoa é refeita). */
+  get fogging(): boolean {
+    return this.fog.active;
+  }
+
+  /** Só a névoa e o véu, no tamanho do último desenho (a fumaça andando, sem refazer o chão). */
+  renderFog(view: GroundView, time: number) {
+    if (this.gl.isContextLost() || !this.fog.active) return;
+    this.drawFog(view, this.canvas.width, this.canvas.height, time);
   }
 
   /** Planta balançando na cena: o chão precisa de quadros. */
@@ -446,7 +469,31 @@ export class GroundRenderer {
     this.copyTo(this.groundImage);
     this.drawWalls(view, width, height, state, lightKey, reliefLight);
     this.drawProps(view, width, height, state, lightKey, reliefLight, time);
-    if (!this.light.active) return;
+    if (this.light.active) this.drawLight(view, width, height, time);
+    this.drawFog(view, width, height, time);
+  }
+
+  /** A névoa e o véu cinza, cada um copiado para a sua saída. */
+  private drawFog(view: GroundView, width: number, height: number, time: number) {
+    const { gl } = this;
+    if (!this.fog.active) return;
+    gl.disable(gl.BLEND);
+    for (const [draw, target] of [
+      [() => this.fog.render(view, width, height, time), this.fogImage],
+      [() => this.fog.renderTint(view, width, height, time), this.fogTintImage],
+    ] as const) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, width, height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      draw();
+      this.copyTo(target);
+    }
+  }
+
+  /** Mapa de luz e, depois, chamas e brilho (só com a luz da cena na placa). */
+  private drawLight(view: GroundView, width: number, height: number, time: number) {
+    const { gl } = this;
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
     // Mapa de alturas na resolução da luz, com a folga da sombra mais comprida e do alcance das tochas.
     const shadowMargin = Math.max(5 * this.light.scene.shadowCells + 2, TORCH_MARGIN);
@@ -527,7 +574,8 @@ export class GroundRenderer {
     const dirt = this.watercolors[TERRAINS.indexOf("dirtDark")];
     if (!leaves || !stone || !dirt) return;
     this.props.bake(view);
-    const key = [state, lightKey, this.props.version, this.props.swaying ? time.toFixed(3) : 0].join("|");
+    // a névoa entra na chave: as copas somem ou escurecem com ela
+    const key = [state, lightKey, this.props.version, this.props.swaying ? time.toFixed(3) : 0, this.fog.active ? this.fog.version : 0].join("|");
     if (key === this.propsDrawn) return;
     for (const [layer, target] of [["below", this.propsBelowImage], ["above", this.propsAboveImage]] as const) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -535,6 +583,8 @@ export class GroundRenderer {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       this.props.draw(layer, view, width, height, scene, time, { leaves, stone, dirt });
+      // copas na névoa (docs/design/nevoa.md): somem no nunca visto, escurecem no explorado
+      if (layer === "above" && this.fog.active) this.fog.shadeCanopies(view, width, height, time);
       this.copyTo(target);
     }
     // programa ainda compilando ou forma da tela por assar: o próximo quadro desenha de novo
@@ -651,6 +701,7 @@ export class GroundRenderer {
     this.stairs.dispose();
     this.props.dispose();
     this.heights.dispose();
+    this.fog.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

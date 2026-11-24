@@ -9,7 +9,8 @@ import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
 import { usePropDrag } from "../props/propDrag";
 import { useTokenDrag } from "../dragFollow";
 import type { TokenCaster } from "./shadowCasters";
-import { notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
+import { notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
+import type { FogInput } from "./fogPass";
 import type { LightingInput } from "./lightPass";
 import type { ReliefJob, ReliefResult } from "./reliefTypes";
 import { SCENE_LIGHT } from "./sceneLight";
@@ -71,7 +72,10 @@ export const GroundLayer = memo(function GroundLayer({
   fadedProps,
   weather,
   tokenCasters,
+  fog,
 }: {
+  /** Névoa de guerra pela placa (docs/design/nevoa.md); `null` = desligada ou desenhada pelo Konva. */
+  fog: FogInput | null;
   /** Tokens que fazem sombra (docs/design/sombras.md), em casas; o arrasto é aplicado aqui. */
   tokenCasters: TokenCaster[];
   /** Copas com token embaixo (docs/design/objetos.md): meio transparentes e paradas. */
@@ -203,7 +207,7 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
-    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, propIcon: (kind, side) => created.propIcon(kind, side) });
+    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, fog: created.fogImage, fogTint: created.fogTintImage, propIcon: (kind, side) => created.propIcon(kind, side) });
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
@@ -214,7 +218,7 @@ export const GroundLayer = memo(function GroundLayer({
       createdWorker.terminate();
       createdReliefWorker.terminate();
       created.dispose();
-      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, propIcon: null });
+      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, propIcon: null });
       setEngine(null);
     };
   }, [generation]);
@@ -449,9 +453,17 @@ export const GroundLayer = memo(function GroundLayer({
     notifyGroundDrawn();
     if (target.wallsFresh) notifyWallsDrawn();
     if (target.propsFresh) notifyPropsDrawn();
+    if (target.fogging) notifyFogDrawn();
   };
   const paintRef = useRef(paint);
   paintRef.current = paint;
+
+  // Névoa (docs/design/nevoa.md): as máscaras são refeitas no próximo desenho.
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setFog(fog);
+    setVersion((value) => value + 1);
+  }, [renderer, fog]);
 
   // Luz: paredes, tochas e luz da cena (a geometria só é refeita, e o chão redesenhado, quando algo muda de fato).
   useEffect(() => {
@@ -487,9 +499,16 @@ export const GroundLayer = memo(function GroundLayer({
         return;
       }
       // Anima com água, tocha tremulando ou poeira na tela, ou com a luz da cena ainda trocando.
-      if (now - lastDraw < FRAME_MS || !(renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.swaying || renderer.busy || renderer.dusting(viewRef.current))) return;
+      const ground = renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.swaying || renderer.busy || renderer.dusting(viewRef.current);
+      if (now - lastDraw < FRAME_MS || !(ground || renderer.fogging)) return;
       lastDraw = now;
       timeRef.current = now / 1000;
+      // só a fumaça da névoa andando: refaz só ela (o chão, a luz e os objetos ficam como estão)
+      if (!ground) {
+        renderer.renderFog(viewRef.current, timeRef.current);
+        notifyFogDrawn();
+        return;
+      }
       paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);
     };
     frame = requestAnimationFrame(tick);

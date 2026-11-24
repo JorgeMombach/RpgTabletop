@@ -1725,6 +1725,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               stairRelief={relief}
               fadedProps={fadedProps}
               tokenCasters={tokenCasters}
+              fog={null}
               weather={state.battle.weather}
             />
           )}

@@ -14,9 +14,12 @@ export const useGroundOutputs = create<{
   /** Objetos da placa de vídeo (docs/design/objetos.md): os de baixo e os de cima dos tokens. */
   propsBelow: HTMLCanvasElement | null;
   propsAbove: HTMLCanvasElement | null;
+  /** Névoa de guerra (docs/design/nevoa.md): a fumaça e o véu cinza que tira a cor do explorado. */
+  fog: HTMLCanvasElement | null;
+  fogTint: HTMLCanvasElement | null;
   /** Ícone de um tipo de objeto feito pela placa de vídeo (`null` = ainda não dá; sem motor, a função é `null`). */
   propIcon: ((kind: PropKind, side: number) => HTMLCanvasElement | null) | null;
-}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, propIcon: null }));
+}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, propIcon: null }));
 
 const drawnListeners = new Set<() => void>();
 
@@ -58,4 +61,18 @@ export function onPropsDrawn(listener: () => void): () => void {
 
 export function notifyPropsDrawn() {
   for (const listener of propListeners) listener();
+}
+
+const fogListeners = new Set<() => void>();
+
+/** Chamado a cada desenho da névoa (a fumaça anda até sem o chão redesenhar). Devolve como parar de ouvir. */
+export function onFogDrawn(listener: () => void): () => void {
+  fogListeners.add(listener);
+  return () => {
+    fogListeners.delete(listener);
+  };
+}
+
+export function notifyFogDrawn() {
+  for (const listener of fogListeners) listener();
 }
