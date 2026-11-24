@@ -4,7 +4,7 @@ import { fogNoiseData } from "../ground/fogGeometry";
 import { FULLSCREEN_VERTEX } from "../ground/terrainShader";
 import { flash, LightningClock } from "../weatherFx";
 import { ROOF_PER_CELL, roofArea, roofTriangles, weatherClock, WEATHER_GLOWS, windCells } from "./weatherLayout";
-import { ROOF_FRAGMENT, ROOF_VERTEX, WEATHER_AIR_FRAGMENT, WEATHER_COVER_FRAGMENT, WEATHER_SHADER_INDEX } from "./weatherShader";
+import { ROOF_FRAGMENT, ROOF_VERTEX, WEATHER_AIR_FRAGMENT, WEATHER_COVER_FRAGMENT, WEATHER_FLASH_FRAGMENT, WEATHER_SHADER_INDEX } from "./weatherShader";
 
 /**
  * Clima vivendo no mapa (docs/design/clima.md). Três desenhos de tela cheia: a cobertura do chão (cresce com o tempo
@@ -34,6 +34,7 @@ export class WeatherPass {
   private cover: Program | null = null;
   private air: Program | null = null;
   private roofProgram: Program | null = null;
+  private flashProgram: Program | null = null;
   private readonly triangle: WebGLBuffer;
   private readonly framebuffer: WebGLFramebuffer | null;
   private noise: WebGLTexture | null = null;
@@ -95,10 +96,32 @@ export class WeatherPass {
     this.drawWith(program, view, width, height, now, 0);
   }
 
-  /** Só o que brilha sozinho (brasas, vagalumes, luzes mágicas, esporos). */
+  /**
+   * Só o que brilha sozinho (brasas, vagalumes, luzes mágicas, esporos) e o clarão do relâmpago: por cima da luz (o
+   * mapa de luz é cortado em 1, então de dia o clarão somado nele não apareceria).
+   */
   drawGlow(view: GroundView, width: number, height: number, now: number) {
-    const program = (this.air ??= linkProgram(this.gl, FULLSCREEN_VERTEX, WEATHER_AIR_FRAGMENT, "aPos"));
-    this.drawWith(program, view, width, height, now, 1);
+    const { gl } = this;
+    if (this.glowing) {
+      const program = (this.air ??= linkProgram(gl, FULLSCREEN_VERTEX, WEATHER_AIR_FRAGMENT, "aPos"));
+      this.drawWith(program, view, width, height, now, 1);
+    }
+    const strike = this.flash(now);
+    if (strike <= 0) return;
+    const program = (this.flashProgram ??= linkProgram(gl, FULLSCREEN_VERTEX, WEATHER_FLASH_FRAGMENT, "aPos"));
+    gl.viewport(0, 0, width, height);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(program.program);
+    useVertices(gl, this.triangle);
+    gl.uniform1f(uniformOf(gl, program, "uFlash"), strike);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.disable(gl.BLEND);
+  }
+
+  /** Há o que desenhar na camada de brilho (o que brilha sozinho ou a tempestade). */
+  get lit(): boolean {
+    return this.glowing || this.lightning !== null;
   }
 
   private drawWith(program: Program, view: GroundView, width: number, height: number, now: number, glow: number | null) {
@@ -180,7 +203,7 @@ export class WeatherPass {
 
   dispose() {
     const { gl } = this;
-    for (const program of [this.cover, this.air, this.roofProgram]) if (program) gl.deleteProgram(program.program);
+    for (const program of [this.cover, this.air, this.roofProgram, this.flashProgram]) if (program) gl.deleteProgram(program.program);
     gl.deleteBuffer(this.triangle);
     gl.deleteFramebuffer(this.framebuffer);
     for (const texture of [this.noise, this.roof, this.blank]) if (texture) gl.deleteTexture(texture);

@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import { useEffect, useRef } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { onEffectsDrawn, onFogDrawn, onGroundDrawn, onPropsDrawn, onWallsDrawn, useGroundOutputs } from "./groundOutputs";
+import { onEffectsDrawn, onFogDrawn, onGroundDrawn, onPropsDrawn, onWallsDrawn, onWeatherDrawn, useGroundOutputs } from "./groundOutputs";
 
 /**
  * Uma saída do chão numa camada do mapa (docs/design/luz.md): `light` multiplica tudo o que está embaixo (a luz da
@@ -106,4 +106,22 @@ export function GroundEffectsImage({ view, size }: { view: { x: number; y: numbe
 
   if (!image) return null;
   return <KImage ref={imageRef} listening={false} image={image} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />;
+}
+
+/**
+ * Uma camada do clima da placa de vídeo (docs/design/clima.md): a cobertura do chão (logo acima do chão), o que anda
+ * no ar (acima das copas, abaixo da luz) ou o que brilha sozinho com o clarão (acima da luz). Presa à tela.
+ */
+export function GroundWeatherLayer({ which, view, size }: { which: "ground" | "air" | "glow"; view: { x: number; y: number; scale: number }; size: { width: number; height: number } }) {
+  const image = useGroundOutputs((state) => (which === "ground" ? state.weatherGround : which === "air" ? state.weatherAir : state.weatherGlow));
+  const layerRef = useRef<Konva.Layer>(null);
+
+  useEffect(() => onWeatherDrawn(() => layerRef.current?.batchDraw()), [image]);
+
+  if (!image) return null;
+  return (
+    <Layer ref={layerRef} listening={false}>
+      <KImage image={image} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />
+    </Layer>
+  );
 }

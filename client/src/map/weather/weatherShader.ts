@@ -290,3 +290,13 @@ void main() {
   }
   outColor = col * open;
 }`;
+
+/** O clarão do relâmpago por cima de tudo (`uFlash`: o clarão agora, pela curva de hoje). */
+export const WEATHER_FLASH_FRAGMENT = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform float uFlash;
+void main() {
+  float a = clamp(uFlash * 0.75, 0.0, 1.0);
+  outColor = vec4(vec3(0.85, 0.9, 1.0) * a, a);
+}`;

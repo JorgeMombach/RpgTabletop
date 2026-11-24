@@ -15,6 +15,7 @@ import { PropPass } from "../props/propPass";
 import { HeightPass } from "./heightPass";
 import { FogPass, type FogInput } from "./fogPass";
 import { EffectPass } from "../effects/effectPass";
+import { WeatherPass, type WeatherInput } from "../weather/weatherPass";
 import type { MapConfig, MapEffect } from "@rpg/shared";
 import type { TokenCaster } from "./shadowCasters";
 import type { PropDrag } from "../props/propLayout";
@@ -71,6 +72,8 @@ export class GroundRenderer {
   private readonly fog: FogPass;
   /** Efeitos de área (docs/design/efeitos.md): máscara por efeito e desenho por tipo, na saída dos efeitos. */
   private readonly effects: EffectPass;
+  /** Clima vivendo no mapa (docs/design/clima.md): chão, ar e brilho, nas três saídas do clima. */
+  private readonly weather: WeatherPass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -92,6 +95,10 @@ export class GroundRenderer {
   readonly fogTintImage = document.createElement("canvas");
   /** Os efeitos de área, acima do chão e abaixo dos tokens. */
   readonly effectsImage = document.createElement("canvas");
+  /** O clima: a cobertura do chão, o que anda no ar e o que brilha sozinho (com o clarão). */
+  readonly weatherGroundImage = document.createElement("canvas");
+  readonly weatherAirImage = document.createElement("canvas");
+  readonly weatherGlowImage = document.createElement("canvas");
   /** As imagens dos objetos mudaram no último desenho. */
   propsFresh = false;
   private propsDrawn = "";
@@ -151,6 +158,7 @@ export class GroundRenderer {
     this.heights = new HeightPass(gl);
     this.fog = new FogPass(gl);
     this.effects = new EffectPass(gl);
+    this.weather = new WeatherPass(gl);
   }
 
   /**
@@ -252,6 +260,22 @@ export class GroundRenderer {
   renderEffects(view: GroundView, time: number) {
     if (this.gl.isContextLost()) return;
     this.drawEffects(view, this.canvas.width, this.canvas.height, time);
+  }
+
+  /** O clima da cena (`null`: sem clima ou desenhado pela película de hoje). */
+  setWeather(input: WeatherInput | null) {
+    this.weather.set(input);
+  }
+
+  /** Clima na cena: anda (só as imagens dele são refeitas). */
+  get weathering(): boolean {
+    return this.weather.active;
+  }
+
+  /** Só as três imagens do clima, no tamanho do último desenho. */
+  renderWeather(view: GroundView) {
+    if (this.gl.isContextLost()) return;
+    this.drawWeather(view, this.canvas.width, this.canvas.height);
   }
 
   /** Névoa ligada: a fumaça anda (precisa de quadros, mas só a névoa é refeita). */
@@ -504,6 +528,7 @@ export class GroundRenderer {
     this.drawWalls(view, width, height, state, lightKey, reliefLight);
     this.drawProps(view, width, height, state, lightKey, reliefLight, time);
     this.drawEffects(view, width, height, time);
+    this.drawWeather(view, width, height);
     if (this.light.active) this.drawLight(view, width, height, time);
     this.drawFog(view, width, height, time);
   }
@@ -518,6 +543,25 @@ export class GroundRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.effects.draw(view, width, height, time);
     this.copyTo(this.effectsImage);
+  }
+
+  /** As três imagens do clima (o relógio dele é o do servidor: `Date.now()` contra o início do clima). */
+  private drawWeather(view: GroundView, width: number, height: number) {
+    const { gl } = this;
+    if (!this.weather.active) return;
+    const now = Date.now();
+    for (const [draw, target] of [
+      [() => this.weather.drawCover(view, width, height, now), this.weatherGroundImage],
+      [() => this.weather.drawAir(view, width, height, now), this.weatherAirImage],
+      [() => this.weather.drawGlow(view, width, height, now), this.weatherGlowImage],
+    ] as const) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, width, height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      draw();
+      this.copyTo(target);
+    }
   }
 
   /** A névoa e o véu cinza, cada um copiado para a sua saída. */
@@ -750,6 +794,7 @@ export class GroundRenderer {
     this.heights.dispose();
     this.fog.dispose();
     this.effects.dispose();
+    this.weather.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

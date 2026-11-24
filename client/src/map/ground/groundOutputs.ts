@@ -19,9 +19,13 @@ export const useGroundOutputs = create<{
   fogTint: HTMLCanvasElement | null;
   /** Efeitos de área (docs/design/efeitos.md), cor pré-multiplicada. */
   effects: HTMLCanvasElement | null;
+  /** Clima vivendo no mapa (docs/design/clima.md): a cobertura do chão, o que anda no ar e o que brilha sozinho. */
+  weatherGround: HTMLCanvasElement | null;
+  weatherAir: HTMLCanvasElement | null;
+  weatherGlow: HTMLCanvasElement | null;
   /** Ícone de um tipo de objeto feito pela placa de vídeo (`null` = ainda não dá; sem motor, a função é `null`). */
   propIcon: ((kind: PropKind, side: number) => HTMLCanvasElement | null) | null;
-}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, propIcon: null }));
+}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, propIcon: null }));
 
 const drawnListeners = new Set<() => void>();
 
@@ -91,4 +95,18 @@ export function onEffectsDrawn(listener: () => void): () => void {
 
 export function notifyEffectsDrawn() {
   for (const listener of effectListeners) listener();
+}
+
+const weatherListeners = new Set<() => void>();
+
+/** Chamado a cada desenho do clima. Devolve como parar de ouvir. */
+export function onWeatherDrawn(listener: () => void): () => void {
+  weatherListeners.add(listener);
+  return () => {
+    weatherListeners.delete(listener);
+  };
+}
+
+export function notifyWeatherDrawn() {
+  for (const listener of weatherListeners) listener();
 }

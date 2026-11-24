@@ -9,7 +9,8 @@ import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
 import { usePropDrag } from "../props/propDrag";
 import { useTokenDrag } from "../dragFollow";
 import type { TokenCaster } from "./shadowCasters";
-import { notifyEffectsDrawn, notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, useGroundOutputs } from "./groundOutputs";
+import { notifyEffectsDrawn, notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, notifyWeatherDrawn, useGroundOutputs } from "./groundOutputs";
+import type { WeatherInput } from "../weather/weatherPass";
 import type { MapEffect } from "@rpg/shared";
 import type { FogInput } from "./fogPass";
 import type { LightingInput } from "./lightPass";
@@ -75,7 +76,10 @@ export const GroundLayer = memo(function GroundLayer({
   tokenCasters,
   fog,
   effects,
+  weatherInput,
 }: {
+  /** Clima vivendo no mapa (docs/design/clima.md); `null` = sem clima ou a película de hoje. */
+  weatherInput: WeatherInput | null;
   /** Efeitos de área pela placa (docs/design/efeitos.md); `null` = desenhados pelo Konva. */
   effects: MapEffect[] | null;
   /** Névoa de guerra pela placa (docs/design/nevoa.md); `null` = desligada ou desenhada pelo Konva. */
@@ -211,7 +215,7 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
-    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, fog: created.fogImage, fogTint: created.fogTintImage, effects: created.effectsImage, propIcon: (kind, side) => created.propIcon(kind, side) });
+    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, fog: created.fogImage, fogTint: created.fogTintImage, effects: created.effectsImage, weatherGround: created.weatherGroundImage, weatherAir: created.weatherAirImage, weatherGlow: created.weatherGlowImage, propIcon: (kind, side) => created.propIcon(kind, side) });
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
@@ -222,7 +226,7 @@ export const GroundLayer = memo(function GroundLayer({
       createdWorker.terminate();
       createdReliefWorker.terminate();
       created.dispose();
-      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, propIcon: null });
+      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, propIcon: null });
       setEngine(null);
     };
   }, [generation]);
@@ -459,6 +463,7 @@ export const GroundLayer = memo(function GroundLayer({
     if (target.propsFresh) notifyPropsDrawn();
     if (target.fogging) notifyFogDrawn();
     notifyEffectsDrawn();
+    if (target.weathering) notifyWeatherDrawn();
   };
   const paintRef = useRef(paint);
   paintRef.current = paint;
@@ -469,6 +474,13 @@ export const GroundLayer = memo(function GroundLayer({
     renderer.setEffects(effects, { feetPerCell: grid.feetPerCell, grid: grid.grid });
     setVersion((value) => value + 1);
   }, [renderer, effects, grid.feetPerCell, grid.grid]);
+
+  // Clima vivendo no mapa (docs/design/clima.md): o telhado é refeito quando os cômodos mudam.
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setWeather(weatherInput);
+    setVersion((value) => value + 1);
+  }, [renderer, weatherInput]);
 
   // Efeito que acompanha um token: anda junto no arrasto (em casas).
   useEffect(() => {
@@ -519,7 +531,7 @@ export const GroundLayer = memo(function GroundLayer({
       // Anima com água, tocha tremulando ou poeira na tela, ou com a luz da cena ainda trocando.
       // os efeitos que mexem na luz pedem o desenho inteiro (a luz tremula com eles)
       const ground = renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.swaying || renderer.busy || renderer.dusting(viewRef.current) || (renderer.effecting && renderer.effectsLit);
-      if (now - lastDraw < FRAME_MS || !(ground || renderer.fogging || renderer.effecting)) return;
+      if (now - lastDraw < FRAME_MS || !(ground || renderer.fogging || renderer.effecting || renderer.weathering)) return;
       lastDraw = now;
       timeRef.current = now / 1000;
       // só a fumaça da névoa andando: refaz só ela (o chão, a luz e os objetos ficam como estão)
@@ -531,6 +543,10 @@ export const GroundLayer = memo(function GroundLayer({
         if (renderer.fogging) {
           renderer.renderFog(viewRef.current, timeRef.current);
           notifyFogDrawn();
+        }
+        if (renderer.weathering) {
+          renderer.renderWeather(viewRef.current);
+          notifyWeatherDrawn();
         }
         return;
       }

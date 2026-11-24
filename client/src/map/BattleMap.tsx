@@ -22,7 +22,8 @@ import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
-import { GroundEffectsImage, GroundFogLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage } from "./ground/GroundOutputLayer";
+import { GroundEffectsImage, GroundFogLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage, GroundWeatherLayer } from "./ground/GroundOutputLayer";
+import type { WeatherInput } from "./weather/weatherPass";
 import { fogLit, fogViewers, type FogRows, type FogScene } from "./ground/fogGeometry";
 import type { FogInput } from "./ground/fogPass";
 import { useTokenDrag } from "./dragFollow";
@@ -1535,6 +1536,16 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fogKey resume a névoa, a visão e quem vê
   }, [fogKey, fogDraft, state.battle.walls, state.battle.props]);
+  // Clima vivendo no mapa (docs/design/clima.md): com o chão na placa, a placa desenha o clima; os cômodos (o telhado)
+  // são os mesmos da luz, das paredes que este cliente tem.
+  const weatherState = state.battle.weather;
+  const weatherInput = useMemo<WeatherInput | null>(
+    () =>
+      groundLit && weatherState.kind
+        ? { kind: weatherState.kind, intensity: weatherState.intensity, wind: weatherState.wind, startedAt: weatherState.startedAt, reduce: reduceFx, rooms: roofs.rooms }
+        : null,
+    [groundLit, weatherState.kind, weatherState.intensity, weatherState.wind, weatherState.startedAt, reduceFx, roofs.rooms],
+  );
   // Chuva, neve e afins escurecem com a luz da cena (sem sombra de parede); o que brilha sozinho não muda.
   const sceneLight = SCENE_LIGHT[state.battle.weather.light];
   // Poeira das dunas (docs/design/relevo.md, etapa 3): com clima de vento, para o lado do vento do clima.
@@ -1771,9 +1782,13 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               tokenCasters={tokenCasters}
               fog={fogInput}
               effects={groundLit ? state.battle.effects : null}
+              weatherInput={weatherInput}
               weather={state.battle.weather}
             />
           )}
+
+          {/* Clima vivendo no mapa (docs/design/clima.md): a cobertura do chão, logo acima do chão. */}
+          {weatherInput && <GroundWeatherLayer which="ground" view={stageView} size={stageSize} />}
 
           {/* Borda e grid: por cima do terreno e da água. */}
           <Layer listening={false}>
@@ -2030,9 +2045,14 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           {groundLit && <GroundPropsImage which="above" view={stageView} size={stageSize} />}
           <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="above" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} gpu={groundLit} />
 
+          {/* O que anda no ar (chuva, neve…): acima das copas, abaixo da luz (escurece à noite). */}
+          {weatherInput && <GroundWeatherLayer which="air" view={stageView} size={stageSize} />}
+
           {/* Luz da cena, sombras e tochas (docs/design/luz.md): multiplica tudo o que está embaixo; a interface do mapa
               (áreas, régua, pings) fica por cima, legível à noite. */}
           {groundLit && <GroundOutputLayer which="light" view={stageView} size={stageSize} />}
+          {/* O que brilha sozinho no clima (brasas, vagalumes…) e o clarão do relâmpago: acima da luz. */}
+          {weatherInput && <GroundWeatherLayer which="glow" view={stageView} size={stageSize} />}
 
           <Layer listening={false}>
             {Object.entries(areas).map(([pid, a]) => (
@@ -2096,7 +2116,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       {/* Vinheta: bordas da área do mapa escurecidas (luz de cena no centro); some com "Reduzir efeitos". */}
       {!reduceFx && <div className="map-vignette" />}
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
-      <WeatherOverlay weather={state.battle.weather} lights={groundLit ? [] : screenLights(tokens, state.battle.torches, grid, view)} film={!groundLit} dim={groundLit ? weatherDim : 1} />
+      <WeatherOverlay weather={state.battle.weather} lights={groundLit ? [] : screenLights(tokens, state.battle.torches, grid, view)} film={!groundLit} dim={groundLit ? weatherDim : 1} soundOnly={weatherInput !== null} />
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
       {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
