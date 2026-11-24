@@ -235,7 +235,7 @@ export class LightningClock {
 }
 
 /** Clarão de um relâmpago `dt` segundos depois dele: dois piscões e um apagar suave. */
-function flash(dt: number): number {
+export function flash(dt: number): number {
   if (dt < 0 || dt > 0.9) return 0;
   if (dt < 0.08) return 0.45;
   if (dt < 0.16) return 0.1;
