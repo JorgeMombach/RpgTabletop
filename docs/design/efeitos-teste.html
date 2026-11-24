@@ -23,11 +23,11 @@
 <header>
   <div class="group" id="look"><b>Efeitos</b><button data-v="new" class="on">Novos</button><button data-v="today">Hoje</button></div>
   <div class="group" id="light"><b>Luz</b><button data-v="day">Dia</button><button data-v="night" class="on">Noite</button></div>
-  <div class="group" id="count"><b>Áreas</b><button data-v="few" class="on">8 tipos</button><button data-v="many">40 (pior caso)</button></div>
+  <div class="group" id="count"><b>Áreas</b><button data-v="few" class="on">8 tipos</button><button data-v="others">Os outros 10</button><button data-v="many">40 (pior caso)</button></div>
   <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.2">Perto</button></div>
   <span id="fps"></span>
 </header>
-<p>Etapa 4, parte 1 (efeitos de área): fogo (círculo, perto de uma parede), água (casas pintadas), gelo (cubo), gás tóxico (cone), escuridão (esfera), teia (cubo), luz sagrada (esfera) e eletricidade (linha). À noite, fogo, luz sagrada e eletricidade iluminam o entorno (a parede barra a luz); o gás brilha fraco; a escuridão apaga a luz. As partículas são calculadas na placa, sem nada no processador por quadro. <b>Hoje</b>: o desenho atual.</p>
+<p>Etapa 4, parte 1 (efeitos de área): fogo (círculo, perto de uma parede), água (casas pintadas), gelo (cubo), gás tóxico (cone), escuridão (esfera), teia (cubo), luz sagrada (esfera) e eletricidade (linha). À noite, fogo, luz sagrada e eletricidade iluminam o entorno (a parede barra a luz); o gás brilha fraco; a escuridão apaga a luz. As partículas são calculadas na placa, sem nada no processador por quadro. <b>Os outros 10</b>: ácido, solo molhado, vapor, lama, chão chamuscado, graxa, plantas, raízes, névoa e personalizado (roxo). <b>Hoje</b>: o desenho atual.</p>
 <div class="stage"><canvas id="view"></canvas><canvas id="overlay"></canvas></div>
 <script src="efeitos.js"></script>
 </body>

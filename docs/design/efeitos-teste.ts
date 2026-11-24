@@ -11,14 +11,15 @@ const COLS = 32;
 const ROWS = 20;
 const BASE_CELL = 30;
 
-type Kind = "fire" | "water" | "ice" | "toxic" | "darkness" | "web" | "holy" | "electric";
-const KIND_INDEX: Record<Kind, number> = { fire: 0, water: 1, ice: 2, toxic: 3, darkness: 4, web: 5, holy: 6, electric: 7 };
+type Kind = "fire" | "water" | "ice" | "toxic" | "darkness" | "web" | "holy" | "electric" | "acid" | "wet" | "steam" | "mud" | "burnt" | "grease" | "plants" | "roots" | "fog" | "custom";
+const KIND_INDEX: Record<Kind, number> = { fire: 0, water: 1, ice: 2, toxic: 3, darkness: 4, web: 5, holy: 6, electric: 7, acid: 8, wet: 9, steam: 10, mud: 11, burnt: 12, grease: 13, plants: 14, roots: 15, fog: 16, custom: 17 };
 /** Quem acende (cor e força da luz) e quem desenha por cima da luz (brilha sozinho). */
 const EMIT: Partial<Record<Kind, { color: [number, number, number]; strength: number; reach: number }>> = {
   fire: { color: [1.0, 0.55, 0.22], strength: 1.5, reach: 5 },
   holy: { color: [1.0, 0.86, 0.55], strength: 1.2, reach: 5 },
   electric: { color: [0.55, 0.8, 1.0], strength: 1.0, reach: 4 },
   toxic: { color: [0.55, 0.9, 0.3], strength: 0.25, reach: 2 },
+  acid: { color: [0.7, 0.9, 0.25], strength: 0.25, reach: 2 },
 };
 const SELF_LIT: Kind[] = ["fire", "holy", "electric"];
 
@@ -55,6 +56,15 @@ const FEW: Effect[] = [
   { kind: "holy", shape: { kind: "circle", x: 28.5, y: 15, r: 2.5 }, seed: 7 },
   { kind: "electric", shape: line(9, 18.5, 0, 9), seed: 8 },
 ];
+/** Os outros 10 tipos, numa grade (5 × 2). */
+const OTHERS: Effect[] = (["acid", "wet", "steam", "mud", "burnt", "grease", "plants", "roots", "fog", "custom"] as Kind[]).map((kind, index) => {
+  const col = index % 5;
+  const row = Math.floor(index / 5);
+  const x = 3.5 + col * 6.2;
+  const y = 5 + row * 9;
+  const shape: Shape = index % 3 === 0 ? { kind: "circle", x, y, r: 2.6 } : index % 3 === 1 ? { kind: "polygon", points: [x - 2.4, y - 2.4, x + 2.4, y - 2.4, x + 2.4, y + 2.4, x - 2.4, y + 2.4] } : cone(x - 2.6, y, 0, 5.2);
+  return { kind, shape, seed: index + 30 };
+});
 /** Pior caso: 40 áreas espalhadas, de todos os tipos. */
 const MANY: Effect[] = Array.from({ length: 40 }, (_, index) => {
   const kinds = Object.keys(KIND_INDEX) as Kind[];
@@ -69,7 +79,7 @@ const WALLS: Segment[] = [
   { x1: 2, y1: 10, x2: 9, y2: 10, seeThrough: false },
 ];
 
-const settings = { look: "new" as "new" | "today", light: "night" as "day" | "night", many: false, zoom: 1 };
+const settings = { look: "new" as "new" | "today", light: "night" as "day" | "night", count: "few" as "few" | "others" | "many", zoom: 1 };
 
 // --- placa de vídeo
 const view = document.getElementById("view") as HTMLCanvasElement;
@@ -150,7 +160,8 @@ precision highp float;
 in vec2 vCell;
 out vec4 outColor;
 uniform int uKind;
-uniform vec2 uCenter, uRadii;   // meio e meia caixa da forma (casas): a ronda da luz sagrada
+uniform vec2 uCenter, uRadii;
+uniform vec3 uColor;           // cor do efeito (personalizado)   // meio e meia caixa da forma (casas): a ronda da luz sagrada
 ${COMMON}
 /** Borda irregular: a área macia com o limiar mexido pelo ruído (\`rough\` casas). */
 float edgeOf(vec2 cell, float soft, float rough, float t) {
@@ -359,6 +370,170 @@ void main() {
     float halo = smoothstep(0.1, 0.9, area) * 0.25;
     vec3 blue = vec3(0.6, 0.85, 1.0) * (arc * flicker * area) + vec3(0.3, 0.55, 1.0) * halo;
     col = vec4(blue, clamp(arc * flicker * area + halo, 0.0, 1.0));
+  } else if (uKind == 8) {
+    // ácido: poça verde-amarela que ferve; bolhas que crescem e estouram; vapor fraco por cima
+    float area = edgeOf(c, 0.45, 0.4, t);
+    float depth = maskAt(c, 1.5);
+    vec2 q = c / 4.0;
+    float churn = cloudA(q + vec2(t * 0.05, -t * 0.04)) * 0.6 + cloudB(q * 2.0 - vec2(t * 0.07, t * 0.05)) * 0.4;
+    vec3 acid = mix(vec3(0.62, 0.8, 0.15), vec3(0.34, 0.52, 0.05), smoothstep(0.3, 1.0, depth));
+    acid += vec3(0.25, 0.3, 0.05) * smoothstep(0.6, 0.85, churn);
+    vec2 g = c / 0.55; vec2 id = floor(g);
+    float bubble = 0.0;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 cid = id + vec2(x, y);
+      float h = hash(cid);
+      if (h < 0.5) continue;
+      float phase = fract(t * (0.35 + h * 0.4) + h * 5.0);
+      vec2 p = cid + 0.5 + (hash2(cid) - 0.5) * 0.6;
+      float radius = 0.08 + phase * 0.3;
+      float d = length(g - p);
+      bubble = max(bubble, smoothstep(0.06, 0.0, abs(d - radius)) * (1.0 - phase) + smoothstep(radius, radius * 0.6, d) * 0.25 * (1.0 - phase));
+    }
+    acid += vec3(0.85, 0.95, 0.5) * bubble * smoothstep(0.2, 0.6, depth);
+    float alpha = area * 0.86;
+    col = vec4(acid * alpha, alpha);
+  } else if (uKind == 9) {
+    // solo molhado: o chão escurecido, um reflexo leve andando e ondinhas raras (pingos)
+    float area = edgeOf(c, 0.7, 0.8, 0.0);
+    vec2 q = c / 6.0;
+    float sheen = smoothstep(0.62, 0.85, cloudA(q + vec2(t * 0.01, 0.0)) * 0.6 + cloudB(q * 2.0) * 0.4);
+    vec2 g = c / 1.6; vec2 id = floor(g);
+    float ripple = 0.0;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 cid = id + vec2(x, y);
+      float h = hash(cid);
+      float phase = fract(t * 0.3 + h * 7.0);
+      vec2 p = cid + 0.5 + (hash2(cid) - 0.5) * 0.7;
+      float d = length(g - p);
+      ripple = max(ripple, smoothstep(0.04, 0.0, abs(d - phase * 0.45)) * (1.0 - phase) * step(0.6, h));
+    }
+    vec3 wet = vec3(0.08, 0.11, 0.15) + vec3(0.35, 0.42, 0.5) * sheen * 0.35 + vec3(0.6, 0.7, 0.8) * ripple * 0.5;
+    float alpha = area * (0.42 + sheen * 0.1 + ripple * 0.3);
+    col = vec4(wet * alpha, alpha);
+  } else if (uKind == 10) {
+    // vapor: nuvem branca que sobe e se desfaz, transbordando a borda
+    vec2 q = c / 6.0;
+    vec2 warp = vec2(cloudA(q * 0.6 + vec2(0.0, t * 0.05)), cloudB(q * 0.6 - vec2(t * 0.03, 0.0))) - 0.5;
+    float puff = cloudA(q + warp * 1.3 + vec2(t * 0.01, t * 0.09)) * 0.7 + cloudB(q * 2.2 + warp + vec2(0.0, t * 0.15)) * 0.3;
+    float area = maskAt(c + warp * 1.5, 1.4);
+    float density = smoothstep(0.12, 0.8, area * (0.45 + puff * 0.8));
+    vec3 white = mix(vec3(0.78, 0.82, 0.86), vec3(0.97), smoothstep(0.4, 0.8, puff));
+    float alpha = density * 0.62;
+    col = vec4(white * alpha, alpha);
+  } else if (uKind == 11) {
+    // lama: marrom grosso e úmido, brilho onde a superfície sobe, bolhas lentas e grandes
+    float area = edgeOf(c, 0.5, 0.6, 0.0);
+    vec2 q = c / 6.0;
+    float lump = cloudA(q + vec2(t * 0.006, 0.0)) * 0.8 + cloudB(q * 2.0) * 0.2;
+    float lumpNext = cloudA(q + vec2(0.015, 0.02) + vec2(t * 0.006, 0.0)) * 0.8 + cloudB((q + vec2(0.015, 0.02)) * 2.0) * 0.2;
+    vec3 mud = mix(vec3(0.27, 0.18, 0.09), vec3(0.33, 0.22, 0.11), lump);
+    mud += vec3(0.35, 0.3, 0.25) * smoothstep(0.015, 0.05, lump - lumpNext) * 0.22;
+    vec2 g = c / 1.1; vec2 id = floor(g);
+    float bubble = 0.0;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 cid = id + vec2(x, y);
+      float h = hash(cid);
+      if (h < 0.6) continue;
+      float phase = fract(t * 0.12 + h * 9.0);
+      vec2 p = cid + 0.5 + (hash2(cid) - 0.5) * 0.5;
+      float radius = 0.12 + phase * 0.22;
+      float d = length(g - p);
+      float dome = smoothstep(radius, radius * 0.3, d) * (1.0 - phase * phase);
+      bubble = max(bubble, dome);
+    }
+    mud = mix(mud, vec3(0.5, 0.36, 0.2), bubble * 0.6);
+    float alpha = area * 0.9;
+    col = vec4(mud * alpha, alpha);
+  } else if (uKind == 12) {
+    // chão chamuscado: preto queimado com manchas de cinza e brasas que acendem e apagam devagar
+    float area = edgeOf(c, 0.7, 0.55, 0.0);
+    float ash = cloudA(c / 3.0 + uSeed);
+    vec3 burnt = mix(vec3(0.05, 0.04, 0.035), vec3(0.28, 0.26, 0.24), smoothstep(0.6, 0.85, ash) * 0.7);
+    vec2 g = c / 0.6; vec2 id = floor(g);
+    float ember = 0.0;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 cid = id + vec2(x, y);
+      float h = hash(cid);
+      if (h < 0.75) continue;
+      vec2 p = cid + 0.5 + (hash2(cid) - 0.5) * 0.7;
+      float glow = pow(max(0.0, sin(t * (0.5 + h) + h * 30.0)), 3.0);
+      ember = max(ember, smoothstep(0.18, 0.0, length(g - p)) * glow);
+    }
+    burnt += vec3(1.0, 0.35, 0.05) * ember * smoothstep(0.2, 0.6, maskAt(c, 1.0));
+    float alpha = area * (0.7 + 0.2 * (1.0 - ash));
+    col = vec4(burnt * alpha, max(alpha, ember * area));
+  } else if (uKind == 13) {
+    // graxa: mancha escura, lisa e brilhante; um arco-íris fraco só em fios finos de óleo, escorrendo devagar
+    float area = edgeOf(c, 0.35, 0.35, 0.0);
+    vec2 q = c / 5.0;
+    float flow = cloudA(q + vec2(t * 0.012, t * 0.008)) * 0.75 + cloudB(q * 1.8 - t * 0.008) * 0.25;
+    float band = smoothstep(0.02, 0.0, abs(fract(flow * 3.0) - 0.5) - 0.2);
+    vec3 rainbow = 0.5 + 0.5 * cos(6.28 * (flow * 1.5 + t * 0.015 + vec3(0.0, 0.33, 0.67)));
+    float shine = smoothstep(0.7, 0.9, cloudB(q * 0.7 + vec2(0.3, 0.1)));
+    vec3 grease = vec3(0.07, 0.06, 0.045) + rainbow * band * 0.08 + vec3(0.35, 0.33, 0.3) * shine * 0.25;
+    float alpha = area * 0.8;
+    col = vec4(grease * alpha, alpha);
+  } else if (uKind == 14) {
+    // plantas: mato cerrado, folhas em tufos que balançam com o vento
+    float area = edgeOf(c, 0.4, 0.8, 0.0);
+    vec2 g = c / 0.22; vec2 id = floor(g);
+    float leaf = 0.0; float tone = 0.0;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 cid = id + vec2(x, y);
+      float h = hash(cid);
+      vec2 base = cid + 0.5 + (hash2(cid) - 0.5) * 0.8;
+      float sway = sin(t * 1.4 + base.x * 0.4 + h * 6.0) * 0.25;
+      float angle = h * 6.28 + sway;
+      vec2 dir = vec2(cos(angle), sin(angle));
+      vec2 r = g - base;
+      float along = dot(r, dir);
+      float across = dot(r, vec2(-dir.y, dir.x));
+      float width = 0.32 * (1.0 - clamp(along / 1.3, 0.0, 1.0));
+      float blade = step(0.0, along) * step(along, 1.3) * smoothstep(width, width * 0.4, abs(across));
+      if (blade > leaf) { leaf = blade; tone = h; }
+    }
+    vec3 green = mix(vec3(0.16, 0.36, 0.1), vec3(0.42, 0.62, 0.2), tone) * (0.8 + 0.3 * cloudA(c / 3.0));
+    float under = (0.55 + 0.2 * cloudA(c / 2.0)) * area;
+    float alpha = clamp(max(leaf * 0.95, under), 0.0, 1.0) * area;
+    vec3 premul = mix(vec3(0.12, 0.24, 0.07) * under, green * leaf, leaf) * area;
+    col = vec4(premul, alpha);
+  } else if (uKind == 15) {
+    // raízes: poucas e grossas, compridas, serpenteando devagar, com contorno escuro e um ramo fino
+    float area = edgeOf(c, 0.4, 0.5, 0.0);
+    float root = 0.0; float edge = 0.0;
+    for (int i = 0; i < 2; i++) {
+      float fi = float(i);
+      vec2 p = c / (6.0 - fi * 2.5) + vec2(fi * 5.1, t * 0.006 * (fi + 1.0)) + uSeed;
+      float line = abs(cloudA(p) - 0.5);
+      float width = i == 0 ? 0.045 : 0.03;
+      root = max(root, smoothstep(width, width * 0.45, line));
+      edge = max(edge, smoothstep(width * 1.5, width, line));
+    }
+    // o veio da madeira ao longo da raiz
+    vec3 wood = mix(vec3(0.3, 0.19, 0.1), vec3(0.52, 0.35, 0.19), cloudB(c * 2.0)) * (0.85 + 0.25 * root);
+    vec3 premul = mix(vec3(0.07, 0.045, 0.025) * edge, wood * root, root) * area;
+    float alpha = max(root, edge * 0.85) * area;
+    col = vec4(premul, alpha);
+  } else if (uKind == 16) {
+    // névoa: cinza rente ao chão, grossa, arrastando de lado
+    vec2 q = c / 7.0;
+    vec2 warp = vec2(cloudA(q * 0.5 + vec2(t * 0.02, 0.0)), cloudB(q * 0.5 + vec2(0.0, t * 0.01))) - 0.5;
+    float mist = cloudA(q + warp * 1.2 + vec2(t * 0.04, 0.0)) * 0.7 + cloudB(q * 2.0 + warp + vec2(t * 0.06, 0.0)) * 0.3;
+    float area = maskAt(c + warp * 1.4, 1.6);
+    float density = smoothstep(0.08, 0.8, area * (0.55 + mist * 0.7));
+    vec3 grey = mix(vec3(0.5, 0.54, 0.58), vec3(0.72, 0.75, 0.78), smoothstep(0.4, 0.8, mist));
+    float alpha = density * 0.6;
+    col = vec4(grey * alpha, alpha);
+  } else if (uKind == 17) {
+    // personalizado: brilho na cor escolhida, girando devagar, com pontinhos
+    float area = maskAt(c, 1.0);
+    vec2 q = c / 4.0;
+    float swirl = cloudA(q + vec2(t * 0.03, -t * 0.02)) * 0.6 + cloudB(q * 2.0 + t * 0.04) * 0.4;
+    float glow = smoothstep(0.05, 0.9, area) * (0.45 + 0.55 * swirl);
+    float mote = sparks(c, 0.6, 0.3, t) * smoothstep(0.1, 0.5, area);
+    vec3 color = uColor * glow * 0.8 + mix(uColor, vec3(1.0), 0.6) * mote;
+    col = vec4(color, clamp(glow * 0.6 + mote, 0.0, 1.0));
   }
   outColor = col;
 }`;
@@ -511,6 +686,7 @@ function prepare(effect: Effect): Ready {
 }
 const readyFew = FEW.map(prepare);
 const readyMany = MANY.map(prepare);
+const readyOthers = OTHERS.map(prepare);
 
 // --- chão (canvas 2D), alvos e desenho
 const images: Record<string, HTMLImageElement> = {};
@@ -597,6 +773,7 @@ function drawBox(program: WebGLProgram, box: ViewBox, ready: Ready, time: number
   gl.uniform4f(gl.getUniformLocation(program, "uBox"), ...ready.box);
   gl.uniform1f(gl.getUniformLocation(program, "uTime"), time);
   gl.uniform1f(gl.getUniformLocation(program, "uSeed"), ready.effect.seed);
+  gl.uniform3f(gl.getUniformLocation(program, "uColor"), 0.72, 0.45, 1.0);
   bindTexture(program, "uNoise", 0, noise);
   bindTexture(program, "uMask", 1, ready.mask);
   const [x, y, w, h] = [sx0 - pad, sy0 - pad, sx1 - sx0 + pad * 2, sy1 - sy0 + pad * 2];
@@ -711,7 +888,7 @@ function frame(now: number) {
     targetSize = { width, height };
   }
   const time = now / 1000;
-  const list = settings.many ? readyMany : readyFew;
+  const list = settings.count === "many" ? readyMany : settings.count === "others" ? readyOthers : readyFew;
   const night = settings.light === "night";
   // 1. cena: chão e efeitos que não brilham sozinhos
   target(sceneTex, width, height);
@@ -797,7 +974,7 @@ function wire(id: string, apply: (value: string) => void) {
 }
 wire("look", (value) => (settings.look = value === "today" ? "today" : "new"));
 wire("light", (value) => (settings.light = value === "day" ? "day" : "night"));
-wire("count", (value) => (settings.many = value === "many"));
+wire("count", (value) => (settings.count = value === "many" ? "many" : value === "others" ? "others" : "few"));
 wire("zoom", (value) => (settings.zoom = Number(value)));
 
 void Promise.all(["grass_01.webp", "dirt_01.webp"].map(loadImage)).then(() => requestAnimationFrame(frame));

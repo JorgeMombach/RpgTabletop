@@ -1,4 +1,4 @@
-import { triangulate, WEATHERS, type WeatherId } from "@rpg/shared";
+import { triangulate, type WeatherId } from "@rpg/shared";
 
 /**
  * Clima vivendo no mapa (docs/design/clima.md): a conta sem DOM (testada no servidor). O relógio do clima e o acúmulo
@@ -22,9 +22,6 @@ export function weatherClock(startedAt: number, now: number, intensity: number):
 export function windCells(wind: number): number {
   return Math.tan((wind * Math.PI) / 180);
 }
-
-/** Número de cada clima no shader (a ordem de `WEATHERS`). */
-export const WEATHER_KIND_INDEX = Object.fromEntries(Object.keys(WEATHERS).map((kind, index) => [kind, index])) as Record<WeatherId, number>;
 
 /** Os que brilham sozinhos (por cima da luz da cena). */
 export const WEATHER_GLOWS: ReadonlySet<WeatherId> = new Set<WeatherId>(["embers", "fireflies", "magic", "spores"]);

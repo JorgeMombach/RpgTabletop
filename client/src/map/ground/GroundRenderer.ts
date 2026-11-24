@@ -101,6 +101,8 @@ export class GroundRenderer {
   readonly weatherGlowImage = document.createElement("canvas");
   /** As imagens dos objetos mudaram no último desenho. */
   propsFresh = false;
+  /** A imagem de brilho do clima já está vazia (não precisa ser refeita enquanto nada brilha). */
+  private weatherGlowBlank = false;
   private propsDrawn = "";
   /** A imagem das paredes mudou no último desenho (a camada das paredes precisa redesenhar). */
   wallsFresh = false;
@@ -550,11 +552,17 @@ export class GroundRenderer {
     const { gl } = this;
     if (!this.weather.active) return;
     const now = Date.now();
+    // sem nada brilhando (o comum: só brasas e afins brilham, e o clarão é um instante), a imagem de brilho é
+    // esvaziada uma vez e não é refeita a cada quadro
+    const glowNow = this.weather.glowsAt(now);
+    const skipGlow = !glowNow && this.weatherGlowBlank;
+    this.weatherGlowBlank = !glowNow;
     for (const [draw, target] of [
       [() => this.weather.drawCover(view, width, height, now), this.weatherGroundImage],
       [() => this.weather.drawAir(view, width, height, now), this.weatherAirImage],
       [() => this.weather.drawGlow(view, width, height, now), this.weatherGlowImage],
     ] as const) {
+      if (skipGlow && target === this.weatherGlowImage) continue;
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, width, height);
       gl.clearColor(0, 0, 0, 0);

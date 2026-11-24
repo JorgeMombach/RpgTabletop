@@ -12,8 +12,8 @@ const BASE_CELL = 30;
 /** Segundos até a cobertura chegar ao máximo. */
 const ACCUMULATE_SECONDS = 120;
 
-type Kind = "rain" | "storm" | "snow" | "fog" | "leaves" | "sand" | "embers";
-const KIND_INDEX: Record<Kind, number> = { rain: 0, storm: 1, snow: 2, fog: 3, leaves: 4, sand: 5, embers: 6 };
+type Kind = "rain" | "storm" | "snow" | "fog" | "leaves" | "sand" | "embers" | "heavyRain" | "hail" | "blizzard" | "bloodRain" | "ash" | "heat" | "fireflies" | "magic" | "spores" | "petals";
+const KIND_INDEX: Record<Kind, number> = { rain: 0, storm: 1, snow: 2, fog: 3, leaves: 4, sand: 5, embers: 6, heavyRain: 7, hail: 8, blizzard: 9, bloodRain: 10, ash: 11, heat: 12, fireflies: 13, magic: 14, spores: 15, petals: 16 };
 
 const settings = { kind: "rain" as Kind, look: "new" as "new" | "today", light: "day" as "day" | "night", wind: 20, speed: 1, intensity: 0.8 };
 /** Relógio do clima (segundos desde o início), com o acelerador. */
@@ -109,8 +109,8 @@ void main() {
   float open = 1.0 - roofAt(c);
   float acc = uAcc * uIntensity;
   vec4 col = vec4(0.0);
-  if (uKind == 0 || uKind == 1) {
-    // molhado: o chão escurece; poças nas partes baixas, com anéis dos pingos
+  if (uKind == 0 || uKind == 1 || uKind == 7 || uKind == 10) {
+    // molhado: o chão escurece (na chuva de sangue, vermelho); poças nas partes baixas, com anéis dos pingos
     float low = cloud(c, 9.0) * 0.8 + cloud(c, 2.7) * 0.2;
     float puddle = smoothstep(0.36 - acc * 0.12, 0.33 - acc * 0.12, low);
     vec2 g = c / 0.7; vec2 id = floor(g);
@@ -122,21 +122,35 @@ void main() {
       vec2 p = cid + 0.5 + (hash2(cid) - 0.5) * 0.7;
       ring = max(ring, smoothstep(0.05, 0.0, abs(length(g - p) - phase * 0.45)) * (1.0 - phase) * step(1.0 - uIntensity * 0.6, h));
     }
-    vec3 water = vec3(0.32, 0.4, 0.48) + vec3(0.5, 0.55, 0.6) * ring * 0.5;
+    bool blood = uKind == 10;
+    vec3 water = (blood ? vec3(0.36, 0.04, 0.04) : vec3(0.32, 0.4, 0.48)) + (blood ? vec3(0.5, 0.15, 0.15) : vec3(0.5, 0.55, 0.6)) * ring * 0.5;
     float wetAlpha = acc * 0.32;
     float puddleAlpha = puddle * 0.75 * smoothstep(0.0, 0.3, acc);
     float alpha = max(wetAlpha, puddleAlpha);
-    vec3 premul = mix(vec3(0.03, 0.05, 0.08) * wetAlpha, water * puddleAlpha, puddleAlpha / max(alpha, 0.001));
+    vec3 premul = mix((blood ? vec3(0.1, 0.01, 0.01) : vec3(0.03, 0.05, 0.08)) * wetAlpha, water * puddleAlpha, puddleAlpha / max(alpha, 0.001));
     col = vec4(premul, alpha);
-  } else if (uKind == 2) {
+  } else if (uKind == 2 || uKind == 9) {
     // neve: manchas brancas que se juntam até cobrir; sombrinha azul nas dobras
     float drift = cloud(c, 6.0) * 0.75 + cloud(c, 2.1) * 0.25;
     float cover = smoothstep(1.0 - acc * 1.1, 1.05 - acc * 1.1, drift + 0.1);
     vec3 snow = mix(vec3(0.78, 0.84, 0.94), vec3(0.97, 0.98, 1.0), smoothstep(0.3, 0.8, drift));
     col = vec4(snow * cover * 0.95, cover * 0.95);
-  } else if (uKind == 4) {
-    // folhas pousadas: aparecem uma a uma até um tapete ralo
-    vec2 g = c / 0.45; vec2 id = floor(g);
+  } else if (uKind == 8) {
+    // granizo: pedrinhas brancas pousadas, cada vez mais
+    vec2 g = c / 0.3; vec2 id = floor(g);
+    float stone = 0.0;
+    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+      vec2 cid = id + vec2(x, y);
+      float h = hash(cid);
+      if (h > acc * 0.5) continue;
+      vec2 p = cid + 0.5 + (hash2(cid) - 0.5) * 0.7;
+      stone = max(stone, smoothstep(0.22, 0.12, length(g - p)));
+    }
+    col = vec4(vec3(0.92, 0.95, 1.0) * stone * 0.9, stone * 0.9);
+  } else if (uKind == 4 || uKind == 11 || uKind == 16) {
+    // folhas pousadas (cinzas: flocos cinza pequenos; pétalas: cor-de-rosa)
+    float leafScale = uKind == 11 ? 0.3 : 0.45;
+    vec2 g = c / leafScale; vec2 id = floor(g);
     float leaf = 0.0; float tone = 0.0;
     for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
       vec2 cid = id + vec2(x, y);
@@ -148,7 +162,7 @@ void main() {
       float shape = smoothstep(1.0, 0.8, length(r / vec2(0.32, 0.16)));
       if (shape > leaf) { leaf = shape; tone = hash(cid + 7.0); }
     }
-    vec3 color = mix(vec3(0.75, 0.38, 0.1), vec3(0.85, 0.65, 0.15), tone);
+    vec3 color = uKind == 11 ? mix(vec3(0.35), vec3(0.6), tone) : uKind == 16 ? mix(vec3(0.95, 0.6, 0.72), vec3(1.0, 0.82, 0.88), tone) : mix(vec3(0.75, 0.38, 0.1), vec3(0.85, 0.65, 0.15), tone);
     col = vec4(color * leaf * 0.95, leaf * 0.95);
   } else if (uKind == 5) {
     // areia: véu claro em faixas no sentido do vento
@@ -199,7 +213,25 @@ void main() {
   vec4 col = vec4(0.0);
   vec2 fall = vec2(uWind.x, 1.0);
   if (uGlow == 1) {
-    if (uKind == 6) {
+    if (uKind == 13 || uKind == 14 || uKind == 15) {
+      // vagalumes (amarelo-esverdeado, piscando devagar), luzes mágicas (cores girando) e esporos (verde fraco, subindo)
+      vec2 drift = uKind == 15 ? vec2(uWind.x * 0.2, -0.15) : vec2(uWind.x * 0.1, 0.0);
+      vec2 q = c * 0.8 - drift * uTime * 0.8;
+      vec2 id = floor(q);
+      vec3 glow = vec3(0.0);
+      for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+        vec2 cid = id + vec2(x, y);
+        float h = hash(cid + 5.0);
+        if (h > uIntensity * 0.55 + 0.05) continue;
+        vec2 p = cid + 0.5 + (hash2(cid + 5.0) - 0.5) * 0.8 + vec2(sin(uTime * 0.7 + h * 20.0), cos(uTime * 0.5 + h * 13.0)) * 0.35;
+        float d = length(q - p);
+        float pulse = uKind == 13 ? pow(max(0.0, sin(uTime * 1.4 + h * 30.0)), 4.0) : uKind == 14 ? 0.7 + 0.3 * sin(uTime * 2.0 + h * 9.0) : 0.5;
+        vec3 tint = uKind == 13 ? vec3(0.8, 1.0, 0.35) : uKind == 14 ? 0.5 + 0.5 * cos(6.28 * (h + uTime * 0.1 + vec3(0.0, 0.33, 0.67))) : vec3(0.55, 0.85, 0.45);
+        glow += tint * (smoothstep(0.08, 0.02, d) + smoothstep(0.35, 0.0, d) * 0.25) * pulse;
+      }
+      float a = clamp(max(max(glow.r, glow.g), glow.b), 0.0, 1.0);
+      col = vec4(glow, a);
+    } else if (uKind == 6) {
       // brasas: sobem e derivam com o vento, piscando
       vec2 drift = vec2(uWind.x * 0.6 + 0.2, -0.5);
       float core = dots(c, drift, 1.1, 0.07, 0.25, 3.0);
@@ -211,9 +243,9 @@ void main() {
     outColor = col * open;
     return;
   }
-  if (uKind == 0 || uKind == 1) {
+  if (uKind == 0 || uKind == 1 || uKind == 7 || uKind == 10) {
     // chuva: três camadas de riscos (perto, médio, longe) e respingos no chão
-    float strong = uKind == 1 ? 1.4 : 1.0;
+    float strong = uKind == 1 ? 1.4 : uKind == 7 ? 1.7 : 1.0;
     float r = streaks(c, fall, 2.2, 14.0 * strong, 0.32, 0.03, 1.0) + streaks(c, fall, 3.4, 11.0 * strong, 0.25, 0.04, 2.0) * 0.7 + streaks(c, fall, 5.0, 9.0 * strong, 0.2, 0.05, 3.0) * 0.45;
     vec2 g = c / 0.5; vec2 id = floor(g);
     float splash = 0.0;
@@ -225,7 +257,29 @@ void main() {
       splash = max(splash, smoothstep(0.06, 0.0, abs(length(g - p) - phase * 0.3)) * (1.0 - phase) * step(1.0 - uIntensity * 0.5, h));
     }
     float a = clamp(r * 0.55 + splash * 0.5, 0.0, 1.0);
-    col = vec4(vec3(0.78, 0.84, 0.92) * a, a);
+    if (uKind == 7) a = clamp(a * 1.5, 0.0, 1.0);
+    col = vec4((uKind == 10 ? vec3(0.65, 0.08, 0.08) : vec3(0.78, 0.84, 0.92)) * a, a);
+  } else if (uKind == 8) {
+    // granizo: pedrinhas caindo rápido e quicando
+    float s = dots(c, vec2(uWind.x * 1.5, 3.2), 1.5, 0.06, 0.05, 6.0) + dots(c, vec2(uWind.x * 1.2, 2.6), 2.4, 0.05, 0.05, 7.0) * 0.7;
+    float a = clamp(s, 0.0, 1.0) * 0.95;
+    col = vec4(vec3(0.93, 0.96, 1.0) * a, a);
+  } else if (uKind == 9) {
+    // nevasca: neve de lado, densa, com rajadas de véu branco
+    float s = dots(c, vec2(uWind.x * 2.5 + 1.6, 0.9), 1.6, 0.07, 0.15, 1.0) + dots(c, vec2(uWind.x * 2.2 + 1.3, 0.7), 2.6, 0.08, 0.12, 2.0) * 0.8 + dots(c, vec2(uWind.x * 2.0 + 1.1, 0.6), 3.8, 0.09, 0.1, 3.0) * 0.6;
+    float veil = smoothstep(0.4, 0.85, cloud(c - vec2(uTime * 3.0, uTime * 0.5), 9.0)) * 0.35;
+    float a = clamp(s * 0.9 + veil, 0.0, 1.0) * uIntensity;
+    col = vec4(vec3(1.0) * a, a);
+  } else if (uKind == 11) {
+    // cinzas: flocos cinza caindo devagar, com balanço
+    float s = dots(c, vec2(uWind.x * 0.6, 0.35), 1.4, 0.06, 0.35, 8.0) + dots(c, vec2(uWind.x * 0.5, 0.28), 2.3, 0.06, 0.3, 9.0) * 0.6;
+    float a = clamp(s, 0.0, 1.0) * 0.8;
+    col = vec4(vec3(0.45) * a, a);
+  } else if (uKind == 12) {
+    // calor: a miragem tremendo (faixas ondulando de leve)
+    float wave = sin(c.y * 5.0 + uTime * 3.0 + cloud(c - vec2(0.0, uTime * 0.5), 4.0) * 8.0);
+    float a = smoothstep(0.6, 1.0, wave) * 0.07 * uIntensity;
+    col = vec4(vec3(1.0, 0.95, 0.85) * a, a);
   } else if (uKind == 2) {
     // neve: flocos em três tamanhos, caindo devagar com balanço
     float s = dots(c, vec2(uWind.x * 0.8, 0.6), 1.3, 0.07, 0.3, 1.0) + dots(c, vec2(uWind.x * 0.6, 0.45), 2.2, 0.08, 0.25, 2.0) * 0.7 + dots(c, vec2(uWind.x * 0.5, 0.35), 3.4, 0.09, 0.2, 3.0) * 0.5;
@@ -239,8 +293,8 @@ void main() {
     col = vec4(vec3(0.84, 0.86, 0.89) * a, a);
     outColor = col * mix(1.0, 0.35, roofAt(c));
     return;
-  } else if (uKind == 4) {
-    // folhas: voando no sentido do vento, girando
+  } else if (uKind == 4 || uKind == 16) {
+    // folhas (pétalas: cor-de-rosa e menores): voando no sentido do vento, girando
     vec2 drift = vec2(uWind.x * 2.0 + 1.2, 0.5);
     vec2 q = c * 0.9 - drift * uTime * 0.9;
     vec2 id = floor(q);
@@ -252,10 +306,10 @@ void main() {
       vec2 p = cid + 0.5 + (hash2(cid) - 0.5) * 0.7 + vec2(sin(uTime * 2.0 + h * 9.0), cos(uTime * 1.7 + h * 5.0)) * 0.2;
       float a = uTime * (2.0 + h * 3.0) + h * 6.28;
       vec2 r = mat2(cos(a), -sin(a), sin(a), cos(a)) * (q - p);
-      float shape = smoothstep(1.0, 0.75, length(r / vec2(0.2, 0.09)));
+      float shape = smoothstep(1.0, 0.75, length(r / (uKind == 16 ? vec2(0.14, 0.08) : vec2(0.2, 0.09))));
       if (shape > leaf) { leaf = shape; tone = hash(cid + 7.0); }
     }
-    vec3 color = mix(vec3(0.7, 0.32, 0.08), vec3(0.88, 0.62, 0.12), tone);
+    vec3 color = uKind == 16 ? mix(vec3(0.95, 0.55, 0.68), vec3(1.0, 0.8, 0.86), tone) : mix(vec3(0.7, 0.32, 0.08), vec3(0.88, 0.62, 0.12), tone);
     col = vec4(color * leaf, leaf);
   } else if (uKind == 5) {
     // areia: riscos rápidos de lado e um véu que passa em rajadas
@@ -553,9 +607,15 @@ function wire(id: string, apply: (value: string) => void) {
   });
 }
 wire("kind", (value) => {
+  for (const other of document.querySelectorAll("#kind2 button")) other.classList.remove("on");
   settings.kind = value as Kind;
   clock = 0;
   lightning = new LightningClock(7, settings.intensity);
+});
+wire("kind2", (value) => {
+  settings.kind = value as Kind;
+  clock = 0;
+  for (const other of document.querySelectorAll("#kind button")) other.classList.remove("on");
 });
 wire("look", (value) => (settings.look = value === "today" ? "today" : "new"));
 wire("light", (value) => (settings.light = value === "night" ? "night" : "day"));

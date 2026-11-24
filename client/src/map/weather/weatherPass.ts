@@ -119,9 +119,9 @@ export class WeatherPass {
     gl.disable(gl.BLEND);
   }
 
-  /** Há o que desenhar na camada de brilho (o que brilha sozinho ou a tempestade). */
-  get lit(): boolean {
-    return this.glowing || this.lightning !== null;
+  /** Há o que desenhar na camada de brilho agora (o que brilha sozinho ou um clarão no ar). */
+  glowsAt(now: number): boolean {
+    return this.glowing || this.flash(now) > 0;
   }
 
   private drawWith(program: Program, view: GroundView, width: number, height: number, now: number, glow: number | null) {
