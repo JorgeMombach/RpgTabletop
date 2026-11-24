@@ -185,6 +185,17 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] *Reduzir efeitos*: a fumaça para (a névoa fica). Com o chão desligado (ou sem WebGL 2): a névoa de antes.
 - [ ] **Desempenho (não medido pelo agente):** mapa grande com tudo explorado e a névoa ligada: arrastar e dar zoom sem engasgo; a fumaça andando sem pesar (comparar com a 2.14.0).
 
+### Efeitos de área na placa (troca de motor, etapa 4, parte 1; [docs/design/efeitos.md](design/efeitos.md))
+- [ ] Os 18 tipos de dia e à noite, como em [efeitos-teste.html](design/efeitos-teste.html): fogo "fogo, não lava", luz sagrada com as luzes girando, teia de desenho.
+- [ ] À noite: fogo, luz sagrada e eletricidade iluminam em volta e a parede barra; objetos e tokens fazem sombra dessa luz; de dia quase não pesa; a escuridão apaga uma tocha dentro dela.
+- [ ] Efeito que acompanha um token (Espíritos Guardiões): o desenho e a luz andam junto no arrasto.
+- [ ] Pincel de efeitos (casas pintadas) no quadrado e no hex; cone, linha, cubo e esfera.
+- [ ] Cor trocada pelo mestre tinge o efeito; com a cor padrão, o desenho é o da página.
+- [ ] Efeito desligado (mestre): parado, apagado e tracejado; não ilumina nem escurece.
+- [ ] Jogador: efeito na névoa não aparece (nem a luz dele).
+- [ ] *Reduzir efeitos*: os efeitos param. Com o chão desligado (ou sem WebGL 2): o desenho de antes.
+- [ ] **Desempenho (não medido no app pelo agente):** 40 áreas na tela, à noite, com fogo: sem engasgo (comparar com a 2.14.0).
+
 ## Pendências pequenas
 
 ### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
@@ -199,6 +210,11 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Chão aceso por um mob com tocha fora da vista: o servidor manda as casas, mas o cliente não sabe da tocha; fica na névoa até o mob aparecer.
 - [ ] Parede que o jogador ainda não viu não chega a ele: ali, quem corta a visão são as casas do servidor.
 - [ ] Arrastar um objeto que bloqueia refaz os triângulos da névoa (pode pesar num mapa enorme).
+
+### Efeitos de área na placa ([docs/design/efeitos.md](design/efeitos.md))
+- [ ] A sombra da luz de um efeito sai do meio da área (objeto ou token dentro da própria área não faz sombra dela).
+- [ ] Fogo e luz sagrada não têm camada à parte acima da luz: à noite, é a luz que eles mesmos acendem que clareia a área.
+- [ ] Efeito aceso pede o desenho inteiro do chão a cada quadro (a luz tremula com ele), como as tochas.
 
 ### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
 - [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).
