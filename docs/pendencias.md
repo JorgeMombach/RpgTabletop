@@ -174,6 +174,17 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Objeto ou token logo fora da tela: a sombra dele entra na tela.
 - [ ] **Desempenho (não medido pelo agente):** à noite, floresta de ~300 objetos, 10 tochas fixas e 4 tokens com tocha andando: sem engasgo no WASD nem ao arrastar token; comparar com a 2.14.0.
 
+### Névoa de guerra na placa (troca de motor, etapa 3; [docs/design/nevoa.md](design/nevoa.md))
+- [ ] Como jogador (outro dispositivo, ou *ver como* o jogador), névoa e visão dos personagens ligadas, cena com paredes, portas, pilares e objetos que bloqueiam: borda firme e reta rente às paredes (sem fumaça vazando parede adentro nem saindo de pilar fechado); fiapos onde a visão acaba no campo aberto; explorado escurecido e sem cor sob um véu de fumaça; tudo como em [nevoa-teste.html](design/nevoa-teste.html).
+- [ ] Copa de árvore no nunca visto não aparece por cima da névoa; no explorado, escurecida.
+- [ ] Mestre: bruma cinza translúcida (vê tudo por baixo).
+- [ ] Arrastar e dar zoom no mapa: a névoa acompanha, sem atraso, rastro nem tela chapada.
+- [ ] Pincel do mestre (revelar e cobrir, pincel, retângulo e cômodo): aparece na hora, antes da resposta do servidor, com a borda em fiapos.
+- [ ] Névoa sem a visão dos personagens: só o revelado, com fiapos.
+- [ ] Cena hex com a visão dos personagens: a borda segue os hexes; nada de meio hex visível que o servidor não mandou.
+- [ ] *Reduzir efeitos*: a fumaça para (a névoa fica). Com o chão desligado (ou sem WebGL 2): a névoa de antes.
+- [ ] **Desempenho (não medido pelo agente):** mapa grande com tudo explorado e a névoa ligada: arrastar e dar zoom sem engasgo; a fumaça andando sem pesar (comparar com a 2.14.0).
+
 ## Pendências pequenas
 
 ### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
@@ -182,6 +193,12 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Bem de perto, a faixa do mapa de alturas é cortada em 3/4 da tela por lado: a sombra de algo muito longe da tela não entra (`heightPass.ts`).
 - [ ] Moldura de chefe mantém a sombra própria das peças de ouro (só a do anel comum saiu; `tokenArt.ts`).
 - [ ] A copa começa a 1,7 casa (`CANOPY_BOTTOM`, × o tamanho da árvore se maior que 1): a tocha de token grande (2,3) entra na copa e escurece em volta dela; a copa fica sem sombra própria da tocha baixa (ilumina como o chão embaixo); token embaixo da copa vira coluna da altura da copa para as tochas.
+
+### Névoa de guerra na placa ([docs/design/nevoa.md](design/nevoa.md))
+- [ ] Na sombra diagonal de pilares e paredes, alguns trechos curtos da borda saem em degrau (a casa vista pela metade fica escondida: o servidor não a mandou).
+- [ ] Chão aceso por um mob com tocha fora da vista: o servidor manda as casas, mas o cliente não sabe da tocha; fica na névoa até o mob aparecer.
+- [ ] Parede que o jogador ainda não viu não chega a ele: ali, quem corta a visão são as casas do servidor.
+- [ ] Arrastar um objeto que bloqueia refaz os triângulos da névoa (pode pesar num mapa enorme).
 
 ### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
 - [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).
