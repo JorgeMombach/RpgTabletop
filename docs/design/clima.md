@@ -84,13 +84,13 @@ Um passo de clima no renderizador do chão, com três saídas.
   - intensidade e vento (`tan` do ângulo do clima: casas de lado por casa de queda, e a força);
   - o tipo.
 - **Saídas:** as três da tabela acima, cada uma como imagem de saída do chão, nos lugares dela.
-- **Relâmpago:** o clarão entra no mapa de luz (somado), com a mesma curva de hoje (`flash`).
+- **Relâmpago:** o clarão vai na camada de brilho, por cima da luz, com a mesma curva de hoje (`flash`) *(mudado no plano: o mapa de luz é cortado em 1, e de dia o clarão somado nele não apareceria)*.
 - **Animação:** o clima pede quadros como a água. Só as três imagens dele são refeitas (caminho curto); com relâmpago, a luz também.
 - **Som:** `WeatherOverlay` continua tocando o trovão e o som do clima. Com o chão na placa ele não desenha.
 
-## Os outros 11 climas
+## Os outros 10 climas
 
-Chuva forte, granizo, nevasca, chuva de sangue, cinzas, calor, vagalumes, luzes mágicas, esporos, pétalas e personalizados de cor (se houver) seguem o mesmo esquema. Eles entram na página de teste para o dono aprovar **antes** de ir para o app: é a primeira tarefa do plano, com uma parada.
+Chuva forte, granizo, nevasca, chuva de sangue, cinzas, calor, vagalumes, luzes mágicas, esporos e pétalas seguem o mesmo esquema (aprovados na página em 2026-11-24; são 17 climas ao todo). Eles entram na página de teste para o dono aprovar **antes** de ir para o app: é a primeira tarefa do plano, com uma parada.
 
 ## Página de teste
 

@@ -196,6 +196,16 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] *Reduzir efeitos*: os efeitos param. Com o chão desligado (ou sem WebGL 2): o desenho de antes.
 - [ ] **Desempenho (não medido no app pelo agente):** 40 áreas na tela, à noite, com fogo: sem engasgo (comparar com a 2.14.0).
 
+### Clima vivendo no mapa (troca de motor, etapa 4, parte 2; [docs/design/clima.md](design/clima.md))
+- [ ] Os 17 climas de dia e à noite, como em [clima-teste.html](design/clima-teste.html): o que cai anda com o mapa ao arrastar e dar zoom.
+- [ ] A cobertura acumula aos poucos (máximo em 2 minutos) e recomeça ao trocar de clima; igual em dois navegadores.
+- [ ] Cômodo fechado: não chove nem neva dentro; névoa rala lá dentro. Jogador que não conhece as paredes do cômodo: chove dentro (é o que ele sabe).
+- [ ] Vento do clima: a chuva, a neve e as folhas no mesmo sentido em que as árvores balançam.
+- [ ] Tempestade: o clarão e o trovão nos mesmos instantes para todos.
+- [ ] Brasas, vagalumes, luzes mágicas e esporos brilham à noite; chuva, neve e névoa escurecem com a noite.
+- [ ] *Reduzir efeitos*: metade das partículas e sem clarão. Chão desligado (ou sem WebGL 2): a película de antes.
+- [ ] **Desempenho (não medido no app pelo agente):** chuva forte e nevasca num mapa grande, arrastando: sem engasgo (comparar com a 2.14.0).
+
 ## Pendências pequenas
 
 ### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
@@ -215,6 +225,11 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] A sombra da luz de um efeito sai do meio da área (objeto ou token dentro da própria área não faz sombra dela).
 - [ ] Fogo e luz sagrada não têm camada à parte acima da luz: à noite, é a luz que eles mesmos acendem que clareia a área.
 - [ ] Efeito aceso pede o desenho inteiro do chão a cada quadro (a luz tremula com ele), como as tochas.
+
+### Clima vivendo no mapa ([docs/design/clima.md](design/clima.md))
+- [ ] A cobertura do chão não é guardada: trocar de clima (ou recarregar depois de muito tempo) recomeça do zero do início do clima.
+- [ ] O clarão do relâmpago é um véu claro igual em toda a tela (não ilumina as paredes de um jeito diferente).
+- [ ] Jogador sem as paredes de um cômodo vê chover dentro dele.
 
 ### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
 - [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).
