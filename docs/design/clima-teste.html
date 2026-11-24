@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clima</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  .stage { position: relative; margin: 0 16px 16px; width: max-content; border: 1px solid #3a3025; }
+  .stage canvas { display: block; }
+  #overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+  p { margin: 0 16px 8px; color: #a8987c; max-width: 960px; }
+  #fps { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="kind"><b>Clima</b><button data-v="rain" class="on">Chuva</button><button data-v="storm">Tempestade</button><button data-v="snow">Neve</button><button data-v="fog">Névoa</button><button data-v="leaves">Folhas</button><button data-v="sand">Areia</button><button data-v="embers">Brasas</button></div>
+  <div class="group" id="look"><b>Clima</b><button data-v="new" class="on">Novo</button><button data-v="today">Hoje</button></div>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="night">Noite</button></div>
+  <div class="group" id="wind"><b>Vento</b><button data-v="-30">←</button><button data-v="0">Reto</button><button data-v="20" class="on">→</button><button data-v="40">→→</button></div>
+  <div class="group" id="speed"><b>Tempo</b><button data-v="1" class="on">Normal</button><button data-v="12">Acelerado (12×)</button></div>
+  <div class="group" id="restart"><button data-v="1">Recomeçar a cobertura</button></div>
+  <span id="fps"></span>
+</header>
+<p>Etapa 4, parte 2 (clima vivendo no mapa): a casa da esquerda é um cômodo fechado (com telhado: nada cai nem cobre lá dentro); a da direita é aberta. O caminho de terra corta o campo. A cobertura (molhado e poças, neve, areia, folhas pousadas) cresce com o tempo desde o início do clima, até o máximo em 2 minutos (use <b>Acelerado</b>). O que cai fica por cima dos tokens; as brasas brilham por cima da luz. <b>Hoje</b>: o clima atual, na tela.</p>
+<div class="stage"><canvas id="view"></canvas><canvas id="overlay"></canvas></div>
+<script src="clima.js"></script>
+</body>
+</html>
