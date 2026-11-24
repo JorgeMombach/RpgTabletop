@@ -13,6 +13,15 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Efeitos de área desenhados pela placa de vídeo:** mais nítidos e bem mais leves (muitas áreas na tela sem pesar), com as partículas calculadas na placa. Fogo com labaredas subindo, água com reflexos, gelo liso com rachaduras, teia de desenho, luz sagrada com as luzes girando em volta, e os demais refeitos no mesmo padrão. À noite, fogo, luz sagrada e eletricidade iluminam o entorno (barrados pelas paredes, com sombra de objetos e tokens), gás tóxico e ácido brilham fraco, e a escuridão apaga a luz, até a de tochas. A cor trocada pelo mestre tinge o desenho. Sem WebGL 2, fica como antes.
 - **Clima vivendo no mapa:** o clima passou a andar com o mapa e a conhecer o cenário. A chuva respinga e forma poças, a neve vai cobrindo o chão, folhas, pétalas, cinzas e granizo pousam, a areia deixa um véu no sentido do vento; tudo acumula aos poucos desde o início do clima (igual para todos) e recomeça quando o mestre troca. Dentro de cômodos fechados não chove nem neva. O vento é o mesmo que balança as plantas; brasas, vagalumes, luzes mágicas e esporos brilham sozinhos à noite; a tempestade continua com o clarão e o trovão nos mesmos instantes. Mais leve que antes. Sem WebGL 2, fica como antes.
 - **Sombra do entardecer mais curta:** no entardecer, paredes, relevo, pontes, pisos e escadas fazem sombra de ~2 casas por altura de parede (antes ~3), menos espichada pelo mapa.
+- **Tochas menores:** a tocha e o suporte de ferro ocupam meia casa, e o braseiro 0,7 casa.
+- **A água apaga as plantas:** pintar água ou água profunda por cima de uma floresta tira as árvores, arbustos, tocos, flores e afins que ficaram dentro da água; pedras e objetos ficam. Desfazer traz a água e as plantas de volta.
+- **Nada em cima de parede:** tocha, baú e objeto não podem ser postos nem arrastados para cima de uma parede (portas e janelas não contam). O pincel de espalhar pula esses pontos. Tokens continuam livres.
+
+### Corrigido
+
+- **Pincel do terreno:** o círculo do pincel não aparece mais no modo retângulo e some quando o mouse sai do mapa (também no Relevo e no Piso).
+- **Água sem retângulo:** com água ou água profunda, só o pincel.
+- **Aba Construir:** ícone e texto dos botões centralizados.
 
 ## [2.14.0] - 2026-11-21
 

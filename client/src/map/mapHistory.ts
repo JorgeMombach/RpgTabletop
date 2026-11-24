@@ -2,6 +2,7 @@ import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, 
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
+import { drownedPlants } from "./terrain/drownedPlants";
 
 /**
  * Desfazer do mapa (L5, ampliado depois da 2.11): paredes e portas, desenhos (livre, seta, círculo…), tochas
@@ -37,7 +38,8 @@ type Step =
   | { scope: "stair"; kind: "removed"; stairs: Stair[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
-  | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
+  /** `plants`: as plantas que a água apagou nesta passada (voltam junto no Desfazer). */
+  | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null>; plants?: MapProp[] }
   | { scope: "terrain"; kind: "currentAdded"; id: string }
   | { scope: "terrain"; kind: "currentChanged"; id: string; before: number[] }
   | { scope: "terrain"; kind: "currentsRemoved"; currents: WaterCurrent[] }
@@ -502,7 +504,13 @@ async function paintTerrainNow(stroke: TerrainStroke): Promise<ActionResult> {
       before[key] = base[key] ?? null;
       after[key] = applied[key] ?? null;
     }
-    push({ scope: "terrain", kind: "painted", before, after });
+    // A água apaga as plantas (docs/design/ajustes-rapidos.md): as que ficaram com o pé na água somem, no mesmo passo.
+    let plants: MapProp[] = [];
+    if (stroke.terrain === "water" || stroke.terrain === "waterDark") {
+      const drowned = drownedPlants(useApp.getState().state?.battle.props ?? [], base, applied);
+      if (drowned.length > 0 && (await act("prop:remove", { ids: drowned.map((plant) => plant.id) })).ok) plants = structuredClone(drowned);
+    }
+    push(plants.length > 0 ? { scope: "terrain", kind: "painted", before, after, plants } : { scope: "terrain", kind: "painted", before, after });
   }
   return result;
 }
@@ -621,6 +629,8 @@ export async function undo(scope?: UndoScope) {
     const chunks: Record<string, TerrainChunk | null> = {};
     for (const [key, after] of Object.entries(step.after)) if (sameChunk(now[key] ?? null, after)) chunks[key] = step.before[key] ?? null;
     if (Object.keys(chunks).length > 0) await act("terrain:restore", { chunks });
+    // as plantas que a água apagou voltam (só as que não existem mais)
+    if (step.kind === "painted" && step.plants) await restoreProps(step.plants.filter((plant) => !has(battle?.props, plant.id)));
   } else if (step.scope === "paint") {
     if (step.kind === "painted") await act("effect:paint", { erase: true, preset: step.preset, color: step.color, cells: step.cells });
     else for (const g of step.groups) await act("effect:paint", { preset: g.preset, color: g.color, cells: g.cells });

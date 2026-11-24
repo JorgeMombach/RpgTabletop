@@ -206,6 +206,15 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] *Reduzir efeitos*: metade das partículas e sem clarão. Chão desligado (ou sem WebGL 2): a película de antes.
 - [ ] **Desempenho (não medido no app pelo agente):** chuva forte e nevasca num mapa grande, arrastando: sem engasgo (comparar com a 2.14.0).
 
+### Ajustes rápidos (bloco 1; [docs/design/ajustes-rapidos.md](design/ajustes-rapidos.md))
+- [ ] Terreno em retângulo: o círculo do pincel não aparece. Mouse indo para o painel: o círculo some (Terreno, Relevo e Piso).
+- [ ] Água e água profunda: sem a opção de retângulo; voltando para grama, ela aparece de novo.
+- [ ] Aba Construir: ícone e texto centralizados nos botões.
+- [ ] Tochas menores (tocha e suporte de ferro em meia casa, braseiro 0,7); a luz sai da chama.
+- [ ] Tocha, baú ou objeto em cima de parede: recusado com "Aí tem uma parede." e a peça volta ao lugar. Em cima de porta ou janela: pode. Estante encostada na parede: pode. Token: livre.
+- [ ] Espalhar floresta cruzando uma parede: nenhuma árvore em cima dela.
+- [ ] Floresta + passada de água no meio: as plantas dentro da água somem ao soltar, pedras ficam. Ctrl+Z: a água sai e as plantas voltam.
+
 ## Pendências pequenas
 
 ### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
