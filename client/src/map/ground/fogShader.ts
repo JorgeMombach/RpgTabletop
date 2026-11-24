@@ -63,10 +63,12 @@ vec4 blurred(sampler2D mask, vec2 uv, float cells) {
 vec4 cellsSoft(vec2 uv) { return smoothstep(0.1, 0.9, blurred(uCells, uv, 1.0)); }
 /** As casas até a beira (só um respiro): na linha + casa, quem manda rente à parede é a linha. */
 vec4 cellsFirm(vec2 uv) { return smoothstep(0.2, 0.55, blurred(uCells, uv, 0.1)); }
+/** A linha de visão: o leque de perto (R) ou, onde a tocha acende, o leque longo (B) dentro da luz (A). */
+float sightOf(vec4 sight) { return max(sight.r, min(sight.b, sight.a)); }
 /** O que se vê agora, firme ou largo (\`cells\` casas de borda), pela linha cortada pelas casas ou só pelas casas. */
 float nowAt(vec2 uv, float cells) {
   if (uUseSight == 0) return cellsSoft(uv).r;
-  return min(blurred(uSight, uv, cells).r, cellsFirm(uv).r);
+  return min(sightOf(blurred(uSight, uv, cells)), cellsFirm(uv).r);
 }
 
 void main() {
@@ -93,7 +95,9 @@ void main() {
   // explorado: vai até a beira da casa e só se espalha, com o balanço, para o lado do nunca visto
   float remembered = max(cellsFirm(uv).g, cellsSoft(uvDrift).g);
   // perto da borda (até ~1,5 casa), a fumaça avança e recua em fiapos; dentro do alcance a borda é de parede: firme
-  float inRange = uUseSight == 0 ? 0.0 : smoothstep(0.6, 0.95, blurred(uSight, uv, 0.8).g);
+  // (a área acesa por tocha além da visão conta como dentro: ali a borda é de parede ou da luz)
+  vec4 around = blurred(uSight, uv, 0.8);
+  float inRange = uUseSight == 0 ? 0.0 : smoothstep(0.6, 0.95, max(around.g, min(around.b, around.a)));
   float loose = mix(1.0, 0.12, inRange);
   float band = 1.0 - abs(wide * 2.0 - 1.0);
   float wisp = (mid * 0.6 + fine * 0.4 - 0.5) * 1.5;

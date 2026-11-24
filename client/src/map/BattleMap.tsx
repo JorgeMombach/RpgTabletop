@@ -23,7 +23,7 @@ import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
 import { GroundFogLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage } from "./ground/GroundOutputLayer";
-import { fogViewers, type FogRows } from "./ground/fogGeometry";
+import { fogLit, fogViewers, type FogRows, type FogScene } from "./ground/fogGeometry";
 import type { FogInput } from "./ground/fogPass";
 import { useTokenDrag } from "./dragFollow";
 import { lightSources, type Dragging } from "./ground/lightSources";
@@ -1506,6 +1506,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           fogState.vision ? fogState.explored : 0,
           fogState.vision ? state.battle.sight : 0,
           state.allies.map((ally) => (ally.pos ? [ally.pos.col, ally.pos.row, ally.size ?? "", ally.darkvision ? 1 : 0, ally.torch ? 1 : 0] : 0)),
+          // quem carrega tocha à vista e as tochas fixas: a luz além da visão
+          tokens.filter((c) => c.torch && !c.hidden).map((c) => [c.pos?.col, c.pos?.row, c.size ?? ""]),
+          state.battle.torches.map((torch) => [torch.col, torch.row]),
           state.battle.weather.light,
           state.battle.map.feetPerCell,
           gm,
@@ -1517,12 +1520,14 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const revealed: FogRows = Object.fromEntries(Object.entries(fogState.revealed).map(([row, runs]) => [row, [...runs]]));
     const cover: FogRows = {};
     for (const rect of fogDraft?.rects ?? []) paintRows(fogDraft?.reveal ? revealed : cover, rect, true);
+    const scene: FogScene = { kind: grid.grid, feetPerCell: state.battle.map.feetPerCell, light: state.battle.weather.light, range: fogState.range, vision: fogState.vision };
     return {
       now: fogState.vision ? state.battle.sight : {},
       explored: fogState.vision ? fogState.explored : {},
       revealed,
       cover,
-      viewers: fogViewers(state.allies, { kind: grid.grid, feetPerCell: state.battle.map.feetPerCell, light: state.battle.weather.light, range: fogState.range, vision: fogState.vision }),
+      viewers: fogViewers(state.allies, scene),
+      ...fogLit(state.allies, tokens, state.battle.torches, scene),
       blockers: lightBlockers([...state.battle.walls, ...propOccluders(state.battle.props)]),
       kind: grid.grid,
       vision: fogState.vision,

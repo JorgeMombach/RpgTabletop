@@ -18,6 +18,9 @@ export interface FogInput {
   /** A pincelada "cobrir" em andamento (tira do agora e do revelado na hora). */
   cover: FogRows;
   viewers: FogViewer[];
+  /** Luz de tochas além da visão (`fogLit`): o leque longo de quem vê e a área acesa de cada tocha. */
+  far: FogViewer[];
+  lights: FogViewer[];
   blockers: Segment[];
   kind: GridKind | undefined;
   vision: boolean;
@@ -45,7 +48,7 @@ export class FogPass {
   private sightMask: WebGLTexture | null = null;
   private maskSize = { width: 0, height: 0 };
   /** Casas (agora, explorado, revelado, coberto) e leques (com e sem paredes). */
-  private shapes: { now: Triangles; explored: Triangles; revealed: Triangles; cover: Triangles; walled: Triangles; open: Triangles } | null = null;
+  private shapes: { now: Triangles; explored: Triangles; revealed: Triangles; cover: Triangles; walled: Triangles; open: Triangles; far: Triangles; lit: Triangles } | null = null;
   /** Tela e entrada das máscaras desenhadas (vazio: refazer). */
   private maskKey = "";
   private inputVersion = 0;
@@ -81,6 +84,8 @@ export class FogPass {
       cover: this.upload(fogCellTriangles(input.cover, input.kind)),
       walled: this.upload(fogSightTriangles(viewers, input.blockers)),
       open: this.upload(fogSightTriangles(viewers, [])),
+      far: this.upload(fogSightTriangles(input.vision ? input.far : [], input.blockers)),
+      lit: this.upload(fogSightTriangles(input.vision ? input.lights : [], input.blockers)),
     };
   }
 
@@ -165,15 +170,18 @@ export class FogPass {
     gl.disable(gl.BLEND);
     // casas: um canal por vez; a pincelada "cobrir" apaga os três por cima
     this.drawInto(this.cellMask, maskWidth, maskHeight, [
-      [shapes.now, [true, false, false], 1],
-      [shapes.explored, [false, true, false], 1],
-      [shapes.revealed, [false, false, true], 1],
-      [shapes.cover, [true, false, true], 0],
+      [shapes.now, [true, false, false, false], 1],
+      [shapes.explored, [false, true, false, false], 1],
+      [shapes.revealed, [false, false, true, false], 1],
+      [shapes.cover, [true, false, true, false], 0],
     ]);
-    // linha de visão: o leque parado nas paredes (R) e o círculo sem paredes (G)
+    // linha de visão: o leque parado nas paredes (R), o círculo sem paredes (G) e a luz de tochas além da visão: o
+    // leque longo de quem vê (B) e a área acesa (A); vale onde os dois se cruzam
     this.drawInto(this.sightMask, maskWidth, maskHeight, [
-      [shapes.walled, [true, false, false], 1],
-      [shapes.open, [false, true, false], 1],
+      [shapes.walled, [true, false, false, false], 1],
+      [shapes.open, [false, true, false, false], 1],
+      [shapes.far, [false, false, true, false], 1],
+      [shapes.lit, [false, false, false, true], 1],
     ]);
     gl.colorMask(true, true, true, true);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -181,18 +189,18 @@ export class FogPass {
   }
 
   /** Limpa a máscara e desenha cada grupo de triângulos nos canais dele, com o valor dado; depois, os níveis menores. */
-  private drawInto(target: WebGLTexture, width: number, height: number, groups: [Triangles, [boolean, boolean, boolean], number][]) {
+  private drawInto(target: WebGLTexture, width: number, height: number, groups: [Triangles, [boolean, boolean, boolean, boolean], number][]) {
     const { gl } = this;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target, 0);
     gl.viewport(0, 0, width, height);
     gl.colorMask(true, true, true, true);
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    for (const [shape, [red, green, blue], value] of groups) {
+    for (const [shape, [red, green, blue, alpha], value] of groups) {
       if (shape.count === 0) continue;
-      gl.colorMask(red, green, blue, false);
-      gl.uniform4f(uniformOf(gl, this.mask, "uColor"), value, value, value, 1);
+      gl.colorMask(red, green, blue, alpha);
+      gl.uniform4f(uniformOf(gl, this.mask, "uColor"), value, value, value, value);
       useVertices(gl, shape.buffer);
       gl.drawArrays(gl.TRIANGLES, 0, shape.count);
     }

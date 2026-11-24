@@ -64,6 +64,7 @@ A névoa desenhada na placa de vídeo, como mais um passo do desenho do chão (`
 - **Recorte da linha de visão** (meia resolução da tela, como a luz; com níveis menores para a borda macia):
   - **R:** o leque de cada aliado no mapa (`lightPolygon` com as paredes que este cliente tem, `lightBlockers`, mais os objetos que bloqueiam, `propOccluders`). O alcance é o da visão dele menos meia diagonal (0,71 casa), para o círculo cair inteiro dentro das casas que o servidor manda e a borda do alcance sair redonda.
   - **G:** o mesmo círculo sem paredes, para saber se a borda ali é de parede (firme) ou de alcance (fiapos).
+  - **B e A** *(achado na revisão final)*: à noite, a luz de tochas além da visão, como no servidor. B é o leque longo de quem vê (alcance do dia); A é a área acesa de cada tocha que o cliente conhece (fixas e de quem a carrega à vista). Vale onde os dois se cruzam. Sem isso, um cômodo aceso no fim do corredor, que o servidor mostra, ficava na névoa.
   - Refeito só quando a visão muda.
 - **O que fica limpo:** a linha de visão (R) cortada pelas casas visíveis. As casas vão até a beira da casa (`smoothstep(0.2, 0.55)` da leitura linear), para não empurrar a fumaça para dentro do que se vê. Por cima vem o revelado pelo mestre (B).
 - **Borda:**

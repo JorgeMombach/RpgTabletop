@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { geometryOf, sightCells, type GridKind } from "@rpg/shared";
-import { fogCellTriangles, fogNoiseData, fogSightTriangles, fogViewers, type FogAlly, type FogScene } from "../../client/src/map/ground/fogGeometry";
+import { fogCellTriangles, fogLit, fogNoiseData, fogSightTriangles, fogViewers, type FogAlly, type FogCarrier, type FogScene } from "../../client/src/map/ground/fogGeometry";
 
 /** Névoa na placa de vídeo (docs/design/nevoa.md): quem vê, as casas e a linha de visão, como o servidor. */
 
@@ -40,6 +40,29 @@ describe("conta da névoa", () => {
         assert.ok(seen.has(`${cell.col},${cell.row}`), `${kind ?? "square"}: ponto ${x},${y} na casa ${cell.col},${cell.row} que o servidor não manda`);
       }
     }
+  });
+
+  it("à noite, tocha fixa acende 40 ft no ponto dela e quem vê enxerga a luz até 120 ft", () => {
+    const lit = fogLit([{ pos: { col: 3, row: 4 } }], [], [{ col: 10, row: 10 }], NIGHT);
+    assert.equal(lit.lights.length, 1);
+    assert.equal(lit.lights[0].x, 10);
+    assert.equal(lit.lights[0].y, 10);
+    assert.ok(Math.abs(lit.lights[0].reach - (8 + 0.5 - 0.71)) < 1e-9);
+    assert.equal(lit.far.length, 1);
+    assert.equal(lit.far[0].x, 3.5);
+    assert.ok(Math.abs(lit.far[0].reach - (24 - 0.71)) < 1e-9);
+  });
+
+  it("token com tocha à vista acende; oculto não; de dia, com alcance da cena ou sem visão, nada", () => {
+    const carrier: FogCarrier = { pos: { col: 6, row: 6 }, torch: true };
+    const [light] = fogLit([{ pos: { col: 0, row: 0 } }], [carrier], [], NIGHT).lights;
+    assert.equal(light.x, 6.5);
+    assert.ok(Math.abs(light.reach - (8 + 0.5 - 0.71)) < 1e-9);
+    assert.deepEqual(fogLit([{ pos: { col: 0, row: 0 } }], [{ ...carrier, hidden: true }], [], NIGHT).lights, []);
+    const none = { far: [], lights: [] };
+    assert.deepEqual(fogLit([{ pos: { col: 0, row: 0 } }], [carrier], [{ col: 1, row: 1 }], { ...NIGHT, light: "day" }), none);
+    assert.deepEqual(fogLit([{ pos: { col: 0, row: 0 } }], [carrier], [{ col: 1, row: 1 }], { ...NIGHT, range: 30 }), none);
+    assert.deepEqual(fogLit([{ pos: { col: 0, row: 0 } }], [carrier], [{ col: 1, row: 1 }], { ...NIGHT, vision: false }), none);
   });
 
   it("trecho de 3 casas vira 2 triângulos; um hex, 4", () => {

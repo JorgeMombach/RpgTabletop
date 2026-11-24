@@ -1,4 +1,4 @@
-import { geometryOf, isHex, lightPolygon, visionFeet, type GridKind, type GridPos, type LightId, type Segment, type Size } from "@rpg/shared";
+import { geometryOf, isHex, lightPolygon, TORCH_FEET, VISION_FEET, visionFeet, type GridKind, type GridPos, type LightId, type Segment, type Size } from "@rpg/shared";
 import { fbm } from "../fogNoise";
 
 /**
@@ -49,6 +49,43 @@ export function fogViewers(allies: FogAlly[], scene: FogScene): FogViewer[] {
     const center = geometry.shapeCenter(ally.pos, ally.size);
     return [{ x: center.x, y: center.y, reach: feet / scene.feetPerCell + geometry.drawSpan(ally.size) / 2 - inset }];
   });
+}
+
+/** Quem pode carregar tocha (aliado, mob ou NPC que este cliente recebe). */
+export interface FogCarrier {
+  pos: GridPos | null;
+  size?: Size;
+  torch?: boolean;
+  hidden?: boolean;
+}
+
+/**
+ * Luz de tochas além da visão (como `updateSight` e `sightCells`): à noite (sem alcance da cena), a área acesa por
+ * uma tocha aparece para quem tem linha de visão até ela, até o alcance do dia. `far`: o leque longo de quem vê;
+ * `lights`: a área acesa de cada tocha (fixa, ou de quem a carrega e não está oculto). Os dois encolhidos meia casa.
+ */
+export function fogLit(allies: FogAlly[], carriers: FogCarrier[], torches: { col: number; row: number }[], scene: FogScene): { far: FogViewer[]; lights: FogViewer[] } {
+  const none = { far: [], lights: [] };
+  if (!scene.vision || scene.light === "day" || scene.range !== null) return none;
+  const geometry = geometryOf(scene.kind);
+  const inset = isHex({ grid: scene.kind }) ? FOG_CELL_INSET.hex : FOG_CELL_INSET.square;
+  const far = allies.flatMap((ally) => {
+    if (!ally.pos) return [];
+    const center = geometry.shapeCenter(ally.pos, ally.size);
+    return [{ x: center.x, y: center.y, reach: VISION_FEET.day / scene.feetPerCell - inset }];
+  });
+  if (far.length === 0) return none;
+  const torchReach = TORCH_FEET / scene.feetPerCell;
+  const lights = [
+    ...carriers.flatMap((carrier) => {
+      if (!carrier.torch || !carrier.pos || carrier.hidden) return [];
+      const center = geometry.shapeCenter(carrier.pos, carrier.size);
+      return [{ x: center.x, y: center.y, reach: torchReach + geometry.drawSpan(carrier.size) / 2 - inset }];
+    }),
+    // a tocha fixa fica num ponto qualquer: a luz sai dele, com meia casa a mais (como no servidor)
+    ...torches.map((torch) => ({ x: torch.col, y: torch.row, reach: torchReach + 0.5 - inset })),
+  ];
+  return { far, lights };
 }
 
 /** Triângulos (pares x, y em casas) das casas das linhas: no quadrado, um retângulo por trecho; no hex, cada casa. */
