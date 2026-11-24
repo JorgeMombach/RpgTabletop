@@ -100,6 +100,8 @@ export class FogPass {
    */
   shadeCanopies(view: GroundView, width: number, height: number, time: number) {
     const { gl } = this;
+    // as máscaras antes da mistura: refazê-las desliga a mistura (e o multiplicador cobriria a tela inteira)
+    this.drawMasks(view, width, height);
     gl.enable(gl.BLEND);
     gl.blendFuncSeparate(gl.ZERO, gl.SRC_COLOR, gl.ZERO, gl.SRC_ALPHA);
     this.drawFog(view, width, height, time, FOG_MODE.canopy);

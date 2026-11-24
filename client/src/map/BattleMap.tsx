@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { type Bridge, bridgeAt, bridgeLength, type Stair, stairAt, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { type Bridge, bridgeAt, bridgeLength, type Stair, stairAt, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintRows, propOccluders, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -22,7 +22,9 @@ import { CALIBRATE_HINT } from "../components/MapPanel";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
-import { GroundOutputLayer, GroundPropsImage, GroundWallsImage } from "./ground/GroundOutputLayer";
+import { GroundFogLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage } from "./ground/GroundOutputLayer";
+import { fogViewers, type FogRows } from "./ground/fogGeometry";
+import type { FogInput } from "./ground/fogPass";
 import { useTokenDrag } from "./dragFollow";
 import { lightSources, type Dragging } from "./ground/lightSources";
 import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
@@ -1491,6 +1493,43 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `torchKey` resume o que importa dos tokens
     [groundLit, blockers, roofs, state.battle.torches, torchKey, state.battle.weather.light, gm, dragging, grid],
   );
+  // Névoa pela placa (docs/design/nevoa.md): as casas que chegaram, quem vê e o que para a visão. Refeita só quando o que
+  // se vê muda (o estado chega como objetos novos a cada envio: a chave é pelo conteúdo, como a da névoa de hoje).
+  const fogState = state.battle.fog;
+  const fogKey =
+    groundLit && fogState.enabled
+      ? JSON.stringify([
+          grid.grid ?? "square",
+          fogState.vision,
+          fogState.range,
+          fogState.revealed,
+          fogState.vision ? fogState.explored : 0,
+          fogState.vision ? state.battle.sight : 0,
+          state.allies.map((ally) => (ally.pos ? [ally.pos.col, ally.pos.row, ally.size ?? "", ally.darkvision ? 1 : 0, ally.torch ? 1 : 0] : 0)),
+          state.battle.weather.light,
+          state.battle.map.feetPerCell,
+          gm,
+        ])
+      : "";
+  const fogInput = useMemo<FogInput | null>(() => {
+    if (!fogKey) return null;
+    // a pincelada em andamento do mestre aparece na hora (antes de o servidor confirmar)
+    const revealed: FogRows = Object.fromEntries(Object.entries(fogState.revealed).map(([row, runs]) => [row, [...runs]]));
+    const cover: FogRows = {};
+    for (const rect of fogDraft?.rects ?? []) paintRows(fogDraft?.reveal ? revealed : cover, rect, true);
+    return {
+      now: fogState.vision ? state.battle.sight : {},
+      explored: fogState.vision ? fogState.explored : {},
+      revealed,
+      cover,
+      viewers: fogViewers(state.allies, { kind: grid.grid, feetPerCell: state.battle.map.feetPerCell, light: state.battle.weather.light, range: fogState.range, vision: fogState.vision }),
+      blockers: lightBlockers([...state.battle.walls, ...propOccluders(state.battle.props)]),
+      kind: grid.grid,
+      vision: fogState.vision,
+      look: gm ? "mist" : "dark",
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fogKey resume a névoa, a visão e quem vê
+  }, [fogKey, fogDraft, state.battle.walls, state.battle.props]);
   // Chuva, neve e afins escurecem com a luz da cena (sem sombra de parede); o que brilha sozinho não muda.
   const sceneLight = SCENE_LIGHT[state.battle.weather.light];
   // Poeira das dunas (docs/design/relevo.md, etapa 3): com clima de vento, para o lado do vento do clima.
@@ -1725,7 +1764,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               stairRelief={relief}
               fadedProps={fadedProps}
               tokenCasters={tokenCasters}
-              fog={null}
+              fog={fogInput}
               weather={state.battle.weather}
             />
           )}
@@ -1947,7 +1986,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           <MapChestLayer chests={state.battle.chests} grid={grid} editing={gm && tool === "chests"} clickable={tool === "move" && !placing && !gathering} />
 
           {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos, paredes e brilho das tochas; os tokens ficam por cima. */}
-          <FogLayer fog={state.battle.fog} sight={state.battle.sight} grid={grid} gm={gm} draft={fogDraft} />
+          {fogInput ? <GroundFogLayer view={stageView} size={stageSize} /> : <FogLayer fog={state.battle.fog} sight={state.battle.sight} grid={grid} gm={gm} draft={fogDraft} />}
 
           {/* Alcance e aura: abaixo dos tokens. */}
           <Layer listening={false}>
