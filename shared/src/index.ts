@@ -24,3 +24,4 @@ export * from "./relief";
 export * from "./reliefQueue";
 export * from "./wallPieces";
 export * from "./floor";
+export * from "./wallClearance";

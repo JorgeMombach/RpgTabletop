@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { LIMITS, MAP_TORCH_STYLES, type MapTorch, type MapTorchStyle } from "@rpg/shared";
+import { LIMITS, MAP_TORCH_STYLES, touchesWall, WALL_CLEARANCE, type MapTorch, type MapTorchStyle, type Wall } from "@rpg/shared";
 import { eraseMapTorch, pathOf } from "../erase";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
@@ -11,6 +11,11 @@ function spot(raw: Record<string, unknown>): { col: number; row: number } {
   if (!ok(raw.col) || !ok(raw.row)) fail("Posição da tocha inválida.");
   const cent = (n: number) => Math.round(n * 100) / 100;
   return { col: cent(raw.col as number), row: cent(raw.row as number) };
+}
+
+/** Tocha não fica em cima de parede (portas e janelas não contam). */
+function requireOffWall(spotAt: { col: number; row: number }, walls: Wall[]) {
+  if (touchesWall({ x: spotAt.col, y: spotAt.row }, WALL_CLEARANCE.torch, walls)) fail("Aí tem uma parede.");
 }
 
 /** Valida uma tocha fixa (do mestre ou do arquivo de sessão), sem o id. */
@@ -26,6 +31,7 @@ export const mapTorchHandlers: HandlerMap = {
     requireGm(player);
     const { battle } = store.game;
     const torch: MapTorch = { id: randomUUID(), ...parseMapTorch(payload) };
+    requireOffWall(torch, battle.walls);
     if (battle.torches.length >= LIMITS.mapTorches) fail("Limite de {n} tochas no mapa: apague algumas.", { n: LIMITS.mapTorches });
     battle.torches.push(torch);
     return [torch.id];
@@ -34,7 +40,9 @@ export const mapTorchHandlers: HandlerMap = {
   "maptorch:move": (store, player, payload) => {
     requireGm(player);
     const torch = store.game.battle.torches.find((t) => t.id === payload?.id) ?? fail("Tocha não encontrada.");
-    Object.assign(torch, spot(payload as unknown as Record<string, unknown>));
+    const next = spot(payload as unknown as Record<string, unknown>);
+    requireOffWall(next, store.game.battle.walls);
+    Object.assign(torch, next);
   },
 
   "maptorch:remove": (store, player, payload) => {

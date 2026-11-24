@@ -389,6 +389,7 @@ export const SERVER_TEXT: Record<string, [string, string]> = {
   "Loot inválido.": ["Invalid loot.", "Botín no válido."],
   "Baú não encontrado.": ["Chest not found.", "Cofre no encontrado."],
   "Já tem um baú nessa casa.": ["There's already a chest on that square.", "Ya hay un cofre en esa casilla."],
+  "Aí tem uma parede.": ["There's a wall there.", "Ahí hay una pared."],
   "Limite de {n} baús no mapa.": ["Limit of {n} chests on the map.", "Límite de {n} cofres en el mapa."],
   "Limite de {n} coisas num baú.": ["Limit of {n} things in a chest.", "Límite de {n} cosas en un cofre."],
   "Arquivo inválido: loot do baú.": ["Invalid file: chest loot.", "Archivo no válido: botín del cofre."],

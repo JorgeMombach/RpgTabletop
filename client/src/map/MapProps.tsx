@@ -124,7 +124,13 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded, drawnB
         const spot = propSpot(node.x(), node.y(), grid, e.evt.shiftKey);
         node.position(centerOf(spot, grid));
         // a posição provisória só sai quando o servidor responde (sem o objeto voltar ao lugar antigo por um quadro)
-        if (spot.col !== p.col || spot.row !== p.row) void updateProp(p, spot).finally(() => movePropDraft(null, null));
+        if (spot.col !== p.col || spot.row !== p.row)
+          void updateProp(p, spot)
+            .then((result) => {
+              // recusado (em cima de parede, por exemplo): volta para onde estava
+              if (!result.ok) node.position(centerOf(p, grid));
+            })
+            .finally(() => movePropDraft(null, null));
         else movePropDraft(null, null);
       }}
       onTransformEnd={(e) => {
@@ -133,7 +139,12 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded, drawnB
         const size = Math.min(LIMITS.propSize.max, Math.max(LIMITS.propSize.min, Math.round(p.size * node.scaleX() * 100) / 100));
         const rotation = Math.round(node.rotation());
         node.scale({ x: 1, y: 1 });
-        void updateProp(p, { size, rotation }).finally(() => movePropDraft(null, null));
+        void updateProp(p, { size, rotation })
+          .then((result) => {
+            // recusado: o giro volta ao de antes (o tamanho vem do estado)
+            if (!result.ok) node.rotation(p.rotation);
+          })
+          .finally(() => movePropDraft(null, null));
       }}
     />
   );

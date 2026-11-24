@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { LIMITS, PROP_DEFAULTS, PROP_KINDS, type MapProp, type PropKind } from "@rpg/shared";
+import { LIMITS, PROP_DEFAULTS, PROP_KINDS, propClearance, touchesWall, type MapProp, type PropKind, type Wall } from "@rpg/shared";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
@@ -45,6 +45,11 @@ export function parseProp(raw: unknown): Omit<MapProp, "id"> {
   };
 }
 
+/** Objeto não fica em cima de parede (portas e janelas não contam): metade do pé, a partir do centro. */
+function requireOffWall(prop: Pick<MapProp, "kind" | "col" | "row" | "size">, walls: Wall[]) {
+  if (touchesWall({ x: prop.col, y: prop.row }, propClearance(prop.kind, prop.size), walls)) fail("Aí tem uma parede.");
+}
+
 function findProp(props: MapProp[], id: unknown): MapProp {
   return props.find((p) => p.id === id) ?? fail("Objeto não encontrado.");
 }
@@ -54,6 +59,7 @@ export const propHandlers: HandlerMap = {
     requireGm(player);
     const { battle } = store.game;
     const prop: MapProp = { id: newId(), ...parseProp(payload) };
+    requireOffWall(prop, battle.walls);
     if (battle.props.length >= LIMITS.props) fail("Limite de {n} objetos no mapa.", { n: LIMITS.props });
     battle.props.push(prop);
     return [prop.id];
@@ -66,6 +72,7 @@ export const propHandlers: HandlerMap = {
     if (!Array.isArray(items) || items.length === 0 || items.length > LIMITS.props) fail("Objeto inválido.");
     // Confere todos antes de pôr algum.
     const added: MapProp[] = items.map((it) => ({ id: newId(), ...parseProp(it) }));
+    for (const prop of added) requireOffWall(prop, battle.walls);
     if (battle.props.length + added.length > LIMITS.props) fail("Limite de {n} objetos no mapa.", { n: LIMITS.props });
     battle.props.push(...added);
     return added.map((p) => p.id);
@@ -83,6 +90,8 @@ export const propHandlers: HandlerMap = {
     if (payload.seed !== undefined) next.seed = seedOf(payload.seed);
     if (payload.above !== undefined) next.above = flag(payload.above);
     if (payload.blocks !== undefined) next.blocks = flag(payload.blocks);
+    // só mudar de lugar ou de tamanho é conferido: objeto antigo em cima de parede ainda pode girar
+    if (next.col !== undefined || next.row !== undefined || next.size !== undefined) requireOffWall({ ...prop, ...next }, store.game.battle.walls);
     Object.assign(prop, next);
   },
 

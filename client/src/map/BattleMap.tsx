@@ -1038,7 +1038,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     } else {
       // Até o limite da cena; passou, avisa.
       const room = LIMITS.props - all.length;
-      const items = scatter(scatterSet, seen, scatterDensity, all, Math.random, grid.grid).slice(0, Math.max(0, room));
+      const items = scatter(scatterSet, seen, scatterDensity, all, Math.random, grid.grid, state.battle.walls).slice(0, Math.max(0, room));
       if (room <= 0) toast({ kind: "error", text: t("props.limit", { n: LIMITS.props }) });
       sent = items.length ? addProps(items) : Promise.resolve();
     }

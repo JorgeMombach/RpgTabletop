@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { CHEST_STYLES, COINS, LIMITS, type ChestStyle, type Coin, type Coins, type Combatant, type LootEntry, type LootInput, type MapChest } from "@rpg/shared";
+import { CHEST_STYLES, COINS, geometryOf, LIMITS, touchesWall, WALL_CLEARANCE, type ChestStyle, type Coin, type Coins, type Combatant, type LootEntry, type LootInput, type MapChest } from "@rpg/shared";
 import { roll } from "../dice";
 import { resolveLoot } from "../loot";
 import type { ServerPlayer, Store } from "../store";
@@ -75,7 +75,10 @@ function findChest(store: Store, id: unknown): MapChest {
 }
 
 function requireFree(store: Store, cell: { col: number; row: number }, except?: string) {
-  if (store.game.battle.chests.some((c) => c.id !== except && c.col === cell.col && c.row === cell.row)) fail("Já tem um baú nessa casa.");
+  const { battle } = store.game;
+  if (battle.chests.some((c) => c.id !== except && c.col === cell.col && c.row === cell.row)) fail("Já tem um baú nessa casa.");
+  // nada em cima de parede (portas e janelas não contam), pelo centro da casa
+  if (touchesWall(geometryOf(battle.map.grid).center(cell), WALL_CLEARANCE.chest, battle.walls)) fail("Aí tem uma parede.");
 }
 
 /** Baús no mapa (Fase 6, docs/design/baus.md): o mestre põe, edita, move e apaga. */
