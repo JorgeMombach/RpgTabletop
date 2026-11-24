@@ -1,4 +1,4 @@
-import { terrainAt, type MapProp, type PropKind, type TerrainChunks } from "@rpg/shared";
+import { chunkKey, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, terrainAt, type MapProp, type PropKind, type TerrainChunks } from "@rpg/shared";
 
 /**
  * A água apaga as plantas (docs/design/ajustes-rapidos.md): ao soltar uma passada de água, as plantas cujo pé ficou
@@ -15,7 +15,20 @@ function waterShare(chunks: TerrainChunks, col: number, row: number): number {
   return total > 0 ? ((values.water ?? 0) + (values.waterDark ?? 0)) / total : 0;
 }
 
-/** Plantas com o pé na água depois da passada (pelo menos metade) e que antes não estavam. */
+/** O pedaço em que cai o ponto (a mesma conta de `terrainAt`). */
+function chunkOf(col: number, row: number): string {
+  return chunkKey(Math.floor(Math.round(col * TERRAIN_FINE) / TERRAIN_CHUNK_SIDE), Math.floor(Math.round(row * TERRAIN_FINE) / TERRAIN_CHUNK_SIDE));
+}
+
+/**
+ * Plantas com o pé na água depois da passada (pelo menos metade) e que antes não estavam. Só as dos pedaços que a
+ * passada trocou são lidas (o pedaço igual nos dois é o mesmo objeto): numa floresta grande, ler todas pesaria.
+ */
 export function drownedPlants(props: MapProp[], before: TerrainChunks, after: TerrainChunks): MapProp[] {
-  return props.filter((prop) => PLANT_KINDS.has(prop.kind) && waterShare(after, prop.col, prop.row) >= 0.5 && waterShare(before, prop.col, prop.row) < 0.5);
+  return props.filter((prop) => {
+    if (!PLANT_KINDS.has(prop.kind)) return false;
+    const key = chunkOf(prop.col, prop.row);
+    if (before[key] === after[key]) return false;
+    return waterShare(after, prop.col, prop.row) >= 0.5 && waterShare(before, prop.col, prop.row) < 0.5;
+  });
 }
