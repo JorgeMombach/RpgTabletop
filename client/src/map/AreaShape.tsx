@@ -2,6 +2,7 @@ import { Circle, Group, Line, Text } from "react-konva";
 import { areaAnchor, type Area, type AreaKind, type MapConfig } from "@rpg/shared";
 import { t, type MessageKey } from "../i18n";
 import { toCellUnits, type Point } from "./geometry";
+import { areaPolygonCells } from "./effects/effectLayout";
 
 export const AREA_LABEL: Record<AreaKind, MessageKey> = {
   cone: "area.cone",
@@ -20,8 +21,6 @@ export const AREA_MEASURE: Record<AreaKind, MessageKey> = {
   cube: "area.side",
 };
 
-/** Largura da linha no 5e. */
-const LINE_WIDTH_FT = 5;
 
 type Grid = Pick<MapConfig, "cellPx" | "offsetX" | "offsetY" | "feetPerCell" | "grid">;
 
@@ -41,23 +40,8 @@ function originPoint(a: Area, g: Grid): Point {
  * origem; linha de 5 ft de largura; cubo com a origem no meio de uma face. Esfera/cilindro = círculo.
  */
 export function areaPolygon(a: Area, g: Grid): number[] {
-  const o = originPoint(a, g);
-  const px = (a.feet / g.feetPerCell) * g.cellPx;
-  const d = { x: Math.cos(a.angle), y: Math.sin(a.angle) };
-  const n = { x: -d.y, y: d.x };
-  const at = (along: number, side: number) => [o.x + d.x * along + n.x * side, o.y + d.y * along + n.y * side];
-  switch (a.kind) {
-    case "cone":
-      return [o.x, o.y, ...at(px, px / 2), ...at(px, -px / 2)];
-    case "line": {
-      const w = ((LINE_WIDTH_FT / g.feetPerCell) * g.cellPx) / 2;
-      return [...at(0, w), ...at(px, w), ...at(px, -w), ...at(0, -w)];
-    }
-    case "cube":
-      return [...at(0, px / 2), ...at(px, px / 2), ...at(px, -px / 2), ...at(0, -px / 2)];
-    default:
-      return [];
-  }
+  // a conta em casas fica em effectLayout (sem DOM, testada); aqui só vira pixel do mapa
+  return areaPolygonCells(a, g.feetPerCell).map((value, index) => (index % 2 === 0 ? g.offsetX + value * g.cellPx : g.offsetY + value * g.cellPx));
 }
 
 export function AreaShape({ area, grid, scale, label, color }: { area: Area; grid: Grid; scale: number; label?: string; color: string }) {
