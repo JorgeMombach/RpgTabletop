@@ -16,7 +16,7 @@ import { drawMapTorch } from "./mapTorchArt";
 export const TORCH_DRAG_MIME = "application/x-map-torch";
 
 /** Tamanho do desenho, em casas: as tochas, meia casa e pouco (objeto, não token); o braseiro, uma casa. A luz não muda. */
-export const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.75, iron: 0.75, brazier: 1 };
+export const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.5, iron: 0.5, brazier: 0.7 };
 
 const LABEL: Record<MapTorchStyle, MessageKey> = { stick: "torches.stick", iron: "torches.iron", brazier: "torches.brazier" };
 

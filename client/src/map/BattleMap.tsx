@@ -19,6 +19,7 @@ import { FixEffectModal } from "../components/FixEffectModal";
 import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
 import { CALIBRATE_HINT } from "../components/MapPanel";
+import { rectAllowed } from "./terrain/TerrainOptions";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
@@ -612,8 +613,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   function terrainAt(p: Point) {
     const cursor = terrainCursor.current;
     if (cursor) {
+      // no retângulo, o contorno do pincel não aparece
+      const { shape, terrain } = useApp.getState().terrainBrush;
       cursor.position(p);
-      cursor.visible(true);
+      cursor.visible(shape === "brush" || !rectAllowed(terrain));
       cursor.getLayer()?.batchDraw();
     }
     const draft = terrainRef.current;
@@ -1245,7 +1248,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (tool === "terrain" && gm) {
       const mode = useApp.getState().terrainBrush.terrain;
       if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
-      if (useApp.getState().terrainBrush.shape === "rect") {
+      if (useApp.getState().terrainBrush.shape === "rect" && rectAllowed(mode)) {
         const corner = snapFloor(toCells(p), shiftHeld);
         setTerrainRect({ from: corner, to: corner, base: { ...useApp.getState().terrain } });
         return;
@@ -1733,6 +1736,12 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           onPointerLeave={() => {
             onMouseUp();
             hideEffectTip();
+            // o mouse saiu do mapa (para o submenu, por exemplo): os contornos dos pincéis somem
+            for (const cursor of [terrainCursor.current, reliefCursor.current, floorCursor.current]) {
+              if (!cursor?.visible()) continue;
+              cursor.visible(false);
+              cursor.getLayer()?.batchDraw();
+            }
           }}
           onClick={(e) => {
             if (e.target === e.target.getStage() && tool === "move" && !placing && !pinged.current) select(null);

@@ -64,7 +64,7 @@ export function BuildPanel() {
                 role="radio"
                 aria-checked={active}
                 onClick={() => setTool(active ? "move" : id)}
-                styles={{ label: { flexDirection: "column", gap: 4 } }}
+                styles={{ inner: { height: "100%" }, label: { flexDirection: "column", justifyContent: "center", gap: 4, height: "100%" } }}
               >
                 <Icon size={18} />
                 <Text span size="xs" lh={1}>
