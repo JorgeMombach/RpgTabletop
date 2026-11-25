@@ -224,6 +224,12 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] App instalado: mexer na água e no terreno por bastante tempo; acompanhar a memória no Gerenciador de Tarefas (não pode subir sem parar). Se o app fechar, mandar o `falhas.log` (pasta do app).
 - [ ] **No app empacotado:** o zoom e a memória como no navegador (a medição do agente foi no navegador do app de desenvolvimento).
 
+### Ponte, escadas e rios (bloco 3; [docs/design/estruturas-ajustes.md](design/estruturas-ajustes.md))
+- [ ] Ponte de pedra de largura 1, 2 e 3: pilar quadrado de cada lado nas duas pontas, muretas retas, caminho de terra chegando (sem mancha clara). De dia, no entardecer e à noite (a sombra do pilar vai para o lado certo).
+- [ ] Escadas de pedra e de madeira subindo um penhasco: degraus fáceis de ver, mais claros em cima; contorno separando do chão. Escada solta subindo (borda cortada) e descendo (alçapão) como antes, com os degraus marcados.
+- [ ] Rio com o pincel mínimo (0,5): água no meio, margem estreita. Rio largo, lago e água funda: margem mais rasa e suave, sem degrau estranho na borda.
+- [ ] Mexer na água (pintar, apagar, correnteza): sem engasgo novo (a meia largura é calculada no Worker).
+
 ## Pendências pequenas
 
 ### Desempenho e estabilidade ([docs/design/desempenho.md](design/desempenho.md))

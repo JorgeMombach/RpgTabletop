@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { encodeLayer, fieldScale, toHalfFloat, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
+import { encodeLayer, fieldScale, toHalfFloat, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, waterHalfWidth, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
 
 // Água animada (docs/design/agua.md): máscara da água a partir do terreno, distância com sinal e coordenadas do rio.
 
@@ -114,5 +114,54 @@ describe("água: limites (revisão final)", () => {
     assert.equal(toHalfFloat(-2), 0xc000);
     assert.equal(toHalfFloat(0), 0);
     assert.equal(toHalfFloat(1e9), 0x7bff, "grande demais: o maior finito");
+  });
+
+  /** Faixas horizontais de água (linhas de `from` a `to`, inclusive) num campo de 80 × 120 px. */
+  function strips(...rows: [number, number][]) {
+    const width = 80;
+    const height = 120;
+    const inside = new Uint8Array(width * height);
+    for (const [from, to] of rows) for (let y = from; y <= to; y++) for (let x = 0; x < width; x++) inside[y * width + x] = 1;
+    return { width, height, sdf: signedDistance(inside, width, height) };
+  }
+
+  it("meia largura: no rio fino dá a meia largura dele; perto da margem de um largo, pelo menos o raio", () => {
+    const { width, height, sdf } = strips([10, 17], [40, 99]);
+    const half = waterHalfWidth(sdf, width, height, 16);
+    const thinEdge = half[10 * width + 40];
+    assert.ok(thinEdge > 3 && thinEdge <= 4.5, `rio fino: ${thinEdge}`);
+    assert.ok(half[40 * width + 40] >= 15, "margem do largo: o raio inteiro");
+    assert.equal(half[118 * width + 40], 0, "longe de qualquer água");
+    assert.ok(half[20 * width + 40] > 3, "logo fora da margem do fino: a largura dele");
+  });
+
+  it("meia largura: encostado na borda do campo, não lê fora nem passa da maior distância", () => {
+    const { width, height, sdf } = strips([0, 7]);
+    const half = waterHalfWidth(sdf, width, height, 16);
+    const most = Math.max(...sdf);
+    for (const value of half) assert.ok(Number.isFinite(value) && value <= most + 1e-6);
+    assert.ok(half[0] > 0, "a primeira linha é água");
+  });
+
+  it("meia largura: igual ao filtro de máximo ingênuo", () => {
+    const width = 37;
+    const height = 23;
+    let seed = 7;
+    const sdf = new Float32Array(width * height).map(() => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 10 - 3);
+    const radius = 4;
+    const fast = waterHalfWidth(sdf, width, height, radius);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let most = 0;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < width && ny < height) most = Math.max(most, sdf[ny * width + nx]);
+          }
+        }
+        assert.equal(fast[y * width + x], most, `em ${x}, ${y}`);
+      }
+    }
   });
 });

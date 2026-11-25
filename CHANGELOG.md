@@ -16,6 +16,9 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Tochas menores:** a tocha e o suporte de ferro ocupam meia casa, e o braseiro 0,7 casa.
 - **A água apaga as plantas:** pintar água ou água profunda por cima de uma floresta tira as árvores, arbustos, tocos, flores e afins que ficaram dentro da água; pedras e objetos ficam. Desfazer traz a água e as plantas de volta.
 - **Nada em cima de parede:** tocha, baú e objeto não podem ser postos nem arrastados para cima de uma parede (portas e janelas não contam). O pincel de espalhar pula esses pontos. Tokens continuam livres.
+- **Ponte de pedra:** o final ganhou um pilar quadrado de cada lado, com as muretas retas até a ponta (antes elas abriam em "V" e o caminho de pedra clara parecia uma mancha).
+- **Escadas no relevo mais fáceis de ler:** degraus marcados (espelho escuro, nariz claro), mais claros conforme sobem, e um contorno separando a escada do chão.
+- **Margem dos rios e lagos mais suave:** barranco mais raso e com menos contraste; nos rios finos ele fica estreito.
 
 ### Corrigido
 
@@ -26,6 +29,7 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Animações que paravam e não voltavam:** depois de uma queda de quadros (zoom, arrasto, relevo calculando), a água, o vento e as tochas paravam até recarregar a página. Agora trabalho pontual não conta, e se o aparelho estiver mesmo lento a animação tenta de novo sozinha depois de alguns segundos.
 - **Relevo perto de objetos:** pintar relevo ou dunas perto de uma floresta travava o mapa por um quarto de segundo a cada traço.
 - **App do mestre que fecha sozinho:** se a janela cair, ela volta sozinha e o jogo continua; o app anota a falha em `falhas.log` (na pasta dele) para diagnóstico.
+- **Rio fino:** pintado com o pincel mínimo (0,5 casa), o rio tinha mais margem de terra que água; agora a água aparece.
 
 ## [2.14.0] - 2026-11-21
 

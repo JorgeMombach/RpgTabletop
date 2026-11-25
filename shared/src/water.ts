@@ -186,6 +186,48 @@ export function signedDistance(inside: Uint8Array, width: number, height: number
 }
 
 /**
+ * Meia largura da água em volta de cada pixel (docs/design/estruturas-ajustes.md): a maior distância até a margem num
+ * quadrado de lado `2·radius + 1` em volta, em pixels do campo; longe de qualquer água, 0. Vale também logo fora da
+ * margem (o shader treme a borda e conta um pouco de fora como água). No rio fino dá a meia largura dele;
+ * perto da margem de um rio largo, pelo menos o raio (o barranco fica cheio). Filtro de máximo separável (linhas, depois
+ * colunas) em tempo linear (van Herk/Gil-Werman): num campo de 2048 px e raio de 40, o ingênuo travaria o Worker.
+ */
+export function waterHalfWidth(sdf: Float32Array, width: number, height: number, radius: number): Float32Array {
+  const reach = Math.max(0, Math.round(radius));
+  const rows = new Float32Array(width * height);
+  // a linha com `reach` zeros de cada lado: a janela tem sempre o tamanho do bloco e cobre no máximo dois blocos
+  const padded = Math.max(width, height) + 2 * reach;
+  const before = new Float32Array(padded);
+  const after = new Float32Array(padded);
+  const line = new Float32Array(padded);
+  /** Máximo deslizante de `count` valores lidos de `read`, escritos com `write` (fora do campo conta como 0). */
+  const slide = (count: number, read: (index: number) => number, write: (index: number, value: number) => void) => {
+    const block = 2 * reach + 1;
+    const total = count + 2 * reach;
+    line.fill(0, 0, total);
+    for (let index = 0; index < count; index++) line[index + reach] = Math.max(0, read(index));
+    // dentro de cada bloco: o máximo desde o começo do bloco (before) e até o fim dele (after)
+    for (let start = 0; start < total; start += block) {
+      const end = Math.min(total, start + block) - 1;
+      before[start] = line[start];
+      for (let index = start + 1; index <= end; index++) before[index] = Math.max(before[index - 1], line[index]);
+      after[end] = line[end];
+      for (let index = end - 1; index >= start; index--) after[index] = Math.max(after[index + 1], line[index]);
+    }
+    // a janela do valor `index` vai de `index` a `index + 2·reach` na linha completada
+    for (let index = 0; index < count; index++) write(index, Math.max(after[index], before[index + 2 * reach]));
+  };
+  for (let y = 0; y < height; y++) {
+    slide(width, (x) => sdf[y * width + x], (x, value) => (rows[y * width + x] = value));
+  }
+  const out = new Float32Array(width * height);
+  for (let x = 0; x < width; x++) {
+    slide(height, (y) => rows[y * width + x], (y, value) => (out[y * width + x] = value));
+  }
+  return out;
+}
+
+/**
  * Campo de um grupo de água: a quantidade de água (rasa + funda) dos pontos finos do terreno, interpolada em cada
  * pixel; mais da metade = dentro. `deep` = parte funda dessa água.
  */

@@ -104,14 +104,20 @@ float sdfAt(vec2 px) {
   return toUnit(texture(uSdfDeep, fieldUv(px)).r) + (fbm(px / 60.0) - 0.5) * 10.0 + (fbm(px / 9.0) - 0.5) * 2.5;
 }
 float bankWidth(vec2 px) { return mix(10.0, 30.0, fbm(px / 140.0 + 3.0)); }
+// Margem suave (docs/design/estruturas-ajustes.md, teste em rios-teste.html): o barranco nunca passa de 40% da meia
+// largura da água em volta (o rio fino mostra água) e a altura acompanha a largura; todas as margens 35% mais rasas.
+float halfWidthAt(vec2 px) { return texture(uSdfDeep, fieldUv(px)).b; }
+float bankW(vec2 px) { return min(bankWidth(px), halfWidthAt(px) * UNIT * 0.4); }
+float bankH(vec2 px) { return BANK * clamp(halfWidthAt(px) / 1.5, 0.4, 1.0) * 0.65; }
 // Altura: 0 fora e na crista (borda pintada), barranco descendo até a água, fundo descendo até o meio.
 float heightAt(vec2 px) {
   float s = sdfAt(px);
   if (s <= 0.0) return 0.0;
-  float bw = bankWidth(px);
-  if (s < bw) { float x = s / bw; return -BANK * x * x * (3.0 - 2.0 * x); }
+  float bw = bankW(px);
+  float bh = bankH(px);
+  if (s < bw) { float x = s / bw; return -bh * x * x * (3.0 - 2.0 * x); }
   float w = s - bw;
-  return -BANK - DEEP * (1.0 + texture(uSdfDeep, fieldUv(px)).g) * (1.0 - exp(-w / 28.0));
+  return -bh - DEEP * (1.0 + texture(uSdfDeep, fieldUv(px)).g) * (1.0 - exp(-w / 28.0));
 }
 // Relevo fino do barranco e do fundo: pedrinhas achatadas e grão, só para a luz.
 float detailHeight(vec2 px) {
@@ -149,7 +155,7 @@ float shadowAt(vec2 px, float h0) {
 // Terra do barranco e do fundo: tons quentes em camadas suaves seguindo a curva de nível; lama perto da água.
 vec3 earthMaterial(vec2 px, float h, float s, float bw) {
   vec3 dirt = textureLod(uDirt, px / 300.0, max(0.0, log2(max(float(textureSize(uDirt, 0).x) / 300.0 * uPxUnits, 1e-6)))).rgb;
-  float x = clamp(-h / BANK, 0.0, 1.2);
+  float x = clamp(-h / bankH(px), 0.0, 1.2);
   float strata = 0.94 + 0.06 * sin(h * 0.9 + fbm(px / 18.0) * 9.0);
   vec3 earth = mix(vec3(0.42, 0.31, 0.2), vec3(0.6, 0.48, 0.32), fbm(px / 40.0)) * (0.7 + 0.6 * dot(dirt, vec3(0.33))) * strata;
   earth = mix(earth, vec3(0.3, 0.26, 0.2), smoothstep(0.75, 1.0, x));
@@ -168,15 +174,16 @@ void main() {
   float s = sdfAt(px);
   float fringe = s + (fbm(px / 6.0) - 0.5) * 6.0 + (fbm(px / 23.0) - 0.5) * 5.0;
   float alpha = smoothstep(0.0, 4.0, fringe);
-  float bw = bankWidth(px);
+  float bw = bankW(px);
   float h = heightAt(px);
   float w = s - bw;
-  float sh = shadowAt(px, w > 0.0 ? -BANK : h);
+  float sh = shadowAt(px, w > 0.0 ? -bankH(px) : h);
   float crest = 1.0 - smoothstep(0.0, 3.5, abs(s - 2.5));
   float foot = smoothstep(bw - 6.0, bw, s) * (1.0 - smoothstep(bw, bw + 6.0, s));
-  vec3 terrain = earthMaterial(px, h, s, bw) * (0.38 + 0.62 * lambert(terrainNormal(px)) * mix(0.45, 1.0, sh)) * (1.0 - 0.18 * foot) * (1.0 - 0.25 * crest);
+  // margem suave: menos contraste na luz do barranco, na base escura e na crista
+  vec3 terrain = earthMaterial(px, h, s, bw) * (0.55 + 0.45 * lambert(terrainNormal(px)) * mix(0.7, 1.0, sh)) * (1.0 - 0.08 * foot) * (1.0 - 0.1 * crest);
   outTerrain = vec4(terrain, alpha);
-  outData = vec4(clamp(max(-BANK - h, 0.0) / ${DEPTH_RANGE}, 0.0, 1.0), sh, clamp((w + ${WATER_OFFSET}) / ${WATER_RANGE}, 0.0, 1.0), 1.0);
+  outData = vec4(clamp(max(-bankH(px) - h, 0.0) / ${DEPTH_RANGE}, 0.0, 1.0), sh, clamp((w + ${WATER_OFFSET}) / ${WATER_RANGE}, 0.0, 1.0), 1.0);
 }`;
 
 /** Passo da água, a cada quadro: superfície, cor pela profundidade, espuma, pedras, ondinhas do lago. */

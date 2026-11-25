@@ -1,4 +1,4 @@
-import { fieldScale, riverField, toHalfFloat, waterBounds, waterField } from "@rpg/shared";
+import { fieldScale, riverField, toHalfFloat, waterBounds, waterField, waterHalfWidth } from "@rpg/shared";
 import type { WaterGpuField, WaterJob, WaterResult } from "./waterTypes";
 
 /**
@@ -13,6 +13,9 @@ const MAX_FIELD_SIDE = 2048;
 /** Folga (casas) em volta de cada grupo de água: o barranco e a espuma cabem. */
 const MARGIN = 2;
 
+/** Até onde (casas) se procura a maior distância até a margem: a meia largura satura nisso (margem cheia). */
+const HALF_WIDTH_REACH = 2;
+
 self.onmessage = (event: MessageEvent<WaterJob>) => {
   const { id, chunks, currents, rocks, perCell: preferred } = event.data;
   const fields: WaterGpuField[] = [];
@@ -21,10 +24,13 @@ self.onmessage = (event: MessageEvent<WaterJob>) => {
     const perCell = fieldScale(rect, preferred, MAX_FIELD_SIDE);
     const field = waterField(chunks, rect, perCell);
     const river = riverField(field, currents);
-    const sdfDeep = new Uint16Array(field.width * field.height * 2);
+    // distância, parte funda e meia largura da água em volta (em casas: o barranco do rio fino fica proporcional)
+    const halfWidth = waterHalfWidth(field.sdf, field.width, field.height, HALF_WIDTH_REACH * perCell);
+    const sdfDeep = new Uint16Array(field.width * field.height * 4);
     for (let index = 0; index < field.sdf.length; index++) {
-      sdfDeep[index * 2] = toHalfFloat(field.sdf[index]);
-      sdfDeep[index * 2 + 1] = toHalfFloat(field.deep[index]);
+      sdfDeep[index * 4] = toHalfFloat(field.sdf[index]);
+      sdfDeep[index * 4 + 1] = toHalfFloat(field.deep[index]);
+      sdfDeep[index * 4 + 2] = toHalfFloat(halfWidth[index] / perCell);
     }
     // Pedra que conta: centro dentro deste grupo e na água (não no barranco seco).
     const inside = rocks.filter((rock) => {

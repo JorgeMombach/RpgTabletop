@@ -21,7 +21,8 @@ export interface WaterJob {
 }
 
 /**
- * Um grupo de água pronto para a placa de vídeo: `sdfDeep` = distância até a margem (px do campo) e parte funda;
+ * Um grupo de água pronto para a placa de vídeo: `sdfDeep` = distância até a margem (px do campo), parte funda e meia
+ * largura da água em volta (casas, até 2; docs/design/estruturas-ajustes.md), em meia precisão (RGBA, A sem uso);
  * `river` = ao longo, de que lado, força e 0. `rocks` = as pedras dentro deste grupo.
  */
 export interface WaterGpuField {
