@@ -144,6 +144,7 @@ export const floorHandlers: HandlerMap = {
       stroke,
       battle.walls,
       battle.map.wallStyle ?? "stone",
+      battle.map.frame,
     );
     if (!changed) fail("Clique dentro de um lugar fechado por paredes.");
     commit(store, next, changed);

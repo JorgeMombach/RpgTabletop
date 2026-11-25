@@ -169,7 +169,7 @@ function TokenCanvas({ c, size, down, back = false }: { c: CombatantView; size: 
     cv.width = cv.height = Math.round(size * dpr);
     const ctx = cv.getContext("2d")!;
     // Raio = metade da peça; a imagem cobre um pouco mais (ornamentos), então cabe pela extensão dela.
-    const art = tokenArt({ kind, boss, r: size / 2, color: c.color, avatar, initials: initials(c.name), down }, dpr * 1.5);
+    const art = tokenArt({ kind, boss, r: size / 2, color: c.color, avatar, initials: initials(c.name), down, groundShadow: true }, dpr * 1.5);
     const k = (size / 2 / art.extent) * dpr;
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.drawImage(art.canvas, cv.width / 2 - art.extent * k, cv.height / 2 - art.extent * k, art.extent * 2 * k, art.extent * 2 * k);

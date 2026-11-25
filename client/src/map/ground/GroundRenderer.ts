@@ -1,7 +1,8 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
+import { isWaterTerrain, terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type MapProp, type PropKind, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
+import { TorchPass } from "./torchPass";
 import { ReliefPass } from "./reliefPass";
 import type { ReliefWindow } from "./reliefTypes";
 import { faceLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
@@ -11,6 +12,15 @@ import { BridgePass } from "./bridgePass";
 import { StairPass } from "./stairPass";
 import { WallPass } from "./wallPass";
 import { WaterPass } from "./waterPass";
+import { PropPass } from "../props/propPass";
+import { HeightPass } from "./heightPass";
+import { FogPass, type FogInput } from "./fogPass";
+import { EffectPass } from "../effects/effectPass";
+import { WeatherPass, type WeatherInput } from "../weather/weatherPass";
+import { FramePass, type FrameInput } from "./framePass";
+import type { MapConfig, MapEffect } from "@rpg/shared";
+import type { TokenCaster } from "./shadowCasters";
+import type { PropDrag } from "../props/propLayout";
 import type { WaterGpuField } from "./waterTypes";
 
 /**
@@ -23,6 +33,8 @@ import type { WaterGpuField } from "./waterTypes";
 
 /** Densidade máxima da tela para o chão (acima disso o ganho não paga o peso). */
 const MAX_PIXEL_RATIO = 2;
+/** Folga do mapa de alturas em volta da tela (casas): o alcance de uma tocha (20 + 20 ft) com sobra. */
+const TORCH_MARGIN = 10;
 /** Pontos finos por pedaço (lado). */
 const CHUNK_SIDE = 32;
 
@@ -37,6 +49,9 @@ export class GroundRenderer {
   private readonly triangle: WebGLBuffer;
   private readonly water: WaterPass;
   private readonly light: LightPass;
+  /** Fontes de luz fixas (docs/design/luzes.md): corpo e chama de cada modelo. */
+  private readonly torchPass: TorchPass;
+  private torchesPending = false;
   /** Paredes, portas e janelas (docs/design/relevo.md, etapa 2). */
   private readonly walls: WallPass;
   /** Poeira das dunas com vento (etapa 3). */
@@ -54,6 +69,18 @@ export class GroundRenderer {
   /** Pontes (docs/design/pontes.md): por cima da camada do relevo (passam sobre o penhasco), por baixo das paredes. */
   private readonly bridges: BridgePass;
   private readonly stairs: StairPass;
+  /** Objetos (docs/design/objetos.md): formas num atlas, desenhados nas duas saídas de objetos. */
+  private readonly props: PropPass;
+  /** Mapa de alturas (docs/design/sombras.md): objetos e tokens, refeito a cada desenho da luz. */
+  private readonly heights: HeightPass;
+  /** Névoa de guerra (docs/design/nevoa.md): máscaras da visão e a fumaça, nas duas saídas da névoa. */
+  private readonly fog: FogPass;
+  /** Efeitos de área (docs/design/efeitos.md): máscara por efeito e desenho por tipo, na saída dos efeitos. */
+  private readonly effects: EffectPass;
+  /** Clima vivendo no mapa (docs/design/clima.md): chão, ar e brilho, nas três saídas do clima. */
+  private readonly weather: WeatherPass;
+  /** Moldura da cena (docs/design/moldura.md): a mesa de fora, a moldura e a sombra dela, na saída da moldura. */
+  private readonly frame: FramePass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -64,9 +91,30 @@ export class GroundRenderer {
    */
   readonly groundImage = document.createElement("canvas");
   readonly lightImage = document.createElement("canvas");
+  /** O corpo das fontes de luz fixas (mistura normal, abaixo das chamas). */
+  readonly torchImage = document.createElement("canvas");
   readonly flameImage = document.createElement("canvas");
   /** As paredes, portas e janelas: copiadas só quando a camada muda (visão, paredes, luz da cena). */
   readonly wallImage = document.createElement("canvas");
+  /** Objetos de baixo (no lugar da camada de objetos de baixo) e de cima dos tokens (as copas). */
+  readonly propsBelowImage = document.createElement("canvas");
+  readonly propsAboveImage = document.createElement("canvas");
+  /** A névoa (cor pré-multiplicada) e o véu cinza do explorado (a camada dele mistura por saturação). */
+  readonly fogImage = document.createElement("canvas");
+  readonly fogTintImage = document.createElement("canvas");
+  /** Os efeitos de área, acima do chão e abaixo dos tokens. */
+  readonly effectsImage = document.createElement("canvas");
+  /** O clima: a cobertura do chão, o que anda no ar e o que brilha sozinho (com o clarão). */
+  readonly weatherGroundImage = document.createElement("canvas");
+  readonly weatherAirImage = document.createElement("canvas");
+  readonly weatherGlowImage = document.createElement("canvas");
+  /** A moldura da cena com a mesa de fora (abaixo da luz da cena). */
+  readonly frameImage = document.createElement("canvas");
+  /** As imagens dos objetos mudaram no último desenho. */
+  propsFresh = false;
+  /** A imagem de brilho do clima já está vazia (não precisa ser refeita enquanto nada brilha). */
+  private weatherGlowBlank = false;
+  private propsDrawn = "";
   /** A imagem das paredes mudou no último desenho (a camada das paredes precisa redesenhar). */
   wallsFresh = false;
   /** Sobe a cada `setWalls`; com a visão e a luz, decide se a camada é refeita. */
@@ -112,6 +160,7 @@ export class GroundRenderer {
     this.terrainFramebuffer = gl.createFramebuffer();
     this.water = new WaterPass(gl);
     this.light = new LightPass(gl);
+    this.torchPass = new TorchPass(gl);
     this.relief = new ReliefPass(gl, smallScreen);
     this.walls = new WallPass(gl);
     this.dust = new DustPass(gl);
@@ -119,6 +168,14 @@ export class GroundRenderer {
     this.blank = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)), gl.NEAREST, gl.CLAMP_TO_EDGE);
     this.bridges = new BridgePass(gl);
     this.stairs = new StairPass(gl);
+    this.props = new PropPass(gl);
+    this.heights = new HeightPass(gl);
+    // tochas e efeitos sobem do chão do relevo (o mesmo que os objetos usam)
+    this.light.groundHeight = (x, y) => this.props.groundHeight(x, y);
+    this.fog = new FogPass(gl);
+    this.effects = new EffectPass(gl);
+    this.weather = new WeatherPass(gl);
+    this.frame = new FramePass(gl);
   }
 
   /**
@@ -126,16 +183,17 @@ export class GroundRenderer {
    * de piso ou o terreno do pincel (água: também a água animada). Compilar trava a placa um instante na primeira vez
    * (Direct3D); assim isso acontece ao escolher, não no meio do traço.
    */
-  warm(choice: { wall?: WallStyle | "opening"; floor?: FloorMaterial; terrain?: TerrainId; bridge?: BridgeKind; stair?: StairShape }) {
+  warm(choice: { wall?: WallStyle | "opening"; floor?: FloorMaterial; terrain?: TerrainId; bridge?: BridgeKind; stair?: StairShape; props?: true }) {
     if (this.gl.isContextLost()) return;
     if (choice.wall) this.walls.warm(choice.wall);
     if (choice.floor) this.floor.warm(choice.floor);
     if (choice.bridge) this.bridges.warm(choice.bridge);
     if (choice.stair) this.stairs.warm(choice.stair);
+    if (choice.props) this.props.warm();
     const terrain = choice.terrain;
     if (terrain) {
       this.terrain.warm(terrain, () => terrainLayerFragment(terrain));
-      if (terrain === "water" || terrain === "waterDark") this.water.warm();
+      if (isWaterTerrain(terrain)) this.water.warm();
     }
   }
 
@@ -152,6 +210,110 @@ export class GroundRenderer {
     if (this.gl.isContextLost()) return;
     this.stairs.setStairs(stairs, relief);
     this.terrainDirty = true;
+  }
+
+  /** Objetos da cena e o relevo (a base de cada um): as imagens dos objetos são refeitas no próximo desenho. */
+  setProps(props: MapProp[], relief: ReliefChunks) {
+    if (this.gl.isContextLost()) return;
+    this.props.setProps(props, relief);
+  }
+
+  /** Copas com token embaixo (meio transparentes e paradas). */
+  setPropFaded(ids: ReadonlySet<string>) {
+    this.props.setFaded(ids);
+  }
+
+  /** Objeto sendo arrastado ou mexido pelas alças. */
+  setPropDrag(id: string | null, drag: PropDrag | null) {
+    this.props.setDrag(id, drag);
+  }
+
+  /** Vento nas plantas (`null` = parado). */
+  setPropWind(wind: { strength: number; direction: [number, number] } | null) {
+    this.props.setWind(wind);
+  }
+
+  /** Ícone de um tipo de objeto (painel Objetos); `null` enquanto as aquarelas ou os programas não estão prontos. */
+  propIcon(kind: PropKind, side: number): HTMLCanvasElement | null {
+    const leaves = this.watercolors[TERRAINS.indexOf("grass")];
+    const stone = this.watercolors[TERRAINS.indexOf("stoneLight")];
+    const dirt = this.watercolors[TERRAINS.indexOf("dirtDark")];
+    if (this.gl.isContextLost() || !leaves || !stone || !dirt) return null;
+    return this.props.iconOf(kind, side, { leaves, stone, dirt });
+  }
+
+  /** Tokens que fazem sombra (posição em casas, raio e altura), já com o arrasto: o mapa de alturas é refeito no desenho. */
+  setTokenCasters(casters: TokenCaster[]) {
+    this.heights.setTokens(casters);
+  }
+
+  /** A névoa da cena (`null`: desligada ou sem visão a desenhar pela placa). */
+  setFog(input: FogInput | null) {
+    this.fog.set(input);
+  }
+
+  /** Os efeitos de área da cena (`null`: desenhados pelo Konva). */
+  setEffects(effects: MapEffect[] | null, map: Pick<MapConfig, "feetPerCell" | "grid">) {
+    this.effects.set(effects ?? [], map);
+    if (effects) this.effects.warm();
+  }
+
+  /** Arrasto do token `id` (casas): os efeitos que o acompanham andam junto. */
+  setEffectFollow(id: string | null, dx: number, dy: number) {
+    this.effects.setFollow(id, dx, dy);
+  }
+
+  /** Efeitos animando: só a imagem deles é refeita (os que mexem na luz pedem o desenho inteiro: `effectsLit`). */
+  get effecting(): boolean {
+    return this.effects.animating || this.effects.pending;
+  }
+
+  /** Algum efeito acende ou apaga a luz (a luz tremula com ele). */
+  get effectsLit(): boolean {
+    return this.light.active && (this.effects.lights().length > 0 || this.effects.darkness().length > 0);
+  }
+
+  /** Só a imagem dos efeitos, no tamanho do último desenho. */
+  renderEffects(view: GroundView, time: number) {
+    if (this.gl.isContextLost()) return;
+    this.drawEffects(view, this.canvas.width, this.canvas.height, time);
+  }
+
+  /** A moldura da cena (`null`: sem moldura). */
+  setFrame(input: FrameInput | null) {
+    this.frame.set(input);
+  }
+
+  /** O clima da cena (`null`: sem clima ou desenhado pela película de hoje). */
+  setWeather(input: WeatherInput | null) {
+    this.weather.set(input);
+  }
+
+  /** Clima na cena: anda (só as imagens dele são refeitas). */
+  get weathering(): boolean {
+    return this.weather.active;
+  }
+
+  /** Só as três imagens do clima, no tamanho do último desenho. */
+  renderWeather(view: GroundView) {
+    if (this.gl.isContextLost()) return;
+    this.drawWeather(view, this.canvas.width, this.canvas.height);
+  }
+
+  /** Névoa ligada: a fumaça anda (precisa de quadros, mas só a névoa é refeita). */
+  get fogging(): boolean {
+    return this.fog.active;
+  }
+
+  /** Só a névoa e o véu, no tamanho do último desenho (a fumaça andando, sem refazer o chão). */
+  renderFog(view: GroundView, time: number) {
+    if (this.gl.isContextLost() || !this.fog.active) return;
+    this.drawFog(view, this.canvas.width, this.canvas.height, time);
+  }
+
+  /** Planta balançando na cena: o chão precisa de quadros. */
+  get swaying(): boolean {
+    return this.props.swaying;
   }
 
   setFloors(chunks: FloorChunks) {
@@ -183,6 +345,9 @@ export class GroundRenderer {
   setReliefWindows(windows: ReliefWindow[]) {
     if (this.gl.isContextLost()) return;
     this.relief.setWindows(windows);
+    // objetos e escadas assentam na altura nova sem refazer a conta no processador (docs/design/desempenho.md)
+    this.props.acceptReliefHeights(windows);
+    this.stairs.acceptReliefHeights(windows);
     this.terrainDirty = true;
   }
 
@@ -190,6 +355,10 @@ export class GroundRenderer {
   forgetRelief(keys: string[] | "all") {
     if (this.gl.isContextLost()) return;
     this.relief.forget(keys);
+    if (keys === "all") {
+      this.props.forgetReliefHeights();
+      this.stairs.forgetReliefHeights();
+    }
     this.terrainDirty = true;
   }
 
@@ -201,7 +370,7 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending || this.stairs.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending || this.stairs.pending || this.props.pending || this.effects.pending || this.torchesPending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
@@ -386,16 +555,106 @@ export class GroundRenderer {
     gl.disable(gl.BLEND);
     this.copyTo(this.groundImage);
     this.drawWalls(view, width, height, state, lightKey, reliefLight);
-    if (!this.light.active) return;
+    this.drawProps(view, width, height, state, lightKey, reliefLight, time);
+    this.drawEffects(view, width, height, time);
+    this.drawWeather(view, width, height);
+    if (this.light.active) this.drawLight(view, width, height, time);
+    this.drawFog(view, width, height, time);
+    this.drawFrame(view, width, height);
+  }
+
+  /** A moldura da cena com a mesa de fora, copiada para a saída dela. */
+  private drawFrame(view: GroundView, width: number, height: number) {
+    const { gl } = this;
+    if (!this.frame.active) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.frame.draw(view, width, height);
+    this.copyTo(this.frameImage);
+  }
+
+  /** Os efeitos de área, copiados para a saída deles. */
+  private drawEffects(view: GroundView, width: number, height: number, time: number) {
+    const { gl } = this;
+    if (!this.effects.active) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.effects.draw(view, width, height, time);
+    this.copyTo(this.effectsImage);
+  }
+
+  /** As três imagens do clima (o relógio dele é o do servidor: `Date.now()` contra o início do clima). */
+  private drawWeather(view: GroundView, width: number, height: number) {
+    const { gl } = this;
+    if (!this.weather.active) return;
+    const now = Date.now();
+    // sem nada brilhando (o comum: só brasas e afins brilham, e o clarão é um instante), a imagem de brilho é
+    // esvaziada uma vez e não é refeita a cada quadro
+    const glowNow = this.weather.glowsAt(now);
+    const skipGlow = !glowNow && this.weatherGlowBlank;
+    this.weatherGlowBlank = !glowNow;
+    for (const [draw, target] of [
+      [() => this.weather.drawCover(view, width, height, now), this.weatherGroundImage],
+      [() => this.weather.drawAir(view, width, height, now), this.weatherAirImage],
+      [() => this.weather.drawGlow(view, width, height, now), this.weatherGlowImage],
+    ] as const) {
+      if (skipGlow && target === this.weatherGlowImage) continue;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, width, height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      draw();
+      this.copyTo(target);
+    }
+  }
+
+  /** A névoa e o véu cinza, cada um copiado para a sua saída. */
+  private drawFog(view: GroundView, width: number, height: number, time: number) {
+    const { gl } = this;
+    if (!this.fog.active) return;
+    gl.disable(gl.BLEND);
+    for (const [draw, target] of [
+      [() => this.fog.render(view, width, height, time), this.fogImage],
+      [() => this.fog.renderTint(view, width, height, time), this.fogTintImage],
+    ] as const) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, width, height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      draw();
+      this.copyTo(target);
+    }
+  }
+
+  /** Mapa de luz e, depois, chamas e brilho (só com a luz da cena na placa). */
+  private drawLight(view: GroundView, width: number, height: number, time: number) {
+    const { gl } = this;
     // Mapa de luz e, depois, chamas e brilho: o mesmo canvas, cada um copiado para a sua imagem.
-    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight));
+    // Mapa de alturas na resolução da luz, com a folga da sombra mais comprida e do alcance das tochas.
+    const shadowMargin = Math.max(5 * this.light.scene.shadowCells + 2, TORCH_MARGIN);
+    // densidade da luz (meia resolução do canvas), em pixels por pixel CSS da tela
+    this.heights.draw(view, Math.max(1, Math.ceil(width / 2)) / view.width, this.props, this.relief, time, shadowMargin);
+    this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight), this.heights.output, this.effects.lights(), this.effects.darkness());
     this.copyTo(this.lightImage);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.light.renderFlames(view, time);
+    // fontes de luz fixas: o brilho (chama, brasa, vidro, cristal) junto das chamas; o corpo na imagem dele
+    const scene = this.light.scene;
+    const lightFrom: [number, number] = [-scene.sunDirection[0], -scene.sunDirection[1]];
+    const models = this.light.fixedModels();
+    const glowPending = this.torchPass.render(view, time, true, scene.torch, lightFrom, models);
     this.copyTo(this.flameImage);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const bodyPending = this.torchPass.render(view, time, false, scene.torch, lightFrom, models);
+    this.copyTo(this.torchImage);
+    this.torchesPending = glowPending || bodyPending;
   }
 
   /** Copia o que está no canvas WebGL agora para uma das saídas (do mesmo tamanho). */
@@ -449,6 +708,36 @@ export class GroundRenderer {
     this.copyTo(this.wallImage);
     this.wallsDrawn = key;
     this.wallsFresh = true;
+  }
+
+  /**
+   * Objetos de baixo e de cima, cada um no canvas e copiado para a sua imagem: assa as formas que faltam e só redesenha
+   * quando algo mudou (objetos, visão, luz, forma nova) ou com planta balançando.
+   */
+  private drawProps(view: GroundView, width: number, height: number, state: string, lightKey: string, scene: SceneLight, time: number) {
+    const { gl } = this;
+    this.propsFresh = false;
+    const leaves = this.watercolors[TERRAINS.indexOf("grass")];
+    const stone = this.watercolors[TERRAINS.indexOf("stoneLight")];
+    const dirt = this.watercolors[TERRAINS.indexOf("dirtDark")];
+    if (!leaves || !stone || !dirt) return;
+    this.props.bake(view);
+    // a névoa entra na chave: as copas somem ou escurecem com ela
+    const key = [state, lightKey, this.props.version, this.props.swaying ? time.toFixed(3) : 0, this.fog.active ? this.fog.version : 0].join("|");
+    if (key === this.propsDrawn) return;
+    for (const [layer, target] of [["below", this.propsBelowImage], ["above", this.propsAboveImage]] as const) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, width, height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      this.props.draw(layer, view, width, height, scene, time, { leaves, stone, dirt });
+      // copas na névoa (docs/design/nevoa.md): somem no nunca visto, escurecem no explorado
+      if (layer === "above" && this.fog.active) this.fog.shadeCanopies(view, width, height, time);
+      this.copyTo(target);
+    }
+    // programa ainda compilando ou forma da tela por assar: o próximo quadro desenha de novo
+    this.propsDrawn = this.props.pending ? "" : key;
+    this.propsFresh = true;
   }
 
   /** Pesos da água do terreno para quem lê o que está embaixo (pontes e píer); sem terreno, nada. */
@@ -521,7 +810,7 @@ export class GroundRenderer {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     TERRAINS.forEach((terrain, index) => {
       if (!this.present.has(terrain)) return;
-      if ((terrain === "water" || terrain === "waterDark") && !waterDraft) return;
+      if (isWaterTerrain(terrain) && !waterDraft) return;
       const program = this.terrain.get(terrain, () => terrainLayerFragment(terrain));
       if (!program) return;
       gl.useProgram(program.program);
@@ -551,6 +840,7 @@ export class GroundRenderer {
     const { gl } = this;
     this.water.dispose();
     this.light.dispose();
+    this.torchPass.dispose();
     this.relief.dispose();
     this.walls.dispose();
     this.dust.dispose();
@@ -558,6 +848,12 @@ export class GroundRenderer {
     gl.deleteTexture(this.blank);
     this.bridges.dispose();
     this.stairs.dispose();
+    this.props.dispose();
+    this.heights.dispose();
+    this.fog.dispose();
+    this.effects.dispose();
+    this.weather.dispose();
+    this.frame.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

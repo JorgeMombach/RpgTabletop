@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, geometryOf, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
+import { cellsInsideFrame, EFFECT_PRESETS, geometryOf, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
 import { logSystem, whoIs } from "./dice";
 import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
+import { requirePointsInFrame } from "./frameRule";
 
 export const CONCENTRATION = "Concentração";
 
@@ -195,6 +196,7 @@ export const effectHandlers: HandlerMap = {
     if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
     const fields = effectFields(store, player, payload);
     const area = validArea(payload.area, store.game.battle.map.grid) ?? fail("Área inválida.");
+    requirePointsInFrame(store, [{ x: area.origin.col, y: area.origin.row }]);
     const { casterId, concentration } = fields;
     if (payload.follow === true && !casterId) fail("Para o efeito andar junto, escolha quem conjurou.");
 
@@ -215,7 +217,10 @@ export const effectHandlers: HandlerMap = {
 
   "effect:paint": (store, player, payload) => {
     if (player.role !== "gm") fail("Só o mestre pinta efeitos.");
-    const cells = paintCells(payload?.cells);
+    // moldura da cena (docs/design/moldura.md): as casas de fora ficam de fora
+    const { frame } = store.game.battle.map;
+    const cells = paintCells(payload?.cells).filter(([col, row]) => cellsInsideFrame(frame, [{ col, row }]));
+    if (cells.length === 0) return [];
     const { battle } = store.game;
     const preset = payload.preset === undefined && payload.erase === true ? undefined : effectFields(store, player, { preset: payload.preset }).preset;
     const color = preset && (isColor(payload.color) ? payload.color : EFFECT_PRESETS[preset].color);

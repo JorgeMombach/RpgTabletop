@@ -1,4 +1,4 @@
-import { randomPointIn, type GridKind, type MapProp, type PropKind } from "@rpg/shared";
+import { propClearance, randomPointIn, touchesWall, type GridKind, type MapProp, type PropKind, type Wall } from "@rpg/shared";
 
 /**
  * Pincel de espalhar (cenário, passo 3): distribui objetos nas casas pintadas, sem encavalar. Cada conjunto diz o
@@ -110,6 +110,8 @@ export function scatter(
   taken: Pick<MapProp, "kind" | "col" | "row" | "size">[],
   random: () => number,
   kind: GridKind | undefined,
+  /** Paredes: quem cairia em cima de uma fica de fora (o servidor recusaria o lote). */
+  walls: Wall[] = [],
   max = 300,
 ): ScatterProp[] {
   const picks = SETS[set];
@@ -136,8 +138,12 @@ export function scatter(
       const size = Math.round((pick.size[0] + random() * (pick.size[1] - pick.size[0])) * 100) / 100;
       const room = ROOM[pick.kind] * size;
       if (placed.some((p) => Math.hypot(p.col - col, p.row - row) < (p.r + room) * squeeze)) continue;
+      // em centésimos, como o servidor guarda (e confere a parede)
+      const sentCol = Math.round(col * 100) / 100;
+      const sentRow = Math.round(row * 100) / 100;
+      if (touchesWall({ x: sentCol, y: sentRow }, propClearance(pick.kind, size), walls)) continue;
       placed.push({ col, row, r: room });
-      out.push({ kind: pick.kind, col: Math.round(col * 100) / 100, row: Math.round(row * 100) / 100, size, rotation: Math.floor(random() * 360), seed: Math.floor(random() * 2 ** 16) });
+      out.push({ kind: pick.kind, col: sentCol, row: sentRow, size, rotation: Math.floor(random() * 360), seed: Math.floor(random() * 2 ** 16) });
     }
   }
   return out;

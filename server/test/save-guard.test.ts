@@ -125,7 +125,7 @@ function fullGame(playerId: string, gmId: string): GameState {
   };
   const weather: Required<WeatherState> = { kind: "storm", intensity: 0.8, wind: -20, light: "night", startedAt: 1_790_000_000_000 };
   const battle: Required<GameState["battle"]> = {
-    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate", gridColor: "#d8b47a", grid: "hexCols" },
+    map: { image: PNG, imageVersion: 3, showGrid: false, cellPx: 70, offsetX: 5, offsetY: -5, feetPerCell: 5, rotation: 90, imageScale: 1.5, wallStyle: "wood", tableStyle: "slate", gridColor: "#d8b47a", grid: "hexCols", frame: { cols: 30, rows: 20, style: "iron" } },
     mobs: [lich, sombra],
     npcs: [guarda],
     combat: { active: true, round: 2, turnIndex: 1, order: ["lich", "thorin", "lia"], turn: 4 },
@@ -133,7 +133,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     rolls: { request: null, reactions: [], outside: "locked" },
     effects: [effect],
     drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true, authorId: playerId } satisfies Required<Drawing>],
-    torches: [{ id: "t1", col: 4.25, row: 6.5, style: "iron" } satisfies Required<MapTorch>],
+    torches: [{ id: "t1", col: 4.25, row: 6.2, style: "sconce", color: "blue", facing: 90 } satisfies Required<MapTorch>],
     chests: [
       {
         id: "b1",

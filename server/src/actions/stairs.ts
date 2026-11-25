@@ -3,6 +3,7 @@ import { LIMITS, STAIR_MATERIALS, STAIR_SHAPES, stairPath, type BridgeWidth, typ
 import { fail } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
+import { requirePointsInFrame } from "./frameRule";
 
 /** Id curto (8 caracteres), como as pontes: o estado vai inteiro a cada ação. */
 const newId = () => randomBytes(6).toString("base64url");
@@ -64,6 +65,7 @@ export const stairHandlers: HandlerMap = {
     requireGm(player);
     const { battle } = store.game;
     const stair: Stair = { id: newId(), ...parseStair(payload) };
+    requirePointsInFrame(store, stair.points);
     if (battle.stairs.length >= LIMITS.stairs) fail("Limite de escadas da cena atingido.");
     battle.stairs.push(stair);
     return [stair.id];
@@ -80,6 +82,7 @@ export const stairHandlers: HandlerMap = {
       material: payload.material ?? stair.material,
       exit: payload.exit ?? stair.exit,
     });
+    requirePointsInFrame(store, next.points);
     Object.assign(stair, next);
   },
 

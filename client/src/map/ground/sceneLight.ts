@@ -20,7 +20,8 @@ export const SCENE_BLEND_SECONDS = 0.5;
 
 export const SCENE_LIGHT: Record<LightId, SceneLight> = {
   day: { ambient: [0.62, 0.62, 0.6], sun: [0.5, 0.48, 0.44], sunDirection: [0.55, 0.83], shadowCells: 34 / 48, torch: 0.12 },
-  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], sunDirection: [0.97, 0.25], shadowCells: 150 / 48, torch: 0.55 },
+  // Sombra do entardecer encurtada de 150/48 para 100/48 (~2,1 casas) no teste dos objetos (docs/design/objetos-teste.html).
+  dusk: { ambient: [0.36, 0.27, 0.32], sun: [0.78, 0.46, 0.24], sunDirection: [0.97, 0.25], shadowCells: 100 / 48, torch: 0.55 },
   night: { ambient: [0.08, 0.1, 0.19], sun: [0, 0, 0], sunDirection: [0.6, 0.8], shadowCells: 0, torch: 1 },
   moon: { ambient: [0.16, 0.2, 0.33], sun: [0.17, 0.21, 0.33], sunDirection: [0.45, 0.89], shadowCells: 60 / 48, torch: 1 },
 };

@@ -40,7 +40,7 @@ interface Layers {
  * Fica abaixo dos tokens. Desligado (só o mestre vê): textura parada, apagada e tracejada. O nome não fica escrito
  * no mapa: aparece ao passar o mouse (`EffectTipLayer`).
  */
-export function EffectShape({ effect, grid, scale }: { effect: MapEffect; grid: Grid; scale: number }) {
+export function EffectShape({ effect, grid, scale, outlineOnly = false }: { effect: MapEffect; grid: Grid; scale: number; outlineOnly?: boolean }) {
   const fxRef = useRef<Konva.Shape>(null);
   const fxState = useRef(newFxState());
   const layers = useRef<Layers | null>(null);
@@ -172,6 +172,32 @@ export function EffectShape({ effect, grid, scale }: { effect: MapEffect; grid: 
     dash: [8 / scale, 6 / scale],
     listening: false,
   };
+
+  // Com os efeitos na placa de vídeo (docs/design/efeitos.md): só a borda discreta do ligado e o tracejado do
+  // desligado (o desenho sai da placa).
+  if (outlineOnly) {
+    const line = animated ? { stroke: effect.color, strokeWidth: 1 / scale, opacity: 0.3 } : { stroke: effect.color, strokeWidth: 2 / scale, opacity: 0.5, dash: [8 / scale, 6 / scale] };
+    return (
+      <Group listening={false} x={drag.dx} y={drag.dy}>
+        {cells ? (
+          animated ? null : (
+            <Shape
+              {...line}
+              listening={false}
+              sceneFunc={(kctx, shape) => {
+                tracePath(kctx);
+                kctx.strokeShape(shape);
+              }}
+            />
+          )
+        ) : round ? (
+          <Circle x={origin.x} y={origin.y} radius={radius} {...line} listening={false} />
+        ) : (
+          <Line points={points} closed {...line} listening={false} />
+        )}
+      </Group>
+    );
+  }
 
   return (
     <Group listening={false} x={drag.dx} y={drag.dy}>

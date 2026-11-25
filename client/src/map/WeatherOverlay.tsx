@@ -27,7 +27,7 @@ function thunderDelay(at: number): number {
  * Com o chão em WebGL (docs/design/luz.md), `film` falso: a luz da cena vem da placa de vídeo, e a chuva, a neve e
  * afins só escurecem com `dim` (o que brilha sozinho não muda).
  */
-export function WeatherOverlay({ weather, lights = [], film = true, dim = 1 }: { weather: WeatherState; lights?: ScreenLight[]; film?: boolean; dim?: number }) {
+export function WeatherOverlay({ weather, lights = [], film = true, dim = 1, soundOnly = false }: { weather: WeatherState; lights?: ScreenLight[]; film?: boolean; dim?: number; soundOnly?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const reduce = useApp((s) => s.reduceFx);
   // Escurece junto com a luz do chão (a mesma troca de meio segundo), não de uma vez.
@@ -68,7 +68,8 @@ export function WeatherOverlay({ weather, lights = [], film = true, dim = 1 }: {
         }
       }
       prevT = t;
-      painter.frame(ctx, w, h, t, dt, clock ? clock.last(t) : null);
+      // com o clima na placa de vídeo (docs/design/clima.md), aqui fica só o trovão
+      if (!soundOnly) painter.frame(ctx, w, h, t, dt, clock ? clock.last(t) : null);
     };
     raf = requestAnimationFrame(tick);
     return () => {
@@ -76,7 +77,7 @@ export function WeatherOverlay({ weather, lights = [], film = true, dim = 1 }: {
       timers.forEach(clearTimeout);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
-  }, [kind, intensity, wind, startedAt, reduce]);
+  }, [kind, intensity, wind, startedAt, reduce, soundOnly]);
 
   // Tochas: a luz da cena some no círculo de cada uma (forte no meio, voltando aos poucos até a borda).
   // Máscaras combinadas por interseção: cada tocha tira a sua parte.
@@ -97,9 +98,9 @@ export function WeatherOverlay({ weather, lights = [], film = true, dim = 1 }: {
   const glowing = !!kind && glows(kind);
   return (
     <>
-      {kind && !glowing && <canvas ref={canvasRef} className="map-weather" style={shade < 1 ? { filter: `brightness(${shade})` } : undefined} />}
+      {kind && !glowing && <canvas ref={canvasRef} className="map-weather" style={soundOnly ? { display: "none" } : shade < 1 ? { filter: `brightness(${shade})` } : undefined} />}
       {lightLayer}
-      {glowing && <canvas ref={canvasRef} className="map-weather" />}
+      {glowing && <canvas ref={canvasRef} className="map-weather" style={soundOnly ? { display: "none" } : undefined} />}
     </>
   );
 }

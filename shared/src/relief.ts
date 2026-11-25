@@ -1,5 +1,6 @@
 import { chunkKey, decodeLayer, encodeLayer, TERRAIN_CHUNK_SIDE, TERRAIN_FINE } from "./terrain";
 import type { WeatherState } from "./types";
+import { fineInsideFrame, type FrameClip } from "./frame";
 
 /**
  * Relevo (docs/design/relevo.md): na mesma grade fina do terreno (4 pontos por casa, pedaços de 8 × 8 casas), cada
@@ -72,7 +73,7 @@ export function reliefAt(chunks: ReliefChunks, fineX: number, fineY: number): Re
  * Aplica a passada em `chunks` (muda o objeto) e devolve as chaves dos pedaços que mudaram: todo ponto da grade
  * dentro do raio de algum ponto do traço fica com o nível e o tipo pintados (pincel duro: o patamar tem borda).
  */
-export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke): string[] {
+export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke, clip?: FrameClip): string[] {
   const dunes = stroke.dune !== undefined;
   // O que a passada troca no byte: só a duna, ou só o nível e o tipo (o resto fica).
   const value = dunes ? (stroke.dune ?? 0) << DUNE_SHIFT : encodeReliefPoint({ level: stroke.level, soft: stroke.soft, dune: 0 });
@@ -84,6 +85,8 @@ export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke): string[
     for (let j = Math.ceil((y - stroke.radius) * TERRAIN_FINE); j <= Math.floor((y + stroke.radius) * TERRAIN_FINE); j++) {
       for (let i = Math.ceil((x - stroke.radius) * TERRAIN_FINE); i <= Math.floor((x + stroke.radius) * TERRAIN_FINE); i++) {
         if (Math.hypot(i / TERRAIN_FINE - x, j / TERRAIN_FINE - y) >= stroke.radius) continue;
+        // moldura da cena: o pincel não pinta fora
+        if (!fineInsideFrame(clip, i, j, TERRAIN_FINE)) continue;
         const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
         const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
         const key = chunkKey(cx, cy);
@@ -518,14 +521,14 @@ export function duneMask(chunks: ReliefChunks): DuneMask | null {
 /**
  * Altura do relevo (níveis) em qualquer ponto do mapa (casas): a bilinear do mesmo campo de `reliefHeights`, com os
  * pedaços guardados (cada um calculado na primeira leitura). Fora do alcance do relevo, 0. Para quem precisa da altura
- * no processador (o perfil das escadas).
+ * no processador (o perfil das escadas, o pé dos objetos). `cache`: alturas já calculadas para estes mesmos pedaços
+ * (`ReliefHeights` guarda entre traços).
  */
-export function reliefSampler(chunks: ReliefChunks): (x: number, y: number) => number {
+export function reliefSampler(chunks: ReliefChunks, cache = new Map<string, Float32Array | null>()): (x: number, y: number) => number {
   const cells = TERRAIN_CHUNK_SIDE / TERRAIN_FINE;
   const side = (cells + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
   const reach = Math.ceil(RELIEF_MARGIN / cells);
   const present = new Set(Object.keys(chunks));
-  const cache = new Map<string, Float32Array | null>();
   const heightsOf = (cx: number, cy: number): Float32Array | null => {
     const key = chunkKey(cx, cy);
     const known = cache.get(key);
@@ -555,3 +558,29 @@ export function reliefSampler(chunks: ReliefChunks): (x: number, y: number) => n
     return top + (bottom - top) * fy;
   };
 }
+
+/**
+ * Alturas do relevo guardadas entre traços (docs/design/desempenho.md): a altura de um pedaço leva de 7 a ~35 ms, e
+ * quem lê a altura a cada mudança do relevo (o pé dos objetos, as escadas) refazia todas no processador, travando o
+ * mapa. Aqui um traço não recalcula nada: fica a altura de antes até o Worker do relevo entregar a dos pedaços
+ * afetados (`accept`, o mesmo cálculo e o mesmo alcance de `reliefAffected`). Só pedaço nunca lido é calculado na hora.
+ */
+export class ReliefHeights {
+  private readonly cache = new Map<string, Float32Array | null>();
+
+  /** A altura em qualquer ponto para `chunks`, com as alturas guardadas. */
+  sampler(chunks: ReliefChunks): (x: number, y: number) => number {
+    return reliefSampler(chunks, this.cache);
+  }
+
+  /** A altura de um pedaço calculada pelo Worker do relevo. */
+  accept(key: string, heights: Float32Array) {
+    this.cache.set(key, heights);
+  }
+
+  /** Esquece tudo (troca de cena, relevo apagado): o próximo pedaço lido é calculado do zero. */
+  clear() {
+    this.cache.clear();
+  }
+}
+

@@ -8,9 +8,13 @@ import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { cellCenter } from "./geometry";
 import { removeProps, undo, updateProp, useMapUndo } from "./mapHistory";
+import { useWindStalled } from "./windStall";
 import { drawProp, plantLayers, PROP_EXTENT, propImage, SWAYING } from "./propArt";
 import { PlantNode, useWindClock, type PlantRegistry } from "./PlantWind";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
+import { GPU_PROP_KINDS } from "./props/propPass";
+import { useGroundOutputs } from "./ground/groundOutputs";
+import { movePropDraft } from "./props/propDrag";
 
 export const PROP_LABEL: Record<PropKind, MessageKey> = {
   tree: "props.tree",
@@ -59,11 +63,12 @@ export function propSpot(x: number, y: number, g: MapConfig, snap: boolean): { c
  * centro. Com a ferramenta Objetos, o mestre arrasta (Shift encaixa no centro da casa) e clica para escolher.
  * Em `memo`: pôr ou mexer num objeto redesenha só ele, não a camada inteira.
  */
-const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean }) {
+const PropNode = memo(function PropNode({ p, grid, scale, editing, faded, drawnByGpu }: { p: MapProp; grid: MapConfig; scale: number; editing: boolean; faded: boolean; drawnByGpu: boolean }) {
   const onPick = () => useApp.setState({ selectedPropId: p.id });
   const { x, y } = centerOf(p, grid);
   const side = PROP_EXTENT[p.kind] * 2 * grid.cellPx * p.size;
-  const image = propImage(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1));
+  // Desenhado pela placa de vídeo (docs/design/objetos.md): o nó fica só para clique, arrasto e alças.
+  const image = drawnByGpu ? undefined : propImage(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1));
   // O Konva solta um clique no fim do arrasto: esse não escolhe de novo.
   const dragged = useRef(false);
   return (
@@ -78,7 +83,7 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p:
       offsetX={side / 2}
       offsetY={side / 2}
       rotation={p.rotation}
-      opacity={faded ? 0.45 : 1}
+      opacity={drawnByGpu ? 0 : faded ? 0.45 : 1}
       listening={editing}
       draggable={editing}
       perfectDrawEnabled={false}
@@ -103,12 +108,31 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p:
         dragged.current = true;
         onPick();
       }}
+      // Desenhado pela placa de vídeo: o desenho acompanha o nó (posição livre; o Shift encaixa só ao soltar).
+      onDragMove={(e) => {
+        if (!drawnByGpu) return;
+        const node = e.target;
+        movePropDraft(p.id, { col: (node.x() - grid.offsetX) / grid.cellPx, row: (node.y() - grid.offsetY) / grid.cellPx, size: p.size, rotation: p.rotation });
+      }}
+      onTransform={(e) => {
+        if (!drawnByGpu) return;
+        const node = e.target;
+        movePropDraft(p.id, { col: (node.x() - grid.offsetX) / grid.cellPx, row: (node.y() - grid.offsetY) / grid.cellPx, size: p.size * node.scaleX(), rotation: node.rotation() });
+      }}
       onDragEnd={(e) => {
         window.setTimeout(() => (dragged.current = false), 0);
         const node = e.target;
         const spot = propSpot(node.x(), node.y(), grid, e.evt.shiftKey);
         node.position(centerOf(spot, grid));
-        if (spot.col !== p.col || spot.row !== p.row) void updateProp(p, spot);
+        // a posição provisória só sai quando o servidor responde (sem o objeto voltar ao lugar antigo por um quadro)
+        if (spot.col !== p.col || spot.row !== p.row)
+          void updateProp(p, spot)
+            .then((result) => {
+              // recusado (em cima de parede, por exemplo): volta para onde estava
+              if (!result.ok) node.position(centerOf(p, grid));
+            })
+            .finally(() => movePropDraft(null, null));
+        else movePropDraft(null, null);
       }}
       onTransformEnd={(e) => {
         // As alças mudam a escala do nó: vira tamanho do objeto, e a escala volta a 1.
@@ -116,7 +140,12 @@ const PropNode = memo(function PropNode({ p, grid, scale, editing, faded }: { p:
         const size = Math.min(LIMITS.propSize.max, Math.max(LIMITS.propSize.min, Math.round(p.size * node.scaleX() * 100) / 100));
         const rotation = Math.round(node.rotation());
         node.scale({ x: 1, y: 1 });
-        void updateProp(p, { size, rotation });
+        void updateProp(p, { size, rotation })
+          .then((result) => {
+            // recusado: o giro volta ao de antes (o tamanho vem do estado)
+            if (!result.ok) node.rotation(p.rotation);
+          })
+          .finally(() => movePropDraft(null, null));
       }}
     />
   );
@@ -134,6 +163,8 @@ interface PropLayerProps {
   tokenKey: string;
   /** Clima da cena: o vento nas plantas fica mais forte e muda de lado com ele. */
   weather: WeatherState;
+  /** O chão da placa de vídeo desenha os tipos de `GPU_PROP_KINDS` (a camada fica com os nós de clique deles). */
+  gpu: boolean;
 }
 
 /**
@@ -152,6 +183,7 @@ export const MapPropLayer = memo(function MapPropLayer({
   selectedId,
   tokens,
   weather,
+  gpu,
 }: PropLayerProps) {
   const list = props.filter((p) => p.above === (layer === "above"));
   const tr = useRef<Konva.Transformer>(null);
@@ -159,9 +191,10 @@ export const MapPropLayer = memo(function MapPropLayer({
   const registry = useRef<PlantRegistry>(new Map()).current;
   const windTime = useRef(0);
   const reduceFx = useApp((s) => s.reduceFx);
-  const windStalled = useApp((s) => s.windStalled);
+  const windStalled = useWindStalled();
   const windOn = !editing && !reduceFx && !windStalled;
-  const swaying = windOn && list.some((p) => SWAYING[p.kind]);
+  const onGpu = (p: MapProp) => gpu && GPU_PROP_KINDS.has(p.kind);
+  const swaying = windOn && list.some((p) => SWAYING[p.kind] && !onGpu(p));
   useWindClock(layerRef, registry, windTime, weather, swaying);
   const picked = editing && list.some((p) => p.id === selectedId) ? selectedId : null;
   useEffect(() => {
@@ -172,24 +205,19 @@ export const MapPropLayer = memo(function MapPropLayer({
     t.getLayer()?.batchDraw();
   }, [picked, list]);
   if (list.length === 0) return null;
-  const under = (p: MapProp) => {
-    if (layer !== "above") return false;
-    const { x, y } = centerOf(p, grid);
-    const r = grid.cellPx * p.size;
-    return tokens.some((c) => {
-      if (!c.pos) return false;
-      const center = cellCenter(c.pos, grid);
-      return Math.hypot(center.x - x, center.y - y) < r;
-    });
-  };
+  const under = (p: MapProp) => layer === "above" && propUnderToken(p, tokens, grid);
   return (
     <Layer ref={layerRef} listening={editing}>
       {list.map((p) => {
+        // Desenhado pela placa: o nó só serve para clicar e arrastar com a ferramenta Objetos. Fora dela, nem existe
+        // (com centenas de objetos, refazer os nós a cada passo do zoom travava o mapa; docs/design/desempenho.md).
+        if (onGpu(p) && !editing) return null;
         const faded = under(p);
         // Copa transparente (token embaixo) fica parada: as duas copas meio transparentes, uma sobre a outra, somariam.
-        const layers = windOn && !faded ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
+        const layers = windOn && !faded && !onGpu(p) ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
         if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} registry={registry} time={windTime} />;
-        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} />;
+        // o nó da placa não usa a escala (não tem imagem): fica fora da conta do memo e não se refaz no zoom
+        return <PropNode key={p.id} p={p} grid={grid} scale={onGpu(p) ? 1 : scale} editing={editing} faded={faded} drawnByGpu={onGpu(p)} />;
       })}
       {editing && (
         <Transformer
@@ -214,7 +242,18 @@ export const MapPropLayer = memo(function MapPropLayer({
 }, samePropLayer);
 
 function samePropLayer(a: PropLayerProps, b: PropLayerProps): boolean {
-  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey && a.weather === b.weather;
+  return a.props === b.props && a.grid === b.grid && a.scale === b.scale && a.layer === b.layer && a.editing === b.editing && a.selectedId === b.selectedId && a.tokenKey === b.tokenKey && a.weather === b.weather && a.gpu === b.gpu;
+}
+
+/** Copa com token embaixo (fica meio transparente e parada, para não esconder ninguém). */
+export function propUnderToken(p: MapProp, tokens: CombatantView[], grid: MapConfig): boolean {
+  const { x, y } = centerOf(p, grid);
+  const r = grid.cellPx * p.size;
+  return tokens.some((c) => {
+    if (!c.pos) return false;
+    const center = cellCenter(c.pos, grid);
+    return Math.hypot(center.x - x, center.y - y) < r;
+  });
 }
 
 /** Chave das posições dos tokens no mapa (muda só quando algum anda). */
@@ -225,14 +264,30 @@ export function tokenSpots(tokens: CombatantView[]): string {
 /** O desenho do objeto no catálogo. */
 export function PropIcon({ kind, size = 34 }: { kind: PropKind; size?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const gpuIcon = useGroundOutputs((state) => state.propIcon);
+  const groundFailed = useApp((state) => state.groundFailed);
   useEffect(() => {
     const ctx = ref.current?.getContext("2d");
     if (!ctx) return;
-    ctx.setTransform(2, 0, 0, 2, 0, 0);
-    ctx.clearRect(0, 0, size, size);
-    ctx.translate(size / 2, size / 2);
-    drawProp(ctx, kind, size / (PROP_EXTENT[kind] * 2), 17);
-  }, [kind, size]);
+    // Com a placa de vídeo, o ícone no desenho novo (programa compilando: tenta de novo daqui a pouco).
+    let timer = 0;
+    let tries = 0;
+    const paint = () => {
+      const icon = gpuIcon && !groundFailed ? gpuIcon(kind, size * 2) : null;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, size * 2, size * 2);
+      if (icon) {
+        ctx.drawImage(icon, 0, 0);
+        return;
+      }
+      ctx.setTransform(2, 0, 0, 2, 0, 0);
+      ctx.translate(size / 2, size / 2);
+      drawProp(ctx, kind, size / (PROP_EXTENT[kind] * 2), 17);
+      if (gpuIcon && !groundFailed && tries++ < 20) timer = window.setTimeout(paint, 400);
+    };
+    paint();
+    return () => window.clearTimeout(timer);
+  }, [kind, size, gpuIcon, groundFailed]);
   return <canvas ref={ref} width={size * 2} height={size * 2} style={{ width: size, height: size, display: "block" }} aria-hidden />;
 }
 

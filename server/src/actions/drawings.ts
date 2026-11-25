@@ -4,6 +4,7 @@ import { eraseDrawing, pathOf } from "../erase";
 import type { ServerPlayer } from "../store";
 import { fail, requireInt, requireNumber } from "../validate";
 import type { HandlerMap } from "./types";
+import { requireDrawingInFrame } from "./frameRule";
 
 /** Valida um desenho (do mestre ou do arquivo de sessão), sem o id. */
 export function parseDrawing(raw: unknown): Omit<Drawing, "id"> {
@@ -38,6 +39,7 @@ export const drawingHandlers: HandlerMap = {
     const { battle } = store.game;
     const gm = player.role === "gm";
     const drawing: Drawing = { id: randomUUID(), ...parseDrawing(payload) };
+    requireDrawingInFrame(store, drawing.points);
     if (!gm) {
       // Jogador: só setas, à vista de todos, com a marca de quem desenhou.
       if (drawing.kind !== "arrow") fail("Jogadores desenham só setas.");

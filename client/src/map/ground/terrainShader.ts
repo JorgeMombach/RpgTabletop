@@ -1,4 +1,4 @@
-import { TERRAINS, type TerrainId } from "@rpg/shared";
+import { isWaterTerrain, TERRAINS, type TerrainId } from "@rpg/shared";
 import { SCREEN } from "./reliefShader";
 import { NO_UNROLL } from "./glKit";
 
@@ -248,16 +248,52 @@ const LAYER_ART: Record<TerrainId, LayerArt> = {
     col = mix(col, col * 1.18, speck(c, 90.0, 0.98, 5.0));   // grãos claros
     return col;`,
   },
+  // Terra batida (docs/design/moldura.md, teste em moldura-teste.html): barro claro compactado, no tom da margem da
+  // água, com rachaduras finas e pedrinhas raras.
+  packedEarth: {
+    height: `
+    float crack = (1.0 - smoothstep(0.0, 0.035, voronoi(c * 1.8 + 5.0).w)) * smoothstep(0.55, 0.7, fbm(c * 0.7)) * detail(25.0);
+    vec4 v = voronoi(c * 6.0);
+    float pebble = hash(v.xy) > 0.9 ? sqrt(max(0.0, 1.0 - pow(v.z / 0.2, 2.0))) : 0.0; pebble *= detail(30.0);
+    return fbm(c * 3.0) * 0.012 + pebble * 0.02 - crack * 0.01;`,
+    color: `
+    vec3 col = mix(vec3(0.62, 0.5, 0.35), vec3(0.74, 0.62, 0.45), fbm(c * 0.9 + 3.0));
+    col *= 0.93 + 0.1 * fbm(c * 6.0);
+    col *= 0.96 + 0.06 * fineNoise(c, 55.0);
+    float crack = (1.0 - smoothstep(0.0, 0.035, voronoi(c * 1.8 + 5.0).w)) * smoothstep(0.55, 0.7, fbm(c * 0.7)) * detail(25.0);
+    col *= 1.0 - crack * 0.22;
+    vec4 v = voronoi(c * 6.0);
+    float pebble = hash(v.xy) > 0.9 ? smoothstep(0.22, 0.16, v.z) : 0.0; pebble *= detail(30.0);
+    return mix(col, vec3(0.55, 0.5, 0.45) * (0.9 + 0.2 * fineNoise(c, 70.0)), pebble * 0.7);`,
+  },
+  // Neve: branco azulado; os montinhos macios saem da altura fina (a luz faz a sombra azulada do lado de lá) e os
+  // cristais brilham em pontinhos.
+  snow: {
+    height: `
+    float drift = fbm(c * 0.8) * 0.7 + fbm(c * 2.4) * 0.3;
+    return drift * 0.16 + (fineNoise(c, 50.0) - 0.5) * 0.003;`,
+    color: `
+    float drift = fbm(c * 0.8) * 0.7 + fbm(c * 2.4) * 0.3;
+    // o lado do montinho contra o sol (de cima à esquerda) fica azulado; o de frente, mais claro
+    vec2 toSun = vec2(-0.55, -0.65) * 0.08;
+    float ahead = fbm((c + toSun) * 0.8) * 0.7 + fbm((c + toSun) * 2.4) * 0.3;
+    float facing = clamp((drift - ahead) * 9.0, -1.0, 1.0);
+    vec3 col = mix(vec3(0.84, 0.88, 0.95), vec3(0.97, 0.98, 1.0), drift);
+    col = facing < 0.0 ? mix(col, col * vec3(0.74, 0.82, 0.96), -facing) : mix(col, vec3(1.0), facing * 0.35);
+    col *= 0.97 + 0.04 * fineNoise(c, 50.0);
+    return mix(col, vec3(1.0), speck(c, 30.0, 0.985, 2.0) * 0.6);`,
+  },
   // Água pintada: só a aquarela, e só durante a passada do pincel (depois quem desenha é o passo da água).
   water: { height: `return 0.0;`, color: `return w;` },
   waterDark: { height: `return 0.0;`, color: `return w;` },
+  sea: { height: `return 0.0;`, color: `return w;` },
 };
 
 /** Programa da camada de um terreno: cobertura pela borda irregular e cor com o detalhe e a luz (pré-multiplicada). */
 export function terrainLayerFragment(terrain: TerrainId): string {
   const index = TERRAINS.indexOf(terrain);
   const art = LAYER_ART[terrain];
-  const water = terrain === "water" || terrain === "waterDark";
+  const water = isWaterTerrain(terrain);
   return `${COMMON}${art.grass ? GRASS : ""}
 float layerHeight(vec2 c) { ${art.height} }
 vec3 layerColor(vec2 c, vec3 w) { ${art.color} }

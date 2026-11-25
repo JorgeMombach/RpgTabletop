@@ -8,7 +8,7 @@ const base = () =>
     self: { id: "a", name: "Ana" },
     allies: [{ id: "x", hp: 5 }],
     log: [],
-    battle: { walls: [{ id: "p", door: { open: false } }], fog: { enabled: false }, sight: {}, drawings: [], props: [{ id: "o", col: 1 }], bridges: [{ id: "b", width: 2 }], stairs: [{ id: "e", width: 1 }], mobs: [{ id: "m" }], combat: { round: 1 } },
+    battle: { walls: [{ id: "p", door: { open: false } }], fog: { enabled: false }, sight: {}, drawings: [], props: [{ id: "o", col: 1 }], bridges: [{ id: "b", width: 2 }], stairs: [{ id: "e", width: 1 }], currents: [], mobs: [{ id: "m" }], combat: { round: 1 } },
   }) as unknown as ClientState;
 
 describe("reaproveitar o estado", () => {
@@ -50,6 +50,8 @@ describe("reaproveitar o estado", () => {
     assert.equal(change((s) => ((s.battle.bridges[0] as { width: number }).width = 3)), true);
     // Escadas: só o mapa desenha.
     assert.equal(change((s) => ((s.battle.stairs[0] as { width: number }).width = 2)), true);
+    // Correntezas da água: só o mapa desenha (riscar a correnteza não redesenha os painéis).
+    assert.equal(change((s) => (s.battle.currents = [...s.battle.currents, { id: "c", points: [0, 0, 2, 0] }])), true);
     assert.equal(change((s) => ((s.battle.mobs[0] as { pos?: unknown }).pos = { col: 1, row: 1 })), false);
     assert.equal(change((s) => ((s.allies[0] as { hp: number }).hp = 1)), false);
     assert.equal(change((s) => (s.battle.combat.round = 2)), false);

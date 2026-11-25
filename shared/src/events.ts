@@ -2,7 +2,7 @@
 import type { FloorStroke } from "./floor";
 import type { ReliefStroke } from "./relief";
 import type { TerrainChunk, TerrainStroke } from "./terrain";
-import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, MapTorchStyle, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
+import type { Abilities, Ability, BossPhase, ClientState, Coins, Drawing, Handout, TableRules, Recharge, Size, TurnAction, EffectPreset, GameState, GridPos, MapConfig, SceneFrame, MapTorchStyle, MapTorchColor, PublicPlayer, Role, LightId, OutsideRolls, RollKind, RollMode, SoundChannel, SoundSource, WeatherId, ChestStyle, LootInput, WallStyle, PropKind, TableRow, JournalEntry, JournalTag } from "./types";
 import type { Bridge } from "./bridge";
 import type { Stair } from "./stair";
 import type { FogRect } from "./fog";
@@ -137,7 +137,8 @@ export interface MapImagePayload {
   image: string | null;
 }
 
-export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle" | "gridColor" | "grid">>;
+/** Ajustes do mapa; `frame: null` tira a moldura. */
+export type GridInput = Partial<Pick<MapConfig, "showGrid" | "cellPx" | "offsetX" | "offsetY" | "rotation" | "imageScale" | "wallStyle" | "tableStyle" | "gridColor" | "grid">> & { frame?: SceneFrame | null };
 
 export interface TemplateInput extends CombatantInput {
   /** Presente = edição; ausente = criação. */
@@ -360,9 +361,9 @@ export interface ActionPayloads {
   "current:update": { id: string; points: number[] };
   /** Mestre: parede (ou porta, fechada) de um canto do grid a outro. */
   /** Mestre: tocha fixa em qualquer ponto do mapa (em casas). */
-  "maptorch:add": { col: number; row: number; style: MapTorchStyle };
+  "maptorch:add": { col: number; row: number; style: MapTorchStyle; color?: MapTorchColor; facing?: number };
   /** Mestre: arrasta a tocha. */
-  "maptorch:move": { id: string; col: number; row: number };
+  "maptorch:move": { id: string; col: number; row: number; facing?: number };
   /** Mestre: tira uma tocha (desfazer a que acabou de pôr). */
   "maptorch:remove": { id: string };
   /** Mestre: borracha nas tochas (`points` = col, row em casas): a tocha tocada some. */
@@ -722,6 +723,8 @@ export const LIMITS = {
   areaFeet: { min: 5, max: 500 },
   /** Limite de coordenada de célula (evita tokens perdidos no infinito). */
   gridCoord: 10_000,
+  /** Moldura da cena: largura e altura em casas. */
+  frameCells: { min: 4, max: 200 },
 } as const;
 
 export const DICE = [4, 6, 8, 10, 12, 20, 100] as const;

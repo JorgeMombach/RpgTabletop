@@ -288,6 +288,19 @@ export interface MapConfig {
   gridColor?: string;
   /** Grade da cena (Passo 16). Ausente = quadrado (arquivos antigos abrem iguais). */
   grid?: GridKind;
+  /** Moldura da cena (docs/design/moldura.md): a área de jogo; fora é a mesa e nada é posto lá. Ausente = sem moldura. */
+  frame?: SceneFrame;
+}
+
+/** Desenhos de moldura: madeira entalhada, bronze dourado, ferro com rebites e pedra. */
+export const FRAME_STYLES = ["wood", "bronze", "iron", "stone"] as const;
+export type FrameStyle = (typeof FRAME_STYLES)[number];
+
+/** Moldura da cena: da casa 0, 0 até `cols` × `rows` casas. */
+export interface SceneFrame {
+  cols: number;
+  rows: number;
+  style: FrameStyle;
 }
 
 /** Mesa em volta do mapa: madeira escura, tapete de couro (padrão de jogo novo) ou ardósia. */
@@ -581,16 +594,27 @@ export interface WallWindow {
   closed?: boolean;
 }
 
-/** Desenhos de tocha fixa que o mestre escolhe: fincada, de ferro ou braseiro. */
-export const MAP_TORCH_STYLES = ["stick", "iron", "brazier"] as const;
+/**
+ * Modelos de fonte de luz fixa (docs/design/luzes.md): as tochas (fincada, de ferro, braseiro), a arandela presa à
+ * parede, fogueira, lanterna, castiçal com velas, candelabro de pé, lamparina a óleo e orbe mágico.
+ */
+export const MAP_TORCH_STYLES = ["stick", "iron", "brazier", "sconce", "campfire", "lantern", "candles", "candelabra", "oilLamp", "orb"] as const;
 export type MapTorchStyle = (typeof MAP_TORCH_STYLES)[number];
 
-/** Tocha fixa no mapa, em qualquer ponto (em casas, fracionadas): mesma luz da tocha dos tokens. */
+/** Cores da luz: chama comum (o padrão), azul (fogo mágico), verde (fogo-fátuo), roxo e branco frio. */
+export const MAP_TORCH_COLORS = ["flame", "blue", "green", "purple", "white"] as const;
+export type MapTorchColor = (typeof MAP_TORCH_COLORS)[number];
+
+/** Fonte de luz fixa no mapa, em qualquer ponto (em casas, fracionadas). */
 export interface MapTorch {
   id: string;
   col: number;
   row: number;
   style: MapTorchStyle;
+  /** Cor da luz; sem campo, a chama comum. */
+  color?: MapTorchColor;
+  /** Só na arandela: para onde ela aponta, saindo da parede (graus, 0 = direita, 90 = baixo). */
+  facing?: number;
 }
 
 /** Desenhos de baú que o mestre escolhe: arca de madeira, baú de ferro ou arca ornamentada. */

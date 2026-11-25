@@ -201,6 +201,18 @@ export function propOccluders(props: MapProp[]): Wall[] {
 type P = { x: number; y: number };
 
 /** Os segmentos se cruzam de verdade (encostar na ponta não conta). */
+/**
+ * A linha de (ax, ay) a (bx, by) cruza a parede: a mesma conta de `crosses`, sem criar objetos (a visão roda isto para
+ * cada casa e cada parede perto: criar dois pontos por teste deixava a conta 3 a 4 vezes mais lenta).
+ */
+function crossesWall(ax: number, ay: number, bx: number, by: number, w: Wall): boolean {
+  const cx = w.from.col, cy = w.from.row, dx = w.to.col, dy = w.to.row;
+  const abx = bx - ax, aby = by - ay;
+  if (Math.sign(abx * (cy - ay) - aby * (cx - ax)) * Math.sign(abx * (dy - ay) - aby * (dx - ax)) >= 0) return false;
+  const cdx = dx - cx, cdy = dy - cy;
+  return Math.sign(cdx * (ay - cy) - cdy * (ax - cx)) * Math.sign(cdx * (by - cy) - cdy * (bx - cx)) < 0;
+}
+
 function crosses(a: P, b: P, c: P, d: P): boolean {
   const o = (p: P, q: P, r: P) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
   return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
@@ -215,6 +227,25 @@ const NUDGE = { x: 0.5013, y: 0.5071 };
 /** No hex (Passo 16), o mesmo empurrãozinho em volta do centro; o alvo da visão leva outro, para a linha nunca passar exata por um vértice. */
 const NUDGE_HEX = { x: 0.0013, y: 0.0071 };
 const TARGET_NUDGE_HEX = { x: 0.0031, y: -0.0023 };
+
+/**
+ * Casa vista em parte (decisão do dono, 2026-11-25): além do centro, pontos a esta fração do caminho do centro até cada
+ * canto. Se qualquer um aparece, a casa é vista (a borda da visão na névoa sai lisa, sem degrau atrás da ponta das
+ * paredes). Os pontos ficam dentro da casa: parede no lado dela continua escondendo a casa vizinha.
+ */
+const PARTIAL_TOWARD_CORNER = 0.7;
+
+/** As 8 casas em volta, no quadrado (a beira da sombra pode ser na diagonal). */
+const SQUARE_AROUND: [number, number][] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+
+/** Os pontos da casa que contam para ela ser vista (o primeiro é o centro, que mede o alcance). */
+function sightSamples(cell: GridPos, kind: GridKind | undefined): P[] {
+  const center = referencePoint(cell, kind, TARGET_NUDGE_HEX);
+  const corners = !kind || kind === "square"
+    ? [{ x: cell.col, y: cell.row }, { x: cell.col + 1, y: cell.row }, { x: cell.col, y: cell.row + 1 }, { x: cell.col + 1, y: cell.row + 1 }]
+    : geometryOf(kind).polygon(cell);
+  return [center, ...corners.map((corner) => ({ x: center.x + (corner.x - center.x) * PARTIAL_TOWARD_CORNER, y: center.y + (corner.y - center.y) * PARTIAL_TOWARD_CORNER }))];
+}
 
 /** Ponto de referência da casa: no quadrado, o centro com `NUDGE`; no hex, o centro da geometria com o empurrão dado. */
 function referencePoint(cell: GridPos, kind: GridKind | undefined, nudge = NUDGE_HEX): P {
@@ -342,13 +373,20 @@ export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number
     );
     // A tocha fixa fica em qualquer ponto: conta a casa inteira onde ela cai.
     for (let dc = 0; dc < v.span; dc++) for (let dr = 0; dr < v.span; dr++) add(Math.floor(v.pos.col) + dc, Math.floor(v.pos.row) + dr);
+    const hidden: GridPos[] = [];
+    const blockedFrom = (point: P) => near.some((w) => crossesWall(o.x, o.y, point.x, point.y, w));
     for (let col = Math.floor(o.x - r); col <= Math.ceil(o.x + r); col++) {
       for (let row = Math.floor(o.y - r); row <= Math.ceil(o.y + r); row++) {
         const t = { x: col + NUDGE.x, y: row + NUDGE.y };
         if (Math.hypot(t.x - o.x, t.y - o.y) > r) continue;
-        if (near.some((w) => crosses(o, t, { x: w.from.col, y: w.from.row }, { x: w.to.col, y: w.to.row }))) continue;
-        add(col, row);
+        if (blockedFrom(t)) hidden.push({ col, row });
+        else add(col, row);
       }
+    }
+    // Vista em parte: só uma casa na beira da sombra (vizinha de uma vista pelo centro) pode ter um canto à vista.
+    for (const cell of hidden) {
+      if (!SQUARE_AROUND.some(([dc, dr]) => seen.has(`${cell.col + dc},${cell.row + dr}`))) continue;
+      if (sightSamples(cell, undefined).slice(1).some((point) => !blockedFrom(point))) add(cell.col, cell.row);
     }
   }
   // Luz de tochas (de qualquer um): a área iluminada aparece para quem tem linha de visão até ela,
@@ -357,11 +395,12 @@ export function sightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number
     const reach = lightReachFeet / feetPerCell;
     for (const c of sightCells(lights, walls, feetPerCell)) {
       if (seen.has(`${c.col},${c.row}`)) continue;
-      const t = { x: c.col + NUDGE.x, y: c.row + NUDGE.y };
+      const samples = sightSamples(c, undefined);
+      const t = samples[0];
       const visible = viewers.some((v) => {
         const o = { x: v.pos.col + v.span / 2 + 0.0013, y: v.pos.row + v.span / 2 + 0.0071 };
         if (Math.hypot(t.x - o.x, t.y - o.y) > reach) return false;
-        return !solid.some((w) => crosses(o, t, { x: w.from.col, y: w.from.row }, { x: w.to.col, y: w.to.row }));
+        return samples.some((point) => !solid.some((w) => crossesWall(o.x, o.y, point.x, point.y, w)));
       });
       if (visible) add(c.col, c.row);
     }
@@ -399,19 +438,24 @@ function hexSightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, li
     const middle = v.point ?? geometry.shapeCenter(v.pos, v.size);
     return { x: middle.x + NUDGE_HEX.x, y: middle.y + NUDGE_HEX.y };
   };
-  const target = (cell: GridPos) => referencePoint(cell, kind, TARGET_NUDGE_HEX);
-  const blocked = (from: P, to: P, list: Wall[]) => list.some((w) => crosses(from, to, { x: w.from.col, y: w.from.row }, { x: w.to.col, y: w.to.row }));
+  const blocked = (from: P, to: P, list: Wall[]) => list.some((w) => crossesWall(from.x, from.y, to.x, to.y, w));
   for (const v of viewers) {
     const origin = originOf(v);
     const reach = v.feet / feetPerCell + (v.point ? 0.5 : geometry.drawSpan(v.size) / 2);
     const near = wallsNear(solid, origin, reach);
     // As casas de quem vê (a da tocha fixa: onde ela cai) contam sempre.
     for (const own of v.point ? [geometry.cellAt(v.point)] : geometry.footprint(v.pos, v.size)) add(own);
+    const hidden: GridPos[] = [];
     for (const cell of cellsInBox(geometry, origin.x - reach, origin.y - reach, origin.x + reach, origin.y + reach)) {
-      const point = target(cell);
+      const point = referencePoint(cell, kind, TARGET_NUDGE_HEX);
       if (Math.hypot(point.x - origin.x, point.y - origin.y) > reach) continue;
-      if (blocked(origin, point, near)) continue;
-      add(cell);
+      if (blocked(origin, point, near)) hidden.push(cell);
+      else add(cell);
+    }
+    // Vista em parte: só na beira da sombra (vizinha de uma vista pelo centro).
+    for (const cell of hidden) {
+      if (!geometry.neighbors(cell).some((next) => seen.has(`${next.col},${next.row}`))) continue;
+      if (sightSamples(cell, kind).slice(1).some((sample) => !blocked(origin, sample, near))) add(cell);
     }
   }
   // Luz de tochas: a área iluminada aparece para quem tem linha de visão até ela (como no quadrado).
@@ -419,10 +463,11 @@ function hexSightCells(viewers: Viewer[], walls: Wall[], feetPerCell: number, li
     const reach = lightReachFeet / feetPerCell;
     for (const cell of hexSightCells(lights, walls, feetPerCell, [], lightReachFeet, kind)) {
       if (seen.has(`${cell.col},${cell.row}`)) continue;
-      const point = target(cell);
+      const samples = sightSamples(cell, kind);
+      const point = samples[0];
       const visible = viewers.some((v) => {
         const origin = originOf(v);
-        return Math.hypot(point.x - origin.x, point.y - origin.y) <= reach && !blocked(origin, point, solid);
+        return Math.hypot(point.x - origin.x, point.y - origin.y) <= reach && samples.some((sample) => !blocked(origin, sample, solid));
       });
       if (visible) add(cell);
     }

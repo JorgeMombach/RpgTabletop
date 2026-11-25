@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { encodeLayer, fieldScale, toHalfFloat, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
+import { encodeLayer, fieldScale, toHalfFloat, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, waterHalfWidth, paintRelief, SHORE_BANK, SHORE_BEACH, SHORE_NONE, SHORE_ROCK, type ReliefChunks, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
 
 // Água animada (docs/design/agua.md): máscara da água a partir do terreno, distância com sinal e coordenadas do rio.
 
@@ -114,5 +114,124 @@ describe("água: limites (revisão final)", () => {
     assert.equal(toHalfFloat(-2), 0xc000);
     assert.equal(toHalfFloat(0), 0);
     assert.equal(toHalfFloat(1e9), 0x7bff, "grande demais: o maior finito");
+  });
+
+  /** Faixas horizontais de água (linhas de `from` a `to`, inclusive) num campo de 80 × 120 px. */
+  function strips(...rows: [number, number][]) {
+    const width = 80;
+    const height = 120;
+    const inside = new Uint8Array(width * height);
+    for (const [from, to] of rows) for (let y = from; y <= to; y++) for (let x = 0; x < width; x++) inside[y * width + x] = 1;
+    return { width, height, sdf: signedDistance(inside, width, height) };
+  }
+
+  it("meia largura: no rio fino dá a meia largura dele; perto da margem de um largo, pelo menos o raio", () => {
+    const { width, height, sdf } = strips([10, 17], [40, 99]);
+    const half = waterHalfWidth(sdf, width, height, 16);
+    const thinEdge = half[10 * width + 40];
+    assert.ok(thinEdge > 3 && thinEdge <= 4.5, `rio fino: ${thinEdge}`);
+    assert.ok(half[40 * width + 40] >= 15, "margem do largo: o raio inteiro");
+    assert.equal(half[118 * width + 40], 0, "longe de qualquer água");
+    assert.ok(half[20 * width + 40] > 3, "logo fora da margem do fino: a largura dele");
+  });
+
+  it("meia largura: encostado na borda do campo, não lê fora nem passa da maior distância", () => {
+    const { width, height, sdf } = strips([0, 7]);
+    const half = waterHalfWidth(sdf, width, height, 16);
+    const most = Math.max(...sdf);
+    for (const value of half) assert.ok(Number.isFinite(value) && value <= most + 1e-6);
+    assert.ok(half[0] > 0, "a primeira linha é água");
+  });
+
+  it("meia largura: igual ao filtro de máximo ingênuo", () => {
+    const width = 37;
+    const height = 23;
+    let seed = 7;
+    const sdf = new Float32Array(width * height).map(() => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 10 - 3);
+    const radius = 4;
+    const fast = waterHalfWidth(sdf, width, height, radius);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let most = 0;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < width && ny < height) most = Math.max(most, sdf[ny * width + nx]);
+          }
+        }
+        assert.equal(fast[y * width + x], most, `em ${x}, ${y}`);
+      }
+    }
+  });
+});
+
+// Mar (docs/design/mar.md): borda aberta (sem margem onde a pintura acaba) e o tipo de costa pelo lado de terra.
+describe("mar: campo da água", () => {
+  const PER = 4;
+  /** O campo do primeiro grupo de água (como o Worker faz). */
+  function fieldOf(chunks: TerrainChunks, relief?: ReliefChunks) {
+    const [rect] = waterBounds(chunks, 2);
+    assert.ok(rect, "há água");
+    return { rect, field: waterField(chunks, rect, PER, relief) };
+  }
+  /** O pixel do campo na casa (col, row) do mapa (o meio dela). */
+  const pixel = (rect: { col: number; row: number }, width: number, col: number, row: number) => Math.floor((row - rect.row + 0.5) * PER) * width + Math.floor((col - rect.col + 0.5) * PER);
+
+  it("borda aberta: o mar pintado sozinho continua além da pintura, sem costa", () => {
+    const chunks = paint({}, "sea", (col, row) => col >= 4 && col < 12 && row >= 4 && row < 12, 20, 20);
+    const { rect, field } = fieldOf(chunks);
+    // na última casa pintada e na primeira de fora: ainda água, ainda mar
+    for (const col of [11, 12]) {
+      const index = pixel(rect, field.width, col, 8);
+      assert.ok(field.sdf[index] > 0, `água em ${col}`);
+      assert.ok(field.sea[index] > 0.5, `mar em ${col}`);
+    }
+    assert.ok(field.shore.every((kind) => kind === SHORE_NONE), "sem costa nenhuma");
+  });
+
+  it("borda aberta: o mar vai até a beira do campo (sem terra falsa na folga, que faria costa e espuma)", () => {
+    const chunks = paint({}, "sea", (col, row) => col >= 4 && col < 12 && row >= 4 && row < 12, 20, 20);
+    const { field } = fieldOf(chunks);
+    const middle = Math.floor(field.height / 2) * field.width;
+    for (let x = 0; x < field.width; x++) assert.ok(field.sdf[middle + x] > 0, `água no pixel ${x} de ${field.width}`);
+  });
+
+  it("costa: areia dá praia, pedra e relevo dão pedra, grama plana dá margem", () => {
+    const chunks: TerrainChunks = {};
+    paint(chunks, "sea", (col) => col >= 10, 20, 24);
+    paint(chunks, "sand", (col, row) => col < 10 && row < 8, 20, 24);
+    paint(chunks, "stone", (col, row) => col < 10 && row >= 8 && row < 16, 20, 24);
+    paint(chunks, "grass", (col, row) => col < 10 && row >= 16, 20, 24);
+    const relief: ReliefChunks = {};
+    paintRelief(relief, { level: 1, soft: false, radius: 2, points: [8, 22] });
+    const { rect, field } = fieldOf(chunks, relief);
+    const kindAt = (col: number, row: number) => field.shore[pixel(rect, field.width, col, row)];
+    assert.equal(kindAt(9, 3), SHORE_BEACH);
+    assert.ok(field.sdf[pixel(rect, field.width, 9, 3)] < 0, "a areia é terra (há costa)");
+    assert.equal(kindAt(9, 11), SHORE_ROCK);
+    assert.equal(kindAt(9, 18), SHORE_BANK, "grama plana");
+    assert.equal(kindAt(9, 22), SHORE_ROCK, "grama com relevo: penhasco");
+    // dentro do mar, perto da costa: o tipo da costa ao lado (onde a onda quebra)
+    assert.equal(kindAt(10, 3), SHORE_BEACH, "mar junto à praia");
+    assert.equal(kindAt(10, 11), SHORE_ROCK, "mar junto à pedra");
+    assert.equal(kindAt(15, 3), SHORE_NONE, "mar longe da costa");
+  });
+
+  it("mar encostando em lago: água dos dois lados, sem costa entre eles", () => {
+    const chunks: TerrainChunks = {};
+    paint(chunks, "sea", (col, row) => col >= 10 && row >= 2 && row < 18, 24, 20);
+    paint(chunks, "water", (col, row) => col >= 4 && col < 10 && row >= 6 && row < 14, 24, 20);
+    const { rect, field } = fieldOf(chunks);
+    for (const col of [9, 10]) assert.ok(field.sdf[pixel(rect, field.width, col, 10)] > 0, `água em ${col}`);
+    assert.ok(field.sea[pixel(rect, field.width, 6, 10)] < 0.5, "o lago não é mar");
+  });
+
+  it("lago sozinho: sem mar e sem costa (igual a antes)", () => {
+    const chunks = paint({}, "water", (col, row) => col >= 4 && col < 12 && row >= 4 && row < 12, 20, 20);
+    const { field } = fieldOf(chunks);
+    assert.ok(field.sea.every((value) => value === 0));
+    assert.ok(field.shore.every((kind) => kind === SHORE_NONE));
+    assert.ok(field.sdf[0] < 0, "a folga em volta do lago é terra (há margem)");
   });
 });

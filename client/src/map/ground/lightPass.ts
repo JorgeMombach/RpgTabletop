@@ -1,6 +1,10 @@
+import type { TorchFlicker } from "../torchModels";
+import type { TorchDraw } from "./torchPass";
 import { blockersNear, lightPolygon, stopAtWall, sunShadows, triangulate, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
 import { bindTextures, cellRectOnScreen, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
-import { AMBIENT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
+import { AMBIENT_FRAGMENT, AREA_DARK_FRAGMENT, AREA_LIGHT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, HEIGHT_SUN_FRAGMENT, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
+import type { AreaLight } from "../effects/effectPass";
+import type { HeightMap } from "./heightPass";
 import { blendSceneLight, INDOOR_SUN, SCENE_BLEND_SECONDS, SCENE_LIGHT, type SceneLight } from "./sceneLight";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
 
@@ -19,6 +23,15 @@ export interface LightSource {
   kind: "fixed" | "held";
   /** Tocha fixa: onde fica a base da chama (o corpo é desenhado no Konva). */
   flame?: { x: number; y: number };
+  /** Altura da chama (casas), para a sombra de objetos e tokens (docs/design/sombras.md). */
+  height: number;
+  /** Raio do portador (casas): a tocha do token não faz sombra dele mesmo. Fixa: 0. */
+  skip: number;
+  /** Cor da luz (docs/design/luzes.md); `null` = a chama de sempre, entre laranja e amarelo. */
+  color: [number, number, number] | null;
+  flicker: TorchFlicker;
+  /** Fonte fixa: o desenho dela (o passo das fontes de luz desenha corpo e chama; aqui sai só a luz). */
+  model?: Omit<TorchDraw, "seed">;
 }
 
 export interface LightingInput {
@@ -44,6 +57,8 @@ const SOFT_ORIGINS: [number, number][] = [
 const SUN_SAMPLES = 5;
 /** Raio do quadrado em volta da chama (casas): chama, brilho e faíscas cabem. */
 const FLAME_BOX = 1.1;
+/** Tremor da luz no shader: chama, pouco, pulso. */
+const FLICKER_CODE: Record<TorchFlicker, number> = { fire: 0, soft: 1, pulse: 2 };
 
 interface TorchMesh {
   source: LightSource;
@@ -78,6 +93,16 @@ export class LightPass {
   private readonly torch: Program;
   private readonly lightOut: Program;
   private readonly flame: Program;
+  /** Sombra do sol e da lua de objetos e tokens, pelo mapa de alturas (docs/design/sombras.md). */
+  private readonly heightSun: Program;
+  /** Luz e escuridão dos efeitos de área (docs/design/efeitos.md). */
+  private readonly areaLight: Program;
+  private readonly areaDark: Program;
+  /** Leque de cada luz de área (meio, alcance): refeito só quando as paredes mudam. */
+  private areaFans = new Map<string, { buffer: WebGLBuffer; count: number }>();
+  private readonly boxBuffer: WebGLBuffer;
+  /** Textura vazia (1 × 1) para o mapa de alturas quando não há (o sampler não pode ficar sem textura). */
+  private readonly blank: WebGLTexture;
   private readonly triangle: WebGLBuffer;
   private readonly framebuffer: WebGLFramebuffer | null;
   private lightTexture: WebGLTexture | null = null;
@@ -112,6 +137,11 @@ export class LightPass {
     this.shadow = linkProgram(gl, GEOMETRY_VERTEX, SHADOW_FRAGMENT, "aCell");
     this.torch = linkProgram(gl, GEOMETRY_VERTEX, TORCH_FRAGMENT, "aCell");
     this.flame = linkProgram(gl, GEOMETRY_VERTEX, FLAME_FRAGMENT, "aCell");
+    this.heightSun = linkProgram(gl, FULLSCREEN_VERTEX, HEIGHT_SUN_FRAGMENT, "aPos");
+    this.areaLight = linkProgram(gl, GEOMETRY_VERTEX, AREA_LIGHT_FRAGMENT, "aCell");
+    this.areaDark = linkProgram(gl, GEOMETRY_VERTEX, AREA_DARK_FRAGMENT, "aCell");
+    this.boxBuffer = vertexBuffer(gl, [0, 0, 0, 0, 0, 0]);
+    this.blank = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)), gl.NEAREST, gl.CLAMP_TO_EDGE);
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
     this.framebuffer = gl.createFramebuffer();
   }
@@ -123,6 +153,8 @@ export class LightPass {
   setLighting(input: LightingInput, animate: boolean): boolean {
     const previous = this.input;
     this.input = input;
+    // paredes novas: os leques das luzes de área são refeitos
+    if (previous?.blockers !== input.blockers) this.releaseAreaFans();
     let changed = previous === null || previous.scene !== input.scene || previous.floor?.join() !== input.floor?.join();
     if (previous === null) {
       this.current = SCENE_LIGHT[input.scene];
@@ -279,8 +311,92 @@ export class LightPass {
     gl.viewport(0, 0, width, height);
   }
 
+/** As luzes de área no alvo da luz (mistura de soma já ligada). */
+  private drawAreaLights(view: GroundView, time: number, scene: SceneLight, heights: HeightMap | null, areas: AreaLight[]) {
+    const { gl } = this;
+    const input = this.input;
+    if (!input) return;
+    const program = this.areaLight;
+    gl.useProgram(program.program);
+    this.setView(program, view);
+    gl.uniform1f(uniformOf(gl, program, "uTime"), time);
+    gl.uniform1f(uniformOf(gl, program, "uScene"), scene.torch);
+    gl.uniform1i(uniformOf(gl, program, "uUseHeights"), heights ? 1 : 0);
+    // a chama da área fica a 1 casa do chão, no meio; a própria área não faz sombra dela
+    if (heights) gl.uniform4f(uniformOf(gl, program, "uHeightArea"), heights.area.x, heights.area.y, heights.area.cols, heights.area.rows);
+    for (const area of areas) {
+      const emit = area.look.emit;
+      if (!emit) continue;
+      const center = { x: area.center.x + area.offset.x, y: area.center.y + area.offset.y };
+      const reach = area.radius + emit.reach;
+      gl.uniform2f(uniformOf(gl, program, "uCenter"), center.x, center.y);
+      // a chama da área fica a 1 casa do chão (do relevo, ali), no meio; a própria área não faz sombra dela
+      gl.uniform1f(uniformOf(gl, program, "uTorchHeight"), this.groundHeight(center.x, center.y) + 1);
+      gl.uniform2f(uniformOf(gl, program, "uOffset"), area.offset.x, area.offset.y);
+      gl.uniform4f(uniformOf(gl, program, "uBox"), ...area.box);
+      gl.uniform1f(uniformOf(gl, program, "uRadius"), area.radius * 0.8);
+      gl.uniform1f(uniformOf(gl, program, "uReach"), emit.reach);
+      gl.uniform1f(uniformOf(gl, program, "uTorchSkip"), area.radius);
+      gl.uniform1f(uniformOf(gl, program, "uSeed"), area.seed);
+      gl.uniform1f(uniformOf(gl, program, "uStrength"), emit.strength);
+      gl.uniform3f(uniformOf(gl, program, "uColor"), ...emit.color);
+      gl.uniform1i(uniformOf(gl, program, "uFlicker"), emit.flicker === "fire" ? 1 : emit.flicker === "spark" ? 2 : 0);
+      bindTextures(gl, program, [
+        ["uMask", area.mask],
+        ["uHeights", heights ? heights.texture : this.blank],
+      ]);
+      const fan = this.areaFan(center, reach, input.blockers);
+      useVertices(gl, fan.buffer);
+      gl.drawArrays(gl.TRIANGLES, 0, fan.count);
+    }
+  }
+
+  /** A escuridão: a caixa de cada uma multiplica a luz. */
+  private drawDarkness(view: GroundView, areas: AreaLight[]) {
+    const { gl } = this;
+    const program = this.areaDark;
+    gl.useProgram(program.program);
+    this.setView(program, view);
+    gl.blendFunc(gl.DST_COLOR, gl.ZERO);
+    for (const area of areas) {
+      const [x, y, w, h] = area.box;
+      const [ox, oy] = [x + area.offset.x, y + area.offset.y];
+      gl.uniform4f(uniformOf(gl, program, "uBox"), ...area.box);
+      gl.uniform2f(uniformOf(gl, program, "uOffset"), area.offset.x, area.offset.y);
+      bindTextures(gl, program, [["uMask", area.mask]]);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.boxBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ox, oy, ox + w, oy, ox, oy + h, ox, oy + h, ox + w, oy, ox + w, oy + h]), gl.DYNAMIC_DRAW);
+      useVertices(gl, this.boxBuffer);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+    gl.blendFunc(gl.ONE, gl.ONE);
+  }
+
+  /** O leque de uma luz de área (guardado por meio e alcance, até as paredes mudarem). */
+  private areaFan(center: { x: number; y: number }, reach: number, blockers: Segment[]): { buffer: WebGLBuffer; count: number } {
+    const key = [center.x.toFixed(3), center.y.toFixed(3), reach.toFixed(3)].join("|");
+    const known = this.areaFans.get(key);
+    if (known) return known;
+    const polygon = lightPolygon(center, reach, blockersNear(center, reach, blockers));
+    const points: number[] = [];
+    for (let index = 0; index < polygon.length; index += 2) {
+      const next = (index + 2) % polygon.length;
+      points.push(center.x, center.y, polygon[index], polygon[index + 1], polygon[next], polygon[next + 1]);
+    }
+    const fan = { buffer: vertexBuffer(this.gl, points), count: points.length / 2 };
+    // arrastando, o meio muda a cada quadro: não guarda leque de mais
+    if (this.areaFans.size > 64) this.releaseAreaFans();
+    this.areaFans.set(key, fan);
+    return fan;
+  }
+
+  private releaseAreaFans() {
+    for (const fan of this.areaFans.values()) this.gl.deleteBuffer(fan.buffer);
+    this.areaFans.clear();
+  }
+
   /** Mapa de luz no canvas (já ligado e do tamanho certo). `time` em segundos. */
-  renderLight(view: GroundView, time: number, width: number, height: number, extraShadow?: (width: number, height: number) => void) {
+  renderLight(view: GroundView, time: number, width: number, height: number, extraShadow?: (width: number, height: number) => void, heights: HeightMap | null = null, areaLights: AreaLight[] = [], darkness: AreaLight[] = []) {
     const { gl } = this;
     const input = this.input;
     if (!input) return;
@@ -309,6 +425,22 @@ export class LightPass {
     }
     // Sombra do relevo (docs/design/relevo.md), na mesma máscara.
     extraShadow?.(lightWidth, lightHeight);
+    // Sombra de objetos e tokens pelo mapa de alturas (docs/design/sombras.md), na mesma máscara, pela maior.
+    if (heights && scene.shadowCells > 0.01) {
+      gl.useProgram(this.heightSun.program);
+      this.setView(this.heightSun, view);
+      useVertices(gl, this.triangle);
+      gl.uniform2f(uniformOf(gl, this.heightSun, "uCanvas"), lightWidth, lightHeight);
+      gl.uniform2f(uniformOf(gl, this.heightSun, "uSunDir"), scene.sunDirection[0], scene.sunDirection[1]);
+      gl.uniform1f(uniformOf(gl, this.heightSun, "uShadowCells"), scene.shadowCells);
+      gl.uniform4f(uniformOf(gl, this.heightSun, "uHeightArea"), heights.area.x, heights.area.y, heights.area.cols, heights.area.rows);
+      bindTextures(gl, this.heightSun, [["uHeights", heights.texture]]);
+      gl.enable(gl.BLEND);
+      gl.blendEquation(gl.MAX);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.blendEquation(gl.FUNC_ADD);
+      gl.disable(gl.BLEND);
+    }
     // 1b. Telhado invisível: cômodos (1) e o sol das janelas por cima (0).
     this.drawInto(this.roofTexture, lightWidth, lightHeight);
     gl.clearColor(0, 0, 0, 1);
@@ -342,14 +474,31 @@ export class LightPass {
     this.setView(this.torch, view);
     gl.uniform1f(uniformOf(gl, this.torch, "uTime"), time);
     gl.uniform1f(uniformOf(gl, this.torch, "uWeight"), 1 / SOFT_ORIGINS.length);
+    // Sombra de objetos e tokens pelo mapa de alturas (docs/design/sombras.md); sem ele, a luz de antes.
+    gl.uniform1i(uniformOf(gl, this.torch, "uUseHeights"), heights ? 1 : 0);
+    if (heights) {
+      gl.uniform4f(uniformOf(gl, this.torch, "uHeightArea"), heights.area.x, heights.area.y, heights.area.cols, heights.area.rows);
+      bindTextures(gl, this.torch, [["uHeights", heights.texture]]);
+    } else bindTextures(gl, this.torch, [["uHeights", this.blank]]);
     for (const mesh of this.torches) {
       gl.uniform2f(uniformOf(gl, this.torch, "uCenter"), mesh.source.x, mesh.source.y);
+      // a altura da chama conta do chão do relevo onde a luz está
+      gl.uniform1f(uniformOf(gl, this.torch, "uTorchHeight"), mesh.source.height + this.groundHeight(mesh.source.x, mesh.source.y));
+      gl.uniform1f(uniformOf(gl, this.torch, "uTorchSkip"), mesh.source.skip);
       gl.uniform1f(uniformOf(gl, this.torch, "uReach"), mesh.source.reach);
       gl.uniform1f(uniformOf(gl, this.torch, "uSeed"), mesh.seed);
       gl.uniform1f(uniformOf(gl, this.torch, "uStrength"), scene.torch);
+      const color = mesh.source.color;
+      gl.uniform1f(uniformOf(gl, this.torch, "uTinted"), color ? 1 : 0);
+      gl.uniform3f(uniformOf(gl, this.torch, "uColor"), ...(color ?? [1, 1, 1]));
+      gl.uniform1i(uniformOf(gl, this.torch, "uFlicker"), FLICKER_CODE[mesh.source.flicker]);
       useVertices(gl, mesh.buffer);
       for (const part of mesh.fans) gl.drawArrays(gl.TRIANGLES, part.first, part.count);
     }
+    // 3b. Efeitos que acendem luz (docs/design/efeitos.md): o leque parado nas paredes, somado como as tochas.
+    if (areaLights.length > 0) this.drawAreaLights(view, time, scene, heights, areaLights);
+    // 3c. Escuridão: multiplica a luz na caixa de cada uma.
+    if (darkness.length > 0) this.drawDarkness(view, darkness);
     gl.disable(gl.BLEND);
     // 4. Para o canvas, com o brilho mínimo.
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -374,15 +523,26 @@ export class LightPass {
     gl.uniform1f(uniformOf(gl, this.flame, "uTime"), time);
     gl.uniform1f(uniformOf(gl, this.flame, "uTorch"), this.current.torch);
     for (const mesh of this.torches) {
+      // a fonte fixa com desenho tem chama e brilho próprios (passo das fontes de luz)
+      if (mesh.source.model) continue;
       const base = mesh.source.flame ?? { x: mesh.source.x, y: mesh.source.y };
       gl.uniform2f(uniformOf(gl, this.flame, "uFlame"), base.x, base.y);
       gl.uniform1f(uniformOf(gl, this.flame, "uSeed"), mesh.seed);
-      gl.uniform1f(uniformOf(gl, this.flame, "uFixed"), mesh.source.kind === "fixed" ? 1 : 0);
       useVertices(gl, mesh.flameBox);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     gl.disable(gl.BLEND);
   }
+
+  /** As fontes fixas com desenho, com a semente de tremor de cada uma (a mesma da luz no chão). */
+  fixedModels(): TorchDraw[] {
+    const models: TorchDraw[] = [];
+    for (const mesh of this.torches) if (mesh.source.model) models.push({ ...mesh.source.model, seed: mesh.seed });
+    return models;
+  }
+
+  /** Altura do chão do relevo (casas) num ponto, para a altura das luzes (o renderizador liga ao dos objetos). */
+  groundHeight: (x: number, y: number) => number = () => 0;
 
   /** Luz da cena agora (no meio de uma troca, a misturada). */
   get scene(): SceneLight {
@@ -414,8 +574,12 @@ export class LightPass {
 
   dispose() {
     this.releaseTorches();
+    this.releaseAreaFans();
+    this.gl.deleteBuffer(this.boxBuffer);
+    this.gl.deleteProgram(this.areaLight.program);
+    this.gl.deleteProgram(this.areaDark.program);
     if (this.shadows) this.gl.deleteBuffer(this.shadows.buffer);
     for (const roof of [this.roofs.rooms, this.roofs.patches]) if (roof) this.gl.deleteBuffer(roof.buffer);
-    for (const texture of [this.lightTexture, this.shadowTexture, this.roofTexture]) if (texture) this.gl.deleteTexture(texture);
+    for (const texture of [this.lightTexture, this.shadowTexture, this.roofTexture, this.blank]) if (texture) this.gl.deleteTexture(texture);
   }
 }

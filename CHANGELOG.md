@@ -6,6 +6,44 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.15.0] - 2026-11-25
+
+### Adicionado
+
+- **Moldura da cena:** no painel *Mapa*, o mestre pode ligar uma moldura (madeira entalhada, bronze dourado, ferro com rebites ou pedra) do tamanho que quiser, em casas, ou ajustada à imagem do mapa. A cena acontece dentro dela: fora fica a mesa, e nada pode ser posto ou pintado lá (tokens, objetos, tochas, baús, paredes, pontes, escadas, efeitos, desenhos e pincéis). O que já estava fora não é apagado: fica escondido sob a mesa.
+- **Terrenos novos:** terra batida (o barro claro da margem da água) e neve.
+- **Mar:** terreno novo, com ondas que vêm de várias direções ao largo e quebram perto da costa, raso turquesa que escurece até o azul fundo, carneirinhos e espuma rendada. A costa depende do que está do lado: na areia ou terra batida vira praia (a onda sobe e desce na areia molhada), na pedra ou junto a relevo mais alto vira costa de pedra (a onda bate na base e arrebenta), no resto, margem rasa. Onde a pintura do mar acaba sem nada do lado, o mar continua e some aos poucos (borda aberta), sem margem em volta. Píer (piso de tábuas) e pontes sobre o mar funcionam como na água. Com *Reduzir efeitos*, fica parado.
+- **Fontes de luz novas:** além das tochas, a ferramenta *Tochas* põe fogueira, lanterna, castiçal com velas, candelabro de pé, lamparina a óleo, orbe mágico e a **arandela**, que gruda na parede mais perto e só ilumina o lado de dentro (some junto se a parede for apagada). Cada uma ilumina até onde faz sentido (a vela, perto; a fogueira, longe) e treme do seu jeito. A luz pode ser chama, azul (fogo mágico), verde (fogo-fátuo), roxa ou branca fria, e a cor tinge a chama e o chão.
+
+### Alterado
+- **Sombras sobre o relevo:** objetos e tokens em cima de um patamar fazem sombra a partir do alto dele (de dia, a sombra da árvore na beira desce o penhasco), e a luz das tochas e dos efeitos conta a altura do chão onde estão.
+- **Visão dos personagens mais lisa e mais rápida:** com a névoa e a visão ligadas, a casa que aparece só em parte atrás da ponta de uma parede ou pilar agora conta como vista (a borda da visão sai lisa, sem degrau; quem estiver nela aparece). A conta da visão ficou muito mais rápida: arrastar um token com a visão ligada pesa bem menos num mapa cheio de paredes.
+- **Zoom e água mais leves:** aproximar com a rodinha não refaz mais o mapa inteiro a cada passo (só quando a rodinha para), e afastar refaz a cada dois passos; riscar ou desfazer a correnteza da água não redesenha mais os painéis laterais. Na cena pesada de teste, o zoom e pintar água várias vezes seguidas ficaram bem mais lisos.
+- **Tochas redesenhadas:** a fincada, a de ferro e o braseiro agora são desenhados pela placa de vídeo, como os objetos: madeira, ferro e brasa ponto a ponto, luz de um lado, contorno fino e chama animada, nítidos em qualquer zoom. Sem WebGL 2, fica o desenho de antes.
+- **Objetos redesenhados, nítidos e com luz:** os 28 objetos do cenário (árvores, pinheiros, palmeiras, arbustos, flores, grama alta, pedras, troncos, barris, caixotes, mesas, estantes, camas, carroça, poço, pilar, estátua, altar, barraca, sacos, ossos e o resto) agora são desenhados pela placa de vídeo, no estilo do chão: folhas e pedra em aquarela, madeira com veio, ferro, tecido e osso desenhados ponto a ponto, contorno fino e nítidos em qualquer zoom. Cada parte pega o sol (ou a lua) de um lado e fica na sombra do outro; a tocha ilumina o lado virado para ela. Fazem sombra pela luz da cena (a dos objetos maciços sai do pé; a da árvore liga pelo tronco), e o token que entra na sombra escurece. Árvores, arbustos, pinheiros, palmeiras, grama alta e flores balançam com o vento. Duas árvores continuam nunca saindo iguais, e os mapas salvos abrem com os mesmos objetos. Os ícones do painel *Objetos* também mudaram. Sem WebGL 2, fica o desenho de antes.
+- **Sombras de tochas, tokens e objetos:** a luz das tochas (fixas e dos tokens) não atravessa mais árvores, pedras, móveis e tokens: cada um faz sombra para longe da tocha, longa quando a tocha é baixa (braseiro) e curta quando ela passa por cima (tocha de ferro sobre um caixote), girando e esticando quando o token anda ou é arrastado. Quem carrega a tocha não faz sombra dela mesma. Os tokens também fazem sombra do sol e da lua (longa no entardecer), e a sombra respeita a altura de quem recebe: uma copa alta não escurece com a sombra de um barril embaixo dela. De dia, a tocha quase não pesa e não faz leque de sombra. Com isso, os tokens perderam a sombrinha fixa da arte. Sem WebGL 2, fica como antes.
+- **Névoa de guerra desenhada pela placa de vídeo:** rente às paredes a borda da visão fica firme e reta (segue a linha de visão, e a fumaça não vaza parede adentro nem sai de um pilar fechado); onde a visão acaba no campo aberto, ela se desfaz em fiapos que avançam e recuam. A fumaça tem volume e anda devagar, sem o ladrilho repetido; o explorado mostra o mapa escurecido e sem cor sob um véu de fumaça; copas de árvore no que ninguém viu ficam escondidas. Nunca mostra mais do que o servidor manda. O revelado pelo pincel do mestre tem a mesma borda. Sem WebGL 2, fica a névoa de antes.
+- **Efeitos de área desenhados pela placa de vídeo:** mais nítidos e bem mais leves (muitas áreas na tela sem pesar), com as partículas calculadas na placa. Fogo com labaredas subindo, água com reflexos, gelo liso com rachaduras, teia de desenho, luz sagrada com as luzes girando em volta, e os demais refeitos no mesmo padrão. À noite, fogo, luz sagrada e eletricidade iluminam o entorno (barrados pelas paredes, com sombra de objetos e tokens), gás tóxico e ácido brilham fraco, e a escuridão apaga a luz, até a de tochas. A cor trocada pelo mestre tinge o desenho. Sem WebGL 2, fica como antes.
+- **Clima vivendo no mapa:** o clima passou a andar com o mapa e a conhecer o cenário. A chuva respinga e forma poças, a neve vai cobrindo o chão, folhas, pétalas, cinzas e granizo pousam, a areia deixa um véu no sentido do vento; tudo acumula aos poucos desde o início do clima (igual para todos) e recomeça quando o mestre troca. Dentro de cômodos fechados não chove nem neva. O vento é o mesmo que balança as plantas; brasas, vagalumes, luzes mágicas e esporos brilham sozinhos à noite; a tempestade continua com o clarão e o trovão nos mesmos instantes. Mais leve que antes. Sem WebGL 2, fica como antes.
+- **Sombra do entardecer mais curta:** no entardecer, paredes, relevo, pontes, pisos e escadas fazem sombra de ~2 casas por altura de parede (antes ~3), menos espichada pelo mapa.
+- **Tochas menores:** a tocha e o suporte de ferro ocupam meia casa, e o braseiro 0,7 casa.
+- **A água apaga as plantas:** pintar água ou água profunda por cima de uma floresta tira as árvores, arbustos, tocos, flores e afins que ficaram dentro da água; pedras e objetos ficam. Desfazer traz a água e as plantas de volta.
+- **Nada em cima de parede:** tocha, baú e objeto não podem ser postos nem arrastados para cima de uma parede (portas e janelas não contam). O pincel de espalhar pula esses pontos. Tokens continuam livres.
+- **Ponte de pedra:** o final ganhou um pilar quadrado de cada lado, com as muretas retas até a ponta (antes elas abriam em "V" e o caminho de pedra clara parecia uma mancha).
+- **Escadas no relevo mais fáceis de ler:** degraus marcados (espelho escuro, nariz claro), mais claros conforme sobem, e um contorno separando a escada do chão.
+- **Margem dos rios e lagos mais suave:** barranco mais raso e com menos contraste; nos rios finos ele fica estreito.
+
+### Corrigido
+
+- **Pincel do terreno:** o círculo do pincel não aparece mais no modo retângulo e some quando o mouse sai do mapa (também no Relevo e no Piso).
+- **Água sem retângulo:** com água ou água profunda, só o pincel.
+- **Aba Construir:** ícone e texto dos botões centralizados.
+- **Zoom bem mais leve:** com muitos objetos no mapa, cada passo da rodinha travava (até meio segundo); agora o zoom anda a 60 quadros por segundo. Durante o gesto o mapa só estica, e o desenho nítido vem ao parar.
+- **Animações que paravam e não voltavam:** depois de uma queda de quadros (zoom, arrasto, relevo calculando), a água, o vento e as tochas paravam até recarregar a página. Agora trabalho pontual não conta, e se o aparelho estiver mesmo lento a animação tenta de novo sozinha depois de alguns segundos.
+- **Relevo perto de objetos:** pintar relevo ou dunas perto de uma floresta travava o mapa por um quarto de segundo a cada traço.
+- **App do mestre que fecha sozinho:** se a janela cair, ela volta sozinha e o jogo continua; o app anota a falha em `falhas.log` (na pasta dele) para diagnóstico.
+- **Rio fino:** pintado com o pincel mínimo (0,5 casa), o rio tinha mais margem de terra que água; agora a água aparece.
+
 ## [2.14.0] - 2026-11-21
 
 ### Adicionado
@@ -421,7 +459,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.14.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...v2.12.0

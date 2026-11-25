@@ -1,4 +1,4 @@
-import type { CellRect, TerrainChunks, WaterCurrent } from "@rpg/shared";
+import type { CellRect, ReliefChunks, TerrainChunks, WaterCurrent } from "@rpg/shared";
 
 /**
  * Água animada (docs/design/agua.md): o que vai para o Worker e o que volta dele, pronto para virar textura WebGL.
@@ -18,11 +18,15 @@ export interface WaterJob {
   currents: WaterCurrent[];
   rocks: WaterRock[];
   perCell: number;
+  /** Relevo, para a costa do mar junto a relevo mais alto virar penhasco (só com mar na cena; vazio sem ele). */
+  relief: ReliefChunks;
 }
 
 /**
- * Um grupo de água pronto para a placa de vídeo: `sdfDeep` = distância até a margem (px do campo) e parte funda;
- * `river` = ao longo, de que lado, força e 0. `rocks` = as pedras dentro deste grupo.
+ * Um grupo de água pronto para a placa de vídeo: `sdfDeep` = distância até a margem (px do campo), parte funda e meia
+ * largura da água em volta (casas, até 2; docs/design/estruturas-ajustes.md) e parte de mar (docs/design/mar.md), em
+ * meia precisão (RGBA); `shore` = tipo de costa do mar por pixel (`SHORE_*`); `river` = ao longo, de que lado,
+ * força e 0. `rocks` = as pedras dentro deste grupo.
  */
 export interface WaterGpuField {
   rect: CellRect;
@@ -30,6 +34,7 @@ export interface WaterGpuField {
   width: number;
   height: number;
   sdfDeep: Uint16Array;
+  shore: Uint8Array<ArrayBuffer>;
   river: Float32Array;
   rocks: WaterRock[];
 }

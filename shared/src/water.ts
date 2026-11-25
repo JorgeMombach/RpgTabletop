@@ -1,4 +1,5 @@
-import { chunkKey, decodeLayer, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, type TerrainChunks } from "./terrain";
+import { reliefAt, type ReliefChunks } from "./relief";
+import { chunkKey, decodeLayer, isWaterTerrain, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, TERRAINS, type TerrainChunks, type TerrainId } from "./terrain";
 import type { WaterCurrent } from "./types";
 
 /**
@@ -25,31 +26,75 @@ export interface WaterField {
   height: number;
   sdf: Float32Array;
   deep: Float32Array;
+  /** Parte de mar da água (0 a 1) por pixel (docs/design/mar.md). */
+  sea: Float32Array;
+  /** Tipo de costa nos pixels de terra junto ao mar (`SHORE_*`); 0 no resto. */
+  shore: Uint8Array<ArrayBuffer>;
 }
+
+/** Tipos de costa do mar: nada, praia (areia, terra batida), pedra (pedra ou relevo mais alto), margem (o resto). */
+export const SHORE_NONE = 0;
+export const SHORE_BEACH = 1;
+export const SHORE_ROCK = 2;
+export const SHORE_BANK = 3;
+
+/** Terrenos de praia e de costa de pedra. */
+const BEACH_TERRAINS: ReadonlySet<TerrainId> = new Set<TerrainId>(["sand", "packedEarth"]);
+const ROCK_TERRAINS: ReadonlySet<TerrainId> = new Set<TerrainId>(["stone", "stoneLight"]);
+/** Até onde (casas) o mar continua além da pintura, onde não há nada pintado (a borda aberta). */
+const SEA_OPEN_CELLS = 2;
 
 /** Ponto fino conta como água com mais da metade de água (rasa + funda). */
 const WATER_THRESHOLD = 127;
 
-/** Bytes de água rasa e funda de cada pedaço, decodificados uma vez por conta. */
+/** Um ponto fino: água rasa, funda e mar (0–255), a terra que domina (ou `null`) e se há alguma pintura. */
+interface FinePoint {
+  shallow: number;
+  deep: number;
+  sea: number;
+  land: TerrainId | null;
+  painted: boolean;
+}
+
+/** As camadas de cada pedaço, decodificadas uma vez por conta. */
 function fineReader(chunks: TerrainChunks) {
-  const cache = new Map<string, { shallow: Uint8Array | null; deep: Uint8Array | null } | null>();
+  const cache = new Map<string, Map<TerrainId, Uint8Array> | null>();
   const layersOf = (key: string) => {
     if (!cache.has(key)) {
       const chunk = chunks[key];
-      const shallow = chunk?.water ? decodeLayer(chunk.water) : null;
-      const deep = chunk?.waterDark ? decodeLayer(chunk.waterDark) : null;
-      cache.set(key, shallow || deep ? { shallow, deep } : null);
+      const layers = new Map<TerrainId, Uint8Array>();
+      if (chunk) {
+        for (const terrain of TERRAINS) {
+          const text = chunk[terrain];
+          const bytes = text ? decodeLayer(text) : null;
+          if (bytes) layers.set(terrain, bytes);
+        }
+      }
+      cache.set(key, layers.size > 0 ? layers : null);
     }
     return cache.get(key) ?? null;
   };
-  /** Água rasa e funda (0–255) no ponto fino (i, j). */
-  return (i: number, j: number): [number, number] => {
+  const empty: FinePoint = { shallow: 0, deep: 0, sea: 0, land: null, painted: false };
+  /** O ponto fino (i, j). */
+  return (i: number, j: number): FinePoint => {
     const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
     const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
     const layers = layersOf(chunkKey(cx, cy));
-    if (!layers) return [0, 0];
+    if (!layers) return empty;
     const index = (j - cy * TERRAIN_CHUNK_SIDE) * TERRAIN_CHUNK_SIDE + (i - cx * TERRAIN_CHUNK_SIDE);
-    return [layers.shallow?.[index] ?? 0, layers.deep?.[index] ?? 0];
+    let land: TerrainId | null = null;
+    let landMost = 0;
+    let painted = false;
+    for (const [terrain, bytes] of layers) {
+      const value = bytes[index];
+      if (value === 0) continue;
+      painted = true;
+      if (!isWaterTerrain(terrain) && value > landMost) {
+        landMost = value;
+        land = terrain;
+      }
+    }
+    return { shallow: layers.get("water")?.[index] ?? 0, deep: layers.get("waterDark")?.[index] ?? 0, sea: layers.get("sea")?.[index] ?? 0, land, painted };
   };
 }
 
@@ -69,12 +114,13 @@ function union(a: CellRect, b: CellRect): CellRect {
 export function waterBounds(chunks: TerrainChunks, margin: number): CellRect[] {
   const cells = new Set<string>();
   for (const [key, chunk] of Object.entries(chunks)) {
-    if (!chunk.water && !chunk.waterDark) continue;
+    if (!chunk.water && !chunk.waterDark && !chunk.sea) continue;
     const [cx, cy] = key.split(",").map(Number);
     const shallow = chunk.water ? decodeLayer(chunk.water) : null;
     const deep = chunk.waterDark ? decodeLayer(chunk.waterDark) : null;
+    const sea = chunk.sea ? decodeLayer(chunk.sea) : null;
     for (let index = 0; index < TERRAIN_CHUNK_SIDE * TERRAIN_CHUNK_SIDE; index++) {
-      if ((shallow?.[index] ?? 0) + (deep?.[index] ?? 0) <= WATER_THRESHOLD) continue;
+      if ((shallow?.[index] ?? 0) + (deep?.[index] ?? 0) + (sea?.[index] ?? 0) <= WATER_THRESHOLD) continue;
       const i = cx * TERRAIN_CHUNK_SIDE + (index % TERRAIN_CHUNK_SIDE);
       const j = cy * TERRAIN_CHUNK_SIDE + Math.floor(index / TERRAIN_CHUNK_SIDE);
       cells.add(`${Math.floor(i / TERRAIN_FINE)},${Math.floor(j / TERRAIN_FINE)}`);
@@ -186,10 +232,52 @@ export function signedDistance(inside: Uint8Array, width: number, height: number
 }
 
 /**
+ * Meia largura da água em volta de cada pixel (docs/design/estruturas-ajustes.md): a maior distância até a margem num
+ * quadrado de lado `2·radius + 1` em volta, em pixels do campo; longe de qualquer água, 0. Vale também logo fora da
+ * margem (o shader treme a borda e conta um pouco de fora como água). No rio fino dá a meia largura dele;
+ * perto da margem de um rio largo, pelo menos o raio (o barranco fica cheio). Filtro de máximo separável (linhas, depois
+ * colunas) em tempo linear (van Herk/Gil-Werman): num campo de 2048 px e raio de 40, o ingênuo travaria o Worker.
+ */
+export function waterHalfWidth(sdf: Float32Array, width: number, height: number, radius: number): Float32Array {
+  const reach = Math.max(0, Math.round(radius));
+  const rows = new Float32Array(width * height);
+  // a linha com `reach` zeros de cada lado: a janela tem sempre o tamanho do bloco e cobre no máximo dois blocos
+  const padded = Math.max(width, height) + 2 * reach;
+  const before = new Float32Array(padded);
+  const after = new Float32Array(padded);
+  const line = new Float32Array(padded);
+  /** Máximo deslizante de `count` valores lidos de `read`, escritos com `write` (fora do campo conta como 0). */
+  const slide = (count: number, read: (index: number) => number, write: (index: number, value: number) => void) => {
+    const block = 2 * reach + 1;
+    const total = count + 2 * reach;
+    line.fill(0, 0, total);
+    for (let index = 0; index < count; index++) line[index + reach] = Math.max(0, read(index));
+    // dentro de cada bloco: o máximo desde o começo do bloco (before) e até o fim dele (after)
+    for (let start = 0; start < total; start += block) {
+      const end = Math.min(total, start + block) - 1;
+      before[start] = line[start];
+      for (let index = start + 1; index <= end; index++) before[index] = Math.max(before[index - 1], line[index]);
+      after[end] = line[end];
+      for (let index = end - 1; index >= start; index--) after[index] = Math.max(after[index + 1], line[index]);
+    }
+    // a janela do valor `index` vai de `index` a `index + 2·reach` na linha completada
+    for (let index = 0; index < count; index++) write(index, Math.max(after[index], before[index + 2 * reach]));
+  };
+  for (let y = 0; y < height; y++) {
+    slide(width, (x) => sdf[y * width + x], (x, value) => (rows[y * width + x] = value));
+  }
+  const out = new Float32Array(width * height);
+  for (let x = 0; x < width; x++) {
+    slide(height, (y) => rows[y * width + x], (y, value) => (out[y * width + x] = value));
+  }
+  return out;
+}
+
+/**
  * Campo de um grupo de água: a quantidade de água (rasa + funda) dos pontos finos do terreno, interpolada em cada
  * pixel; mais da metade = dentro. `deep` = parte funda dessa água.
  */
-export function waterField(chunks: TerrainChunks, rect: CellRect, perCell: number): WaterField {
+export function waterField(chunks: TerrainChunks, rect: CellRect, perCell: number, relief?: ReliefChunks): WaterField {
   const read = fineReader(chunks);
   const fineCols = rect.cols * TERRAIN_FINE + 2;
   const fineRows = rect.rows * TERRAIN_FINE + 2;
@@ -197,17 +285,39 @@ export function waterField(chunks: TerrainChunks, rect: CellRect, perCell: numbe
   const firstJ = rect.row * TERRAIN_FINE;
   const amount = new Float32Array(fineCols * fineRows);
   const darkness = new Float32Array(fineCols * fineRows);
+  const seaFine = new Float32Array(fineCols * fineRows);
+  const seaMask = new Float32Array(fineCols * fineRows);
+  const open = new Uint8Array(fineCols * fineRows);
+  const landKind = new Uint8Array(fineCols * fineRows);
   for (let j = 0; j < fineRows; j++) {
     for (let i = 0; i < fineCols; i++) {
-      const [shallow, deep] = read(firstI + i, firstJ + j);
-      amount[j * fineCols + i] = (shallow + deep) / 255;
-      darkness[j * fineCols + i] = deep / 255;
+      const point = read(firstI + i, firstJ + j);
+      const index = j * fineCols + i;
+      amount[index] = (point.shallow + point.deep + point.sea) / 255;
+      darkness[index] = point.deep / 255;
+      seaFine[index] = point.sea / 255;
+      seaMask[index] = point.sea > WATER_THRESHOLD ? 1 : 0;
+      open[index] = point.painted ? 0 : 1;
+      // a costa pelo lado de terra: relevo mais alto vira penhasco (pedra)
+      const raised = relief ? reliefAt(relief, firstI + i, firstJ + j).level > 0 : false;
+      landKind[index] = raised || (point.land && ROCK_TERRAINS.has(point.land)) ? SHORE_ROCK : point.land && BEACH_TERRAINS.has(point.land) ? SHORE_BEACH : point.land ? SHORE_BANK : SHORE_NONE;
+    }
+  }
+  // Borda aberta (docs/design/mar.md): perto do mar, o que não tem pintura nenhuma também é mar (sem margem).
+  // (+2 pontos finos: o mar chega até a beira do campo, sem um anel de "terra" na folga que viraria costa)
+  const nearSea = waterHalfWidth(seaMask, fineCols, fineRows, SEA_OPEN_CELLS * TERRAIN_FINE + 2);
+  for (let index = 0; index < open.length; index++) {
+    if (open[index] === 1 && nearSea[index] > 0) {
+      amount[index] = 1;
+      seaFine[index] = 1;
     }
   }
   const width = rect.cols * perCell;
   const height = rect.rows * perCell;
   const inside = new Uint8Array(width * height);
   const deep = new Float32Array(width * height);
+  const sea = new Float32Array(width * height);
+  const shore = new Uint8Array(width * height);
   for (let py = 0; py < height; py++) {
     const fy = ((py + 0.5) / perCell) * TERRAIN_FINE;
     const j0 = Math.floor(fy);
@@ -224,9 +334,30 @@ export function waterField(chunks: TerrainChunks, rect: CellRect, perCell: numbe
       const index = py * width + px;
       inside[index] = total > 0.5 ? 1 : 0;
       deep[index] = total > 0.01 ? Math.min(1, mix(darkness) / total) : 0;
+      sea[index] = total > 0.01 ? Math.min(1, mix(seaFine) / total) : 0;
+      // costa: terra a até 2 casas do mar, pelo ponto fino mais perto
+      if (inside[index] === 0) {
+        const nearest = Math.min(fineRows - 1, Math.round(fy)) * fineCols + Math.min(fineCols - 1, Math.round(fx));
+        if (nearSea[nearest] > 0) shore[index] = landKind[nearest];
+      }
     }
   }
-  return { rect, perCell, width, height, sdf: signedDistance(inside, width, height), deep };
+  // Dentro do mar, perto da costa (2 casas), o tipo da costa mais perto: é ali que a onda quebra e sobe na areia.
+  // Se mais de um tipo chega, pedra ganha de praia, e praia de margem.
+  const reachPx = SEA_OPEN_CELLS * perCell;
+  const spread = (kind: number) => {
+    const mask = new Float32Array(width * height);
+    for (let index = 0; index < mask.length; index++) mask[index] = shore[index] === kind ? 1 : 0;
+    return waterHalfWidth(mask, width, height, reachPx);
+  };
+  const rockNear = spread(SHORE_ROCK);
+  const beachNear = spread(SHORE_BEACH);
+  const bankNear = spread(SHORE_BANK);
+  for (let index = 0; index < shore.length; index++) {
+    if (inside[index] === 0 || sea[index] <= 0.5) continue;
+    shore[index] = rockNear[index] > 0 ? SHORE_ROCK : beachNear[index] > 0 ? SHORE_BEACH : bankNear[index] > 0 ? SHORE_BANK : SHORE_NONE;
+  }
+  return { rect, perCell, width, height, sdf: signedDistance(inside, width, height), deep, sea, shore };
 }
 
 interface Segment {
@@ -360,3 +491,22 @@ export function toHalfFloat(value: number): number {
   const rounded = ((exponent << 10) | (mantissa >>> 13)) + ((mantissa >>> 12) & 1);
   return sign | Math.min(rounded, 0x7bff);
 }
+
+/**
+ * O ponto (casas) cai no mar da borda aberta (docs/design/mar.md): sem pintura nenhuma e com mar pintado a até
+ * `SEA_OPEN_CELLS` casas (a mesma folga do campo da água). Para as plantas que o mar afoga fora da pintura.
+ */
+export function openSeaAt(chunks: TerrainChunks, col: number, row: number): boolean {
+  const read = fineReader(chunks);
+  const i = Math.round(col * TERRAIN_FINE);
+  const j = Math.round(row * TERRAIN_FINE);
+  if (read(i, j).painted) return false;
+  const reach = SEA_OPEN_CELLS * TERRAIN_FINE + 2;
+  for (let dj = -reach; dj <= reach; dj++) {
+    for (let di = -reach; di <= reach; di++) if (read(i + di, j + dj).sea > WATER_THRESHOLD) return true;
+  }
+  return false;
+}
+
+/** Folga (casas) em volta da pintura do mar em que ele ainda chega (borda aberta). */
+export const SEA_OPEN_REACH = SEA_OPEN_CELLS + 2 / TERRAIN_FINE;

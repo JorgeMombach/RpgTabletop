@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { encodeLayer, type ActionResult, type TerrainBroadcast, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
+import { encodeLayer, terrainAt, type ActionResult, type TerrainBroadcast, type TerrainChunks, type TerrainStroke } from "@rpg/shared";
 import { act, join, nextState, useServer, type Client } from "./helpers";
 
 // Terreno pintado no servidor: só o mestre pinta, os pedaços vão por evento próprio e vão no arquivo de sessão.
@@ -45,6 +45,18 @@ async function player(name: string): Promise<{ socket: Client; first: Promise<Te
 const layer = (value: number) => encodeLayer(new Uint8Array(1024).fill(value));
 
 describe("terreno: servidor", () => {
+  it("neve e terra batida: o mestre pinta e o terreno guarda como os outros", async () => {
+    const gm = await client();
+    await join(gm, "Mestre");
+    await act(gm, "battle:clear", { keepTemplates: false });
+    for (const terrain of ["snow", "packedEarth"] as const) {
+      const at = terrain === "snow" ? 4 : 12;
+      const res = await act(gm, "terrain:paint", { terrain, radius: 1, strength: 1, points: [at, 4] });
+      assert.ok(res.ok, res.ok ? "" : res.error);
+      assert.ok((terrainAt(battle().terrain ?? {}, at, 4)[terrain] ?? 0) > 200, terrain);
+    }
+  });
+
   it("só o mestre pinta", async () => {
     const g = await gm();
     await act(g, "terrain:clear", {});

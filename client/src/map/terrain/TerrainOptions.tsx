@@ -19,12 +19,20 @@ const TERRAIN_LABEL: Record<TerrainId, MessageKey> = {
   sand: "terrain.sand",
   water: "terrain.water",
   waterDark: "terrain.waterDark",
+  packedEarth: "terrain.packedEarth",
+  snow: "terrain.snow",
+  sea: "terrain.sea",
 };
 
 /**
  * Opções da ferramenta Terreno (mestre, criação de mapa): a amostra de cada terreno (a aquarela com o mesmo ajuste
  * de cor do mapa), borracha, tamanho e força do pincel, desfazer e apagar tudo. Em `memo`, como as outras opções.
  */
+/** Retângulo de água não faz sentido: com água ou água profunda, só o pincel. */
+export function rectAllowed(terrain: TerrainId | "erase" | "current" | "currentErase"): boolean {
+  return terrain !== "water" && terrain !== "waterDark";
+}
+
 export const TerrainOptions = memo(function TerrainOptions() {
   const t = useT();
   const brush = useApp((s) => s.terrainBrush);
@@ -57,7 +65,7 @@ export const TerrainOptions = memo(function TerrainOptions() {
                 role="radio"
                 aria-checked={active}
                 aria-label={t(TERRAIN_LABEL[terrain])}
-                onClick={() => setBrush({ terrain })}
+                onClick={() => setBrush(rectAllowed(terrain) ? { terrain } : { terrain, shape: "brush" })}
               >
                 <Image src={`terreno/${art.image}.webp`} h="100%" w="100%" radius="sm" style={{ filter: art.filter }} alt="" />
               </ActionIcon>
@@ -81,7 +89,7 @@ export const TerrainOptions = memo(function TerrainOptions() {
             variant={current ? "filled" : "default"}
             leftSection={<IconArrowWaveRightUp size={12} />}
             aria-pressed={current}
-            onClick={() => setBrush({ terrain: current ? "water" : "current" })}
+            onClick={() => setBrush(current ? { terrain: "water", shape: "brush" } : { terrain: "current" })}
           >
             {t("terrain.current")}
           </Button>
@@ -95,7 +103,7 @@ export const TerrainOptions = memo(function TerrainOptions() {
           {t("terrain.clear")}
         </Button>
       </Group>
-      {!current && (
+      {!current && rectAllowed(brush.terrain) && (
         <SegmentedControl
           size="xs"
           fullWidth

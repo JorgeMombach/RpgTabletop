@@ -54,7 +54,7 @@ import {
 import { parseDrawing } from "./actions/drawings";
 import { parseCurrent } from "./actions/currents";
 import { normalizeExpression } from "./dice";
-import { gridColorOf, gridKindOf, tableStyleOf, wallStyleOf } from "./actions/map";
+import { frameOf, gridColorOf, gridKindOf, tableStyleOf, wallStyleOf } from "./actions/map";
 import { markFloors, parseFloorChunks } from "./actions/floor";
 import { markRelief, parseReliefChunks } from "./actions/relief";
 import { markTerrain, parseTerrainChunks } from "./actions/terrain";
@@ -689,6 +689,8 @@ function sceneContent(b: Obj, allies: Combatant[]): SceneContent {
       // Arquivos anteriores à 2.12 não têm (preto).
       ...(m.gridColor !== undefined && { gridColor: gridColorOf(m.gridColor) }),
       ...(grid && { grid }),
+      // Arquivos anteriores à moldura não têm (sem moldura).
+      ...(m.frame !== undefined && { frame: frameOf(m.frame) }),
     },
     mobs,
     npcs,

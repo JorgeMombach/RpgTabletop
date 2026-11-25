@@ -3,6 +3,7 @@ import { LIMITS, type WaterCurrent } from "@rpg/shared";
 import { fail } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
+import { flatPoints, requirePointsInFrame } from "./frameRule";
 
 /**
  * Linha de correnteza (água animada, docs/design/agua.md), do mestre ou do arquivo de sessão, sem o id: pares x, y em
@@ -27,6 +28,7 @@ export const currentHandlers: HandlerMap = {
     requireGm(player);
     const { battle } = store.game;
     const current: WaterCurrent = { id: randomUUID(), ...parseCurrent(payload) };
+    requirePointsInFrame(store, flatPoints(current.points));
     if (battle.currents.length >= LIMITS.currents) fail("Limite de correntezas da cena atingido.");
     battle.currents.push(current);
     return [current.id];
@@ -37,7 +39,9 @@ export const currentHandlers: HandlerMap = {
     const current = store.game.battle.currents.find((candidate) => candidate.id === payload?.id);
     if (!current) fail("Correnteza não encontrada.");
     // Valida tudo antes de trocar (a recusa não muda nada).
-    current.points = parseCurrent(payload).points;
+    const points = parseCurrent(payload).points;
+    requirePointsInFrame(store, flatPoints(points));
+    current.points = points;
   },
 
   "current:remove": (store, player, payload) => {

@@ -1,8 +1,8 @@
 import Konva from "konva";
 import { memo, useEffect, useRef, type RefObject } from "react";
 import { Group, Image as KImage, Shape } from "react-konva";
-import { FrameWatch, gust, windOf, type MapConfig, type MapProp, type WeatherState } from "@rpg/shared";
-import { useApp } from "../store";
+import { gust, windOf, type MapConfig, type MapProp, type WeatherState } from "@rpg/shared";
+import { watchFrame } from "./windStall";
 import { PROP_EXTENT, type Glint, type PlantLayers } from "./propArt";
 
 /**
@@ -148,16 +148,11 @@ export function useWindClock(
     const layer = layerRef.current;
     if (!active || !layer) return;
     const { strength, direction } = windOf(weather);
-    const watch = new FrameWatch();
     let sinceDraw = FRAME_MS;
     const animation = new Konva.Animation((frame) => {
       if (!frame) return false;
-      // Só conta quadros com a página à vista e em foco: janela de trás ou minimizada fica lenta sem o aparelho estar.
-      const watching = document.visibilityState === "visible" && document.hasFocus();
-      if (watching && !watch.tick(frame.timeDiff)) {
-        useApp.setState({ windStalled: true });
-        return false;
-      }
+      // o vigia de aparelho lento (o mesmo da água): parado, a animação volta sozinha depois
+      if (!watchFrame(false)) return false;
       sinceDraw += frame.timeDiff;
       if (sinceDraw < FRAME_MS) return false;
       sinceDraw = 0;

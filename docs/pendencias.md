@@ -1,4 +1,4 @@
-# Pendências da branch `feat/campanha`
+# Pendências das branches `feat/campanha` (2.14.0, lançada sem a rodada de testes) e `feat/objetos`
 
 Roteiro para a rodada de testes e correções antes de lançar a versão. Duas partes:
 
@@ -154,7 +154,156 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Terreno em retângulo: cantos nas casas (Shift: meia casa), borracha em retângulo, prévia, desfazer; lado máximo 64 casas.
 - [ ] Pincel do terreno: pinta do tamanho do círculo, uma passada cobre (força 1), força menor carrega aos poucos; borda fina; mapas antigos com a borda um pouco menos irregular; sem engasgo num mapa grande.
 
+### Objetos na placa de vídeo (troca de motor, etapa 1; [docs/design/objetos.md](design/objetos.md))
+- [ ] Os 28 tipos como nas páginas aprovadas ([objetos-teste.html](design/objetos-teste.html) e [objetos-catalogo-teste.html](design/objetos-catalogo-teste.html)): dia, entardecer, luar e noite com tocha; perto e longe nítidos; *Variar* troca o desenho; mapa salvo antes abre com os objetos no lugar.
+- [ ] Sombra: de dia curta, no entardecer ~2 casas por parede (também nas paredes e no relevo); a dos maciços sai do pé, a das árvores liga pelo tronco; carroça e pedregulho sem sombra em cima de si; token na sombra da árvore escurece; sem lua, nada.
+- [ ] Vento: árvore, arbusto, pinheiro, palmeira, grama alta e flores balançam (mais forte com clima de vento); parados com *Objetos* aberta, com *Reduzir efeitos* e no aparelho lento; copa com token embaixo fica transparente e parada.
+- [ ] Edição: escolher, arrastar (Shift encaixa), alças de tamanho e giro (o desenho acompanha), Delete, Ctrl+C / Ctrl+V, *Desfazer*, *Acima/Abaixo*, *Bloqueia a visão*; pincel *Espalhar* (todos os conjuntos) e *Apagar*.
+- [ ] Relevo: objeto em cima do patamar aparece por cima da face; perto do penhasco nada some.
+- [ ] Ícones do painel *Objetos* no desenho novo (o antigo aparece um instante na primeira vez).
+- [ ] Sem WebGL 2 (ou chão desligado): os objetos voltam ao desenho antigo, com o vento antigo.
+- [ ] **Desempenho (não medido: o navegador do agente roda em segundo plano):** no app compilado, com uma floresta de ~500 objetos (pincel *Espalhar*, 9×9, densidade cheia), andar no WASD sem engasgo; espalhar a floresta sem travar; uma cena com ~800 objetos afastada até ver todos (nada some); a primeira vez de cada tipo (compilação) sem pausa longa; comparar com a 2.14.0.
+
+### Sombras de tochas, tokens e objetos (troca de motor, etapa 2; [docs/design/sombras.md](design/sombras.md))
+- [ ] À noite: fogueira (braseiro) na floresta faz sombras longas atrás das árvores; tocha de ferro passa por cima de um caixote baixo; estante e estátua fazem sombra grande; tudo como em [sombras-teste.html](design/sombras-teste.html).
+- [ ] Token com tocha andando e sendo arrastado: a sombra dos vizinhos gira e estica; sem anel escuro em volta dele; ele faz sombra do token ao lado.
+- [ ] Token com tocha embaixo da árvore, do pinheiro e da palmeira: a luz passa por baixo da copa e ilumina em volta (só o tronco faz uma sombra fina); sem ponto escuro no tronco. Token grande com tocha embaixo de árvore pequena: a copa faz sombra.
+- [ ] De dia, nenhum leque de sombra de tocha; sombras curtas do sol em objetos e tokens; no entardecer, longas.
+- [ ] Tokens sem a sombrinha antiga com o chão na placa; com o chão desligado (ou sem WebGL 2), a sombrinha volta.
+- [ ] Copa alta sobre um barril: o barril escurece pela sombra da copa, a copa não escurece pela do barril.
+- [ ] Objeto ou token logo fora da tela: a sombra dele entra na tela.
+- [ ] **Desempenho (não medido pelo agente):** à noite, floresta de ~300 objetos, 10 tochas fixas e 4 tokens com tocha andando: sem engasgo no WASD nem ao arrastar token; comparar com a 2.14.0.
+
+### Névoa de guerra na placa (troca de motor, etapa 3; [docs/design/nevoa.md](design/nevoa.md))
+- [ ] Como jogador (outro dispositivo, ou *ver como* o jogador), névoa e visão dos personagens ligadas, cena com paredes, portas, pilares e objetos que bloqueiam: borda firme e reta rente às paredes (sem fumaça vazando parede adentro nem saindo de pilar fechado); fiapos onde a visão acaba no campo aberto; explorado escurecido e sem cor sob um véu de fumaça; tudo como em [nevoa-teste.html](design/nevoa-teste.html).
+- [ ] Copa de árvore no nunca visto não aparece por cima da névoa; no explorado, escurecida.
+- [ ] Mestre: bruma cinza translúcida (vê tudo por baixo).
+- [ ] Arrastar e dar zoom no mapa: a névoa acompanha, sem atraso, rastro nem tela chapada.
+- [ ] Pincel do mestre (revelar e cobrir, pincel, retângulo e cômodo): aparece na hora, antes da resposta do servidor, com a borda em fiapos.
+- [ ] Névoa sem a visão dos personagens: só o revelado, com fiapos.
+- [ ] Cena hex com a visão dos personagens: a borda segue os hexes; nada de meio hex visível que o servidor não mandou.
+- [ ] *Reduzir efeitos*: a fumaça para (a névoa fica). Com o chão desligado (ou sem WebGL 2): a névoa de antes.
+- [ ] **Desempenho (não medido pelo agente):** mapa grande com tudo explorado e a névoa ligada: arrastar e dar zoom sem engasgo; a fumaça andando sem pesar (comparar com a 2.14.0).
+
+### Efeitos de área na placa (troca de motor, etapa 4, parte 1; [docs/design/efeitos.md](design/efeitos.md))
+- [ ] Os 18 tipos de dia e à noite, como em [efeitos-teste.html](design/efeitos-teste.html): fogo "fogo, não lava", luz sagrada com as luzes girando, teia de desenho.
+- [ ] À noite: fogo, luz sagrada e eletricidade iluminam em volta e a parede barra; objetos e tokens fazem sombra dessa luz; de dia quase não pesa; a escuridão apaga uma tocha dentro dela.
+- [ ] Efeito que acompanha um token (Espíritos Guardiões): o desenho e a luz andam junto no arrasto.
+- [ ] Pincel de efeitos (casas pintadas) no quadrado e no hex; cone, linha, cubo e esfera.
+- [ ] Cor trocada pelo mestre tinge o efeito; com a cor padrão, o desenho é o da página.
+- [ ] Efeito desligado (mestre): parado, apagado e tracejado; não ilumina nem escurece.
+- [ ] Jogador: efeito na névoa não aparece (nem a luz dele).
+- [ ] *Reduzir efeitos*: os efeitos param. Com o chão desligado (ou sem WebGL 2): o desenho de antes.
+- [ ] **Desempenho (não medido no app pelo agente):** 40 áreas na tela, à noite, com fogo: sem engasgo (comparar com a 2.14.0).
+
+### Clima vivendo no mapa (troca de motor, etapa 4, parte 2; [docs/design/clima.md](design/clima.md))
+- [ ] Os 17 climas de dia e à noite, como em [clima-teste.html](design/clima-teste.html): o que cai anda com o mapa ao arrastar e dar zoom.
+- [ ] A cobertura acumula aos poucos (máximo em 2 minutos) e recomeça ao trocar de clima; igual em dois navegadores.
+- [ ] Cômodo fechado: não chove nem neva dentro; névoa rala lá dentro. Jogador que não conhece as paredes do cômodo: chove dentro (é o que ele sabe).
+- [ ] Vento do clima: a chuva, a neve e as folhas no mesmo sentido em que as árvores balançam.
+- [ ] Tempestade: o clarão e o trovão nos mesmos instantes para todos.
+- [ ] Brasas, vagalumes, luzes mágicas e esporos brilham à noite; chuva, neve e névoa escurecem com a noite.
+- [ ] *Reduzir efeitos*: metade das partículas e sem clarão. Chão desligado (ou sem WebGL 2): a película de antes.
+- [ ] **Desempenho (não medido no app pelo agente):** chuva forte e nevasca num mapa grande, arrastando: sem engasgo (comparar com a 2.14.0).
+
+### Ajustes rápidos (bloco 1; [docs/design/ajustes-rapidos.md](design/ajustes-rapidos.md))
+- [ ] Terreno em retângulo: o círculo do pincel não aparece. Mouse indo para o painel: o círculo some (Terreno, Relevo e Piso).
+- [ ] Água e água profunda: sem a opção de retângulo; voltando para grama, ela aparece de novo.
+- [ ] Aba Construir: ícone e texto centralizados nos botões.
+- [ ] Tochas menores (tocha e suporte de ferro em meia casa, braseiro 0,7); a luz sai da chama.
+- [ ] Tocha, baú ou objeto em cima de parede: recusado com "Aí tem uma parede." e a peça volta ao lugar. Em cima de porta ou janela: pode. Estante encostada na parede: pode. Token: livre.
+- [ ] Espalhar floresta cruzando uma parede: nenhuma árvore em cima dela.
+- [ ] Floresta + passada de água no meio: as plantas dentro da água somem ao soltar, pedras ficam. Ctrl+Z: a água sai e as plantas voltam.
+
+### Desempenho e estabilidade (bloco 2; [docs/design/desempenho.md](design/desempenho.md), medições em [docs/desempenho/](desempenho/README.md))
+- [ ] Zoom num mapa cheio (floresta, relevo, tochas, chuva à noite): a 60 quadros, sem travar. Afastando rápido, o mapa cobre a tela inteira (sem retângulo com a mesa em volta). Ao parar, fica nítido.
+- [ ] Zoom e logo depois clicar num token, arrastar o mapa, pôr uma tocha: tudo no lugar certo.
+- [ ] Ferramenta Objetos aberta: clicar, arrastar e as alças dos objetos funcionam como antes.
+- [ ] Deixar o fps cair (zoom rápido muitas vezes, relevo grande): a água e o vento continuam, ou voltam sozinhos em segundos.
+- [ ] Relevo e dunas perto de uma floresta: sem travar; as árvores sobem com o relevo logo depois do traço.
+- [ ] App instalado: mexer na água e no terreno por bastante tempo; acompanhar a memória no Gerenciador de Tarefas (não pode subir sem parar). Se o app fechar, mandar o `falhas.log` (pasta do app).
+- [ ] **No app empacotado:** o zoom e a memória como no navegador (a medição do agente foi no navegador do app de desenvolvimento).
+
+### Ponte, escadas e rios (bloco 3; [docs/design/estruturas-ajustes.md](design/estruturas-ajustes.md))
+- [ ] Ponte de pedra de largura 1, 2 e 3: pilar quadrado de cada lado nas duas pontas, muretas retas, caminho de terra chegando (sem mancha clara). De dia, no entardecer e à noite (a sombra do pilar vai para o lado certo).
+- [ ] Escadas de pedra e de madeira subindo um penhasco: degraus fáceis de ver, mais claros em cima; contorno separando do chão. Escada solta subindo (borda cortada) e descendo (alçapão) como antes, com os degraus marcados.
+- [ ] Rio com o pincel mínimo (0,5): água no meio, margem estreita. Rio largo, lago e água funda: margem mais rasa e suave, sem degrau estranho na borda.
+- [ ] Mexer na água (pintar, apagar, correnteza): sem engasgo novo (a meia largura é calculada no Worker).
+
+### Fontes de luz (bloco 6; [docs/design/luzes.md](design/luzes.md))
+
+- [ ] Os 10 modelos pelo painel *Tochas*, nas 5 cores: dia, entardecer, luar e noite; perto e longe nítidos; como na página aprovada ([luzes-teste.html](design/luzes-teste.html)).
+- [ ] Luz colorida no chão (azul, verde, roxa, branca) e alcance de cada modelo (vela perto, fogueira longe).
+- [ ] Arandela: prévia gruda na parede mais perto e vira para o lado do ponteiro; longe de parede, recusa com aviso; arrastar gruda de novo; apagar a parede (remover, borracha, limpar) tira a arandela; trocar de cena não.
+- [ ] Arandela ilumina só o lado de dentro (cômodo fechado com uma em cada parede).
+- [ ] Desfazer: pôr, arrastar (volta a direção) e borracha (volta com cor e direção).
+- [ ] Névoa cobre corpo e chama das fontes escondidas; jogador não recebe a fonte atrás da névoa.
+- [ ] *Reduzir efeitos*: chamas paradas. Sem WebGL 2: os desenhos de antes.
+- [ ] Mapas salvos antes abrem com as mesmas tochas (sem cor = chama).
+- [ ] Prévia da arandela bem visível também à noite (fica acima da luz da cena).
+- [ ] Pendente conhecido: no painel escuro, os ícones de ferro ficam pouco visíveis; lanterna e lamparina pequenas.
+- [ ] Pendente conhecido: a fogueira branca sai bem estourada.
+- [ ] Desfazer a remoção de uma parede (apagar, borracha, porta traçada por cima) traz de volta a arandela que saiu junto, com cor e direção.
+
+### Mar (bloco 5; [docs/design/mar.md](design/mar.md))
+
+- [ ] Praia: pintar areia e mar ao lado; a onda sobe e desce na areia molhada, espuma na beira, raso turquesa escurecendo até o azul fundo longe da costa.
+- [ ] Porto: mar com um píer de *Piso* (tábuas) saindo da areia; a entrada fica na areia e as estacas com espuma começam no mar. Saindo de chão sem pintura, a entrada também fica fora d'água (o mar da borda aberta não ganha estacas). Ponte sobre o mar pousa nas margens.
+- [ ] Alto-mar: só mar; nenhuma margem nem espuma de arrebentação nas bordas, o mar some aos poucos onde a pintura acaba.
+- [ ] Penhasco: mar junto a pedra e junto a um morro do *Relevo* (nível 1 ou mais); face cinza, onda batendo na base. Pintar relevo perto do mar: a costa muda uns instantes depois de soltar o pincel.
+- [ ] Passagem de praia para pedra na mesma costa sem corte reto.
+- [ ] Noite, *Reduzir efeitos* (parado) e com moldura ligada.
+- [ ] Lago e rio continuam iguais em cena sem mar; mar encostado num lago não ganha margem entre os dois.
+- [ ] Pendente conhecido: a areia pintada encostada no mar mostra uma linha fina mais escura na beira (a borda da aquarela do terreno por baixo).
+- [ ] Plantas em chão sem pintura a até 2 casas do mar pintado somem junto (o mar da borda aberta chega lá); em chão pintado ao lado do mar, ficam. Desfazer o mar as traz de volta.
+
+### Moldura e terrenos novos (bloco 4; [docs/design/moldura.md](design/moldura.md))
+- [ ] Terra batida e neve no painel *Terreno*: pintar ao lado da água e da grama, de dia e à noite (a neve com montinhos e sombra azulada).
+- [ ] Moldura: ligar no painel *Mapa*, mudar largura e altura (ao sair do campo ou Enter), trocar os quatro desenhos, *Ajustar à imagem* com uma imagem de mapa, desligar.
+- [ ] Fora da moldura: a mesa (couro, madeira, ardósia) cobre o que estava lá; nada é apagado (desligar mostra de novo).
+- [ ] Tentar pôr fora: token (volta ao lugar), objeto, tocha, baú, parede, ponte, escada, efeito de área, desenho; recusa "Fora da moldura.". Pincéis de terreno, relevo, piso e efeitos param na borda.
+- [ ] Jogador pelo IP da rede: vê a moldura e não consegue mover o token para fora.
+- [ ] Zoom e arrasto com a moldura ligada: sem engasgo novo; a moldura nítida de perto.
+
 ## Pendências pequenas
+
+### Desempenho e estabilidade ([docs/design/desempenho.md](design/desempenho.md))
+- [ ] **Primeiro zoom depois de abrir a cena:** agora um quadro de ~130–150 ms (era 350–450), só na primeira vez. Medido com os quadros longos do navegador: cai uns 400 ms depois da última rodinha (o desenho completo na escala nova) e não tem script nenhum acima de 5 ms; é o navegador compondo as telas. Sobra para um perfil do navegador no app instalado.
+- [ ] **Zoom mais leve (feito):** no gesto, aproximar mexe só no palco do Konva (a visão vai ao React 120 ms depois da última rodinha); afastar vai ao React a cada 2 passos (cabe na folga de 1,4× que o chão pinta). Repetido na cena pesada: piores 5% em 17–33 ms (antes 50 na mesma sessão). Conferir: aproximar e afastar rápido e devagar, com a rodinha e com os botões, sem pedaço preto nas bordas; WASD e arrastar logo depois do zoom sem pulo.
+- [ ] **Pintar água várias vezes seguidas (melhorado):** a causa era outra: riscar ou desfazer a correnteza redesenhava todos os painéis laterais (as correntezas não estavam na lista do que é só do mapa). Agora os 50 traços dão piores 5% em 50 ms (eram 117). O que sobra é o redesenho do mapa no React, que em desenvolvimento roda duas vezes; conferir no app instalado.
+- [ ] **Teste de desempenho:** editar arquivos de `client/src/bench/` ou de `shared/` no meio de uma medição recarrega a página ou reinicia o servidor de dev e a cena de teste fica para trás (apagar no painel de cenas).
+
+### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
+- [ ] Token voando faz sombra como se estivesse no chão (o mapa de alturas guarda só o topo).
+- [ ] Relevo no mapa de alturas (feito): objeto ou token em cima do patamar faz sombra a partir do alto dele (de dia, a sombra da árvore na borda desce o penhasco); no mesmo patamar, a sombra continua do mesmo tamanho. Tochas e efeitos sobem do chão onde estão. Conferir dia, entardecer e noite com tocha embaixo e em cima do patamar, e encostas suaves (sem manchas).
+- [ ] Bem de perto, a faixa do mapa de alturas é cortada em 3/4 da tela por lado: a sombra de algo muito longe da tela não entra (`heightPass.ts`).
+- [ ] Moldura de chefe mantém a sombra própria das peças de ouro (só a do anel comum saiu; `tokenArt.ts`).
+- [ ] A copa começa a 1,7 casa (`CANOPY_BOTTOM`, × o tamanho da árvore se maior que 1): a tocha de token grande (2,3) entra na copa e escurece em volta dela; a copa fica sem sombra própria da tocha baixa (ilumina como o chão embaixo); token embaixo da copa vira coluna da altura da copa para as tochas.
+
+### Névoa de guerra na placa ([docs/design/nevoa.md](design/nevoa.md))
+- [ ] Borda da visão lisa atrás da ponta de pilares e paredes (a casa vista em parte agora conta como vista: decisão do dono). Um mob numa casa da qual só um canto aparece passa a ser visto. A visão também ficou bem mais rápida de calcular (arrastar token com a visão dos personagens ligada).
+- [ ] Chão aceso por um mob com tocha fora da vista: o servidor manda as casas, mas o cliente não sabe da tocha; fica na névoa até o mob aparecer.
+- [ ] Parede que o jogador ainda não viu não chega a ele: ali, quem corta a visão são as casas do servidor.
+- [ ] Arrastar um objeto que bloqueia refaz os triângulos da névoa (pode pesar num mapa enorme).
+
+### Efeitos de área na placa ([docs/design/efeitos.md](design/efeitos.md))
+- [ ] A sombra da luz de um efeito sai do meio da área (objeto ou token dentro da própria área não faz sombra dela).
+- [ ] Fogo e luz sagrada não têm camada à parte acima da luz: à noite, é a luz que eles mesmos acendem que clareia a área.
+- [ ] Efeito aceso pede o desenho inteiro do chão a cada quadro (a luz tremula com ele), como as tochas.
+
+### Clima vivendo no mapa ([docs/design/clima.md](design/clima.md))
+- [ ] A cobertura do chão não é guardada: trocar de clima (ou recarregar depois de muito tempo) recomeça do zero do início do clima.
+- [ ] O clarão do relâmpago é um véu claro igual em toda a tela (não ilumina as paredes de um jeito diferente).
+- [ ] Jogador sem as paredes de um cômodo vê chover dentro dele.
+
+### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
+- [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).
+- [ ] Barril embaixo de árvore, no entardecer: a sombra do barril não escurece a copa (a sombra usa a altura de quem recebe desde as sombras por objeto; conferido no código, não no app).
+- [ ] Árvore na beira do patamar: a sombra lá embaixo agora conta a altura do patamar (ver o item do relevo no mapa de alturas, acima).
+- [ ] Cordas, cajado e outras peças finas a muitas casas de altura podem mostrar a sombra em degraus de perto (28 amostras; `PROP_SHADOW_FRAGMENT`).
+- [ ] Ícone do painel feito com `readPixels` (síncrono): 28 ícones na primeira abertura do painel; se travar, fazer aos poucos (`iconOf`).
+- [ ] Com vento, planta em qualquer lugar da cena faz o chão pedir quadros (30 por segundo), mesmo fora da tela; dá para olhar só as da tela, como a água (`PropPass.swaying`).
+- [ ] Ao trocar a resolução do atlas (muitos objetos na tela, depois poucos), as formas são refeitas 6 por quadro: numa floresta grande os objetos reaparecem aos poucos por ~1 a 2 s (`PropAtlas.tierFor`).
 
 ### Pontes e píer ([docs/design/pontes.md](design/pontes.md))
 - [ ] Nível das pontas lido do ponto fino mais perto (processador) e o chão interpolado (placa): no relevo suave pode sobrar um fio de sombra na ponta em terra (`bridgePass.ts` `setBridges`).
@@ -190,7 +339,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Luz ([docs/design/luz.md](design/luz.md))
 - [ ] O corpo da tocha fixa é desenhado por cima da chama nova (a camada das chamas fica embaixo de `MapTorchLayer`): conferir de olho, principalmente a bacia do braseiro (`BattleMap.tsx`).
 - [ ] O texto do desenho diz que com névoa "nada aparece" depois de uma porta secreta, mas a camada da luz fica acima da névoa: a poça de luz aparece sobre a névoa (`docs/design/luz.md`; ajustar o texto).
-- [ ] O desenho diz que o mapa de luz já recebe a altura do chão; ainda não recebe (fica para o relevo).
+- [ ] A luz das tochas conta a altura do chão (de quem recebe e da própria tocha), mas o penhasco em si ainda não bloqueia a luz da tocha: a tocha embaixo ilumina o alto do patamar além da borda.
 - [ ] No primeiro instante com o chão em WebGL, a película e o brilho antigos já saíram e o mapa de luz ainda não chegou: um piscar claro à noite ao abrir o mapa (`BattleMap.tsx`, `groundLit`).
 - [ ] Se só o shader da luz falhar, o chão inteiro volta para o desenho antigo (terreno junto).
 

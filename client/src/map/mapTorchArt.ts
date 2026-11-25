@@ -225,22 +225,10 @@ function brazier(ctx: Ctx, x: number, y: number, s: number, t: number, seed: num
   sparks(ctx, x, cy - s * 0.15, s, t, seed);
 }
 
-const DRAW: Record<MapTorchStyle, typeof stick> = { stick, iron, brazier };
+// Sem WebGL 2, os modelos novos usam o desenho mais parecido de antes (a chama sobre a base).
+const DRAW: Record<MapTorchStyle, typeof stick> = { stick, iron, brazier, sconce: iron, campfire: brazier, lantern: stick, candles: stick, candelabra: iron, oilLamp: stick, orb: stick };
 
 /** `fire` falso: só o corpo (com o chão em WebGL, a chama nova vem da placa de vídeo, docs/design/luz.md). */
 export function drawMapTorch(ctx: Ctx, style: MapTorchStyle, x: number, y: number, s: number, t: number, seed: number, fire = true) {
   DRAW[style](ctx, x, y, s, t, seed, fire);
-}
-
-/**
- * Onde fica a base da chama de cada desenho, a partir da base da tocha, para a altura `s` (as mesmas contas de
- * `stick`, `iron` e `brazier`): a chama nova da placa de vídeo nasce aí.
- */
-export function torchFlameAnchor(style: MapTorchStyle, s: number): { x: number; y: number } {
-  if (style === "stick") {
-    const reach = s * 0.62 + s * 0.06;
-    return { x: Math.sin(0.14) * reach, y: -Math.cos(0.14) * reach };
-  }
-  if (style === "iron") return { x: 0, y: -s * 0.56 - s * 0.17 * 0.75 };
-  return { x: 0, y: -s * 0.3 + s * 0.3 * 0.12 };
 }

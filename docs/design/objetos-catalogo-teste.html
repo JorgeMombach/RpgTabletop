@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catálogo de objetos</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  #wrap { position: relative; margin: 0 16px 16px; border: 1px solid #3a3025; cursor: grab; }
+  #wrap canvas { display: block; }
+  #overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day" class="on">Dia</button><button data-v="dusk">Entardecer</button><button data-v="moon">Luar</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="0" class="on">Tudo</button><button data-v="90">Perto</button><button data-v="300">Bem de perto</button></div>
+  <div class="group" id="wind"><b>Vento</b><button data-v="0">Parado</button><button data-v="1" class="on">Brisa</button><button data-v="2.2">Forte</button></div>
+  <div class="group" id="mode"><b>Desenho</b><button data-v="new" class="on">Novo</button><button data-v="today">Hoje</button></div>
+  <button id="vary">Variar</button>
+  <span id="ms"></span>
+</header>
+<p>Os 22 tipos que faltam, três sementes cada, na receita aprovada em <b>objetos-teste.html</b>: forma pela semente, aquarela nas folhas e na pedra, madeira, ferro, tecido, osso e tijolo calculados por pixel, luz por pixel e contorno fino. Arraste para andar; clique duas vezes num objeto para chegar perto dele. <b>Hoje</b> mostra o desenho atual do app no mesmo lugar.</p>
+<div id="wrap"><canvas id="view"></canvas><canvas id="overlay"></canvas></div>
+<script src="propart.js"></script>
+<script>
+// Tipos do catálogo: nome no app, rótulo, alcance (PROP_EXTENT) e altura da sombra (PROP_CAST).
+const KINDS = [
+  ["flowers", "Flores", 0.55, 0.15], ["palm", "Palmeira", 1.4, 1.6], ["tallGrass", "Grama alta", 0.8, 0.4], ["stones", "Pedras", 0.75, 0.15],
+  ["rubble", "Entulho", 0.8, 0.1], ["log", "Tronco caído", 1.45, 0.3], ["stump", "Toco", 0.85, 0.35], ["mushrooms", "Cogumelos", 0.55, 0.2],
+  ["crate", "Caixote", 0.75, 0.7], ["crates", "Pilha de caixotes", 1.1, 1.1], ["planks", "Pilha de tábuas", 1.0, 0.25], ["table", "Mesa", 1.05, 0.75],
+  ["shelf", "Estante", 1.0, 1.6], ["bed", "Cama", 1.05, 0.6], ["bridge", "Ponte", 1.7, 0.3], ["well", "Poço", 0.85, 0.6],
+  ["pillar", "Pilar", 0.85, 1.7], ["statue", "Estátua", 1.55, 1.9], ["altar", "Altar", 1.0, 0.55], ["tent", "Barraca", 1.45, 1.0],
+  ["sacks", "Sacos", 0.75, 0.4], ["bones", "Ossos", 0.75, 0.05],
+];
+const PLANTS = new Set(["flowers", "palm", "tallGrass"]);
+// Maciços: a sombra sai do pé (mesa e carroça ficam em pernas e rodas, a sombra se descola).
+const SOLID = new Set(["stones", "rubble", "log", "stump", "mushrooms", "crate", "crates", "planks", "shelf", "bed", "well", "pillar", "statue", "altar", "tent", "sacks", "bones"]);
+
+const COMMON = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec2 uOrigin;
+uniform float uPx, uDpr, uHeight;
+uniform vec3 uSun, uSunCol, uAmb;
+uniform float uTime, uWind;
+uniform vec2 uWindDir;
+const float TAU = 6.2831853;
+float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec2 hash22(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }
+float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f); float a = hash12(i), b = hash12(i + vec2(1.0, 0.0)), c = hash12(i + vec2(0.0, 1.0)), d = hash12(i + vec2(1.0, 1.0)); return mix(mix(a, b, u.x), mix(c, d, u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + 17.1; a *= 0.5; } return s / 0.9375; }
+vec3 voronoi(vec2 p, out vec2 toCenter) {
+  vec2 n = floor(p), f = fract(p); float d1 = 8.0, d2 = 8.0; vec2 best = vec2(0.0), cell = vec2(0.0);
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 g = vec2(float(i), float(j)), r = g + hash22(n + g) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; best = r; cell = n + g; } else if (d < d2) d2 = d; }
+  toCenter = best; return vec3(sqrt(d1), sqrt(d2) - sqrt(d1), hash12(cell));
+}
+`;
+
+// As formas: o mesmo formato do app (distância, altura, material, tom, borda da parte de cima).
+const SHAPES = `
+const int M_LEAF = 0, M_NEEDLE = 1, M_GRASS = 2, M_STONE = 3, M_WOOD = 4, M_DARK = 5, M_IRON = 6, M_CLOTH = 7;
+const int M_CUT = 8, M_BONE = 9, M_BRICK = 10, M_WATER = 11, M_PAINT = 12, M_BARK = 13, M_RINGS = 14, M_FLAME = 15;
+// tinta (M_PAINT): o tom escolhe a cor, de 0 a 7: branco, vermelho, amarelo, roxo, azul, verde, sangue, pardo
+struct Hit { float sd; float h; int mat; float tone; float edge; };
+Hit none() { return Hit(-1e3, 0.0, 0, 0.0, 1.0); }
+float sdBox(vec2 p, vec2 b) { vec2 d = abs(p) - b; return -(length(max(d, 0.0)) + min(max(d.x, d.y), 0.0)); }
+float sdRound(vec2 p, vec2 b, float r) { return sdBox(p, b - r) + r; }
+float sdSegment(vec2 p, vec2 a, vec2 b, float w) { vec2 pa = p - a, ba = b - a; float t = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0); return w - length(pa - ba * t); }
+float sdEllipse(vec2 p, vec2 ab) { return (1.0 - length(p / ab)) * min(ab.x, ab.y); }
+vec2 rotv(vec2 v, float a) { float c = cos(a), s = sin(a); return vec2(c * v.x + s * v.y, -s * v.x + c * v.y); }
+void take(inout Hit o, float sd, float h, int mat, float tone) {
+  bool inside = sd > 0.0, was = o.sd > 0.0;
+  if ((inside && (!was || h > o.h)) || (!inside && !was && sd > o.sd)) { o.h = h; o.mat = mat; o.tone = tone; o.edge = sd; }
+  o.sd = max(o.sd, sd);
+}
+void takeHit(inout Hit o, Hit part) {
+  bool inside = part.sd > 0.0, was = o.sd > 0.0;
+  if ((inside && (!was || part.h > o.h)) || (!inside && !was && part.sd > o.sd)) { o.h = part.h; o.mat = part.mat; o.tone = part.tone; o.edge = part.edge; }
+  o.sd = max(o.sd, part.sd);
+}
+
+// Pedra solta (a receita do pedregulho, no raio pedido).
+Hit rockAt(vec2 q, float rad, float seed) {
+  float k = rad / 0.62;
+  vec2 p = q / k;
+  float r = length(p);
+  vec2 dir = r > 0.0 ? p / r : vec2(1.0, 0.0);
+  float edge = 0.62 * (1.0 + 0.5 * (fbm(dir * 1.3 + seed * 5.0) - 0.5));
+  float t = clamp(r / edge, 0.0, 1.0);
+  vec2 tc; vec3 v = voronoi(p * 4.2 + seed * 7.0, tc);
+  vec2 g = (hash22(vec2(v.z * 91.0, seed)) - 0.5) * 0.9;
+  float crack = fract(v.z * 7.0) > 0.72 ? v.y / 4.2 : 1.0;
+  return Hit((edge - r + (vnoise(p * 20.0 + seed) - 0.5) * 0.015) * k, (0.04 + 0.7 * (1.0 - t * t) + dot(-tc, g) * 0.03 * (0.4 + 0.6 * t)) * k, M_STONE, v.z, crack * k);
+}
+
+Hit flowers(vec2 q, float seed) {
+  Hit o = none();
+  float r = length(q);
+  vec2 dir = r > 0.0 ? q / r : vec2(1.0, 0.0);
+  float edge = 0.42 * (1.0 + 0.3 * (vnoise(dir * 4.0 + seed) - 0.5));
+  float fringe = vnoise(dir * 34.0 + seed * 3.0);
+  take(o, edge - r + (fringe - 0.5) * 0.09, 0.1 + 0.06 * vnoise(q * 18.0 + seed), M_GRASS, 0.35 + 0.3 * vnoise(q * 9.0));
+  float c1 = (1.0 + floor(hash12(vec2(seed, 1.0)) * 5.0)) / 7.0;
+  float c2 = hash12(vec2(seed, 2.0)) < 0.5 ? c1 : 0.0;
+  for (int i = 0; i < 12; i++) {
+    float fi = float(i);
+    vec2 c = (hash22(vec2(seed, fi + 3.0)) - 0.5) * 0.62;
+    if (length(c) > 0.36) continue;
+    float rad = 0.045 + 0.02 * hash12(vec2(fi, seed));
+    vec2 p = q - c;
+    float petal = rad * (0.7 + 0.3 * cos(5.0 * atan(p.y, p.x) + fi)) - length(p);
+    take(o, petal, 0.18, M_PAINT, hash12(vec2(fi, seed * 1.3)) < 0.5 ? c1 : c2);
+    float middle = rad * 0.3 - length(p);
+    if (middle > 0.0 && o.mat == M_PAINT) { o.tone = 1.0; o.edge = middle; o.h = 0.19; }
+  }
+  return o;
+}
+
+Hit palm(vec2 q, float seed) {
+  Hit o = none();
+  for (int k = 0; k < 2; k++) {
+    float fk = float(k);
+    int n = k == 0 ? 9 : 7;
+    float L = k == 0 ? 1.25 : 0.95;
+    float twist = hash12(vec2(seed, fk)) * TAU;
+    for (int i = 0; i < 9; i++) {
+      if (i >= n) break;
+      float fi = float(i);
+      float ang = twist + fi * TAU / float(n) + (hash12(vec2(fi, seed + fk)) - 0.5) * 0.3;
+      vec2 dir = vec2(cos(ang), sin(ang)), side = vec2(-dir.y, dir.x);
+      float u = dot(q, dir), t = u / L;
+      if (t < 0.02 || t > 1.0) continue;
+      float bend = 0.08 * t * t * (hash12(vec2(fi, seed * 2.0)) < 0.5 ? -1.0 : 1.0);
+      float w = 0.17 * sin(3.14159 * min(t * 1.25, 1.0)) * (1.0 - 0.3 * t);
+      float saw = 0.72 + 0.28 * abs(fract(t * L * 15.0) * 2.0 - 1.0);
+      float across = dot(q, side) - bend;
+      float s = w * saw - abs(across);
+      float h = 1.5 + 0.25 * fk - 0.7 * t * t;
+      if (s > 0.0 && (o.sd <= 0.0 || h > o.h)) { o.h = h; o.mat = M_GRASS; o.tone = 0.55 + 0.25 * fk + 0.2 * hash12(vec2(fi, fk)); o.edge = min(s, abs(across) + 0.004); }
+      o.sd = max(o.sd, s);
+    }
+  }
+  take(o, 0.1 - length(q), 1.9, M_BARK, 0.5);
+  return o;
+}
+
+Hit tallGrass(vec2 q, float seed) {
+  Hit o = none();
+  take(o, 0.1 - length(q) + (vnoise(q * 40.0 + seed) - 0.5) * 0.04, 0.3, M_GRASS, 0.3);
+  for (int i = 0; i < 20; i++) {
+    float fi = float(i);
+    float ang = fi / 20.0 * TAU + (hash12(vec2(fi, seed)) - 0.5) * 0.5;
+    float L = 0.45 + hash12(vec2(seed, fi)) * 0.3;
+    float bend = (hash12(vec2(fi * 2.0, seed)) - 0.5) * 0.5;
+    vec2 dir = vec2(cos(ang), sin(ang)), side = vec2(-dir.y, dir.x);
+    float t = dot(q, dir) / L;
+    if (t < 0.0 || t > 1.0) continue;
+    float across = dot(q, side) - bend * t * t * L;
+    float s = 0.065 * (1.0 - t) + 0.006 - abs(across);
+    float h = 0.5 * sin(3.14159 * (0.3 + 0.7 * t)) + 0.15 + fi * 0.002;
+    if (s > 0.0 && (o.sd <= 0.0 || h > o.h)) { o.h = h; o.mat = M_GRASS; o.tone = 0.5 + 0.5 * t; o.edge = s; }
+    o.sd = max(o.sd, s);
+  }
+  return o;
+}
+
+Hit stones(vec2 q, float seed) {
+  Hit o = none();
+  int n = 3 + int(hash12(vec2(seed, 1.0)) * 4.0);
+  for (int i = 0; i < 6; i++) {
+    if (i >= n) break;
+    float fi = float(i);
+    vec2 c = (hash22(vec2(seed, fi * 3.1)) - 0.5) * 0.62;
+    takeHit(o, rockAt(q - c, 0.08 + hash12(vec2(fi, seed * 1.3)) * 0.1, seed + fi * 7.7));
+  }
+  return o;
+}
+
+Hit rubble(vec2 q, float seed) {
+  Hit o = none();
+  int n = 11 + int(hash12(vec2(seed, 2.0)) * 6.0);
+  for (int i = 0; i < 16; i++) {
+    if (i >= n) break;
+    float fi = float(i);
+    vec2 c = (hash22(vec2(seed * 1.7, fi)) - 0.5) * 0.72;
+    if (hash12(vec2(fi, seed * 2.1)) < 0.4) {
+      float w = 0.14 + hash12(vec2(fi, seed)) * 0.1;
+      vec2 p = rotv(q - c, hash12(vec2(seed, fi * 5.0)) * 3.14);
+      take(o, sdBox(p, vec2(w * 0.5, w * 0.25)), 0.07 + 0.02 * hash12(vec2(fi, 1.0)), M_BRICK, hash12(vec2(fi, seed)));
+    } else takeHit(o, rockAt(q - c, 0.06 + hash12(vec2(fi * 1.9, seed)) * 0.08, seed + fi * 3.3));
+  }
+  return o;
+}
+
+Hit logShape(vec2 q, float seed) {
+  Hit o = none();
+  float len = 1.6 + hash12(vec2(seed, 1.0)) * 0.5, rad = 0.2 + hash12(vec2(seed, 2.0)) * 0.06;
+  if (hash12(vec2(seed, 3.0)) < 0.6) {
+    float x = (hash12(vec2(seed, 4.0)) - 0.3) * len * 0.5;
+    float side = hash12(vec2(seed, 5.0)) < 0.5 ? -1.0 : 1.0;
+    take(o, sdSegment(q, vec2(x, side * rad * 0.6), vec2(x + rad * 0.6, side * rad * 1.7), rad * 0.17), 0.25, M_BARK, 0.3);
+  }
+  float body = min(rad - abs(q.y), len * 0.5 - abs(q.x));
+  if (q.x < -len * 0.5 + rad) body = rad - length(q - vec2(-len * 0.5 + rad, 0.0));
+  float bulge = sqrt(max(rad * rad - q.y * q.y, 0.0));
+  float cutAt = len * 0.5 - rad * 0.35;
+  if (q.x > cutAt) { take(o, body, bulge * 0.96 + 0.02, M_RINGS, 0.5); if (o.mat == M_RINGS) o.edge = min(o.edge, q.x - cutAt); }
+  else take(o, body, bulge + 0.02, M_BARK, hash12(vec2(seed, 6.0)));
+  return o;
+}
+
+Hit stump(vec2 q, float seed) {
+  Hit o = none();
+  float rad = 0.24 + hash12(vec2(seed, 1.0)) * 0.06;
+  int roots = 3 + int(hash12(vec2(seed, 2.0)) * 3.0);
+  for (int i = 0; i < 5; i++) {
+    if (i >= roots) break;
+    float fi = float(i);
+    float a = fi / float(roots) * TAU + hash12(vec2(seed, fi)) * 0.6;
+    float L = rad * (1.3 + hash12(vec2(fi, seed)) * 0.35);
+    vec2 a0 = vec2(cos(a), sin(a)) * rad * 0.7, a1 = vec2(cos(a + 0.35), sin(a + 0.35)) * L;
+    float t = clamp(dot(q - a0, a1 - a0) / dot(a1 - a0, a1 - a0), 0.0, 1.0);
+    take(o, rad * (0.34 - 0.24 * t) - length(q - a0 - (a1 - a0) * t), 0.14 * (1.0 - t) + 0.02, M_BARK, 0.4);
+  }
+  float r = length(q);
+  take(o, rad - r, 0.34, r > rad - 0.035 ? M_BARK : M_RINGS, 0.5);
+  if (o.mat == M_RINGS) o.edge = rad - 0.035 - r;
+  return o;
+}
+
+Hit mushrooms(vec2 q, float seed) {
+  Hit o = none();
+  int n = 3 + int(hash12(vec2(seed, 1.0)) * 5.0);
+  bool red = hash12(vec2(seed, 2.0)) < 0.5;
+  for (int i = 0; i < 7; i++) {
+    if (i >= n) break;
+    float fi = float(i);
+    vec2 c = (hash22(vec2(seed, fi)) - 0.5) * 0.55;
+    float rad = 0.06 + hash12(vec2(fi, seed)) * 0.12;
+    float d = length(q - c), t = clamp(d / rad, 0.0, 1.0);
+    take(o, rad - d, 0.1 + rad * 0.55 * (1.0 - t * t) + fi * 0.001, M_PAINT, red ? 1.0 / 7.0 : 1.0);
+    if (red && d < rad) for (int j = 0; j < 4; j++) {
+      vec2 spot = c + (hash22(vec2(fi + float(j) * 13.0, seed)) - 0.5) * rad * 1.2;
+      float s = rad * 0.18 - length(q - spot);
+      if (s > 0.0 && o.mat == M_PAINT && o.tone > 0.1) { o.tone = 0.0; o.edge = s; }
+    }
+  }
+  return o;
+}
+
+Hit crateBox(vec2 q, float s, float seed, float lift) {
+  Hit o = none();
+  float half_ = s * 0.5;
+  float box = sdBox(q, vec2(half_));
+  o.sd = box;
+  if (box <= 0.0) return o;
+  float frame = 0.1 * s;
+  float h = s + lift;
+  if (box < frame) { take(o, box, h + 0.01, M_DARK, hash12(vec2(seed, 1.0))); return o; }
+  float row = floor((q.y + half_) / (s / 3.0)), fy = fract((q.y + half_) / (s / 3.0));
+  take(o, box, h, M_WOOD, hash12(vec2(seed, row + 2.0)));
+  o.edge = min(box - frame, min(fy, 1.0 - fy) * s / 3.0);
+  float brace = sdSegment(q, vec2(-half_ + frame), vec2(half_ - frame), frame * 0.45);
+  if (brace > 0.0) { o.h = h + 0.015; o.mat = M_DARK; o.tone = hash12(vec2(seed, 9.0)); o.edge = brace; }
+  for (int i = 0; i < 4; i++) {
+    vec2 corner = vec2(i % 2 == 0 ? -1.0 : 1.0, i < 2 ? -1.0 : 1.0) * (half_ - frame * 0.5);
+    float nail = frame * 0.22 - length(q - corner);
+    if (nail > 0.0) { o.h = h + 0.02; o.mat = M_IRON; o.tone = 0.5; o.edge = nail; }
+  }
+  return o;
+}
+Hit crate(vec2 q, float seed) { return crateBox(rotv(q, (hash12(vec2(seed, 4.0)) - 0.5) * 0.25), 0.68 + hash12(vec2(seed, 5.0)) * 0.08, seed, 0.0); }
+Hit crates(vec2 q, float seed) {
+  Hit o = none();
+  float s = 0.62;
+  int base = 2 + int(hash12(vec2(seed, 1.0)) * 2.0);
+  vec2 spots[3] = vec2[3](vec2(-s * 0.52, s * 0.3), vec2(s * 0.52, s * 0.3), vec2(0.0, -s * 0.55));
+  for (int i = 0; i < 3; i++) {
+    if (i >= base) break;
+    float fi = float(i);
+    vec2 c = spots[i] + (hash22(vec2(seed, fi)) - 0.5) * s * 0.1;
+    takeHit(o, crateBox(rotv(q - c, (hash12(vec2(fi, seed)) - 0.5) * 0.3), s, seed + fi, 0.0));
+  }
+  vec2 c = (hash22(vec2(seed, 7.0)) - 0.5) * vec2(0.3, 0.2) * s;
+  takeHit(o, crateBox(rotv(q - c, (hash12(vec2(seed, 8.0)) - 0.5) * 0.5), s * 0.92, seed + 5.0, 0.62));
+  return o;
+}
+
+Hit planks(vec2 q, float seed) {
+  Hit o = none();
+  int n = 3 + int(hash12(vec2(seed, 1.0)) * 3.0);
+  float w = 1.15 + hash12(vec2(seed, 2.0)) * 0.3, th = 0.15;
+  for (int i = 0; i < 5; i++) {
+    if (i >= n) break;
+    float fi = float(i);
+    vec2 c = vec2((hash12(vec2(seed, fi)) - 0.5) * 0.15, (fi - float(n) * 0.5 + 0.5) * th * 0.85 + (hash12(vec2(fi, seed)) - 0.5) * th * 0.4);
+    vec2 p = rotv(q - c, (hash12(vec2(seed * 1.3, fi)) - 0.5) * 0.25);
+    float L = w * (0.85 + hash12(vec2(fi, seed * 2.0)) * 0.2);
+    take(o, sdRound(p, vec2(L * 0.5, th * 0.5), 0.01), 0.05 + fi * 0.045, M_WOOD, hash12(vec2(fi * 3.0, seed)));
+  }
+  return o;
+}
+
+Hit tableShape(vec2 q, float seed) {
+  Hit o = none();
+  float w = 1.2 + hash12(vec2(seed, 1.0)) * 0.3, d = 0.72 + hash12(vec2(seed, 2.0)) * 0.12;
+  float top = sdRound(q, vec2(w, d) * 0.5, 0.05);
+  float row = floor((q.y + d * 0.5) / (d / 4.0)), fy = fract((q.y + d * 0.5) / (d / 4.0));
+  take(o, top, 0.75, M_WOOD, hash12(vec2(seed, row + 3.0)));
+  if (top > 0.0) o.edge = min(top, min(fy, 1.0 - fy) * d / 4.0);
+  int items = int(hash12(vec2(seed, 4.0)) * 3.0);
+  for (int i = 0; i < 2; i++) {
+    if (i >= items) break;
+    float fi = float(i);
+    vec2 c = vec2((hash12(vec2(seed, fi + 5.0)) - 0.5) * w * 0.6, (hash12(vec2(fi, seed + 5.0)) - 0.5) * d * 0.5);
+    float pick = hash12(vec2(seed, fi + 9.0)), dist = length(q - c);
+    if (pick < 0.4) { take(o, 0.14 - dist, 0.77, M_PAINT, 0.0); if (dist < 0.095 && o.h == 0.77) o.edge = min(o.edge, 0.095 - dist); }
+    else if (pick < 0.75) { take(o, 0.08 - dist, 0.85, M_DARK, 0.6); if (dist < 0.055 && o.h == 0.85) { o.h = 0.8; o.tone = 0.0; o.edge = 0.055 - dist; } }
+    else { take(o, 0.045 - dist, 0.88, M_PAINT, 0.0); take(o, 0.018 - dist, 0.9, M_FLAME, 0.5); }
+  }
+  return o;
+}
+
+Hit shelf(vec2 q, float seed) {
+  Hit o = none();
+  float L = 0.85, W = 0.22;
+  float frame = sdBox(q, vec2(L, W));
+  take(o, frame, 1.6, M_DARK, 0.4);
+  if (frame > 0.04) {
+    float cells = 4.0, u = (q.x + L) / (2.0 * L) * cells, fu = fract(u);
+    float divider = min(fu, 1.0 - fu) * 2.0 * L / cells;
+    if (divider < 0.02) o.edge = min(o.edge, divider);
+    else {
+      float bw = 0.055 + 0.03 * hash12(vec2(floor(u), seed));
+      float bu = (q.x + L) / bw, bk = floor(bu), bf = fract(bu);
+      if (hash12(vec2(bk, seed * 1.7)) > 0.15) { o.mat = M_PAINT; o.tone = floor(hash12(vec2(bk, seed)) * 6.0) / 7.0; o.h = 1.55; o.edge = min(min(bf, 1.0 - bf) * bw, min(frame - 0.04, divider - 0.02)); }
+      else { o.h = 1.4; o.mat = M_DARK; o.tone = 0.0; o.edge = min(frame - 0.04, divider - 0.02); }
+    }
+  }
+  return o;
+}
+
+Hit bed(vec2 q, float seed) {
+  Hit o = none();
+  float L = 0.95, W = 0.55;
+  take(o, sdBox(q, vec2(L, W)), 0.4, M_DARK, 0.5);
+  take(o, sdRound(q, vec2(L - 0.06, W - 0.06), 0.04), 0.55, M_PAINT, 0.0);
+  take(o, sdRound(q - vec2(-L + 0.24, 0.0), vec2(0.14, W - 0.14), 0.07), 0.64, M_PAINT, 0.0);
+  float folds = 0.02 * sin(q.y * 18.0 + hash12(vec2(seed, 1.0)) * 6.0) * smoothstep(-0.3, 0.6, q.x);
+  take(o, sdRound(q - vec2(0.2, 0.0), vec2(L - 0.24, W - 0.03), 0.03), 0.6 + folds, M_PAINT, (1.0 + floor(hash12(vec2(seed, 2.0)) * 5.0)) / 7.0);
+  return o;
+}
+
+Hit bridgeShape(vec2 q, float seed) {
+  Hit o = none();
+  float L = 1.6, W = 0.48;
+  for (int i = 0; i < 2; i++) {
+    float side = i == 0 ? -1.0 : 1.0;
+    take(o, sdBox(q - vec2(0.0, side * W * 0.9), vec2(L, 0.05)), 0.22, M_DARK, 0.4);
+    take(o, sdSegment(q, vec2(-L + 0.08, side * (W + 0.06)), vec2(L - 0.08, side * (W + 0.06)), 0.015), 0.62, M_CLOTH, 0.2);
+  }
+  float pw = 0.14, k = floor((q.x + L) / pw), f = fract((q.x + L) / pw);
+  float plank = sdBox(q - vec2(0.0, (hash12(vec2(k, seed)) - 0.5) * 0.06), vec2(L, W));
+  take(o, plank, 0.3, M_WOOD, hash12(vec2(k, seed * 1.3)));
+  if (o.mat == M_WOOD && plank > 0.0) o.edge = min(plank, min(f, 1.0 - f) * pw);
+  for (int i = 0; i < 4; i++) {
+    vec2 c = vec2(i % 2 == 0 ? -L + 0.08 : L - 0.08, i < 2 ? -W - 0.06 : W + 0.06);
+    take(o, sdBox(q - c, vec2(0.055)), 0.7, M_DARK, 0.6);
+  }
+  return o;
+}
+
+Hit well(vec2 q, float seed) {
+  Hit o = none();
+  float r = length(q), a = atan(q.y, q.x);
+  float spin = hash12(vec2(seed, 1.0));
+  float u = a / TAU * 11.0 + spin, k = floor(u), f = fract(u);
+  take(o, min(r - 0.4, 0.62 - r), 0.42 + 0.04 * hash12(vec2(k, seed)), M_STONE, hash12(vec2(seed, k)));
+  if (o.mat == M_STONE) o.edge = min(o.edge, min(f, 1.0 - f) * r * TAU / 11.0);
+  take(o, 0.405 - r, 0.08, M_WATER, 0.5);
+  take(o, sdBox(q, vec2(0.75, 0.045)), 0.95, M_DARK, 0.4);
+  for (int i = 0; i < 2; i++) take(o, sdBox(q - vec2(i == 0 ? -0.68 : 0.68, 0.0), vec2(0.07)), 1.0, M_DARK, 0.6);
+  if (hash12(vec2(seed, 2.0)) < 0.6) {
+    vec2 c = vec2(0.17, -0.2);
+    take(o, 0.1 - length(q - c), 0.3, M_WOOD, 0.5);
+    if (length(q - c) < 0.075 && o.h == 0.3) { o.mat = M_WATER; o.edge = 0.075 - length(q - c); }
+  }
+  return o;
+}
+
+Hit pillar(vec2 q, float seed) {
+  Hit o = none();
+  float rad = 0.36 + hash12(vec2(seed, 1.0)) * 0.05;
+  take(o, sdRound(q, vec2(rad * 1.15), 0.03), 0.3, M_CUT, 0.3);
+  float r = length(q), t = clamp(r / rad, 0.0, 1.0);
+  take(o, rad - r, 1.6 + 0.05 * (1.0 - t * t), M_CUT, 0.7);
+  if (r < rad) {
+    o.edge = min(rad - r, min(abs(r - rad * 0.78), abs(r - rad * 0.55)));
+    if (hash12(vec2(seed, 2.0)) < 0.35) {
+      float a = hash12(vec2(seed, 3.0)) * TAU;
+      o.edge = min(o.edge, -sdSegment(q, vec2(cos(a), sin(a)) * rad, vec2(cos(a + 0.4), sin(a + 0.4)) * rad * 0.35, 0.0));
+    }
+  }
+  return o;
+}
+
+/** Altura de um domo dentro de uma peça: 0 na borda, 1 no meio (raio r). */
+float dome(float sd, float r) { return sqrt(clamp(sd / r, 0.0, 1.0)); }
+Hit statue(vec2 q, float seed) {
+  Hit o = none();
+  float pedestal = sdRound(q, vec2(0.4), 0.08);
+  take(o, pedestal, 0.5, M_CUT, 0.1);
+  if (pedestal > 0.0) o.edge = min(pedestal, abs(sdRound(q, vec2(0.31), 0.05)));
+  float type = floor(hash12(vec2(seed, 1.0)) * 3.0);
+  if (type < 0.5) {
+    float shoulders = sdEllipse(q, vec2(0.33, 0.17));
+    take(o, shoulders, 1.5 + 0.12 * dome(shoulders, 0.17), M_CUT, 0.9);
+    for (int i = 0; i < 2; i++) { float arm = sdSegment(q, vec2(i == 0 ? -0.26 : 0.26, 0.0), vec2(i == 0 ? -0.08 : 0.08, 0.16), 0.06); take(o, arm, 1.55 + 0.08 * dome(arm, 0.06), M_CUT, 0.85); }
+    float helm = 0.12 - length(q - vec2(0.0, -0.02));
+    take(o, helm, 1.75 + 0.15 * dome(helm, 0.12), M_CUT, 1.0);
+    take(o, sdSegment(q, vec2(0.0, 0.16), vec2(0.0, 0.42), 0.035), 1.62, M_CUT, 0.7);
+    take(o, sdSegment(q, vec2(-0.1, 0.17), vec2(0.1, 0.17), 0.025), 1.64, M_CUT, 0.7);
+  } else if (type < 1.5) {
+    float robe = sdEllipse(q - vec2(0.0, 0.04), vec2(0.28, 0.22));
+    take(o, robe, 1.45 + 0.2 * dome(robe, 0.22), M_CUT, 0.85);
+    float hood = 0.13 - length(q - vec2(0.0, -0.04));
+    take(o, hood, 1.7 + 0.15 * dome(hood, 0.13), M_CUT, 1.0);
+    take(o, sdSegment(q, vec2(0.22, -0.3), vec2(0.26, 0.38), 0.025), 1.7, M_CUT, 0.45);
+    take(o, 0.04 - length(q - vec2(0.22, -0.3)), 1.95, M_CUT, 0.85);
+  } else {
+    for (int i = 0; i < 2; i++) {
+      vec2 p = vec2(i == 0 ? -q.x : q.x, q.y);
+      float u = p.x - 0.1, t = clamp(u / 0.6, 0.0, 1.0);
+      float wing = (u > 0.0 && u < 0.6) ? 0.22 * sin(3.14159 * min(t * 1.2, 1.0)) - abs(p.y + 0.05 + 0.12 * t) - 0.03 * abs(fract(u * 14.0) * 2.0 - 1.0) : -1.0;
+      take(o, wing, 1.5 - 0.3 * t + 0.08 * dome(wing, 0.08), M_CUT, 0.8 + 0.2 * t);
+    }
+    float body = sdEllipse(q, vec2(0.15, 0.12));
+    take(o, body, 1.6 + 0.12 * dome(body, 0.12), M_CUT, 0.9);
+    float head = 0.09 - length(q - vec2(0.0, -0.05));
+    take(o, head, 1.8 + 0.12 * dome(head, 0.09), M_CUT, 1.0);
+  }
+  return o;
+}
+
+Hit altar(vec2 q, float seed) {
+  Hit o = none();
+  take(o, sdBox(q, vec2(0.75, 0.48)), 0.2, M_CUT, 0.25);
+  take(o, sdBox(q, vec2(0.65, 0.38)), 0.55, M_CUT, 0.55);
+  if (hash12(vec2(seed, 1.0)) < 0.5) take(o, sdBox(q, vec2(0.22, 0.4)), 0.57, M_PAINT, 1.0 / 7.0);
+  if (hash12(vec2(seed, 2.0)) < 0.4) for (int i = 0; i < 3; i++) {
+    vec2 c = (hash22(vec2(seed, float(i) + 4.0)) - 0.5) * vec2(0.9, 0.5);
+    float s = 0.06 + 0.05 * hash12(vec2(float(i), seed)) - length(q - c) + (vnoise(q * 30.0) - 0.5) * 0.03;
+    if (s > 0.0 && o.h >= 0.55) { o.mat = M_PAINT; o.tone = 6.0 / 7.0; }
+  }
+  int n = 2 + int(hash12(vec2(seed, 3.0)) * 3.0);
+  for (int i = 0; i < 4; i++) {
+    if (i >= n) break;
+    vec2 c = vec2(-0.5 + float(i / 2) * 1.0, i % 2 == 0 ? -0.27 : 0.27);
+    take(o, 0.045 - length(q - c), 0.75, M_PAINT, 0.0);
+    take(o, 0.018 - length(q - c), 0.8, M_FLAME, 0.5);
+  }
+  return o;
+}
+
+Hit tent(vec2 q, float seed) {
+  Hit o = none();
+  float L = 0.85, W = 0.6;
+  for (int i = 0; i < 4; i++) {
+    vec2 corner = vec2(i % 2 == 0 ? -L : L, i < 2 ? -W : W), stake = corner * 1.3;
+    take(o, sdSegment(q, corner, stake, 0.008), 0.05, M_CLOTH, 0.1);
+    take(o, 0.03 - length(q - stake), 0.08, M_WOOD, 0.5);
+  }
+  float body = sdBox(q, vec2(L, W));
+  take(o, body, 0.95 - abs(q.y) / W * 0.75, M_CLOTH, 0.85 + 0.1 * hash12(vec2(seed, 1.0)));
+  if (o.mat == M_CLOTH && body > 0.0) {
+    o.edge = min(body, abs(q.y));
+    float into = q.x - (L - 0.3);
+    if (into > 0.0 && abs(q.y) < 0.24 * into / 0.3) { o.mat = M_DARK; o.tone = 0.0; o.h = 0.4; o.edge = min(body, 0.24 * into / 0.3 - abs(q.y)); }
+  }
+  return o;
+}
+
+Hit sackAt(vec2 q, vec2 c, float s, float ang, float tone) {
+  vec2 p = rotv(q - c, ang);
+  float body = s * (1.0 + 0.07 * sin(atan(p.y, p.x) * 3.0 + tone * 9.0)) - length(p * vec2(1.0, 1.12));
+  float t = clamp(length(p) / s, 0.0, 1.0);
+  Hit o = Hit(body, 0.15 + 0.25 * (1.0 - t * t), M_CLOTH, tone, body);
+  vec2 m = p - vec2(s * 0.9, 0.0);
+  float neck = s * 0.26 - length(m * vec2(1.0, 1.4));
+  if (neck > 0.0) { o.h = 0.42; o.edge = neck; o.tone = tone * 0.8; }
+  o.sd = max(o.sd, neck);
+  float cord = abs(length(p - vec2(s * 0.7, 0.0)) - s * 0.17);
+  if (body > 0.0 && cord < s * 0.05) { o.tone = 0.0; o.edge = min(o.edge, cord); }
+  return o;
+}
+Hit sacks(vec2 q, float seed) {
+  Hit o = none();
+  int n = 2 + int(hash12(vec2(seed, 1.0)) * 3.0);
+  for (int i = 0; i < 4; i++) {
+    if (i >= n) break;
+    float fi = float(i);
+    vec2 c = (hash22(vec2(seed, fi)) - 0.5) * 0.45;
+    takeHit(o, sackAt(q, c, 0.18 + hash12(vec2(fi, seed)) * 0.07, hash12(vec2(seed, fi + 7.0)) * TAU, 0.4 + 0.5 * hash12(vec2(fi, seed * 2.0))));
+  }
+  return o;
+}
+
+float boneSd(vec2 q, vec2 a, vec2 b, float w) {
+  vec2 d = normalize(b - a), n = vec2(-d.y, d.x);
+  float s = sdSegment(q, a, b, w * 0.55);
+  s = max(s, w * 0.62 - length(q - a - n * w * 0.45));
+  s = max(s, w * 0.62 - length(q - a + n * w * 0.45));
+  s = max(s, w * 0.62 - length(q - b - n * w * 0.45));
+  return max(s, w * 0.62 - length(q - b + n * w * 0.45));
+}
+Hit bones(vec2 q, float seed) {
+  Hit o = none();
+  vec2 p = rotv(q - (hash22(vec2(seed, 1.0)) - 0.5) * 0.2, hash12(vec2(seed, 2.0)) * TAU);
+  take(o, max(sdEllipse(p, vec2(0.11, 0.13)), sdEllipse(p - vec2(0.0, 0.1), vec2(0.07, 0.05))), 0.12, M_BONE, 0.6);
+  for (int i = 0; i < 2; i++) {
+    float socket = 0.03 - length(p - vec2(i == 0 ? -0.045 : 0.045, 0.02));
+    if (socket > 0.0 && o.mat == M_BONE) { o.mat = M_DARK; o.tone = 0.0; o.h = 0.1; o.edge = socket; }
+  }
+  int n = 2 + int(hash12(vec2(seed, 3.0)) * 3.0);
+  for (int i = 0; i < 4; i++) {
+    if (i >= n) break;
+    float fi = float(i);
+    vec2 a = (hash22(vec2(seed, fi + 5.0)) - 0.5) * 0.55;
+    float ang = hash12(vec2(fi, seed * 1.9)) * TAU, len = 0.3 + hash12(vec2(seed, fi * 2.0)) * 0.2;
+    vec2 b = a + vec2(cos(ang), sin(ang)) * len;
+    take(o, boneSd(q, a, b, 0.06), 0.05 + fi * 0.01, M_BONE, 0.4 + 0.15 * fi);
+  }
+  return o;
+}
+`;
+
+const SHAPE_CALL = {
+  flowers: "flowers(q, seed)", palm: "palm(q, seed)", tallGrass: "tallGrass(q, seed)", stones: "stones(q, seed)", rubble: "rubble(q, seed)",
+  log: "logShape(q, seed)", stump: "stump(q, seed)", mushrooms: "mushrooms(q, seed)", crate: "crate(q, seed)", crates: "crates(q, seed)",
+  planks: "planks(q, seed)", table: "tableShape(q, seed)", shelf: "shelf(q, seed)", bed: "bed(q, seed)", bridge: "bridgeShape(q, seed)",
+  well: "well(q, seed)", pillar: "pillar(q, seed)", statue: "statue(q, seed)", altar: "altar(q, seed)", tent: "tent(q, seed)",
+  sacks: "sacks(q, seed)", bones: "bones(q, seed)",
+};
+
+// Cor de cada material (a mesma conta que vai para o app), com o detalhe fino calculado na hora.
+const ALBEDO = `
+uniform sampler2D uGrass, uStone, uDirt;
+vec3 paintColor(float tone) {
+  int i = int(floor(tone * 7.0 + 0.5));
+  if (i == 0) return vec3(0.9, 0.87, 0.8);
+  if (i == 1) return vec3(0.68, 0.15, 0.12);
+  if (i == 2) return vec3(0.92, 0.76, 0.25);
+  if (i == 3) return vec3(0.5, 0.3, 0.6);
+  if (i == 4) return vec3(0.25, 0.38, 0.62);
+  if (i == 5) return vec3(0.3, 0.5, 0.25);
+  if (i == 6) return vec3(0.36, 0.05, 0.04);
+  return vec3(0.55, 0.38, 0.22);
+}
+vec3 albedo(int mat, float tone, vec2 q, vec2 world, float seed, vec3 n, bool grainAcross) {
+  if (mat == M_GRASS) {
+    vec3 w = texture(uGrass, world * 0.3).rgb;
+    float streak = vnoise(vec2(q.x * 30.0, q.y * 30.0) + seed) * 0.6 + vnoise(q * 90.0) * 0.4;
+    return w * vec3(0.78, 1.0, 0.6) * (0.68 + 0.5 * tone) * (0.82 + 0.3 * streak);
+  }
+  if (mat == M_STONE) {
+    vec3 c = texture(uStone, world * 0.35).rgb * vec3(0.8, 0.77, 0.72) * (0.84 + 0.24 * tone) * (0.85 + 0.3 * fbm(q * 9.0 + seed));
+    float moss = smoothstep(0.55, 0.7, fbm(q * 4.0 + seed)) * smoothstep(0.75, 0.95, n.z);
+    return mix(c, texture(uGrass, world * 0.5).rgb * vec3(0.75, 0.9, 0.55), moss * 0.85);
+  }
+  if (mat == M_CUT) return texture(uStone, world * 0.3).rgb * vec3(0.95, 0.92, 0.86) * (0.85 + 0.25 * tone) * (0.9 + 0.2 * fbm(q * 14.0 + seed));
+  if (mat == M_WOOD || mat == M_DARK) {
+    vec2 g = grainAcross ? q : vec2(q.y, q.x);
+    float grain = vnoise(vec2(g.x * 3.0, g.y * 70.0)) * 0.6 + vnoise(vec2(g.x * 9.0, g.y * 180.0)) * 0.4;
+    vec3 base = mat == M_WOOD ? vec3(0.52, 0.36, 0.21) : vec3(0.36, 0.25, 0.15);
+    return base * (0.75 + 0.35 * tone) * (0.78 + 0.32 * grain) * (0.7 + 0.5 * texture(uDirt, world * 0.6).rgb);
+  }
+  if (mat == M_BARK) {
+    float streak = vnoise(vec2(q.x * 10.0, q.y * 55.0) + seed) * 0.65 + vnoise(q * 120.0) * 0.35;
+    vec3 c = vec3(0.34, 0.23, 0.14) * (0.7 + 0.5 * streak) * (0.85 + 0.25 * tone);
+    float moss = smoothstep(0.6, 0.75, fbm(q * 5.0 + seed)) * smoothstep(0.8, 0.97, n.z);
+    return mix(c, texture(uGrass, world * 0.5).rgb * vec3(0.75, 0.9, 0.55), moss * 0.8);
+  }
+  if (mat == M_RINGS) {
+    float rings = 0.5 + 0.5 * sin(length(q) * 95.0 + vnoise(q * 6.0 + seed) * 5.0);
+    return vec3(0.72, 0.56, 0.36) * (0.82 + 0.18 * rings) * (0.9 + 0.15 * vnoise(q * 50.0));
+  }
+  if (mat == M_IRON) return vec3(0.24, 0.24, 0.26) * (0.85 + 0.3 * vnoise(q * 40.0));
+  if (mat == M_CLOTH) {
+    float weave = abs(sin(q.x * 240.0)) * 0.5 + abs(sin(q.y * 240.0)) * 0.5;
+    return mix(vec3(0.3, 0.24, 0.16), vec3(0.74, 0.64, 0.46), tone) * (0.85 + 0.15 * weave);
+  }
+  if (mat == M_BONE) return vec3(0.88, 0.84, 0.72) * (0.82 + 0.22 * tone) * (0.9 + 0.12 * vnoise(q * 60.0));
+  if (mat == M_BRICK) return vec3(0.6, 0.3, 0.2) * (0.78 + 0.35 * tone) * (0.85 + 0.25 * vnoise(q * 50.0 + seed));
+  if (mat == M_WATER) {
+    float ripple = vnoise(q * 16.0 + vec2(uTime * 0.25, uTime * 0.1)) * vnoise(q * 9.0 - vec2(uTime * 0.15, 0.0));
+    float glint = smoothstep(0.42, 0.6, ripple);
+    return vec3(0.04, 0.07, 0.09) + vec3(0.03, 0.06, 0.07) * (1.0 - length(q) * 2.0) + vec3(0.35, 0.45, 0.5) * glint * 0.35;
+  }
+  if (mat == M_FLAME) return vec3(1.0, 0.78, 0.35);
+  return paintColor(tone) * (0.9 + 0.12 * vnoise(q * 80.0 + seed));
+}
+`;
+
+const QUAD_VS = `#version 300 es
+in vec2 aPos;
+uniform vec4 uBox;     // canto de cima à esquerda e de baixo à direita (casas)
+uniform vec2 uOrigin;
+uniform float uPx;
+uniform vec2 uCanvas;
+void main() {
+  vec2 world = mix(uBox.xy, uBox.zw, aPos * 0.5 + 0.5);
+  vec2 px = (world - uOrigin) * uPx;
+  gl_Position = vec4(px.x / uCanvas.x * 2.0 - 1.0, 1.0 - px.y / uCanvas.y * 2.0, 0.0, 1.0);
+}`;
+
+const GROUND_FS = `${COMMON}
+uniform sampler2D uGrass, uDirt;
+void main() {
+  vec2 p = uOrigin + vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y) / uPx;
+  vec3 g = texture(uGrass, p / 8.0).rgb;
+  vec3 d = texture(uDirt, p / 8.0).rgb;
+  float patch_ = smoothstep(0.55, 0.75, fbm(p * 0.12));
+  vec3 c = mix(g, d, patch_ * 0.8);
+  vec2 f = min(fract(p), 1.0 - fract(p)) * uPx;
+  c = mix(c, c * 0.6, (1.0 - smoothstep(0.4 * uDpr, 1.1 * uDpr, min(f.x, f.y))) * 0.3);
+  outColor = vec4(c * (uAmb + uSunCol * uSun.z), 1.0);
+}`;
+
+function objectFragment(kind) {
+  const plantShift = kind === "palm" ? "q -= sway * 0.08 * clamp(length(q) / 1.2, 0.0, 1.0);" : kind === "tallGrass" ? "q -= sway * 0.12 * clamp(length(q) / 0.8, 0.0, 1.0);" : kind === "flowers" ? "q -= sway * 0.03;" : "";
+  return `${COMMON}
+${SHAPES}
+${ALBEDO}
+uniform vec4 uPlace;       // col, row, tamanho, giro
+uniform float uSeed;
+uniform int uMode;         // 0 = objeto, 1 = sombra
+uniform vec2 uShift;
+uniform float uShadowDark;
+uniform int uSweep;         // sombra que varre do pé até a ponta (maciço)
+uniform float uCast;        // altura da sombra do tipo (a do topo)
+Hit shapeAt(vec2 q) { float seed = uSeed; return ${SHAPE_CALL[kind]}; }
+vec2 swayAt(vec2 pos, float seed) {
+  float ph = seed * 0.37 - dot(pos, uWindDir) * 0.35;
+  float g = sin(uTime * 1.1 + ph) * 0.6 + sin(uTime * 2.3 + ph * 1.7) * 0.3 + sin(uTime * 4.1 + ph * 2.9) * 0.1;
+  return uWindDir * uWind * (0.45 + 0.55 * g);
+}
+vec2 local(vec2 p, vec2 sway) {
+  float c = cos(uPlace.w), s = sin(uPlace.w);
+  vec2 q = mat2(c, -s, s, c) * (p - uPlace.xy) / uPlace.z;
+  ${plantShift}
+  return q;
+}
+void main() {
+  vec2 p = uOrigin + vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y) / uPx;
+  float c = cos(uPlace.w), s = sin(uPlace.w);
+  vec2 sway = ${PLANTS.has(kind) ? "mat2(c, -s, s, c) * swayAt(uPlace.xy, uSeed) / uPlace.z" : "vec2(0.0)"};
+  if (uMode == 1) {
+    if (shapeAt(local(p, sway)).sd > 0.0) discard;
+    float lift = length(uShift);
+    float soft = 0.05 + lift * 0.06;
+    float shadow = smoothstep(-soft, soft, shapeAt(local(p - uShift, sway)).sd * uPlace.z) * 0.85;
+    // só a parte alta o bastante faz sombra até ali (a corda e a base baixa não se esticam)
+    if (uSweep == 1) for (int k = 1; k < 28; k++) {
+      float t = float(k) / 28.0;
+      Hit part = shapeAt(local(p - uShift * t, sway));
+      float tall = smoothstep(t - 0.08, t + 0.02, part.h / uCast);
+      shadow = max(shadow, smoothstep(-soft * t, soft * t, part.sd * uPlace.z) * tall * 0.85);
+    }
+    outColor = vec4(0.0, 0.0, 0.0, shadow * uShadowDark);
+    return;
+  }
+  vec2 q = local(p, sway);
+  Hit o = shapeAt(q);
+  float perLocal = uPx * uPlace.z;
+  float px = o.sd * perLocal;
+  if (px < -1.0) discard;
+  float e = 1.0 / perLocal;
+  vec2 grad = vec2(shapeAt(q + vec2(e, 0.0)).h - o.h, shapeAt(q + vec2(0.0, e)).h - o.h) / e;
+  grad *= min(1.0, 2.5 / max(length(grad), 1e-4));
+  vec3 n = normalize(vec3(mat2(c, s, -s, c) * -grad, 1.0));
+  vec3 color = albedo(o.mat, o.tone, q, p, uSeed, n, ${kind === "bridge" ? "true" : "false"});
+  float inkWidth = 1.15 * uDpr;
+  float outer = 1.0 - smoothstep(inkWidth * 0.55, inkWidth * 1.25, px);
+  float inner = o.edge < 0.25 ? (1.0 - smoothstep(inkWidth * 0.4, inkWidth * 1.1, o.edge * perLocal)) * 0.55 : 0.0;
+  color = mix(color, color * 0.18 + vec3(0.03, 0.025, 0.02), max(outer, inner));
+  vec3 lit = o.mat == M_FLAME ? color * 1.4 : color * (uAmb + uSunCol * max(dot(n, uSun), 0.0));
+  float alpha = clamp(px + 0.5, 0.0, 1.0);
+  outColor = vec4(lit * alpha, alpha);
+}`;
+}
+
+const canvas = document.getElementById("view");
+const overlay = document.getElementById("overlay");
+const wrap = document.getElementById("wrap");
+const gl = canvas.getContext("webgl2", { antialias: false });
+const octx = overlay.getContext("2d");
+
+function compile(type, src) { const shader = gl.createShader(type); gl.shaderSource(shader, src); gl.compileShader(shader); if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader)); return shader; }
+function link(vs, fs) { const program = gl.createProgram(); gl.attachShader(program, compile(gl.VERTEX_SHADER, vs)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fs)); gl.bindAttribLocation(program, 0, "aPos"); gl.linkProgram(program); if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program)); return program; }
+const buffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const groundProgram = link(QUAD_VS, GROUND_FS);
+const programs = {};
+const started = performance.now();
+for (const [kind] of KINDS) {
+  try { programs[kind] = link(QUAD_VS, objectFragment(kind)); } catch (error) { console.error(kind, error.message); }
+}
+console.log("compilado em", Math.round(performance.now() - started), "ms");
+
+const LIGHTS = {
+  day: { sun: [-0.5, -0.6, 0.75], color: [0.5, 0.48, 0.42], ambient: [0.55, 0.57, 0.63] },
+  dusk: { sun: [-0.92, -0.25, 0.45], color: [0.58, 0.42, 0.27], ambient: [0.36, 0.3, 0.35] },
+  moon: { sun: [0.4, -0.6, 0.6], color: [0.14, 0.17, 0.27], ambient: [0.06, 0.07, 0.12] },
+};
+const state = { light: "day", zoom: 0, wind: 1, mode: "new", focus: null };
+const PER_ROW = 4, GROUP_W = 11.4, GROUP_H = 4.4, SPACING = 3.7;
+const items = [];
+let seeds = [];
+KINDS.forEach(([kind, label, extent, cast], index) => {
+  const gx = (index % PER_ROW) * GROUP_W, gy = Math.floor(index / PER_ROW) * GROUP_H;
+  for (let copy = 0; copy < 3; copy++) items.push({ kind, label, extent, cast, col: gx + 2 + copy * SPACING, row: gy + 2, size: 1, rot: copy === 1 ? 0.5 : 0, first: copy === 0 });
+});
+seeds = items.map((_, index) => 11 + index * 37);
+const WORLD = { w: PER_ROW * GROUP_W, h: Math.ceil(KINDS.length / PER_ROW) * GROUP_H };
+
+const images = ["grass_01.webp", "dirt_01.webp", "stone_01.webp"];
+const textures = [];
+let loaded = 0;
+images.forEach((src, index) => {
+  const img = new Image();
+  img.onload = () => {
+    const texture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0 + index);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    textures[index] = texture;
+    if (++loaded === images.length) start();
+  };
+  img.src = src;
+});
+
+let cssWidth = 0, cssHeight = 0, dpr = 1;
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  cssWidth = Math.max(320, window.innerWidth - 34);
+  cssHeight = Math.min(760, Math.max(360, window.innerHeight - 150));
+  for (const target of [canvas, overlay]) {
+    target.width = Math.round(cssWidth * dpr);
+    target.height = Math.round(cssHeight * dpr);
+    target.style.width = cssWidth + "px";
+    target.style.height = cssHeight + "px";
+  }
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+function pxPerCell() { return (state.zoom === 0 ? Math.min(cssWidth / WORLD.w, cssHeight / WORLD.h) : state.zoom) * dpr; }
+function origin() {
+  const px = pxPerCell();
+  const focus = state.focus ?? [WORLD.w / 2, WORLD.h / 2];
+  return [focus[0] - canvas.width / px / 2, focus[1] - canvas.height / px / 2];
+}
+
+function setCommon(program, px, ox, oy, light, sunDir, now) {
+  const u = (name) => gl.getUniformLocation(program, name);
+  gl.uniform2f(u("uOrigin"), ox, oy);
+  gl.uniform1f(u("uPx"), px);
+  gl.uniform1f(u("uDpr"), dpr);
+  gl.uniform1f(u("uHeight"), canvas.height);
+  gl.uniform2f(u("uCanvas"), canvas.width, canvas.height);
+  gl.uniform3fv(u("uSun"), sunDir);
+  gl.uniform3fv(u("uSunCol"), light.color.map((value) => value / Math.max(0.3, sunDir[2])));
+  gl.uniform3fv(u("uAmb"), light.ambient);
+  gl.uniform1f(u("uTime"), (now - started) / 1000);
+  gl.uniform1f(u("uWind"), state.wind);
+  gl.uniform2f(u("uWindDir"), 0.95, 0.31);
+  gl.uniform1i(u("uGrass"), 0);
+  gl.uniform1i(u("uDirt"), 1);
+  gl.uniform1i(u("uStone"), 2);
+  return u;
+}
+
+let last = 0, average = 0;
+function draw(now) {
+  const px = pxPerCell(), [ox, oy] = origin();
+  const light = LIGHTS[state.light];
+  const length = Math.hypot(...light.sun), sunDir = light.sun.map((value) => value / length);
+  const luminance = (rgb) => rgb[0] * 0.3 + rgb[1] * 0.59 + rgb[2] * 0.11;
+  const sunLum = luminance(light.color.map((value) => value / Math.max(0.3, sunDir[2]))) * sunDir[2];
+  const shadowDark = sunLum / (luminance(light.ambient) + sunLum);
+  gl.disable(gl.BLEND);
+  gl.useProgram(groundProgram);
+  let u = setCommon(groundProgram, px, ox, oy, light, sunDir, now);
+  gl.uniform4f(u("uBox"), ox, oy, ox + canvas.width / px, oy + canvas.height / px);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  if (state.mode === "new") {
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    for (const pass of [1, 0]) {
+      items.forEach((item, index) => {
+        const program = programs[item.kind];
+        if (!program) return;
+        gl.useProgram(program);
+        u = setCommon(program, px, ox, oy, light, sunDir, now);
+        const reach = item.extent * item.size * 1.42;
+        const shift = [sunDir[0] / sunDir[2] * -1 * item.cast * item.size * 0.8, sunDir[1] / sunDir[2] * -1 * item.cast * item.size * 0.8];
+        const low = pass === 1 ? [Math.min(item.col, item.col + shift[0]) - reach, Math.min(item.row, item.row + shift[1]) - reach] : [item.col - reach, item.row - reach];
+        const high = pass === 1 ? [Math.max(item.col, item.col + shift[0]) + reach, Math.max(item.row, item.row + shift[1]) + reach] : [item.col + reach, item.row + reach];
+        gl.uniform4f(u("uBox"), low[0], low[1], high[0], high[1]);
+        gl.uniform4f(u("uPlace"), item.col, item.row, item.size, item.rot);
+        gl.uniform1f(u("uSeed"), (seeds[index] % 997) + 0.5);
+        gl.uniform1i(u("uMode"), pass);
+        gl.uniform2f(u("uShift"), shift[0], shift[1]);
+        gl.uniform1f(u("uShadowDark"), shadowDark);
+        gl.uniform1i(u("uSweep"), SOLID.has(item.kind) ? 1 : 0);
+        gl.uniform1f(u("uCast"), item.cast);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      });
+    }
+  }
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (state.mode === "today" && window.drawProp) {
+    items.forEach((item, index) => {
+      octx.save();
+      octx.translate((item.col - ox) * px, (item.row - oy) * px);
+      octx.rotate(item.rot);
+      window.drawProp(octx, item.kind, px * item.size, seeds[index]);
+      octx.restore();
+    });
+  }
+  octx.fillStyle = "#e8dcc4";
+  octx.font = `${Math.round(Math.max(11, Math.min(22, px * 0.32)))}px Segoe UI`;
+  octx.textAlign = "center";
+  for (const item of items) if (item.first) octx.fillText(item.label, (item.col + SPACING - ox) * px, (item.row + 1.9 - oy) * px);
+  if (last) { average = average * 0.9 + (now - last) * 0.1; document.getElementById("ms").textContent = `${average.toFixed(1)} ms por quadro`; }
+  last = now;
+}
+
+function live() { return state.wind > 0 && state.mode === "new"; }
+function loop(now) { draw(now); if (live()) requestAnimationFrame(loop); else last = 0; }
+function start() { resize(); requestAnimationFrame(loop); }
+function redraw() { if (!live()) requestAnimationFrame(draw); }
+
+function wire(id, apply) {
+  document.querySelectorAll(`#${id} button`).forEach((button) => (button.onclick = () => {
+    const wasLive = live();
+    apply(button.dataset.v);
+    document.querySelectorAll(`#${id} button`).forEach((other) => other.classList.toggle("on", other === button));
+    if (!wasLive && live()) requestAnimationFrame(loop); else redraw();
+  }));
+}
+wire("light", (value) => (state.light = value));
+wire("zoom", (value) => { state.zoom = Number(value); if (state.zoom === 0) state.focus = null; });
+wire("wind", (value) => (state.wind = Number(value)));
+wire("mode", (value) => (state.mode = value));
+document.getElementById("vary").onclick = () => { seeds = items.map(() => Math.floor(Math.random() * 100000)); redraw(); };
+
+let drag = null;
+wrap.addEventListener("pointerdown", (event) => { drag = [event.clientX, event.clientY]; wrap.setPointerCapture(event.pointerId); });
+wrap.addEventListener("pointermove", (event) => {
+  if (!drag) return;
+  const px = pxPerCell() / dpr;
+  const focus = state.focus ?? [WORLD.w / 2, WORLD.h / 2];
+  state.focus = [focus[0] - (event.clientX - drag[0]) / px, focus[1] - (event.clientY - drag[1]) / px];
+  drag = [event.clientX, event.clientY];
+  redraw();
+});
+wrap.addEventListener("pointerup", () => (drag = null));
+wrap.addEventListener("dblclick", (event) => {
+  const rect = wrap.getBoundingClientRect();
+  const [ox, oy] = origin();
+  const px = pxPerCell() / dpr;
+  state.focus = [ox + (event.clientX - rect.left) / px, oy + (event.clientY - rect.top) / px];
+  if (state.zoom === 0) { state.zoom = 90; document.querySelectorAll("#zoom button").forEach((button) => button.classList.toggle("on", button.dataset.v === "90")); }
+  redraw();
+});
+window.addEventListener("resize", () => { resize(); redraw(); });
+</script>
+</body>
+</html>

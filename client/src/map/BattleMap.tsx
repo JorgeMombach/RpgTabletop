@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { type Bridge, bridgeAt, bridgeLength, type Stair, stairAt, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { type Bridge, bridgeAt, bridgeLength, type Stair, stairAt, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintRows, propOccluders, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type SceneFrame, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -19,10 +19,16 @@ import { FixEffectModal } from "../components/FixEffectModal";
 import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
 import { CALIBRATE_HINT } from "../components/MapPanel";
+import { rectAllowed } from "./terrain/TerrainOptions";
+import { markMapBusy } from "./windStall";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
-import { GroundOutputLayer, GroundWallsImage } from "./ground/GroundOutputLayer";
+import { GroundEffectsImage, GroundFogLayer, GroundFrameLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage, GroundWeatherLayer } from "./ground/GroundOutputLayer";
+import type { FrameInput } from "./ground/framePass";
+import type { WeatherInput } from "./weather/weatherPass";
+import { fogLit, fogViewers, type FogRows, type FogScene } from "./ground/fogGeometry";
+import type { FogInput } from "./ground/fogPass";
 import { useTokenDrag } from "./dragFollow";
 import { lightSources, type Dragging } from "./ground/lightSources";
 import { GM_FLOOR, SCENE_LIGHT } from "./ground/sceneLight";
@@ -35,6 +41,10 @@ import { CURRENT_CONTINUE, CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyC
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
 const WEBGL_GROUND = GroundRenderer.supported();
+/** Quanto tempo sem rodinha encerra o gesto de zoom (a visão vai para o React). */
+const ZOOM_GESTURE_MS = 120;
+/** Afastando no gesto, a visão vai para o React a cada vez que a escala cai isso (2 passos; cabe na folga de 1,4× do chão). */
+const ZOOM_OUT_SYNC = 1.25;
 /** Nenhuma peça que dá luz sendo arrastada (o mesmo objeto sempre: não redesenha à toa). */
 const NO_DRAG: Dragging = { id: null, dx: 0, dy: 0 };
 import { useSmallScreen } from "../layout";
@@ -45,10 +55,10 @@ import { DrawingShape, DrawOptions, ERASER_CELLS, type DrawMode } from "./Drawin
 import { wallPointAt, wallSpan, WallPreview, WallShape } from "./WallShape";
 import { WallChains } from "./WallChains";
 import { paintColorOf } from "./PaintOptions";
-import { MapPropLayer, propSpot, tokenSpots } from "./MapProps";
+import { MapPropLayer, propSpot, propUnderToken, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addBridge, addStair, removeStairs, updateStair, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addBridge, addStair, removeStairs, updateStair, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { reliefStrokeOf } from "./terrain/reliefStroke";
 import { FloorLayer } from "./floor/FloorLayer";
 import { floorStrokeOf } from "./floor/FloorOptions";
@@ -60,8 +70,9 @@ import { EffectTipLayer, hideEffectTip, showEffectTip } from "./EffectTip";
 import { Token } from "./Token";
 import { useImage } from "./useImage";
 import { LastSeenOverlay } from "./LastSeen";
-import { screenLights, TorchGlowLayer } from "./Torch";
-import { MapTorchLayer, TORCH_DRAG_MIME } from "./MapTorches";
+import { screenLights, tokenCenter, TorchGlowLayer } from "./Torch";
+import { tokenCaster, tokenGroundShadow } from "./ground/shadowCasters";
+import { MapTorchLayer, placeTorch, SconcePreview, TORCH_DRAG_MIME } from "./MapTorches";
 import { ChestEditor, MapChestLayer } from "./MapChests";
 import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
 import { ViewAsBanner } from "./ViewAsBanner";
@@ -115,8 +126,24 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [view, setView] = useState<View>({ x: 40, y: 40, scale: 1 });
+  const [view, setViewState] = useState<View>({ x: 40, y: 40, scale: 1 });
   const [mapLeft, setMapLeft] = useState(0);
+  // Zoom no gesto (docs/design/desempenho.md): cada passo da rodinha mexe só no palco do Konva (sem redesenhar o
+  // mapa no React); a visão vai para o React quando a rodinha para. Qualquer outra mudança de visão aplica antes o
+  // zoom pendente (nada pula).
+  const pendingZoom = useRef<View | null>(null);
+  const zoomTimer = useRef<number | null>(null);
+  const setView = useCallback((update: View | ((current: View) => View)) => {
+    const pending = pendingZoom.current;
+    if (zoomTimer.current !== null) window.clearTimeout(zoomTimer.current);
+    zoomTimer.current = null;
+    pendingZoom.current = null;
+    if (!pending) return setViewState(update);
+    setViewState(typeof update === "function" ? update(pending) : update);
+  }, []);
+  useEffect(() => () => {
+    if (zoomTimer.current !== null) window.clearTimeout(zoomTimer.current);
+  }, []);
   // O que o canvas enxerga: a área visível mais o pedaço embaixo da coluna da esquerda.
   const stageX = view.x + mapLeft;
   const stageView = useMemo(() => ({ x: stageX, y: view.y, scale: view.scale }), [stageX, view.y, view.scale]);
@@ -372,11 +399,29 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const zoomFromToolbar = useCallback((factor: number) => zoomCenter.current(factor), []);
 
   function zoomAt(point: Point, factor: number) {
-    setView((v) => {
-      const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, v.scale * factor));
-      const world = { x: (point.x - v.x) / v.scale, y: (point.y - v.y) / v.scale };
-      return { scale, x: point.x - world.x * scale, y: point.y - world.y * scale };
-    });
+    // trabalho pontual: os quadros lentos do zoom não contam como aparelho lento
+    markMapBusy();
+    const v = pendingZoom.current ?? viewRef.current;
+    const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, v.scale * factor));
+    const world = { x: (point.x - v.x) / v.scale, y: (point.y - v.y) / v.scale };
+    const next = { scale, x: point.x - world.x * scale, y: point.y - world.y * scale };
+    const stage = stageRef.current;
+    if (!stage) return setView(next);
+    // só o palco agora (as imagens do chão esticam junto, como no zoom provisório); o React, quando a rodinha parar
+    stage.scale({ x: next.scale, y: next.scale });
+    stage.position({ x: next.x + mapLeft, y: next.y });
+    stage.batchDraw();
+    // Afastando, o que entra pelas bordas ainda não foi desenhado: a visão vai para o React quando a tela passa da
+    // folga que o chão pinta ao afastar (1,4×). Aproximando, nada falta (só amplia) e fica tudo no palco.
+    if (next.scale < viewRef.current.scale / ZOOM_OUT_SYNC) return setView(next);
+    pendingZoom.current = next;
+    if (zoomTimer.current !== null) window.clearTimeout(zoomTimer.current);
+    zoomTimer.current = window.setTimeout(() => {
+      zoomTimer.current = null;
+      const settled = pendingZoom.current;
+      pendingZoom.current = null;
+      if (settled) setViewState(settled);
+    }, ZOOM_GESTURE_MS);
   }
 
   function worldPointer(): Point | null {
@@ -412,7 +457,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const eraseMode = (tool === "draw" && drawMode === "erase") || (gm && tool === "walls" && wallMode === "erase") || (gm && tool === "torches" && torchErase);
   /** Raio da borracha (pixels do mapa): no desenho, pelo tamanho escolhido; nas paredes, um quarto de casa. */
   const eraserRadius = tool === "walls" || tool === "torches" ? grid.cellPx * WALL_ERASER : Math.max(4 / view.scale, grid.cellPx * (ERASER_CELLS[drawWidth] ?? 0.25));
-  const eraserRef = useRef<{ kind: "draw" | "walls" | "torches"; pending: number[]; sent: boolean; timer: number | null; before: { id: string }[]; acts: Promise<unknown>[] } | null>(null);
+  const eraserRef = useRef<{ kind: "draw" | "walls" | "torches"; pending: number[]; sent: boolean; timer: number | null; before: { id: string }[]; torches: MapTorch[]; acts: Promise<unknown>[] } | null>(null);
   const [eraserAt, setEraserAt] = useState<Point | null>(null);
   // Trocar desenho das paredes: mesmo círculo da borracha; as paredes tocadas na passada mudam ao soltar.
   const restyleMode = gm && tool === "walls" && wallMode === "restyle";
@@ -485,7 +530,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     void Promise.all(e.acts).then(() => {
       const battle = useApp.getState().state?.battle;
       if (!battle) return;
-      if (e.kind === "walls") recordWallErase(e.before as Wall[], battle.walls);
+      if (e.kind === "walls") recordWallErase(e.before as Wall[], battle.walls, e.torches);
       else if (e.kind === "torches") recordTorchErase(e.before as MapTorch[], battle.torches);
       else recordDrawingErase(e.before as Drawing[], battle.drawings);
     });
@@ -581,7 +626,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
     if (brushTerrain === "current" || brushTerrain === "currentErase") return;
     const local = { ...terrainRect.base };
-    paintTerrain(local, { ...brushSize, terrain: brushTerrain, points: [], rect: { from: terrainRect.from, to } });
+    // a prévia com o mesmo recorte da moldura que o servidor usa (docs/design/moldura.md)
+    paintTerrain(local, { ...brushSize, terrain: brushTerrain, points: [], rect: { from: terrainRect.from, to } }, undefined, state.battle.map.frame);
     setTerrainPreview(local);
   }
   function finishTerrainRect() {
@@ -608,8 +654,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   function terrainAt(p: Point) {
     const cursor = terrainCursor.current;
     if (cursor) {
+      // no retângulo, o contorno do pincel não aparece
+      const { shape, terrain } = useApp.getState().terrainBrush;
       cursor.position(p);
-      cursor.visible(true);
+      cursor.visible(shape === "brush" || !rectAllowed(terrain));
       cursor.getLayer()?.batchDraw();
     }
     const draft = terrainRef.current;
@@ -623,7 +671,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     // Ponto novo só depois de andar um pedaço do raio: a força da passada não depende da velocidade do mouse.
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintTerrain(draft.local, { ...brush, points: [x, y] }, draft.memory);
+    paintTerrain(draft.local, { ...brush, points: [x, y] }, draft.memory, state.battle.map.frame);
     setTerrainPreview({ ...draft.local });
   }
   function finishTerrain() {
@@ -657,7 +705,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { points } = draft;
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintRelief(draft.local, reliefStrokeOf(brush, [x, y]));
+    paintRelief(draft.local, reliefStrokeOf(brush, [x, y]), state.battle.map.frame);
     useApp.setState({ reliefPreview: { ...draft.local } });
   }
   function finishRelief() {
@@ -847,7 +895,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { points } = draft;
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.1, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintFloor(draft.local, floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: [x, y] }), [], "stone");
+    paintFloor(draft.local, floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: [x, y] }), [], "stone", state.battle.map.frame);
     useApp.setState({ floorPreview: { ...draft.local } });
   }
   /** Contorno do lugar fechado sob o mouse (refeito só quando o mouse anda meia casa). */
@@ -1031,7 +1079,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     } else {
       // Até o limite da cena; passou, avisa.
       const room = LIMITS.props - all.length;
-      const items = scatter(scatterSet, seen, scatterDensity, all, Math.random, grid.grid).slice(0, Math.max(0, room));
+      const items = scatter(scatterSet, seen, scatterDensity, all, Math.random, grid.grid, state.battle.walls).slice(0, Math.max(0, room));
       if (room <= 0) toast({ kind: "error", text: t("props.limit", { n: LIMITS.props }) });
       sent = items.length ? addProps(items) : Promise.resolve();
     }
@@ -1163,7 +1211,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       return;
     }
     if (eraseMode) {
-      eraserRef.current = { kind: tool === "walls" || tool === "torches" ? tool : "draw", pending: [], sent: false, timer: null, before: tool === "walls" ? state.battle.walls : tool === "torches" ? state.battle.torches : state.battle.drawings, acts: [] };
+      eraserRef.current = { kind: tool === "walls" || tool === "torches" ? tool : "draw", pending: [], sent: false, timer: null, before: tool === "walls" ? state.battle.walls : tool === "torches" ? state.battle.torches : state.battle.drawings, torches: state.battle.torches, acts: [] };
       setEraserAt(p);
       eraseTo(p);
       return;
@@ -1193,7 +1241,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (tool === "torches") {
       // Clicou numa tocha: é para arrastar, não para pôr outra em cima.
       if (e.target.name() === "map-torch") return;
-      void addTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torchStyle);
+      void placeTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torchStyle, state.battle.walls);
       return;
     }
     if (restyleMode) {
@@ -1241,7 +1289,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (tool === "terrain" && gm) {
       const mode = useApp.getState().terrainBrush.terrain;
       if (mode === "current" || mode === "currentErase") return startCurrent(p, mode === "currentErase");
-      if (useApp.getState().terrainBrush.shape === "rect") {
+      if (useApp.getState().terrainBrush.shape === "rect" && rectAllowed(mode)) {
         const corner = snapFloor(toCells(p), shiftHeld);
         setTerrainRect({ from: corner, to: corner, base: { ...useApp.getState().terrain } });
         return;
@@ -1431,7 +1479,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const p = stage.getRelativePointerPosition();
     if (!p) return;
     // Desenho de tocha arrastado do seletor: fica exatamente onde foi solto.
-    if (torch) return void addTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torch as MapTorchStyle);
+    if (torch) return void placeTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torch as MapTorchStyle, state.battle.walls);
     // Soltar da lista é "colocar": se a casa estiver ocupada, vai para a livre mais perto.
     const all = allCombatants(state);
     const c = all.find((o) => o.id === id);
@@ -1441,6 +1489,22 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Aliados por cima (desenhados por último).
   const tokens = [...state.battle.mobs, ...state.battle.npcs, ...state.allies].filter((c) => c.pos);
   const tokenKey = tokenSpots(tokens);
+  // Tokens que fazem sombra (docs/design/sombras.md): disco em casas, refeito só quando um token anda ou muda de tamanho.
+  const tokenCasters = useMemo(
+    () =>
+      tokens.map((c) => {
+        const center = tokenCenter(c, grid);
+        return tokenCaster(c.id, { x: (center.x - grid.offsetX) / grid.cellPx, y: (center.y - grid.offsetY) / grid.cellPx }, center.span, c.size ?? "medium");
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tokenKey resume onde os tokens estão
+    [tokenKey, tokens.map((c) => c.size).join("|"), grid],
+  );
+  // Copas com token embaixo (meio transparentes e paradas): só refaz quando um token anda ou os objetos mudam.
+  const fadedProps = useMemo(
+    () => new Set(state.battle.props.filter((p) => p.above && propUnderToken(p, tokens, grid)).map((p) => p.id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tokenKey resume onde os tokens estão
+    [state.battle.props, tokenKey, grid],
+  );
   // Luz (docs/design/luz.md): com o chão em WebGL, a luz da cena, as sombras e as tochas saem da placa de vídeo.
   const groundLit = WEBGL_GROUND && !groundFailed;
   const torchKey = tokens
@@ -1473,6 +1537,62 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `torchKey` resume o que importa dos tokens
     [groundLit, blockers, roofs, state.battle.torches, torchKey, state.battle.weather.light, gm, dragging, grid],
+  );
+  // Névoa pela placa (docs/design/nevoa.md): as casas que chegaram, quem vê e o que para a visão. Refeita só quando o que
+  // se vê muda (o estado chega como objetos novos a cada envio: a chave é pelo conteúdo, como a da névoa de hoje).
+  const fogState = state.battle.fog;
+  const fogKey =
+    groundLit && fogState.enabled
+      ? JSON.stringify([
+          grid.grid ?? "square",
+          fogState.vision,
+          fogState.range,
+          fogState.revealed,
+          fogState.vision ? fogState.explored : 0,
+          fogState.vision ? state.battle.sight : 0,
+          state.allies.map((ally) => (ally.pos ? [ally.pos.col, ally.pos.row, ally.size ?? "", ally.darkvision ? 1 : 0, ally.torch ? 1 : 0] : 0)),
+          // quem carrega tocha à vista e as tochas fixas: a luz além da visão
+          tokens.filter((c) => c.torch && !c.hidden).map((c) => [c.pos?.col, c.pos?.row, c.size ?? ""]),
+          state.battle.torches.map((torch) => [torch.col, torch.row]),
+          state.battle.weather.light,
+          state.battle.map.feetPerCell,
+          gm,
+        ])
+      : "";
+  const fogInput = useMemo<FogInput | null>(() => {
+    if (!fogKey) return null;
+    // a pincelada em andamento do mestre aparece na hora (antes de o servidor confirmar)
+    const revealed: FogRows = Object.fromEntries(Object.entries(fogState.revealed).map(([row, runs]) => [row, [...runs]]));
+    const cover: FogRows = {};
+    for (const rect of fogDraft?.rects ?? []) paintRows(fogDraft?.reveal ? revealed : cover, rect, true);
+    const scene: FogScene = { kind: grid.grid, feetPerCell: state.battle.map.feetPerCell, light: state.battle.weather.light, range: fogState.range, vision: fogState.vision };
+    return {
+      now: fogState.vision ? state.battle.sight : {},
+      explored: fogState.vision ? fogState.explored : {},
+      revealed,
+      cover,
+      viewers: fogViewers(state.allies, scene),
+      ...fogLit(state.allies, tokens, state.battle.torches, scene),
+      blockers: lightBlockers([...state.battle.walls, ...propOccluders(state.battle.props)]),
+      kind: grid.grid,
+      vision: fogState.vision,
+      look: gm ? "mist" : "dark",
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fogKey resume a névoa, a visão e quem vê
+  }, [fogKey, fogDraft, state.battle.walls, state.battle.props]);
+  // Clima vivendo no mapa (docs/design/clima.md): com o chão na placa, a placa desenha o clima; os cômodos (o telhado)
+  // são os mesmos da luz, das paredes que este cliente tem.
+  const weatherState = state.battle.weather;
+  // Moldura da cena (docs/design/moldura.md): a placa desenha a mesa de fora e a moldura; sem a placa, o Konva.
+  const sceneFrame = state.battle.map.frame;
+  const sceneTable = state.battle.map.tableStyle ?? "wood";
+  const frameInput = useMemo<FrameInput | null>(() => (groundLit && sceneFrame ? { frame: sceneFrame, tableStyle: sceneTable } : null), [groundLit, sceneFrame, sceneTable]);
+  const weatherInput = useMemo<WeatherInput | null>(
+    () =>
+      groundLit && weatherState.kind
+        ? { kind: weatherState.kind, intensity: weatherState.intensity, wind: weatherState.wind, startedAt: weatherState.startedAt, reduce: reduceFx, rooms: roofs.rooms }
+        : null,
+    [groundLit, weatherState.kind, weatherState.intensity, weatherState.wind, weatherState.startedAt, reduceFx, roofs.rooms],
   );
   // Chuva, neve e afins escurecem com a luz da cena (sem sombra de parede); o que brilha sozinho não muda.
   const sceneLight = SCENE_LIGHT[state.battle.weather.light];
@@ -1646,7 +1766,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           scaleY={view.scale}
           draggable={tool === "move" && !shiftHeld && !placing}
           onDragMove={(e) => {
-            if (e.target === e.target.getStage()) setView((v) => ({ ...v, x: e.target.x() - mapLeft, y: e.target.y() }));
+            if (e.target !== e.target.getStage()) return;
+            markMapBusy();
+            setView((v) => ({ ...v, x: e.target.x() - mapLeft, y: e.target.y() }));
           }}
           onWheel={(e) => {
             e.evt.preventDefault();
@@ -1661,6 +1783,12 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           onPointerLeave={() => {
             onMouseUp();
             hideEffectTip();
+            // o mouse saiu do mapa (para o submenu, por exemplo): os contornos dos pincéis somem
+            for (const cursor of [terrainCursor.current, reliefCursor.current, floorCursor.current]) {
+              if (!cursor?.visible()) continue;
+              cursor.visible(false);
+              cursor.getLayer()?.batchDraw();
+            }
           }}
           onClick={(e) => {
             if (e.target === e.target.getStage() && tool === "move" && !placing && !pinged.current) select(null);
@@ -1706,8 +1834,18 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               bridges={state.battle.bridges}
               stairs={state.battle.stairs}
               stairRelief={relief}
+              fadedProps={fadedProps}
+              tokenCasters={tokenCasters}
+              fog={fogInput}
+              effects={groundLit ? state.battle.effects : null}
+              weatherInput={weatherInput}
+              frameInput={frameInput}
+              weather={state.battle.weather}
             />
           )}
+
+          {/* Clima vivendo no mapa (docs/design/clima.md): a cobertura do chão, logo acima do chão. */}
+          {weatherInput && <GroundWeatherLayer which="ground" view={stageView} size={stageSize} />}
 
           {/* Borda e grid: por cima do terreno e da água. */}
           <Layer listening={false}>
@@ -1717,8 +1855,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
           {/* Efeitos no mapa: acima da imagem e do grid, abaixo dos tokens (E19). */}
           <Layer listening={false}>
+            {/* com o chão na placa, o desenho sai dela (docs/design/efeitos.md); aqui fica só a borda */}
+            {groundLit && <GroundEffectsImage view={stageView} size={stageSize} />}
             {state.battle.effects.map((e) => (
-              <EffectShape key={e.id} effect={e} grid={grid} scale={view.scale} />
+              <EffectShape key={e.id} effect={e} grid={grid} scale={view.scale} outlineOnly={groundLit} />
             ))}
           </Layer>
 
@@ -1912,20 +2052,24 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           </Layer>
 
           {/* Objetos do cenário que ficam no chão (abaixo dos tokens): a luz das tochas e a névoa passam por cima. */}
-          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="below" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} />
+          {groundLit && <GroundPropsImage which="below" view={stageView} size={stageSize} />}
+          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="below" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} gpu={groundLit} />
 
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
               onde se vê (não "vaza" pela parede para dentro de um cômodo coberto). */}
           {groundLit ? (
-            <GroundOutputLayer which="flame" view={stageView} size={stageSize} />
+            <>
+              <GroundOutputLayer which="torches" view={stageView} size={stageSize} />
+              <GroundOutputLayer which="flame" view={stageView} size={stageSize} />
+            </>
           ) : (
             <TorchGlowLayer tokens={tokens} torches={state.battle.torches} grid={grid} light={state.battle.weather.light} />
           )}
-          <MapTorchLayer torches={state.battle.torches} grid={grid} editing={gm && tool === "torches" && !torchErase} fire={!groundLit} />
+          <MapTorchLayer torches={state.battle.torches} grid={grid} editing={gm && tool === "torches" && !torchErase} fire={!groundLit} walls={state.battle.walls} />
           <MapChestLayer chests={state.battle.chests} grid={grid} editing={gm && tool === "chests"} clickable={tool === "move" && !placing && !gathering} />
 
           {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos, paredes e brilho das tochas; os tokens ficam por cima. */}
-          <FogLayer fog={state.battle.fog} sight={state.battle.sight} grid={grid} gm={gm} draft={fogDraft} />
+          {fogInput ? <GroundFogLayer view={stageView} size={stageSize} /> : <FogLayer fog={state.battle.fog} sight={state.battle.sight} grid={grid} gm={gm} draft={fogDraft} />}
 
           {/* Alcance e aura: abaixo dos tokens. */}
           <Layer listening={false}>
@@ -1943,6 +2087,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
                 selected={c.id === selectedId}
                 active={activeIds.has(c.id)}
                 plateNumber={plateNumbers.get(c.id)}
+                groundShadow={tokenGroundShadow(groundLit, lighting !== null)}
                 turnKey={state.battle.combat.turn}
                 draggable={canMove(c) && tool === "move" && !shiftHeld && !placing && !(state.pause && !gm) && !readOnly}
                 onSelect={() => select(c.id)}
@@ -1957,11 +2102,24 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           </Layer>
 
           {/* Copas e o que fica por cima dos tokens (o token passa por baixo; com alguém embaixo, fica meio transparente). */}
-          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="above" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} />
+          {groundLit && <GroundPropsImage which="above" view={stageView} size={stageSize} />}
+          <MapPropLayer props={state.battle.props} grid={grid} scale={view.scale} layer="above" editing={gm && tool === "props"} selectedId={selectedPropId} tokens={tokens} tokenKey={tokenKey} weather={state.battle.weather} gpu={groundLit} />
+
+          {/* O que anda no ar (chuva, neve…): acima das copas, abaixo da luz (escurece à noite). */}
+          {weatherInput && <GroundWeatherLayer which="air" view={stageView} size={stageSize} />}
 
           {/* Luz da cena, sombras e tochas (docs/design/luz.md): multiplica tudo o que está embaixo; a interface do mapa
               (áreas, régua, pings) fica por cima, legível à noite. */}
+          {/* Moldura da cena: a mesa cobre o que está fora; acima de tudo o que é do mapa, abaixo da luz. */}
+          {frameInput && <GroundFrameLayer view={stageView} size={stageSize} />}
+          {!groundLit && sceneFrame && (
+            <Layer listening={false}>
+              <FrameFallback frame={sceneFrame} style={sceneTable} grid={grid} view={view} size={size} />
+            </Layer>
+          )}
           {groundLit && <GroundOutputLayer which="light" view={stageView} size={stageSize} />}
+          {/* O que brilha sozinho no clima (brasas, vagalumes…) e o clarão do relâmpago: acima da luz. */}
+          {weatherInput && <GroundWeatherLayer which="glow" view={stageView} size={stageSize} />}
 
           <Layer listening={false}>
             {Object.entries(areas).map(([pid, a]) => (
@@ -1981,6 +2139,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
+            {gm && tool === "torches" && !torchErase && torchStyle === "sconce" && <SconcePreview grid={grid} walls={state.battle.walls} />}
             {(eraseMode || restyleMode) && eraserAt && (
               <Circle
                 x={eraserAt.x}
@@ -2025,7 +2184,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       {/* Vinheta: bordas da área do mapa escurecidas (luz de cena no centro); some com "Reduzir efeitos". */}
       {!reduceFx && <div className="map-vignette" />}
       {/* Clima e luz (E26): por cima do mapa e dos tokens, abaixo da barra e dos avisos. */}
-      <WeatherOverlay weather={state.battle.weather} lights={groundLit ? [] : screenLights(tokens, state.battle.torches, grid, view)} film={!groundLit} dim={groundLit ? weatherDim : 1} />
+      <WeatherOverlay weather={state.battle.weather} lights={groundLit ? [] : screenLights(tokens, state.battle.torches, grid, view)} film={!groundLit} dim={groundLit ? weatherDim : 1} soundOnly={weatherInput !== null} />
       {/* Onde o grupo perdeu inimigos de vista ("?" vermelho): por cima da luz do clima, legível à noite. */}
       {state.battle.fog.enabled && state.battle.fog.vision && <LastSeenOverlay marks={state.battle.fog.lastSeen} grid={grid} view={view} gm={gm} />}
 
@@ -2115,6 +2274,45 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
  * A mesa em volta do mapa (L5): o ladrilho do estilo da cena cobre a parte visível (acompanha o zoom: o
  * tamanho é em casas) e, com imagem, o mapa ganha uma sombra projetada, como papel pousado na mesa.
  */
+/**
+ * Moldura sem a placa de vídeo (docs/design/moldura.md): só o recurso de emergência. A mesa cobre o que está fora
+ * da cena e uma faixa escura com filete claro marca a borda.
+ */
+function FrameFallback({ frame, style, grid, view, size }: { frame: SceneFrame; style: TableStyle; grid: MapConfig; view: View; size: { width: number; height: number } }) {
+  return (
+    <Shape
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const x0 = -view.x / view.scale;
+        const y0 = -view.y / view.scale;
+        const w = size.width / view.scale;
+        const h = size.height / view.scale;
+        const left = grid.offsetX;
+        const top = grid.offsetY;
+        const right = left + frame.cols * grid.cellPx;
+        const bottom = top + frame.rows * grid.cellPx;
+        const tile = tableTile(style);
+        const pattern = ctx.createPattern(tile, "repeat");
+        if (pattern) {
+          pattern.setTransform(new DOMMatrix().translate(grid.offsetX, grid.offsetY).scale((TILE_CELLS[style] * grid.cellPx) / tile.width));
+          ctx.fillStyle = pattern;
+          ctx.beginPath();
+          ctx.rect(x0, y0, w, h);
+          ctx.rect(left, top, right - left, bottom - top);
+          ctx.fill("evenodd");
+        }
+        const band = grid.cellPx * 0.75;
+        ctx.lineWidth = band;
+        ctx.strokeStyle = "#5a3a1c";
+        ctx.strokeRect(left - band / 2, top - band / 2, right - left + band, bottom - top + band);
+        ctx.lineWidth = Math.max(1, grid.cellPx * 0.05);
+        ctx.strokeStyle = "#c8a05a";
+        ctx.strokeRect(left - band * 0.2, top - band * 0.2, right - left + band * 0.4, bottom - top + band * 0.4);
+      }}
+    />
+  );
+}
+
 function TableShape({ style, grid, view, size, bounds }: { style: TableStyle; grid: MapConfig; view: View; size: { width: number; height: number }; bounds: { width: number; height: number } | null }) {
   return (
     <Shape

@@ -280,7 +280,7 @@ const int MATERIAL = ${index};
 float waterAt(vec2 c) {
   if (uHasWater < 0.5) return 0.0;
   vec2 uv = (c * 4.0 - uWeightsOrigin + 0.5) / uWeightsSize;
-  return smoothstep(0.35, 0.65, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r);
+  return smoothstep(0.35, 0.65, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r + textureLod(uWaterB, uv, 0.0).a);
 }
 bool mineAt(vec2 fine) { return int(byteAt(fine) & 15u) == MATERIAL; }
 bool emptyAt(vec2 fine) { return (byteAt(fine) & 15u) == 0u; }
@@ -300,7 +300,7 @@ float postDistance(vec2 c) {
   float wet = 0.0;
   for (int k = 0; k < 9 + uNoUnroll; k++) {
     vec2 uv = ((c + vec2(float(k % 3) - 1.0, float(k / 3) - 1.0) * 0.2) * 4.0 - uWeightsOrigin + 0.5) / uWeightsSize;
-    wet = max(wet, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r);
+    wet = max(wet, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r + textureLod(uWaterB, uv, 0.0).a);
   }
   if (wet <= 0.0) return 9.0;
   vec2 base = floor(c * 4.0);

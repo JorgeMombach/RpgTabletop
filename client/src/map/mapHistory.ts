@@ -1,7 +1,11 @@
-import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
+import { cutUnder, isWaterTerrain, paintFloor, sconceHasWall, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchColor, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
+import { drownedPlants } from "./terrain/drownedPlants";
+
+/** A moldura da cena: a conta do Desfazer recorta como o servidor (docs/design/moldura.md). */
+const sceneFrame = () => useApp.getState().state?.battle.map.frame;
 
 /**
  * Desfazer do mapa (L5, ampliado depois da 2.11): paredes e portas, desenhos (livre, seta, círculo…), tochas
@@ -14,13 +18,13 @@ export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | 
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
-  | { scope: "walls"; kind: "removed"; wall: Wall }
-  | { scope: "walls"; kind: "erased"; removed: Wall[]; added: string[] }
+  | { scope: "walls"; kind: "removed"; wall: Wall; sconces: MapTorch[] }
+  | { scope: "walls"; kind: "erased"; removed: Wall[]; added: string[]; sconces: MapTorch[] }
   | { scope: "walls"; kind: "restyled"; before: { id: string; style?: WallStyle }[] }
   | { scope: "drawings"; kind: "added"; id: string }
   | { scope: "drawings"; kind: "erased"; removed: Drawing[]; added: string[] }
   | { scope: "torches"; kind: "added"; id: string }
-  | { scope: "torches"; kind: "moved"; id: string; col: number; row: number }
+  | { scope: "torches"; kind: "moved"; id: string; col: number; row: number; facing?: number }
   | { scope: "torches"; kind: "erased"; removed: MapTorch[] }
   | { scope: "chests"; kind: "added"; id: string }
   | { scope: "chests"; kind: "moved"; id: string; col: number; row: number }
@@ -37,7 +41,8 @@ type Step =
   | { scope: "stair"; kind: "removed"; stairs: Stair[] }
   | { scope: "paint"; kind: "painted"; preset: EffectPreset; color: string; cells: number[] }
   | { scope: "paint"; kind: "erased"; groups: PaintGroup[] }
-  | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null> }
+  /** `plants`: as plantas que a água apagou nesta passada (voltam junto no Desfazer). */
+  | { scope: "terrain"; kind: "painted"; before: Record<string, TerrainChunk | null>; after: Record<string, TerrainChunk | null>; plants?: MapProp[] }
   | { scope: "terrain"; kind: "currentAdded"; id: string }
   | { scope: "terrain"; kind: "currentChanged"; id: string; before: number[] }
   | { scope: "terrain"; kind: "currentsRemoved"; currents: WaterCurrent[] }
@@ -119,18 +124,33 @@ function diff<T extends { id: string }>(before: T[], after: T[]) {
 export async function addWall(from: GridPos, to: GridPos, opening: "door" | "window" | null, thickness: number, style?: WallStyle): Promise<ActionResult> {
   // As paredes que o servidor vai cortar (a mesma conta dele), para o desfazer pôr de volta.
   const walls = useApp.getState().state?.battle.walls ?? [];
-  const { cut } = opening ? cutUnder({ from, to }, walls) : { cut: [] };
+  const { cut, pieces } = opening ? cutUnder({ from, to }, walls) : { cut: [], pieces: [] };
+  // arandelas presas no trecho que vira vão saem junto (o servidor tira): o desfazer as põe de volta
+  const after = [...walls.filter((wall) => !cut.includes(wall)), ...pieces.map((piece) => ({ ...piece, id: "" }))];
+  const sconces = cut.length > 0 ? loosenedSconces(walls, after) : [];
   const res = await act("wall:add", { from, to, door: opening === "door", window: opening === "window", thickness, ...(style && { style }) });
   if (!res.ok || !res.ids?.[0]) return res;
-  if (cut.length > 0) push({ scope: "walls", kind: "erased", removed: cut.map(copyWall), added: res.ids });
+  if (cut.length > 0) push({ scope: "walls", kind: "erased", removed: cut.map(copyWall), added: res.ids, sconces });
   else push({ scope: "walls", kind: "added", id: res.ids[0] });
   return res;
 }
 
 export async function removeWall(w: Wall): Promise<ActionResult> {
+  const walls = useApp.getState().state?.battle.walls ?? [];
+  const sconces = loosenedSconces(walls, walls.filter((wall) => wall.id !== w.id));
   const res = await act("wall:remove", { id: w.id });
-  if (res.ok) push({ scope: "walls", kind: "removed", wall: copyWall(w) });
+  if (res.ok) push({ scope: "walls", kind: "removed", wall: copyWall(w), sconces });
   return res;
+}
+
+/**
+ * Arandelas que perdem a parede quando as paredes passam de `before` para `after` (o servidor tira essas,
+ * docs/design/luzes.md). Cópias, com as fontes de agora: para o desfazer pôr de volta depois da parede.
+ */
+function loosenedSconces(before: Wall[], after: Wall[], torches: MapTorch[] = useApp.getState().state?.battle.torches ?? []): MapTorch[] {
+  return torches
+    .filter((torch) => torch.style === "sconce" && sconceHasWall({ x: torch.col, y: torch.row }, before) && !sconceHasWall({ x: torch.col, y: torch.row }, after))
+    .map((torch) => ({ ...torch }));
 }
 
 const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to }, door: w.door && { ...w.door }, window: w.window && { ...w.window } });
@@ -139,9 +159,9 @@ const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to 
  * Uma passada da borracha (do apertar ao soltar) é um passo só: compara as paredes de antes e de depois.
  * Desfazer tira os pedaços que sobraram e põe de volta as paredes inteiras.
  */
-export function recordWallErase(before: Wall[], after: Wall[]) {
+export function recordWallErase(before: Wall[], after: Wall[], torchesBefore: MapTorch[]) {
   const { removed, added } = diff(before, after);
-  if (removed.length > 0) push({ scope: "walls", kind: "erased", removed: removed.map(copyWall), added });
+  if (removed.length > 0) push({ scope: "walls", kind: "erased", removed: removed.map(copyWall), added, sconces: loosenedSconces(before, after, torchesBefore) });
 }
 
 /** Põe de volta uma parede apagada (com o estado da porta). */
@@ -179,16 +199,17 @@ async function restoreDrawing(d: Drawing) {
 
 // ---------- Tochas ----------
 
-export async function addTorch(col: number, row: number, style: MapTorchStyle): Promise<ActionResult> {
-  const res = await act("maptorch:add", { col, row, style });
+/** Põe uma fonte de luz; a arandela leva a direção (`snapSconce`). */
+export async function addTorch(col: number, row: number, style: MapTorchStyle, color: MapTorchColor = "flame", facing?: number): Promise<ActionResult> {
+  const res = await act("maptorch:add", { col, row, style, ...(color !== "flame" && { color }), ...(facing !== undefined && { facing }) });
   if (res.ok && res.ids?.[0]) push({ scope: "torches", kind: "added", id: res.ids[0] });
   return res;
 }
 
 /** Tocha arrastada: desfazer volta para onde estava. */
-export async function moveTorch(t: MapTorch, col: number, row: number): Promise<ActionResult> {
-  const res = await act("maptorch:move", { id: t.id, col, row });
-  if (res.ok) push({ scope: "torches", kind: "moved", id: t.id, col: t.col, row: t.row });
+export async function moveTorch(t: MapTorch, col: number, row: number, facing?: number): Promise<ActionResult> {
+  const res = await act("maptorch:move", { id: t.id, col, row, ...(facing !== undefined && { facing }) });
+  if (res.ok) push({ scope: "torches", kind: "moved", id: t.id, col: t.col, row: t.row, ...(t.facing !== undefined && { facing: t.facing }) });
   return res;
 }
 
@@ -198,7 +219,7 @@ export function recordTorchErase(before: MapTorch[], after: MapTorch[]) {
 }
 
 async function restoreTorch(t: MapTorch) {
-  const res = await act("maptorch:add", { col: t.col, row: t.row, style: t.style });
+  const res = await act("maptorch:add", { col: t.col, row: t.row, style: t.style, ...(t.color && { color: t.color }), ...(t.facing !== undefined && { facing: t.facing }) });
   const id = res.ok ? res.ids?.[0] : undefined;
   if (id) renamed("torches", t.id, id);
 }
@@ -425,7 +446,7 @@ async function paintFloorNow(stroke: FloorStroke): Promise<ActionResult> {
   for (const slice of slices) {
     result = await act("floor:paint", slice);
     if (!result.ok) break;
-    for (const key of paintFloor(applied, slice, walls, sceneStyle) ?? []) touched.add(key);
+    for (const key of paintFloor(applied, slice, walls, sceneStyle, sceneFrame()) ?? []) touched.add(key);
   }
   if (touched.size > 0) {
     const before: Record<string, string | null> = {};
@@ -458,7 +479,7 @@ async function paintReliefNow(stroke: ReliefStroke): Promise<ActionResult> {
     const slice: ReliefStroke = { ...stroke, points: stroke.points.slice(start, start + LIMITS.terrainStrokePoints * 2) };
     result = await act("relief:paint", slice);
     if (!result.ok) break;
-    for (const key of paintRelief(applied, slice)) touched.add(key);
+    for (const key of paintRelief(applied, slice, sceneFrame())) touched.add(key);
   }
   if (touched.size > 0) {
     const before: Record<string, string | null> = {};
@@ -493,7 +514,7 @@ async function paintTerrainNow(stroke: TerrainStroke): Promise<ActionResult> {
   for (const slice of slices) {
     result = await act("terrain:paint", slice);
     if (!result.ok) break;
-    for (const key of paintTerrain(applied, slice)) touched.add(key);
+    for (const key of paintTerrain(applied, slice, undefined, sceneFrame())) touched.add(key);
   }
   if (touched.size > 0) {
     const before: Record<string, TerrainChunk | null> = {};
@@ -502,7 +523,13 @@ async function paintTerrainNow(stroke: TerrainStroke): Promise<ActionResult> {
       before[key] = base[key] ?? null;
       after[key] = applied[key] ?? null;
     }
-    push({ scope: "terrain", kind: "painted", before, after });
+    // A água apaga as plantas (docs/design/ajustes-rapidos.md): as que ficaram com o pé na água somem, no mesmo passo.
+    let plants: MapProp[] = [];
+    if (isWaterTerrain(stroke.terrain)) {
+      const drowned = drownedPlants(useApp.getState().state?.battle.props ?? [], base, applied);
+      if (drowned.length > 0 && (await act("prop:remove", { ids: drowned.map((plant) => plant.id) })).ok) plants = structuredClone(drowned);
+    }
+    push(plants.length > 0 ? { scope: "terrain", kind: "painted", before, after, plants } : { scope: "terrain", kind: "painted", before, after });
   }
   return result;
 }
@@ -549,6 +576,7 @@ export async function undo(scope?: UndoScope) {
       if (has(battle?.walls, step.id)) await act("wall:remove", { id: step.id });
     } else if (step.kind === "removed") {
       await restoreWall(step.wall);
+      for (const sconce of step.sconces) await restoreTorch(sconce);
     } else if (step.kind === "restyled") {
       // Agrupa por desenho de antes (um envio por desenho), só as paredes que ainda existem.
       const groups = new Map<WallStyle | null, string[]>();
@@ -557,6 +585,8 @@ export async function undo(scope?: UndoScope) {
     } else {
       for (const id of step.added) if (has(battle?.walls, id)) await act("wall:remove", { id });
       for (const w of step.removed) await restoreWall(w);
+      // as arandelas depois das paredes (precisam delas)
+      for (const sconce of step.sconces) await restoreTorch(sconce);
     }
   } else if (step.scope === "drawings") {
     if (step.kind === "added") {
@@ -621,6 +651,8 @@ export async function undo(scope?: UndoScope) {
     const chunks: Record<string, TerrainChunk | null> = {};
     for (const [key, after] of Object.entries(step.after)) if (sameChunk(now[key] ?? null, after)) chunks[key] = step.before[key] ?? null;
     if (Object.keys(chunks).length > 0) await act("terrain:restore", { chunks });
+    // as plantas que a água apagou voltam (só as que não existem mais)
+    if (step.kind === "painted" && step.plants) await restoreProps(step.plants.filter((plant) => !has(battle?.props, plant.id)));
   } else if (step.scope === "paint") {
     if (step.kind === "painted") await act("effect:paint", { erase: true, preset: step.preset, color: step.color, cells: step.cells });
     else for (const g of step.groups) await act("effect:paint", { preset: g.preset, color: g.color, cells: g.cells });
@@ -635,7 +667,7 @@ export async function undo(scope?: UndoScope) {
   } else if (step.kind === "added") {
     if (has(battle?.torches, step.id)) await act("maptorch:remove", { id: step.id });
   } else if (step.kind === "moved") {
-    if (has(battle?.torches, step.id)) await act("maptorch:move", { id: step.id, col: step.col, row: step.row });
+    if (has(battle?.torches, step.id)) await act("maptorch:move", { id: step.id, col: step.col, row: step.row, ...(step.facing !== undefined && { facing: step.facing }) });
   } else {
     for (const t of step.removed) await restoreTorch(t);
   }

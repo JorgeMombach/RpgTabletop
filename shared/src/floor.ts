@@ -8,6 +8,7 @@ import {
 } from "./terrain";
 import { WALL_THICKNESS, type Wall, type WallStyle } from "./types";
 import { wallRooms } from "./wallJoin";
+import { fineInsideFrame, type FrameClip } from "./frame";
 
 /**
  * Pisos (docs/design/pisos.md; visual aprovado em docs/design/pisos-teste.html): um byte por ponto da grade fina (4 por
@@ -283,6 +284,7 @@ export function paintFloor(
   stroke: FloorStroke,
   walls: Wall[],
   sceneStyle: WallStyle,
+  clip?: FrameClip,
 ): string[] | null {
   const areas = shapeCover(stroke.shape, walls, sceneStyle);
   if (!areas) return null;
@@ -305,6 +307,8 @@ export function paintFloor(
     for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
         if (!area.covers(i / TERRAIN_FINE, j / TERRAIN_FINE)) continue;
+        // moldura da cena: o pincel não pinta fora
+        if (!fineInsideFrame(clip, i, j, TERRAIN_FINE)) continue;
         const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
         const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
         const key = chunkKey(cx, cy);

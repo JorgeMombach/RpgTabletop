@@ -3,6 +3,7 @@ import { METALS, rivet, shade } from "./tokenArt";
 import { rng, shadowed, textured, WOODS } from "./wallKit";
 import { altar, bed, bones, bridge, cart, flowers, mushrooms, sacks, shelf, statue, tent, well } from "./propArtMore";
 import { palm, pine, tallGrass } from "./plantArt";
+import { PROP_EXTENT } from "./props/propLayout";
 
 /**
  * Objetos do cenário vistos de cima (docs/design/cenario.md, passo 2), no mesmo kit das paredes: sombra no chão,
@@ -773,37 +774,8 @@ export function drawProp(ctx: CanvasRenderingContext2D, kind: PropKind, c: numbe
   ctx.restore();
 }
 
-/** Até onde o desenho vai a partir do centro, em casas (no tamanho 1), com a sombra: o tamanho da imagem guardada. */
-export const PROP_EXTENT: Record<PropKind, number> = {
-  tree: 1.65,
-  bush: 0.75,
-  boulder: 0.95,
-  stones: 0.75,
-  log: 1.45,
-  stump: 0.85,
-  rubble: 0.8,
-  barrel: 0.6,
-  crate: 0.75,
-  crates: 1.1,
-  planks: 1.0,
-  table: 1.05,
-  pillar: 0.85,
-  statue: 1.55,
-  bones: 0.75,
-  altar: 1.0,
-  tent: 1.45,
-  cart: 1.4,
-  well: 0.85,
-  shelf: 1.0,
-  bed: 1.05,
-  sacks: 0.75,
-  mushrooms: 0.55,
-  flowers: 0.55,
-  bridge: 1.7,
-  pine: 1.5,
-  palm: 1.4,
-  tallGrass: 0.8,
-};
+/** O tamanho de cada desenho mora com a conta da placa de vídeo (props/propLayout.ts), sem DOM. */
+export { PROP_EXTENT };
 
 const cache = new Map<string, HTMLCanvasElement>();
 

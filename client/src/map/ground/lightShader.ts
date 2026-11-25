@@ -1,4 +1,5 @@
 import { NO_UNROLL } from "./glKit";
+import { HEIGHT_CODE } from "./heightCode";
 /**
  * Shaders da luz (docs/design/luz.md), do teste aprovado (`docs/design/luz-teste.html`). Em vez de testar cada parede
  * em cada pixel (o teste), o recorte de cada tocha e a sombra de cada parede são polígonos (contas de
@@ -7,9 +8,8 @@ import { NO_UNROLL } from "./glKit";
  * O mapa de luz é guardado pela metade (0–1 = luz de 0 a 2), para caber a luz forte perto da tocha numa textura comum.
  */
 
-/** O teste foi feito a 48 px por casa; a tocha fixa usa a chama do teste em 0,55 (≈ 0,75 casa com o cabo). */
+/** O teste foi feito a 48 px por casa. */
 export const TEST_CELL = 48;
-export const FLAME_SCALE = 0.55;
 
 const NOISE = `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -62,7 +62,65 @@ void main() {
   outColor = vec4((uAmbient + uSun * mix(1.0 - shadow, uIndoor, roof)) * 0.5, 1.0);
 }`;
 
+/**
+ * Leitura do mapa de alturas (docs/design/sombras.md): a altura em casas num ponto do mapa (fora da área: chão) e,
+ * em `heightsAt`, tudo o que o mapa guarda ali, em casas: topo (x), onde começa a copa do ponto, tronco incluído (y,
+ * 0 fora de copa) e onde começa o que bloqueia (w; a copa começa no alto, o resto no chão; sem nada, 4). E o começo
+ * dos passos, um pouco diferente em cada pixel (a borda da sombra sai macia, sem degraus).
+ */
+export const HEIGHT_SAMPLE = `
+uniform sampler2D uHeights;
+uniform vec4 uHeightArea;   // canto e tamanho, em casas
+${HEIGHT_CODE}
+// Alturas absolutas no ponto (casas): topo, começo da copa, chão do relevo, começo do que bloqueia (heightCode.ts).
+vec4 heightsAt(vec2 cell) {
+  vec2 uv = (cell - uHeightArea.xy) / uHeightArea.zw;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(0.0, HEIGHT_FLOOR, 0.0, 99.0);
+  vec4 v = textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0);
+  return vec4(decodeHeight(v.r), decodeHeight(v.g), decodeHeight(v.b), decodeHeight(v.a));
+}
+// Topo do que bloqueia no ponto (objeto ou token); só chão: nada (o relevo faz a própria sombra no passo dele).
+float blockerTop(vec4 span) { return span.w < span.x - 0.005 ? span.x : -99.0; }
+float stepJitter() { return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); }
+`;
+
+
 /** Luz de uma tocha dentro do recorte dela: cai devagar, tremula e tem a cor da chama (somada, pela metade). */
+/**
+ * A marcha da tocha no mapa de alturas (docs/design/sombras.md), dividida entre a tocha e a luz dos efeitos: usa
+ * `vCell`, `uCenter`, `uTorchHeight`, `uTorchSkip` e `uUseHeights` (e `HEIGHT_SAMPLE` antes).
+ */
+const HEIGHT_SHADE = `
+/**
+ * Quanto de sombra de objetos e tokens (docs/design/sombras.md): do ponto até a tocha, o raio vai da altura do ponto à
+ * da chama; quem o raio atravessar faz sombra (o portador, dentro de uTorchSkip, não conta). A conta da página
+ * aprovada, com a copa começando no alto: a tocha abaixo dela passa por baixo e ilumina o chão embaixo da copa.
+ */
+float heightShade() {
+  if (uUseHeights == 0) return 0.0;
+  vec4 here = heightsAt(vCell);
+  // embaixo da copa, com a tocha abaixo dela: o ponto recebe como chão (no tronco, sem a sombra dele mesmo)
+  bool under = uTorchHeight < here.y;
+  float h0 = under ? here.z : here.x;
+  vec2 to = uCenter - vCell;
+  float dist = length(to);
+  float jitter = stepJitter();
+  float shade = 0.0;
+  for (int i = 0; i < 16 + uNoUnroll; i++) {
+    float k = (float(i) + jitter) / 17.0;
+    vec2 at = vCell + to * k;
+    vec4 span = heightsAt(at);
+    float ray = mix(h0, uTorchHeight, k);
+    // dentro do objeto: abaixo do topo e, na copa, acima do começo (no chão, o começo não conta: a sombra no pé fica)
+    // começa no pé (no chão do relevo): só o topo conta; copa ou nada (só chão, começo no teto): entre o começo e o topo
+    float inside = span.w <= span.z + 0.01 ? span.x - ray : min(span.x - ray, ray - span.w);
+    float above = distance(at, uCenter) < uTorchSkip || (under && distance(at, vCell) < 0.2) ? -1.0 : inside;
+    shade = max(shade, smoothstep(0.02, 0.06 + dist * (1.0 - k) * 0.04, above));
+  }
+  return shade;
+}
+`;
+
 export const TORCH_FRAGMENT = `#version 300 es
 precision highp float;
 ${NO_UNROLL}
@@ -70,13 +128,21 @@ in vec2 vCell;
 out vec4 outColor;
 uniform vec2 uCenter;
 uniform float uReach, uSeed, uStrength, uWeight, uTime;
+uniform float uTorchHeight, uTorchSkip;
+uniform int uUseHeights;
+uniform float uTinted;   // 1 = luz colorida (docs/design/luzes.md), com a cor uColor; 0 = a chama de sempre
+uniform vec3 uColor;
+uniform int uFlicker;    // 0 chama, 1 pouco (lanterna), 2 pulso (orbe)
 ${NOISE}
+${HEIGHT_SAMPLE}
+${HEIGHT_SHADE}
 void main() {
   float d = distance(vCell, uCenter);
   float wobble = 1.0 + 0.04 * (noise(vec2(uTime * 3.0, uSeed * 7.0)) - 0.5);
   float fall = pow(max(1.0 - d / (uReach * wobble), 0.0), 1.7);
-  vec3 warm = mix(vec3(1.0, 0.6, 0.3), vec3(1.0, 0.78, 0.45), flameShift(uSeed));
-  outColor = vec4(warm * fall * uStrength * flicker(uSeed) * 1.6 * uWeight * 0.5, 1.0);
+  vec3 warm = uTinted > 0.5 ? uColor * mix(0.92, 1.05, flameShift(uSeed)) : mix(vec3(1.0, 0.6, 0.3), vec3(1.0, 0.78, 0.45), flameShift(uSeed));
+  float shake = uFlicker == 2 ? 0.82 + 0.18 * sin(uTime * 1.7 + uSeed) : uFlicker == 1 ? 0.95 + 0.05 * noise(vec2(uTime * 5.0, uSeed)) : flicker(uSeed);
+  outColor = vec4(warm * fall * uStrength * shake * 1.6 * uWeight * 0.5 * (1.0 - heightShade()), 1.0);
 }`;
 
 /** Mapa de luz para a tela: dobra de volta e aplica o brilho mínimo (o do mestre). */
@@ -95,57 +161,107 @@ void main() {
 }`;
 
 /**
- * Chama, faíscas e brilho de uma tocha (no quadrado em volta dela). Tocha fixa (\`uFixed\` 1): a chama do teste, em
- * camadas, com a segunda língua; tocha do token: só o brilho (a chama vai no selo, desenhado com o token).
+ * Brilho em volta da tocha de um token (no quadrado em volta dela); a chama vai no selo, desenhado com o token. As
+ * fontes fixas têm corpo, chama e brilho próprios (passo das fontes de luz, docs/design/luzes.md).
  */
 export const FLAME_FRAGMENT = `#version 300 es
 precision highp float;
 ${NO_UNROLL}
 in vec2 vCell;
 out vec4 outColor;
-uniform vec2 uFlame;      // base da chama (fixa) ou centro do token, em casas
-uniform float uSeed, uTime, uTorch, uFixed;
+uniform vec2 uFlame;      // centro do token, em casas
+uniform float uSeed, uTime, uTorch;
 ${NOISE}
-// Chama vista de cima, em gota para cima: q em unidades da chama, base em (0, 0). Cor pré-multiplicada e cobertura.
-vec4 flame(vec2 q, float seed) {
-  float t = uTime;
-  float height = 1.0 + 0.36 * (noise(vec2(t * 9.0, seed)) - 0.5);
-  float up = clamp(-q.y / height, 0.0, 1.2);
-  q.x += (noise(vec2(q.y * 2.5 - t * 7.0, seed * 4.0)) - 0.5) * 0.7 * up;
-  q.x += sin(t * 5.3 + seed * 2.0) * 0.12 * up;
-  float width = q.y > 0.0 ? sqrt(max(0.0, 0.36 - q.y * q.y * 4.0)) : 0.6 * pow(max(1.0 - up / height, 0.0), 0.9);
-  float edge = abs(q.x) - width;
-  float body = 1.0 - smoothstep(-0.08, 0.06, edge);
-  body *= 1.0 - smoothstep(height * 0.92, height * 1.02, -q.y);
-  body *= 1.0 - smoothstep(0.26, 0.31, q.y);
-  float inner = 1.0 - smoothstep(-0.3, -0.08, edge + 0.04);
-  float core = (1.0 - smoothstep(-0.2, -0.02, edge + 0.2)) * smoothstep(0.85, 0.15, up);
-  vec3 color = mix(vec3(0.92, 0.32, 0.1), flameColor(seed), inner);
-  color = mix(color, vec3(1.0, 0.94, 0.7), core);
-  return vec4(color * body, body);
-}
 void main() {
-  // Em px do teste (48 por casa), na escala da tocha.
-  vec2 local = (vCell - uFlame) * ${TEST_CELL}.0 / (uFixed > 0.5 ? ${FLAME_SCALE} : 1.0);
+  // Em px do teste (48 por casa).
+  vec2 local = (vCell - uFlame) * ${TEST_CELL}.0;
   float d = length(local);
   vec3 color = flameColor(uSeed) * exp(-d / (10.0 * flicker(uSeed))) * uTorch * 0.5;
-  float cover = 0.0;
-  if (uFixed > 0.5) {
-    vec2 side = vec2(sin(uTime * 4.1 + uSeed) * 4.0, -1.0);
-    vec4 tongue = flame((local - side) / vec2(11.0, 20.0), uSeed + 0.37);
-    vec4 fire = flame(local / vec2(17.0, 32.0), uSeed);
-    vec3 flames = tongue.rgb * (1.0 - fire.a) + fire.rgb * mix(0.9, 1.15, flameShift(uSeed));
-    cover = max(fire.a, tongue.a);
-    color = color * (1.0 - cover) + flames;
-    for (int k = 0; k < 5 + uNoUnroll; k++) {
-      float seed = uSeed * 17.0 + float(k) * 3.7;
-      float life = fract(uTime * (0.55 + 0.25 * hash(vec2(seed, 1.0))) + hash(vec2(seed, 2.0)));
-      vec2 spark = vec2((hash(vec2(seed, 3.0)) - 0.5) * 12.0 + sin(uTime * 3.0 + seed) * 4.0 * life, -14.0 - life * 46.0);
-      float glint = 1.0 - smoothstep(0.6, 1.6, distance(local, spark));
-      color += vec3(1.0, 0.65, 0.25) * glint * (1.0 - life) * uTorch;
-    }
-  }
   // Somado por cima (mistura "tela" na camada). A cor vai pré-multiplicada de verdade (alfa ≥ cada canal): com alfa
   // zero e cor acesa, o navegador pode zerar o brilho ao copiar a imagem. Com a mistura "tela", dá o mesmo resultado.
-  outColor = vec4(color, clamp(max(cover, max(color.r, max(color.g, color.b))), 0.0, 1.0));
+  outColor = vec4(color, clamp(max(color.r, max(color.g, color.b)), 0.0, 1.0));
+}`;
+
+
+/**
+ * Sombra do sol ou da lua de objetos e tokens (docs/design/sombras.md), na máscara de sombra (pela maior): do ponto,
+ * anda até a luz; quem estiver acima do raio (que sobe 1/shadowCells por casa) faz sombra. A conta da página aprovada.
+ */
+export const HEIGHT_SUN_FRAGMENT = `#version 300 es
+precision highp float;
+${NO_UNROLL}
+out vec4 outColor;
+uniform vec4 uMapGrid;
+uniform vec3 uStage;
+uniform vec2 uScreen, uCanvas;
+uniform vec2 uSunDir;        // para onde a sombra cai
+uniform float uShadowCells;  // comprimento da sombra por casa de altura
+${HEIGHT_SAMPLE}
+void main() {
+  vec2 screen = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y) * (uScreen / uCanvas);
+  vec2 p = ((screen - uStage.xy) / uStage.z - uMapGrid.xy) / uMapGrid.z;
+  float h0 = heightsAt(p).x;
+  float jitter = stepJitter();
+  float reach = 2.6 * uShadowCells;
+  float shade = 0.0;
+  for (int i = 0; i < 32 + uNoUnroll; i++) {
+    float d = (float(i) + jitter) / 32.0 * reach;
+    float above = blockerTop(heightsAt(p - uSunDir * d)) - (h0 + d / uShadowCells);
+    shade = max(shade, smoothstep(0.02, 0.06 + d * 0.05, above));
+  }
+  outColor = vec4(shade * 0.85, 0.0, 0.0, 1.0);
+}`;
+
+/**
+ * Luz de um efeito de área (docs/design/efeitos.md): perto, pela área desfocada (a máscara do efeito); mais longe,
+ * caindo com a distância ao meio menos o raio da área (sem blocos). Tremido do fogo, pisca da eletricidade ou calma;
+ * a força segue a da tocha da cena; objetos e tokens fazem sombra pela marcha da tocha, a partir do meio.
+ */
+export const AREA_LIGHT_FRAGMENT = `#version 300 es
+precision highp float;
+${NO_UNROLL}
+in vec2 vCell;
+out vec4 outColor;
+uniform vec2 uCenter;
+uniform float uTime, uSeed, uStrength, uScene, uReach, uRadius;
+uniform vec3 uColor;
+uniform int uFlicker;            // 0 calmo, 1 fogo, 2 eletricidade
+uniform float uTorchHeight, uTorchSkip;
+uniform int uUseHeights;
+uniform sampler2D uMask;
+uniform vec4 uBox;               // caixa da máscara (casas, sem o arrasto)
+uniform vec2 uOffset;            // arrasto do token que o efeito acompanha
+${NOISE}
+${HEIGHT_SAMPLE}
+${HEIGHT_SHADE}
+float maskAt(vec2 cell, float cells) {
+  vec2 uv = (cell - uOffset - uBox.xy) / uBox.zw;
+  float lod = max(0.0, log2(max(1.0, cells * 8.0)) - 1.0);
+  vec2 step = vec2(cells * 0.35) / uBox.zw;
+  float sum = textureLod(uMask, uv, lod).r * 2.0;
+  sum += textureLod(uMask, uv + vec2(step.x, step.y), lod).r + textureLod(uMask, uv + vec2(-step.x, step.y), lod).r;
+  sum += textureLod(uMask, uv + vec2(step.x, -step.y), lod).r + textureLod(uMask, uv - step, lod).r;
+  return sum / 6.0;
+}
+void main() {
+  float near = maskAt(vCell, 1.0);
+  float dist = max(0.0, distance(vCell, uCenter) - uRadius);
+  float far = pow(clamp(1.0 - dist / uReach, 0.0, 1.0), 2.0);
+  float glow = clamp(near * 0.6 + far * 0.9, 0.0, 1.0);
+  float wave = uFlicker == 1 ? 0.85 + 0.15 * noise(vec2(uTime * 0.7 * 10.0, uSeed)) : uFlicker == 2 ? 0.6 + 0.4 * step(0.3, fract(sin(floor(uTime * 9.0) * 12.98) * 437.5)) : 1.0;
+  outColor = vec4(uColor * glow * uStrength * uScene * wave * (1.0 - heightShade()), 1.0);
+}`;
+
+/** Escuridão de um efeito (docs/design/efeitos.md): multiplica a luz por 1 − 0,93 × área. */
+export const AREA_DARK_FRAGMENT = `#version 300 es
+precision highp float;
+in vec2 vCell;
+out vec4 outColor;
+uniform sampler2D uMask;
+uniform vec4 uBox;
+uniform vec2 uOffset;
+void main() {
+  vec2 uv = (vCell - uOffset - uBox.xy) / uBox.zw;
+  float area = textureLod(uMask, uv, 2.0).r;
+  outColor = vec4(vec3(1.0 - 0.93 * smoothstep(0.15, 0.6, area)), 1.0);
 }`;

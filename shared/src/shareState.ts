@@ -26,12 +26,12 @@ export function shareEqual<T>(prev: T, next: T): T {
  * Só o mapa desenha estes: mudar uma porta, a névoa ou um objeto não precisa redesenhar os painéis. (O painel
  * Construir lê o objeto escolhido pelo próprio seletor da loja, não pelo `state` que recebe.)
  */
-const MAP_ONLY = new Set<string>(["walls", "torches", "drawings", "fog", "sight", "props", "bridges", "stairs"] satisfies (keyof ClientState["battle"])[]);
+const MAP_ONLY = new Set<string>(["walls", "torches", "drawings", "fog", "sight", "props", "bridges", "stairs", "currents"] satisfies (keyof ClientState["battle"])[]);
 
 /**
  * Comparação de `React.memo` para os painéis laterais, depois de `shareEqual`: a interface só redesenha se
  * mudou um prop ou algo do estado além do que é só do mapa. Painel novo que ler `walls`, `torches`, `drawings`, `fog`,
- * `sight` ou `props` pelo `state` não pode usar esta comparação.
+ * `sight`, `props`, `bridges`, `stairs` ou `currents` pelo `state` não pode usar esta comparação.
  */
 export function samePanelProps<P extends { state: ClientState }>(a: Readonly<P>, b: Readonly<P>): boolean {
   const keys = Object.keys(b) as (keyof P)[];

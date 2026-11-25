@@ -37,6 +37,8 @@ interface Props {
   active?: boolean;
   /** Mob repetido ("Goblin 2" entre vários goblins): a placa mostra só o número. */
   plateNumber?: number;
+  /** Sombrinha fixa da arte (sem a sombra pela luz da cena; `tokenGroundShadow`). */
+  groundShadow?: boolean;
   /** Conta as trocas de turno: muda = a vez começou agora (onda dourada no token da vez). */
   turnKey?: number;
   draggable: boolean;
@@ -271,7 +273,7 @@ function ConditionFx({ names, r, seed }: { names: string[]; r: number; seed: str
 }
 
 /** Aliados são círculos; mobs, quadrados arredondados (SPEC F4); NPCs, hexágonos (E15). Moldura do kit visual (L3). */
-export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onOpen, onMenu, onMove }: Props) {
+export function Token({ c, grid, selected, active, plateNumber, turnKey, draggable, onSelect, onOpen, onMenu, onMove, groundShadow = true }: Props) {
   const reduceFx = useApp((s) => s.reduceFx);
   const hits = useHits((s) => s.byId[c.id]);
   const body = useRef<Konva.Group>(null);
@@ -334,7 +336,7 @@ export function Token({ c, grid, selected, active, plateNumber, turnKey, draggab
 
   const kind: FrameKind = isNpc ? "npc" : isMob ? "mob" : "ally";
   const boss = c.boss === true && c.type !== "ally";
-  const art = { kind, boss, r, color: c.color, avatar, initials: initials(c.name), down };
+  const art = { kind, boss, r, color: c.color, avatar, initials: initials(c.name), down, groundShadow };
   // A moldura de chefe é sempre quadrada (também no NPC chefe): halo e seleção acompanham.
   const fxKind: FrameKind = boss ? "mob" : kind;
   const plateStyle: PlateStyle = boss ? "boss" : summon ? "pet" : kind;

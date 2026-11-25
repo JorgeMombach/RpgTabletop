@@ -92,7 +92,7 @@ export const terrainHandlers: HandlerMap = {
     const stroke = parseStroke(payload);
     // Numa cópia: os pedaços tocados viram objetos novos, o terreno da cena só muda se tudo der certo.
     const next: TerrainChunks = { ...store.game.battle.terrain };
-    const changed = paintTerrain(next, stroke);
+    const changed = paintTerrain(next, stroke, undefined, store.game.battle.map.frame);
     commit(store, next, changed);
   },
 
