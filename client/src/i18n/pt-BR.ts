@@ -1114,6 +1114,7 @@ export const ptBR = {
   "terrain.waterDark": "Água funda",
   "terrain.packedEarth": "Terra batida",
   "terrain.snow": "Neve",
+  "terrain.sea": "Mar",
   "terrain.eraser": "Borracha",
   "terrain.size": "Tamanho",
   "terrain.shape": "Forma do pincel",

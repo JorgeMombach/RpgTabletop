@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { encodeLayer, fieldScale, toHalfFloat, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, waterHalfWidth, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
+import { encodeLayer, fieldScale, toHalfFloat, riverField, signedDistance, TERRAIN_CHUNK_SIDE, TERRAIN_FINE, waterBounds, waterField, waterHalfWidth, paintRelief, SHORE_BANK, SHORE_BEACH, SHORE_NONE, SHORE_ROCK, type ReliefChunks, type TerrainChunks, type TerrainId, type WaterCurrent } from "@rpg/shared";
 
 // Água animada (docs/design/agua.md): máscara da água a partir do terreno, distância com sinal e coordenadas do rio.
 
@@ -163,5 +163,64 @@ describe("água: limites (revisão final)", () => {
         assert.equal(fast[y * width + x], most, `em ${x}, ${y}`);
       }
     }
+  });
+});
+
+// Mar (docs/design/mar.md): borda aberta (sem margem onde a pintura acaba) e o tipo de costa pelo lado de terra.
+describe("mar: campo da água", () => {
+  const PER = 4;
+  /** O campo do primeiro grupo de água (como o Worker faz). */
+  function fieldOf(chunks: TerrainChunks, relief?: ReliefChunks) {
+    const [rect] = waterBounds(chunks, 2);
+    assert.ok(rect, "há água");
+    return { rect, field: waterField(chunks, rect, PER, relief) };
+  }
+  /** O pixel do campo na casa (col, row) do mapa (o meio dela). */
+  const pixel = (rect: { col: number; row: number }, width: number, col: number, row: number) => Math.floor((row - rect.row + 0.5) * PER) * width + Math.floor((col - rect.col + 0.5) * PER);
+
+  it("borda aberta: o mar pintado sozinho continua além da pintura, sem costa", () => {
+    const chunks = paint({}, "sea", (col, row) => col >= 4 && col < 12 && row >= 4 && row < 12, 20, 20);
+    const { rect, field } = fieldOf(chunks);
+    // na última casa pintada e na primeira de fora: ainda água, ainda mar
+    for (const col of [11, 12]) {
+      const index = pixel(rect, field.width, col, 8);
+      assert.ok(field.sdf[index] > 0, `água em ${col}`);
+      assert.ok(field.sea[index] > 0.5, `mar em ${col}`);
+    }
+    assert.ok(field.shore.every((kind) => kind === SHORE_NONE), "sem costa nenhuma");
+  });
+
+  it("costa: areia dá praia, pedra e relevo dão pedra, grama plana dá margem", () => {
+    const chunks: TerrainChunks = {};
+    paint(chunks, "sea", (col) => col >= 10, 20, 24);
+    paint(chunks, "sand", (col, row) => col < 10 && row < 8, 20, 24);
+    paint(chunks, "stone", (col, row) => col < 10 && row >= 8 && row < 16, 20, 24);
+    paint(chunks, "grass", (col, row) => col < 10 && row >= 16, 20, 24);
+    const relief: ReliefChunks = {};
+    paintRelief(relief, { level: 1, soft: false, radius: 2, points: [8, 22] });
+    const { rect, field } = fieldOf(chunks, relief);
+    const kindAt = (col: number, row: number) => field.shore[pixel(rect, field.width, col, row)];
+    assert.equal(kindAt(9, 3), SHORE_BEACH);
+    assert.ok(field.sdf[pixel(rect, field.width, 9, 3)] < 0, "a areia é terra (há costa)");
+    assert.equal(kindAt(9, 11), SHORE_ROCK);
+    assert.equal(kindAt(9, 18), SHORE_BANK, "grama plana");
+    assert.equal(kindAt(9, 22), SHORE_ROCK, "grama com relevo: penhasco");
+  });
+
+  it("mar encostando em lago: água dos dois lados, sem costa entre eles", () => {
+    const chunks: TerrainChunks = {};
+    paint(chunks, "sea", (col, row) => col >= 10 && row >= 2 && row < 18, 24, 20);
+    paint(chunks, "water", (col, row) => col >= 4 && col < 10 && row >= 6 && row < 14, 24, 20);
+    const { rect, field } = fieldOf(chunks);
+    for (const col of [9, 10]) assert.ok(field.sdf[pixel(rect, field.width, col, 10)] > 0, `água em ${col}`);
+    assert.ok(field.sea[pixel(rect, field.width, 6, 10)] < 0.5, "o lago não é mar");
+  });
+
+  it("lago sozinho: sem mar e sem costa (igual a antes)", () => {
+    const chunks = paint({}, "water", (col, row) => col >= 4 && col < 12 && row >= 4 && row < 12, 20, 20);
+    const { field } = fieldOf(chunks);
+    assert.ok(field.sea.every((value) => value === 0));
+    assert.ok(field.shore.every((kind) => kind === SHORE_NONE));
+    assert.ok(field.sdf[0] < 0, "a folga em volta do lago é terra (há margem)");
   });
 });

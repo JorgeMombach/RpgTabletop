@@ -1107,6 +1107,7 @@ export const es: Partial<Messages> = {
   "terrain.waterDark": "Agua profunda",
   "terrain.packedEarth": "Tierra apisonada",
   "terrain.snow": "Nieve",
+  "terrain.sea": "Mar",
   "terrain.eraser": "Borrador",
   "terrain.size": "Tamaño",
   "terrain.shape": "Forma del pincel",

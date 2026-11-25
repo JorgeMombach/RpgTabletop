@@ -1,4 +1,4 @@
-import { TERRAINS, type TerrainId } from "@rpg/shared";
+import { isWaterTerrain, TERRAINS, type TerrainId } from "@rpg/shared";
 import { SCREEN } from "./reliefShader";
 import { NO_UNROLL } from "./glKit";
 
@@ -286,13 +286,14 @@ const LAYER_ART: Record<TerrainId, LayerArt> = {
   // Água pintada: só a aquarela, e só durante a passada do pincel (depois quem desenha é o passo da água).
   water: { height: `return 0.0;`, color: `return w;` },
   waterDark: { height: `return 0.0;`, color: `return w;` },
+  sea: { height: `return 0.0;`, color: `return w;` },
 };
 
 /** Programa da camada de um terreno: cobertura pela borda irregular e cor com o detalhe e a luz (pré-multiplicada). */
 export function terrainLayerFragment(terrain: TerrainId): string {
   const index = TERRAINS.indexOf(terrain);
   const art = LAYER_ART[terrain];
-  const water = terrain === "water" || terrain === "waterDark";
+  const water = isWaterTerrain(terrain);
   return `${COMMON}${art.grass ? GRASS : ""}
 float layerHeight(vec2 c) { ${art.height} }
 vec3 layerColor(vec2 c, vec3 w) { ${art.color} }

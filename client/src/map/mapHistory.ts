@@ -1,4 +1,4 @@
-import { cutUnder, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
+import { cutUnder, isWaterTerrain, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -509,7 +509,7 @@ async function paintTerrainNow(stroke: TerrainStroke): Promise<ActionResult> {
     }
     // A água apaga as plantas (docs/design/ajustes-rapidos.md): as que ficaram com o pé na água somem, no mesmo passo.
     let plants: MapProp[] = [];
-    if (stroke.terrain === "water" || stroke.terrain === "waterDark") {
+    if (isWaterTerrain(stroke.terrain)) {
       const drowned = drownedPlants(useApp.getState().state?.battle.props ?? [], base, applied);
       if (drowned.length > 0 && (await act("prop:remove", { ids: drowned.map((plant) => plant.id) })).ok) plants = structuredClone(drowned);
     }

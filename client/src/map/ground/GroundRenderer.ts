@@ -1,4 +1,4 @@
-import { terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type MapProp, type PropKind, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
+import { isWaterTerrain, terrainBounds, terrainWeights, TERRAINS, type ChunkRect, type TerrainChunks, type DuneMask, type Bridge, type BridgeKind, type MapProp, type PropKind, type FloorChunks, type Stair, type StairShape, type FloorMaterial, type ReliefChunks, type TerrainId, type WallPiece, type WallStyle } from "@rpg/shared";
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
@@ -184,7 +184,7 @@ export class GroundRenderer {
     const terrain = choice.terrain;
     if (terrain) {
       this.terrain.warm(terrain, () => terrainLayerFragment(terrain));
-      if (terrain === "water" || terrain === "waterDark") this.water.warm();
+      if (isWaterTerrain(terrain)) this.water.warm();
     }
   }
 
@@ -792,7 +792,7 @@ export class GroundRenderer {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     TERRAINS.forEach((terrain, index) => {
       if (!this.present.has(terrain)) return;
-      if ((terrain === "water" || terrain === "waterDark") && !waterDraft) return;
+      if (isWaterTerrain(terrain) && !waterDraft) return;
       const program = this.terrain.get(terrain, () => terrainLayerFragment(terrain));
       if (!program) return;
       gl.useProgram(program.program);

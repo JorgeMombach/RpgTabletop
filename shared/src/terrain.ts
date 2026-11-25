@@ -10,8 +10,13 @@ import { fineInsideFrame, type FrameClip } from "./frame";
 
 /** Terrenos (ids estáveis, vão no arquivo de sessão); o nome mostrado vem da tradução. A ordem é a do desenho. */
 /** Os novos entram sempre no fim: a ordem é a dos pesos na placa de vídeo (12 canais, 3 texturas RGBA). */
-export const TERRAINS = ["grass", "grassDry", "dirt", "dirtDark", "stone", "stoneLight", "sand", "water", "waterDark", "packedEarth", "snow"] as const;
+export const TERRAINS = ["grass", "grassDry", "dirt", "dirtDark", "stone", "stoneLight", "sand", "water", "waterDark", "packedEarth", "snow", "sea"] as const;
 export type TerrainId = (typeof TERRAINS)[number];
+
+/** Os terrenos de água: desenhados pelo passo da água (o mar também, docs/design/mar.md). */
+export function isWaterTerrain(terrain: TerrainId | "erase" | "current" | "currentErase"): boolean {
+  return terrain === "water" || terrain === "waterDark" || terrain === "sea";
+}
 
 /** Pontos da grade por casa (em cada eixo). */
 export const TERRAIN_FINE = 4;

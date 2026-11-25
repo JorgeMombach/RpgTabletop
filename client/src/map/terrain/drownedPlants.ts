@@ -12,7 +12,7 @@ export const PLANT_KINDS: ReadonlySet<PropKind> = new Set<PropKind>(["tree", "pi
 function waterShare(chunks: TerrainChunks, col: number, row: number): number {
   const values = terrainAt(chunks, col, row);
   const total = Object.values(values).reduce<number>((sum, value) => sum + (value ?? 0), 0);
-  return total > 0 ? ((values.water ?? 0) + (values.waterDark ?? 0)) / total : 0;
+  return total > 0 ? ((values.water ?? 0) + (values.waterDark ?? 0) + (values.sea ?? 0)) / total : 0;
 }
 
 /** O pedaço em que cai o ponto (a mesma conta de `terrainAt`). */

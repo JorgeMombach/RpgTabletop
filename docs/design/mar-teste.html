@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mar</title>
+<style>
+  :root { --ink: #e8dcc4; --dim: #a8987c; --panel: #1d1712; --edge: #5a4630; --accent: #c8a05a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #120e0a; color: var(--ink); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 10px; color: var(--dim); max-width: 1100px; }
+  .controls { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin: 10px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; }
+  .group { display: flex; gap: 4px; align-items: center; }
+  .group b { margin-right: 6px; color: var(--accent); }
+  button { background: #2a241c; color: var(--ink); border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  canvas { display: block; border: 1px solid var(--edge); border-radius: 4px; max-width: 100%; }
+  #ms { color: var(--dim); }
+</style>
+</head>
+<body>
+<h1>Mar (teste)</h1>
+<p>O mar é um terreno próprio: só tem praia ou margem onde encosta em terra pintada; onde a pintura acaba (aqui, a borda da tela do lado do mar), ele continua, sem borda. Troque a cena e a luz. A grade tem 1 casa por quadrado.</p>
+<div class="controls">
+  <div class="group" id="scene"><b>Cena</b><button data-v="0" class="on">Praia</button><button data-v="1">Porto</button><button data-v="2">Alto-mar</button><button data-v="3">Penhasco</button></div>
+  <div class="group" id="light"><b>Luz</b><button data-v="0" class="on">Dia</button><button data-v="1">Noite</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="40" class="on">Normal</button><button data-v="80">Perto</button></div>
+  <span id="ms"></span>
+</div>
+<canvas id="view" width="1152" height="720"></canvas>
+<script>
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2");
+const VERTEX = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const FRAGMENT = `#version 300 es
+precision highp float;
+uniform vec2 uSize;
+uniform float uCellPx, uTime, uNight;
+uniform int uScene;   // 0 praia, 1 porto, 2 alto-mar, 3 penhasco
+out vec4 outColor;
+const float PI = 3.14159265;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+vec2 hash2(vec2 p) { return vec2(hash(p), hash(p + 17.3)); }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float v = 0.0, a = 0.5; mat2 r = mat2(0.8, 0.6, -0.6, 0.8); for (int k = 0; k < 5; k++) { v += a * noise(p); p = r * p * 2.03 + 17.0; a *= 0.5; } return v; }
+vec4 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0); for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y); vec2 r = o + hash2(i + o) - f; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; } return vec4(id, sqrt(d1), sqrt(d2) - sqrt(d1)); }
+
+// ---------- a cena: distância até a costa (casas; + no mar), o tipo da terra e onde há pedra/cais ----------
+// costa irregular, com a terra à esquerda; o mar vai até a borda da direita (pintura acabando: sem borda)
+float coastX(float y) {
+  if (uScene == 0) return 9.0 + 1.6 * sin(y * 0.35) + 0.7 * sin(y * 0.9 + 1.0) + (fbm(vec2(y * 0.25, 2.0)) - 0.5) * 1.2;
+  if (uScene == 1) return 8.0 + 0.4 * sin(y * 0.5);
+  if (uScene == 3) return 8.0 + 1.0 * sin(y * 0.45) + (fbm(vec2(y * 0.4, 5.0)) - 0.5) * 1.6;
+  return -100.0;   // alto-mar: só mar
+}
+float seaDist(vec2 c) {
+  // distância horizontal suavizada (a costa é quase vertical); bom o bastante para a página
+  float d = c.x - coastX(c.y);
+  float dy = (coastX(c.y + 0.3) - coastX(c.y - 0.3)) / 0.6;
+  return d / sqrt(1.0 + dy * dy);
+}
+// pedras na água: centros e raios
+vec3 rockAt(int i) {
+  if (uScene == 0) return i == 0 ? vec3(14.5, 5.0, 0.6) : i == 1 ? vec3(12.2, 13.5, 0.4) : vec3(-99.0);
+  if (uScene == 3) return i == 0 ? vec3(10.4, 4.2, 0.7) : i == 1 ? vec3(10.0, 12.0, 0.55) : vec3(11.8, 8.5, 0.4);
+  if (uScene == 2) return vec3(-99.0);
+  return vec3(-99.0);
+}
+// cais (porto): tábuas de x 8 a 19, y 7.5 a 10; estacas na borda a cada casa
+bool onPier(vec2 c) { return uScene == 1 && c.x > 7.5 && c.x < 19.0 && c.y > 7.5 && c.y < 10.0; }
+float pierPost(vec2 c) {
+  if (uScene != 1) return 9.0;
+  float best = 9.0;
+  for (int k = 0; k < 12; k++) {
+    float x = 9.0 + float(k);
+    best = min(best, min(length(c - vec2(x, 7.55)), length(c - vec2(x, 9.95))));
+  }
+  best = min(best, min(length(c - vec2(18.95, 8.4)), length(c - vec2(18.95, 9.1))));
+  return best;
+}
+// barco ancorado (porto e alto-mar): casco de 2 × 5 casas, balançando
+float boat(vec2 c, out vec2 local) {
+  if (uScene != 1 && uScene != 2) return 9.0;
+  vec2 center = uScene == 1 ? vec2(16.5, 4.0) : vec2(14.0, 9.0);
+  float roll = sin(uTime * 0.9) * 0.05;
+  vec2 q = c - center;
+  q = mat2(cos(roll), -sin(roll), sin(roll), cos(roll)) * q;
+  local = q;
+  // casco: elipse pontuda na proa
+  float half_ = 1.0 - pow(clamp(abs(q.x) / 2.6, 0.0, 1.0), 2.2);
+  // fora do comprimento do casco não há casco (sem isso a espuma do casco seguia reta pela água)
+  return max(abs(q.y) - 0.95 * half_, abs(q.x) - 2.6);
+}
+
+// ---------- materiais ----------
+vec3 lit(vec3 col, vec3 n) {
+  vec3 sun = normalize(vec3(-0.5, -0.6, 0.8));
+  float l = max(dot(normalize(n), sun), 0.0) / sun.z;
+  return mix(col * (0.45 + 0.55 * l), col * (0.16 + 0.2 * l) * vec3(0.6, 0.72, 1.0), uNight);
+}
+vec3 sand(vec2 c) {
+  vec3 col = mix(vec3(0.78, 0.68, 0.5), vec3(0.88, 0.79, 0.6), fbm(c * 1.2));
+  col *= 0.95 + 0.08 * noise(c * 50.0);
+  float ripple = pow(0.5 + 0.5 * sin(c.x * 9.0 + fbm(c * 0.8) * 6.0), 3.0);
+  return col * (0.97 + 0.05 * ripple);
+}
+vec3 grass(vec2 c) { vec3 col = mix(vec3(0.24, 0.36, 0.14), vec3(0.36, 0.48, 0.2), fbm(c * 1.3)); return col * (0.88 + 0.25 * fbm(c * 9.0)); }
+vec3 rock(vec2 c) { vec3 col = mix(vec3(0.36, 0.35, 0.33), vec3(0.52, 0.5, 0.46), fbm(c * 2.0)); return col * (0.85 + 0.25 * fbm(c * 9.0)); }
+
+// ---------- o mar ----------
+// Ondulação que vem de fora e chega na costa: frentes paralelas à costa (fase pela distância), tortas por ruído;
+// longe da costa, ondulação cruzada larga. Devolve a altura (0..1) e a crista.
+float swellAt(vec2 c, float d, float coastWeight) {
+  // mar aberto: soma de ondas em direções e tamanhos diferentes, tortas por ruído (sem padrão repetido);
+  // todas vindo de fora (da direita) para a costa
+  vec2 q = c + (vec2(fbm(c * 0.18), fbm(c * 0.18 + 9.0)) - 0.5) * 3.0;
+  float open = 0.0;
+  open += 0.34 * sin(dot(q, normalize(vec2(-1.0, 0.18))) * 2.6 + uTime * 1.5);
+  open += 0.24 * sin(dot(q, normalize(vec2(-1.0, -0.45))) * 3.7 + uTime * 1.9 + 1.3);
+  open += 0.18 * sin(dot(q, normalize(vec2(-0.7, 0.75))) * 5.3 + uTime * 2.4 + 2.1);
+  open += 0.12 * sin(dot(q, normalize(vec2(-1.0, 0.05))) * 8.1 + uTime * 3.1 + 4.0);
+  open += 0.12 * (fbm(q * 1.4 + vec2(uTime * 0.35, 0.0)) - 0.5) * 2.0;
+  open = 0.5 + 0.5 * open;
+  // perto da costa, as frentes ficam paralelas a ela e encurtam (a onda "sente" o fundo)
+  float near = coastWeight * (1.0 - smoothstep(1.5, 5.0, d));
+  float warp = fbm(vec2(c.y * 0.3, d * 0.2) + 3.0) * 2.0;
+  float shore = 0.5 + 0.5 * sin(d * 2.0 * PI / mix(1.4, 2.4, smoothstep(0.0, 5.0, d)) + uTime * 1.6 + warp);
+  return mix(open, shore, near * 0.85);
+}
+vec4 sea(vec2 c, float d, float coastWeight) {
+  // cor pela profundidade (casas até a costa): turquesa no raso, azul fundo longe
+  float deep = smoothstep(0.0, 7.0, d) * coastWeight + (1.0 - coastWeight);
+  vec3 shallow = vec3(0.2, 0.55, 0.56), mid = vec3(0.07, 0.33, 0.45), far = vec3(0.03, 0.14, 0.28);
+  vec3 col = mix(shallow, mid, smoothstep(0.0, 0.45, deep));
+  col = mix(col, far, smoothstep(0.4, 1.0, deep));
+  // superfície: normal pela ondulação (diferença), luz e brilho do sol/lua
+  float e = 0.05;
+  float h = swellAt(c, d, coastWeight);
+  float hx = swellAt(c + vec2(e, 0.0), d + e, coastWeight) - h;
+  float hy = swellAt(c + vec2(0.0, e), d, coastWeight) - h;
+  float chop = (fbm(c * 3.0 + uTime * vec2(0.3, 0.2)) - 0.5) * 0.6;
+  vec3 n = normalize(vec3(-hx / e * 0.35 + chop * 0.3, -hy / e * 0.35 + chop * 0.3, 1.0));
+  vec3 sun = normalize(vec3(-0.5, -0.6, 0.8));
+  float diffuse = max(dot(n, sun), 0.0);
+  vec3 halfway = normalize(sun + vec3(0.0, 0.0, 1.0));
+  float spec = pow(max(dot(n, halfway), 0.0), 90.0);
+  col = col * (0.7 + 0.45 * diffuse) + mix(vec3(1.0, 0.96, 0.85), vec3(0.7, 0.8, 1.0), uNight) * spec * mix(0.9, 0.5, uNight);
+  // espuma: cristas que quebram perto da costa (faixa de 0 a 1,8 casas), mais forte na beira
+  float foam = 0.0;
+  float crest = smoothstep(0.82, 0.97, h);
+  float breaking = coastWeight * (1.0 - smoothstep(0.2, 1.8, d));
+  foam = max(foam, crest * breaking * smoothstep(0.35, 0.6, fbm(c * 4.0 + vec2(0.0, uTime * 0.5))));
+  // carneirinhos em alto-mar: cristas altas, aqui e ali
+  float whitecap = smoothstep(0.93, 0.99, h) * smoothstep(0.66, 0.74, fbm(c * 1.2 + uTime * 0.15)) * (1.0 - coastWeight * (1.0 - smoothstep(2.0, 6.0, d)));
+  foam = max(foam, whitecap * 0.8);
+  // espuma que sobra no raso, rendada
+  float lace = (1.0 - smoothstep(0.0, 1.2, d)) * coastWeight * smoothstep(0.5, 0.65, fbm(c * 6.0 + uTime * vec2(0.1, 0.25)));
+  foam = max(foam, lace * 0.55);
+  return vec4(col, foam);
+}
+
+void main() {
+  vec2 frag = vec2(gl_FragCoord.x, uSize.y - gl_FragCoord.y);
+  vec2 c = frag / uCellPx;
+  float d = seaDist(c);
+  float coastWeight = uScene == 2 ? 0.0 : 1.0;
+  // vai e vem da onda na praia: a água sobe até "runup" casas na areia e volta
+  float runup = coastWeight * (0.25 + 0.35 * (0.5 + 0.5 * sin(uTime * 0.8 + c.y * 0.35 + fbm(vec2(c.y * 0.3, 1.0)) * 3.0)));
+  bool cliff = uScene == 3;
+  vec3 col;
+  if (d < -runup || (cliff && d < 0.0)) {
+    // terra: grama/rocha no penhasco, areia na praia e no porto (perto da água), molhada perto da linha da água
+    float shoreDist = -d;
+    if (cliff) {
+      // penhasco: alto; a face de rocha nas últimas 0,8 casa, com sombra; em cima, grama
+      float faceW = 1.1 + (fbm(vec2(c.y * 0.6, 4.0)) - 0.5) * 0.5;
+      float face = 1.0 - smoothstep(faceW - 0.08, faceW, shoreDist);
+      vec3 top = grass(c);
+      // a face: camadas de rocha (estratos) escurecendo para baixo, rachaduras, borda clara no alto
+      float u = clamp(shoreDist / faceW, 0.0, 1.0);
+      float strata = 0.5 + 0.5 * sin(u * 18.0 + fbm(c * 1.5) * 4.0);
+      vec3 faceCol = rock(c) * mix(0.45, 1.05, u) * (0.88 + 0.16 * strata);
+      faceCol *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.05, abs(fbm(c * vec2(4.0, 0.8)) - 0.5)));
+      float lip = 1.0 - smoothstep(0.0, 0.1, abs(shoreDist - faceW));
+      col = lit(mix(top, faceCol, face), vec3(face * 0.8, 0.0, 1.0)) + vec3(0.12) * lip * (1.0 - uNight * 0.7);
+    } else {
+      vec3 land = mix(sand(c), grass(c), smoothstep(3.0, 5.5, shoreDist + (fbm(c * 0.7) - 0.5) * 2.0));
+      // areia molhada: mais escura e com brilho, até 0,9 casa acima da onda mais alta
+      float wet = (1.0 - smoothstep(runup, runup + 0.9, shoreDist)) * coastWeight;
+      land = mix(land, land * vec3(0.72, 0.68, 0.62), wet * 0.8);
+      col = lit(land, vec3(0, 0, 1));
+      float sheen = wet * pow(max(0.0, noise(c * 3.0 + uTime * 0.1)), 6.0) * 0.4;
+      col += vec3(1.0, 0.97, 0.9) * sheen * (1.0 - uNight * 0.6);
+    }
+  } else {
+    vec4 water = sea(c, max(d, 0.0), coastWeight);
+    col = water.rgb;
+    float foam = water.a;
+    // espuma da beira que sobe e desce na areia (a lâmina fina de água)
+    if (!cliff) {
+      float swash = coastWeight * (1.0 - smoothstep(0.0, 0.18, abs(d + runup))) * smoothstep(0.3, 0.55, fbm(c * 5.0 + uTime * 0.4));
+      foam = max(foam, swash);
+      // lâmina d'água sobre a areia: a areia aparece por baixo
+      float sheet = coastWeight * (1.0 - smoothstep(-runup, 0.5, d));
+      col = mix(col, lit(sand(c) * vec3(0.7, 0.75, 0.72), vec3(0, 0, 1)) * 0.9 + vec3(0.04, 0.1, 0.1), sheet * 0.6);
+    } else {
+      // sombra do penhasco na água, junto à base
+      col *= 0.6 + 0.4 * smoothstep(0.0, 1.2, d);
+      // penhasco: a onda bate na base; arrebentação forte com borrifo que pulsa
+      float pulse = pow(0.5 + 0.5 * sin(uTime * 1.6 + c.y * 0.5 + fbm(vec2(c.y, 3.0)) * 4.0), 3.0);
+      float base = 1.0 - smoothstep(0.0, 0.9 + pulse * 0.6, d);
+      foam = max(foam, base * smoothstep(0.25, 0.5, fbm(c * 4.0 + uTime * 0.6)) * (0.6 + 0.4 * pulse));
+    }
+    // pedras: anel de espuma e respingo
+    for (int i = 0; i < 3; i++) {
+      vec3 r = rockAt(i);
+      if (r.x < -50.0) continue;
+      float dr = length(c - r.xy) - r.z;
+      if (dr < 0.0) {
+        float top = sqrt(max(0.0, 1.0 - pow(length(c - r.xy) / r.z, 2.0)));
+        vec3 n = normalize(vec3((c - r.xy) / r.z * 0.9, top + 0.2));
+        col = lit(rock(c) * (0.8 + 0.3 * top), n);
+        foam = 0.0;
+        break;
+      }
+      float ring = (1.0 - smoothstep(0.0, 0.35 + 0.15 * sin(uTime * 2.0 + float(i)), dr)) * smoothstep(0.3, 0.55, fbm(c * 6.0 + uTime * 0.7));
+      foam = max(foam, ring);
+    }
+    // estacas do cais: espuma em volta
+    float post = pierPost(c);
+    if (post < 0.4) foam = max(foam, (1.0 - smoothstep(0.08, 0.35, post)) * smoothstep(0.35, 0.6, fbm(c * 7.0 + uTime * 0.6)) * 0.8);
+    // barco: casco de madeira, convés e sombra na água
+    vec2 local;
+    float hull = boat(c, local);
+    if (hull < 0.0) {
+      vec3 wood = mix(vec3(0.38, 0.24, 0.13), vec3(0.52, 0.34, 0.18), noise(vec2(local.x * 0.6, local.y * 9.0)));
+      float plank = smoothstep(0.0, 0.04, abs(fract(local.y * 3.2) - 0.5) - 0.44);
+      float rim = 1.0 - smoothstep(-0.12, -0.02, hull);
+      wood *= 1.0 - 0.25 * plank;
+      wood = mix(wood * 0.6, wood, rim);
+      col = lit(wood, vec3(0.0, -local.y * 0.6, 1.0));
+      foam = 0.0;
+    } else if (hull < 0.25) {
+      foam = max(foam, (1.0 - smoothstep(0.0, 0.25, hull)) * smoothstep(0.4, 0.6, fbm(c * 6.0 + uTime * 0.8)) * 0.7);
+      col *= 0.75 + 0.25 * smoothstep(0.0, 0.25, hull);
+    }
+    // espuma em bolhas
+    vec4 bubble = voronoi(c * 14.0 + uTime * 0.2);
+    float bubbles = 0.75 + 0.25 * smoothstep(0.02, 0.12, bubble.w);
+    vec3 foamColor = mix(vec3(0.92, 0.97, 0.96), vec3(0.55, 0.65, 0.8), uNight);
+    col = mix(col, foamColor, clamp(foam * bubbles, 0.0, 1.0) * 0.85);
+  }
+  // cais por cima de tudo: tábuas no comprimento, com sombra na água em volta
+  if (onPier(c)) {
+    float board = floor(c.y * 4.0);
+    vec3 wood = mix(vec3(0.46, 0.32, 0.18), vec3(0.6, 0.44, 0.26), hash(vec2(board, 3.0))) * (0.85 + 0.2 * noise(vec2(c.x * 2.0, board)));
+    wood *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.06, abs(fract(c.y * 4.0) - 0.5) - 0.42));
+    col = lit(wood, vec3(0, 0, 1));
+  } else if (uScene == 1 && c.x > 7.5 && c.x < 19.3 && c.y > 7.5 && c.y < 10.35) {
+    col *= 0.7;   // sombra do cais
+  }
+  outColor = vec4(col, 1.0);
+}`;
+function compile(type, source) { const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+const program = gl.createProgram();
+gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
+gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+gl.bindAttribLocation(program, 0, "aPos");
+gl.linkProgram(program);
+const buffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const state = { scene: 0, night: 0, cellPx: 40 };
+const U = (n) => gl.getUniformLocation(program, n);
+function frame(now) {
+  const t0 = performance.now();
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.useProgram(program);
+  gl.uniform2f(U("uSize"), canvas.width, canvas.height);
+  gl.uniform1f(U("uCellPx"), state.cellPx);
+  gl.uniform1f(U("uTime"), now / 1000);
+  gl.uniform1f(U("uNight"), state.night);
+  gl.uniform1i(U("uScene"), state.scene);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  // grade fina
+  requestAnimationFrame(frame);
+}
+function wire(id, apply) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { apply(b.dataset.v); document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); })); }
+wire("scene", (v) => (state.scene = +v));
+wire("light", (v) => (state.night = +v));
+wire("zoom", (v) => (state.cellPx = +v));
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
