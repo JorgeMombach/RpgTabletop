@@ -49,6 +49,8 @@ export const useGroundOutputs = create<{
   weatherGround: HTMLCanvasElement | null;
   weatherAir: HTMLCanvasElement | null;
   weatherGlow: HTMLCanvasElement | null;
+  /** Moldura da cena (docs/design/moldura.md): a mesa de fora, a moldura e a sombra dela. */
+  frame: HTMLCanvasElement | null;
   /**
    * A visão com que as imagens foram desenhadas (docs/design/desempenho.md): elas ficam presas ao mapa nessa visão.
    * No zoom provisório, o palco já está na escala nova e as imagens esticam junto até o desenho completo.
@@ -56,7 +58,7 @@ export const useGroundOutputs = create<{
   drawnView: DrawnView | null;
   /** Ícone de um tipo de objeto feito pela placa de vídeo (`null` = ainda não dá; sem motor, a função é `null`). */
   propIcon: ((kind: PropKind, side: number) => HTMLCanvasElement | null) | null;
-}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, drawnView: null, propIcon: null }));
+}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, frame: null, drawnView: null, propIcon: null }));
 
 const drawnListeners = new Set<() => void>();
 

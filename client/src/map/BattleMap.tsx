@@ -4,7 +4,7 @@ import { ActionIcon, Button, Divider, Group as MGroup, NumberInput, Paper, Segme
 import { IconArrowUpRight, IconCloudFog, IconCloudOff, IconCurrentLocation, IconFocusCentered, IconHandFinger, IconHandStop, IconPencil, IconPin, IconRuler2, IconSparkles } from "@tabler/icons-react";
 import type Konva from "konva";
 import { Circle, Group, Image as KImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
-import { type Bridge, bridgeAt, bridgeLength, type Stair, stairAt, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintRows, propOccluders, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
+import { type Bridge, bridgeAt, bridgeLength, type Stair, stairAt, brushCells, currentEndNear, snapBridgeEnd, doorLayouts, extendCurrent, floorRoomAt, magnetWallEnds, magnetWallPoint, paintFloor, type FloorChunks, type LightPoint, duneDustLevel, lightBlockers, paintRelief, paintRows, propOccluders, paintTerrain, type ReliefChunks, type TerrainChunks, type TerrainStrokeMemory, cellsToRects, cellsWithCenterIn, geometryOf, isHex, LIMITS, type GridPos, type Area, type AreaKind, type ClientState, type CombatantView, type MapConfig, type MapTorchStyle, type Ruler, type SceneFrame, type TableStyle, type Wall, type Drawing, type MapProp, type MapTorch, wallRooms } from "@rpg/shared";
 import { act } from "../actions";
 import { useT } from "../i18n";
 import { socket } from "../socket";
@@ -24,7 +24,8 @@ import { markMapBusy } from "./windStall";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
-import { GroundEffectsImage, GroundFogLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage, GroundWeatherLayer } from "./ground/GroundOutputLayer";
+import { GroundEffectsImage, GroundFogLayer, GroundFrameLayer, GroundOutputLayer, GroundPropsImage, GroundWallsImage, GroundWeatherLayer } from "./ground/GroundOutputLayer";
+import type { FrameInput } from "./ground/framePass";
 import type { WeatherInput } from "./weather/weatherPass";
 import { fogLit, fogViewers, type FogRows, type FogScene } from "./ground/fogGeometry";
 import type { FogInput } from "./ground/fogPass";
@@ -1546,6 +1547,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   // Clima vivendo no mapa (docs/design/clima.md): com o chão na placa, a placa desenha o clima; os cômodos (o telhado)
   // são os mesmos da luz, das paredes que este cliente tem.
   const weatherState = state.battle.weather;
+  // Moldura da cena (docs/design/moldura.md): a placa desenha a mesa de fora e a moldura; sem a placa, o Konva.
+  const sceneFrame = state.battle.map.frame;
+  const sceneTable = state.battle.map.tableStyle ?? "wood";
+  const frameInput = useMemo<FrameInput | null>(() => (groundLit && sceneFrame ? { frame: sceneFrame, tableStyle: sceneTable } : null), [groundLit, sceneFrame, sceneTable]);
   const weatherInput = useMemo<WeatherInput | null>(
     () =>
       groundLit && weatherState.kind
@@ -1798,6 +1803,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               fog={fogInput}
               effects={groundLit ? state.battle.effects : null}
               weatherInput={weatherInput}
+              frameInput={frameInput}
               weather={state.battle.weather}
             />
           )}
@@ -2065,6 +2071,13 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
 
           {/* Luz da cena, sombras e tochas (docs/design/luz.md): multiplica tudo o que está embaixo; a interface do mapa
               (áreas, régua, pings) fica por cima, legível à noite. */}
+          {/* Moldura da cena: a mesa cobre o que está fora; acima de tudo o que é do mapa, abaixo da luz. */}
+          {frameInput && <GroundFrameLayer view={stageView} size={stageSize} />}
+          {!groundLit && sceneFrame && (
+            <Layer listening={false}>
+              <FrameFallback frame={sceneFrame} style={sceneTable} grid={grid} view={view} size={size} />
+            </Layer>
+          )}
           {groundLit && <GroundOutputLayer which="light" view={stageView} size={stageSize} />}
           {/* O que brilha sozinho no clima (brasas, vagalumes…) e o clarão do relâmpago: acima da luz. */}
           {weatherInput && <GroundWeatherLayer which="glow" view={stageView} size={stageSize} />}
@@ -2221,6 +2234,45 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
  * A mesa em volta do mapa (L5): o ladrilho do estilo da cena cobre a parte visível (acompanha o zoom: o
  * tamanho é em casas) e, com imagem, o mapa ganha uma sombra projetada, como papel pousado na mesa.
  */
+/**
+ * Moldura sem a placa de vídeo (docs/design/moldura.md): só o recurso de emergência. A mesa cobre o que está fora
+ * da cena e uma faixa escura com filete claro marca a borda.
+ */
+function FrameFallback({ frame, style, grid, view, size }: { frame: SceneFrame; style: TableStyle; grid: MapConfig; view: View; size: { width: number; height: number } }) {
+  return (
+    <Shape
+      sceneFunc={(kctx) => {
+        const ctx = kctx._context;
+        const x0 = -view.x / view.scale;
+        const y0 = -view.y / view.scale;
+        const w = size.width / view.scale;
+        const h = size.height / view.scale;
+        const left = grid.offsetX;
+        const top = grid.offsetY;
+        const right = left + frame.cols * grid.cellPx;
+        const bottom = top + frame.rows * grid.cellPx;
+        const tile = tableTile(style);
+        const pattern = ctx.createPattern(tile, "repeat");
+        if (pattern) {
+          pattern.setTransform(new DOMMatrix().translate(grid.offsetX, grid.offsetY).scale((TILE_CELLS[style] * grid.cellPx) / tile.width));
+          ctx.fillStyle = pattern;
+          ctx.beginPath();
+          ctx.rect(x0, y0, w, h);
+          ctx.rect(left, top, right - left, bottom - top);
+          ctx.fill("evenodd");
+        }
+        const band = grid.cellPx * 0.75;
+        ctx.lineWidth = band;
+        ctx.strokeStyle = "#5a3a1c";
+        ctx.strokeRect(left - band / 2, top - band / 2, right - left + band, bottom - top + band);
+        ctx.lineWidth = Math.max(1, grid.cellPx * 0.05);
+        ctx.strokeStyle = "#c8a05a";
+        ctx.strokeRect(left - band * 0.2, top - band * 0.2, right - left + band * 0.4, bottom - top + band * 0.4);
+      }}
+    />
+  );
+}
+
 function TableShape({ style, grid, view, size, bounds }: { style: TableStyle; grid: MapConfig; view: View; size: { width: number; height: number }; bounds: { width: number; height: number } | null }) {
   return (
     <Shape

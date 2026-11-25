@@ -31,3 +31,19 @@ export function cellsInsideFrame(frame: SceneFrame | undefined, cells: GridPos[]
   if (!frame) return true;
   return cells.every((cell) => cell.col >= 0 && cell.row >= 0 && cell.col < frame.cols && cell.row < frame.rows);
 }
+
+/**
+ * Moldura que abraça a imagem do mapa: as casas inteiras do grid que cabem na imagem (girada e escalada como o mapa a
+ * desenha), a partir do canto do grid; entre os limites da moldura.
+ */
+export function frameSizeForImage(
+  image: { width: number; height: number },
+  map: { rotation: number; imageScale: number; cellPx: number; offsetX: number; offsetY: number },
+  limits: { min: number; max: number },
+): { cols: number; rows: number } {
+  const turned = map.rotation % 180 !== 0;
+  const width = (turned ? image.height : image.width) * map.imageScale;
+  const height = (turned ? image.width : image.height) * map.imageScale;
+  const fit = (span: number, offset: number) => Math.max(limits.min, Math.min(limits.max, Math.floor((span - offset) / map.cellPx)));
+  return { cols: fit(width, map.offsetX), rows: fit(height, map.offsetY) };
+}

@@ -113,6 +113,25 @@ export function GroundEffectsImage({ view, size }: { view: { x: number; y: numbe
 }
 
 /**
+ * A moldura da cena (docs/design/moldura.md): a mesa de fora, a moldura e a sombra dela sobre a cena, numa camada
+ * acima de tudo o que é do mapa e abaixo da luz. Redesenha a cada desenho do chão.
+ */
+export function GroundFrameLayer({ view, size }: { view: { x: number; y: number; scale: number }; size: { width: number; height: number } }) {
+  const box = useDrawnBox(view, size);
+  const image = useGroundOutputs((state) => state.frame);
+  const layerRef = useRef<Konva.Layer>(null);
+
+  useEffect(() => onGroundDrawn(() => layerRef.current?.batchDraw()), [image]);
+
+  if (!image) return null;
+  return (
+    <Layer ref={layerRef} listening={false}>
+      <KImage image={image} {...box} />
+    </Layer>
+  );
+}
+
+/**
  * Uma camada do clima da placa de vídeo (docs/design/clima.md): a cobertura do chão (logo acima do chão), o que anda
  * no ar (acima das copas, abaixo da luz) ou o que brilha sozinho com o clarão (acima da luz). Presa à tela.
  */

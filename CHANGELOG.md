@@ -6,6 +6,11 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Moldura da cena:** no painel *Mapa*, o mestre pode ligar uma moldura (madeira entalhada, bronze dourado, ferro com rebites ou pedra) do tamanho que quiser, em casas, ou ajustada à imagem do mapa. A cena acontece dentro dela: fora fica a mesa, e nada pode ser posto ou pintado lá (tokens, objetos, tochas, baús, paredes, pontes, escadas, efeitos, desenhos e pincéis). O que já estava fora não é apagado: fica escondido sob a mesa.
+- **Terrenos novos:** terra batida (o barro claro da margem da água) e neve.
+
 ### Alterado
 - **Objetos redesenhados, nítidos e com luz:** os 28 objetos do cenário (árvores, pinheiros, palmeiras, arbustos, flores, grama alta, pedras, troncos, barris, caixotes, mesas, estantes, camas, carroça, poço, pilar, estátua, altar, barraca, sacos, ossos e o resto) agora são desenhados pela placa de vídeo, no estilo do chão: folhas e pedra em aquarela, madeira com veio, ferro, tecido e osso desenhados ponto a ponto, contorno fino e nítidos em qualquer zoom. Cada parte pega o sol (ou a lua) de um lado e fica na sombra do outro; a tocha ilumina o lado virado para ela. Fazem sombra pela luz da cena (a dos objetos maciços sai do pé; a da árvore liga pelo tronco), e o token que entra na sombra escurece. Árvores, arbustos, pinheiros, palmeiras, grama alta e flores balançam com o vento. Duas árvores continuam nunca saindo iguais, e os mapas salvos abrem com os mesmos objetos. Os ícones do painel *Objetos* também mudaram. Sem WebGL 2, fica o desenho de antes.
 - **Sombras de tochas, tokens e objetos:** a luz das tochas (fixas e dos tokens) não atravessa mais árvores, pedras, móveis e tokens: cada um faz sombra para longe da tocha, longa quando a tocha é baixa (braseiro) e curta quando ela passa por cima (tocha de ferro sobre um caixote), girando e esticando quando o token anda ou é arrastado. Quem carrega a tocha não faz sombra dela mesma. Os tokens também fazem sombra do sol e da lua (longa no entardecer), e a sombra respeita a altura de quem recebe: uma copa alta não escurece com a sombra de um barril embaixo dela. De dia, a tocha quase não pesa e não faz leque de sombra. Com isso, os tokens perderam a sombrinha fixa da arte. Sem WebGL 2, fica como antes.

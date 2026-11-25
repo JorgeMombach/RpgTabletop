@@ -1,5 +1,5 @@
-import { ActionIcon, Button, Checkbox, ColorInput, FileButton, Group, Input, NumberInput, Paper, SegmentedControl, Slider, Stack, Text, Tooltip } from "@mantine/core";
-import { geometryOf, GRID_KINDS, isHex, LIMITS, TABLE_STYLES, type GridInput, type GridKind, type MapConfig, type TableStyle } from "@rpg/shared";
+import { ActionIcon, Button, Checkbox, ColorInput, FileButton, Group, Input, NumberInput, Paper, SegmentedControl, Select, Slider, Stack, Text, Tooltip } from "@mantine/core";
+import { FRAME_STYLES, frameSizeForImage, geometryOf, GRID_KINDS, isHex, LIMITS, TABLE_STYLES, type FrameStyle, type SceneFrame, type GridInput, type GridKind, type MapConfig, type TableStyle } from "@rpg/shared";
 import { useEffect, useRef, useState } from "react";
 import { act } from "../actions";
 import { confirmAction } from "../confirm";
@@ -54,6 +54,85 @@ export const CALIBRATE_HINT: Record<GridKind, MessageKey> = {
 };
 
 const TABLE_LABEL: Record<TableStyle, MessageKey> = { wood: "mapPanel.tableWood", leather: "mapPanel.tableLeather", slate: "mapPanel.tableSlate" };
+const FRAME_LABEL: Record<FrameStyle, MessageKey> = { wood: "mapPanel.frameWood", bronze: "mapPanel.frameBronze", iron: "mapPanel.frameIron", stone: "mapPanel.frameStone" };
+
+/** Tamanho da imagem do mapa (para a moldura abraçar a imagem). */
+function imageSize(src: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+/**
+ * Moldura da cena (docs/design/moldura.md): opcional; a cena acontece dentro dela e nada é posto fora. Largura e
+ * altura em casas (mudam ao sair do campo, não a cada tecla: um número pela metade seria recusado), o desenho e,
+ * com imagem, ajustar à imagem.
+ */
+function FrameOptions({ map }: { map: MapConfig }) {
+  const t = useT();
+  const imageSrc = useApp((s) => s.mapImage.image);
+  const frame = map.frame;
+  const send = (next: SceneFrame | null) => void act("battle:grid", { frame: next });
+  async function fitted(style: FrameStyle): Promise<SceneFrame> {
+    const size = imageSrc ? frameSizeForImage(await imageSize(imageSrc), map, LIMITS.frameCells) : { cols: 30, rows: 20 };
+    return { ...size, style };
+  }
+  const commitSize = (key: "cols" | "rows", raw: string) => {
+    if (!frame) return;
+    const value = Number(raw);
+    if (Number.isInteger(value) && value !== frame[key]) send({ ...frame, [key]: value });
+  };
+  return (
+    <Input.Wrapper label={t("mapPanel.frame")}>
+      <Checkbox mt={4} label={t("mapPanel.frameOn")} checked={!!frame} onChange={(event) => (event.currentTarget.checked ? void fitted("wood").then(send) : send(null))} />
+      {frame && (
+        <>
+          <Group grow gap="xs" mt={8}>
+            <NumberInput
+              key={`cols-${frame.cols}`}
+              label={t("mapPanel.frameCols")}
+              defaultValue={frame.cols}
+              min={LIMITS.frameCells.min}
+              max={LIMITS.frameCells.max}
+              allowDecimal={false}
+              onBlur={(event) => commitSize("cols", event.currentTarget.value)}
+              onKeyDown={(event) => event.key === "Enter" && commitSize("cols", event.currentTarget.value)}
+            />
+            <NumberInput
+              key={`rows-${frame.rows}`}
+              label={t("mapPanel.frameRows")}
+              defaultValue={frame.rows}
+              min={LIMITS.frameCells.min}
+              max={LIMITS.frameCells.max}
+              allowDecimal={false}
+              onBlur={(event) => commitSize("rows", event.currentTarget.value)}
+              onKeyDown={(event) => event.key === "Enter" && commitSize("rows", event.currentTarget.value)}
+            />
+          </Group>
+          <Select
+            mt={8}
+            label={t("mapPanel.frameStyle")}
+            data={FRAME_STYLES.map((style) => ({ value: style, label: t(FRAME_LABEL[style]) }))}
+            value={frame.style}
+            allowDeselect={false}
+            onChange={(value) => {
+              const style = FRAME_STYLES.find((candidate) => candidate === value);
+              if (style) send({ ...frame, style });
+            }}
+          />
+          {imageSrc && (
+            <Button variant="default" mt={8} fullWidth onClick={() => void fitted(frame.style).then(send)}>
+              {t("mapPanel.frameFit")}
+            </Button>
+          )}
+        </>
+      )}
+    </Input.Wrapper>
+  );
+}
 
 /** Envia ajustes do grid no máximo a cada 100 ms enquanto o slider é arrastado. */
 function useThrottledGrid() {
@@ -202,6 +281,8 @@ export function MapPanel({ map }: { map: MapConfig & { hasImage: boolean } }) {
           onChange={(v) => void act("battle:grid", { tableStyle: v as TableStyle })}
         />
       </Input.Wrapper>
+
+      <FrameOptions map={map} />
 
       <Input.Wrapper label={t("mapPanel.grid")}>
         <SegmentedControl

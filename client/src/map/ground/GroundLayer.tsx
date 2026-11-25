@@ -12,6 +12,7 @@ import { useTokenDrag } from "../dragFollow";
 import type { TokenCaster } from "./shadowCasters";
 import { notifyEffectsDrawn, notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, notifyWeatherDrawn, setDrawnView, useDrawnBox, useGroundOutputs, type DrawnView } from "./groundOutputs";
 import type { WeatherInput } from "../weather/weatherPass";
+import type { FrameInput } from "./framePass";
 import type { MapEffect } from "@rpg/shared";
 import type { FogInput } from "./fogPass";
 import type { LightingInput } from "./lightPass";
@@ -108,7 +109,10 @@ export const GroundLayer = memo(function GroundLayer({
   fog,
   effects,
   weatherInput,
+  frameInput,
 }: {
+  /** Moldura da cena (docs/design/moldura.md); `null` = sem moldura. */
+  frameInput: FrameInput | null;
   /** Clima vivendo no mapa (docs/design/clima.md); `null` = sem clima ou a película de hoje. */
   weatherInput: WeatherInput | null;
   /** Efeitos de área pela placa (docs/design/efeitos.md); `null` = desenhados pelo Konva. */
@@ -248,7 +252,7 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
-    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, fog: created.fogImage, fogTint: created.fogTintImage, effects: created.effectsImage, weatherGround: created.weatherGroundImage, weatherAir: created.weatherAirImage, weatherGlow: created.weatherGlowImage, propIcon: (kind, side) => created.propIcon(kind, side) });
+    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, fog: created.fogImage, fogTint: created.fogTintImage, effects: created.effectsImage, weatherGround: created.weatherGroundImage, weatherAir: created.weatherAirImage, weatherGlow: created.weatherGlowImage, frame: created.frameImage, propIcon: (kind, side) => created.propIcon(kind, side) });
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
@@ -259,7 +263,7 @@ export const GroundLayer = memo(function GroundLayer({
       createdWorker.terminate();
       createdReliefWorker.terminate();
       created.dispose();
-      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, drawnView: null, propIcon: null });
+      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, frame: null, drawnView: null, propIcon: null });
       setEngine(null);
     };
   }, [generation]);
@@ -514,6 +518,13 @@ export const GroundLayer = memo(function GroundLayer({
     renderer.setEffects(effects, { feetPerCell: grid.feetPerCell, grid: grid.grid });
     setVersion((value) => value + 1);
   }, [renderer, effects, grid.feetPerCell, grid.grid]);
+
+  // Moldura da cena (docs/design/moldura.md): desenhada a cada desenho completo.
+  useEffect(() => {
+    if (!renderer) return;
+    renderer.setFrame(frameInput);
+    setVersion((value) => value + 1);
+  }, [renderer, frameInput]);
 
   // Clima vivendo no mapa (docs/design/clima.md): o telhado é refeito quando os cômodos mudam.
   useEffect(() => {

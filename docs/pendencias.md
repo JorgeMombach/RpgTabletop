@@ -230,6 +230,14 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Rio com o pincel mínimo (0,5): água no meio, margem estreita. Rio largo, lago e água funda: margem mais rasa e suave, sem degrau estranho na borda.
 - [ ] Mexer na água (pintar, apagar, correnteza): sem engasgo novo (a meia largura é calculada no Worker).
 
+### Moldura e terrenos novos (bloco 4; [docs/design/moldura.md](design/moldura.md))
+- [ ] Terra batida e neve no painel *Terreno*: pintar ao lado da água e da grama, de dia e à noite (a neve com montinhos e sombra azulada).
+- [ ] Moldura: ligar no painel *Mapa*, mudar largura e altura (ao sair do campo ou Enter), trocar os quatro desenhos, *Ajustar à imagem* com uma imagem de mapa, desligar.
+- [ ] Fora da moldura: a mesa (couro, madeira, ardósia) cobre o que estava lá; nada é apagado (desligar mostra de novo).
+- [ ] Tentar pôr fora: token (volta ao lugar), objeto, tocha, baú, parede, ponte, escada, efeito de área, desenho; recusa "Fora da moldura.". Pincéis de terreno, relevo, piso e efeitos param na borda.
+- [ ] Jogador pelo IP da rede: vê a moldura e não consegue mover o token para fora.
+- [ ] Zoom e arrasto com a moldura ligada: sem engasgo novo; a moldura nítida de perto.
+
 ## Pendências pequenas
 
 ### Desempenho e estabilidade ([docs/design/desempenho.md](design/desempenho.md))

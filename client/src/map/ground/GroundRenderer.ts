@@ -16,6 +16,7 @@ import { HeightPass } from "./heightPass";
 import { FogPass, type FogInput } from "./fogPass";
 import { EffectPass } from "../effects/effectPass";
 import { WeatherPass, type WeatherInput } from "../weather/weatherPass";
+import { FramePass, type FrameInput } from "./framePass";
 import type { MapConfig, MapEffect } from "@rpg/shared";
 import type { TokenCaster } from "./shadowCasters";
 import type { PropDrag } from "../props/propLayout";
@@ -74,6 +75,8 @@ export class GroundRenderer {
   private readonly effects: EffectPass;
   /** Clima vivendo no mapa (docs/design/clima.md): chão, ar e brilho, nas três saídas do clima. */
   private readonly weather: WeatherPass;
+  /** Moldura da cena (docs/design/moldura.md): a mesa de fora, a moldura e a sombra dela, na saída da moldura. */
+  private readonly frame: FramePass;
   /** Camada das pontes, guardada como a do piso (refeita com o terreno). */
   private bridgeImage: WebGLTexture | null = null;
   /** Relevo (docs/design/relevo.md): campos e sombra guardados por pedaço; o desenho lê (Tarefa 6). */
@@ -99,6 +102,8 @@ export class GroundRenderer {
   readonly weatherGroundImage = document.createElement("canvas");
   readonly weatherAirImage = document.createElement("canvas");
   readonly weatherGlowImage = document.createElement("canvas");
+  /** A moldura da cena com a mesa de fora (abaixo da luz da cena). */
+  readonly frameImage = document.createElement("canvas");
   /** As imagens dos objetos mudaram no último desenho. */
   propsFresh = false;
   /** A imagem de brilho do clima já está vazia (não precisa ser refeita enquanto nada brilha). */
@@ -161,6 +166,7 @@ export class GroundRenderer {
     this.fog = new FogPass(gl);
     this.effects = new EffectPass(gl);
     this.weather = new WeatherPass(gl);
+    this.frame = new FramePass(gl);
   }
 
   /**
@@ -262,6 +268,11 @@ export class GroundRenderer {
   renderEffects(view: GroundView, time: number) {
     if (this.gl.isContextLost()) return;
     this.drawEffects(view, this.canvas.width, this.canvas.height, time);
+  }
+
+  /** A moldura da cena (`null`: sem moldura). */
+  setFrame(input: FrameInput | null) {
+    this.frame.set(input);
   }
 
   /** O clima da cena (`null`: sem clima ou desenhado pela película de hoje). */
@@ -540,6 +551,19 @@ export class GroundRenderer {
     this.drawWeather(view, width, height);
     if (this.light.active) this.drawLight(view, width, height, time);
     this.drawFog(view, width, height, time);
+    this.drawFrame(view, width, height);
+  }
+
+  /** A moldura da cena com a mesa de fora, copiada para a saída dela. */
+  private drawFrame(view: GroundView, width: number, height: number) {
+    const { gl } = this;
+    if (!this.frame.active) return;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.frame.draw(view, width, height);
+    this.copyTo(this.frameImage);
   }
 
   /** Os efeitos de área, copiados para a saída deles. */
@@ -810,6 +834,7 @@ export class GroundRenderer {
     this.fog.dispose();
     this.effects.dispose();
     this.weather.dispose();
+    this.frame.dispose();
     this.releaseWeights();
     for (const texture of this.watercolors) gl.deleteTexture(texture);
     this.terrain.dispose();

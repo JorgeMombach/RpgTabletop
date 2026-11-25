@@ -108,6 +108,8 @@ async function fillBenchScene() {
     await must(act("maptorch:add", { col, row, style: index % 3 === 0 ? "brazier" : "stick" }), "Tocha");
   }
 
+  // moldura da cena (docs/design/moldura.md): a mesa de fora e a moldura também entram na medição
+  await must(act("battle:grid", { frame: { cols: 60, rows: 40, style: "bronze" } }), "Moldura");
   await must(act("fog:set", { enabled: true }), "Névoa");
   await must(act("weather:set", { kind: "rain", intensity: 0.6, wind: 20, light: "night" }), "Chuva à noite");
   await until(() => currentState().battle.props.length > 0 && currentState().battle.torches.length === 20);

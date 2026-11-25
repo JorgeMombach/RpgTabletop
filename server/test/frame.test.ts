@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { floorAt, reliefAt, TERRAIN_FINE, terrainAt, type ActionResult } from "@rpg/shared";
+import { floorAt, frameSizeForImage, LIMITS, reliefAt, TERRAIN_FINE, terrainAt, type ActionResult } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { act, join, useServer, type Client } from "./helpers";
 
@@ -144,5 +144,13 @@ describe("moldura da cena", () => {
     assert.deepEqual(painted?.cells, [9, 4], "só a casa de dentro");
     // tudo fora: nada pintado, sem erro
     ok(await act(gm, "effect:paint", { cells: [20, 20], preset: "ice" }));
+  });
+
+  it("ajustar à imagem: as casas inteiras que cabem, com o giro, a escala e o canto do grid", () => {
+    const map = { rotation: 0, imageScale: 1, cellPx: 50, offsetX: 10, offsetY: 0 };
+    assert.deepEqual(frameSizeForImage({ width: 1520, height: 1000 }, map, LIMITS.frameCells), { cols: 30, rows: 20 });
+    assert.deepEqual(frameSizeForImage({ width: 1520, height: 1000 }, { ...map, rotation: 90, offsetX: 0 }, LIMITS.frameCells), { cols: 20, rows: 30 });
+    assert.deepEqual(frameSizeForImage({ width: 760, height: 500 }, { ...map, imageScale: 2 }, LIMITS.frameCells), { cols: 30, rows: 20 });
+    assert.deepEqual(frameSizeForImage({ width: 100, height: 99999 }, map, LIMITS.frameCells), { cols: 4, rows: 200 }, "entre os limites");
   });
 });
