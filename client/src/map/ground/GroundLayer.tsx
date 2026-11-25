@@ -36,6 +36,8 @@ const FRAME_MS = 33;
  * completo, na escala nova, sai este tempo depois do último passo.
  */
 export const ZOOM_SETTLE_MS = 150;
+/** Relevo vazio (a água sem mar não depende do relevo). */
+const NO_RELIEF: ReliefChunks = {};
 /** Folga do desenho no meio do afastamento: cobre 1,4× a tela (uns três passos da rodinha). */
 const ZOOM_OUT_MARGIN = 1.4;
 
@@ -442,6 +444,11 @@ export const GroundLayer = memo(function GroundLayer({
     setVersion((value) => value + 1);
   }, [renderer, dunes, dust.level, dust.direction, reduceDust]);
 
+  // O relevo só vai para a água com mar na cena (a costa junto a relevo mais alto vira penhasco); sem mar, pintar
+  // relevo não refaz as contas da água.
+  const hasSea = useMemo(() => Object.values(committed).some((chunk) => chunk.sea !== undefined), [committed]);
+  const seaRelief = hasSea ? relief : NO_RELIEF;
+
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
   const lastCommitted = useRef<TerrainChunks | null>(null);
   useEffect(() => {
@@ -453,11 +460,11 @@ export const GroundLayer = memo(function GroundLayer({
     }
     const timer = window.setTimeout(() => {
       jobId.current += 1;
-      const job: WaterJob = { id: jobId.current, chunks: committed, currents, rocks, perCell: PER_CELL };
+      const job: WaterJob = { id: jobId.current, chunks: committed, currents, rocks, perCell: PER_CELL, relief: seaRelief };
       worker.postMessage(job);
     }, SETTLE_MS);
     return () => window.clearTimeout(timer);
-  }, [worker, committed, currents, rocks]);
+  }, [worker, committed, currents, rocks, seaRelief]);
 
   const groundView: GroundView = {
     offsetX: grid.offsetX,

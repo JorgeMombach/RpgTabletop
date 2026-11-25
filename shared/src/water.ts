@@ -29,7 +29,7 @@ export interface WaterField {
   /** Parte de mar da água (0 a 1) por pixel (docs/design/mar.md). */
   sea: Float32Array;
   /** Tipo de costa nos pixels de terra junto ao mar (`SHORE_*`); 0 no resto. */
-  shore: Uint8Array;
+  shore: Uint8Array<ArrayBuffer>;
 }
 
 /** Tipos de costa do mar: nada, praia (areia, terra batida), pedra (pedra ou relevo mais alto), margem (o resto). */

@@ -17,6 +17,7 @@ import type { WaterGpuField } from "./waterTypes";
 interface GpuGroup {
   field: WaterGpuField;
   sdfDeep: WebGLTexture;
+  shore: WebGLTexture;
   river: WebGLTexture;
 }
 
@@ -89,6 +90,20 @@ export class WaterPass {
     );
   }
 
+  /** Tipo de costa do mar por pixel (0 a 3, lido sem filtro: `round(valor × 255)`). */
+  private byteTexture(data: Uint8Array, width: number, height: number): WebGLTexture {
+    const { gl } = this;
+    return createTexture(
+      gl,
+      () => {
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, width, height, 0, gl.RED, gl.UNSIGNED_BYTE, data);
+      },
+      gl.NEAREST,
+      gl.CLAMP_TO_EDGE,
+    );
+  }
+
   /** Aquarela de terra que vira o barranco e o fundo. */
   setDirt(image: TexImageSource) {
     if (this.dirt) this.gl.deleteTexture(this.dirt);
@@ -102,6 +117,7 @@ export class WaterPass {
     this.groups = fields.map((field) => ({
       field,
       sdfDeep: this.halfTexture(field.sdfDeep, field.width, field.height),
+      shore: this.byteTexture(field.shore, field.width, field.height),
       river: this.floatTexture(field.river, field.width, field.height),
     }));
     this.version++;
@@ -110,7 +126,7 @@ export class WaterPass {
   private release() {
     const { gl } = this;
     for (const group of this.groups) {
-      for (const texture of [group.sdfDeep, group.river]) gl.deleteTexture(texture);
+      for (const texture of [group.sdfDeep, group.shore, group.river]) gl.deleteTexture(texture);
     }
     this.groups = [];
   }
@@ -168,6 +184,7 @@ export class WaterPass {
       gl.uniform1f(uniformOf(gl, bake, "uPerCell"), group.field.perCell);
       bindTextures(gl, bake, [
         ["uSdfDeep", group.sdfDeep],
+        ["uShore", group.shore],
         ["uRiver", group.river],
         ["uDirt", this.dirt],
       ]);
@@ -216,6 +233,7 @@ export class WaterPass {
       if (!this.onScreen(field, view)) continue;
       bindTextures(gl, program, [
         ["uSdfDeep", group.sdfDeep],
+        ["uShore", group.shore],
         ["uRiver", group.river],
         ["uBakedTerrain", baked.terrain],
         ["uBakedData", baked.data],
