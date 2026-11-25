@@ -1,4 +1,4 @@
-import { LIMITS, type ActionResult } from "@rpg/shared";
+import { LIMITS, MAP_TORCH_COLORS, type ActionResult, type MapTorchStyle } from "@rpg/shared";
 import { act } from "../actions";
 import { scatter } from "../map/scatter";
 import { paintReliefStroke, paintTerrainStroke } from "../map/mapHistory";
@@ -6,7 +6,7 @@ import { useApp } from "../store";
 
 /**
  * A cena pesada do teste de desempenho (docs/design/desempenho.md): 60 × 40 casas com terreno variado, rio, relevo e
- * dunas, mar na borda direita, 300 objetos de floresta, 20 tochas, 6 cômodos, névoa e chuva à noite. Montada pelas ações do jogo numa cena
+ * dunas, mar na borda direita, 300 objetos de floresta, 20 fontes de luz (modelos e cores variados, 2 arandelas), 6 cômodos, névoa e chuva à noite. Montada pelas ações do jogo numa cena
  * nova e apagada no fim. A água do lago fica para o cenário "primeira água".
  */
 
@@ -103,12 +103,16 @@ async function fillBenchScene() {
   const forest = scatter("forest", cells, 1, [], seeded(7), "square", currentState().battle.walls).slice(0, Math.min(300, LIMITS.props));
   await must(act("prop:addMany", { items: forest }), "Floresta");
 
-  // Tochas: 20, nos cômodos e no caminho.
-  for (let index = 0; index < 20; index++) {
-    const col = 4.5 + (index % 10) * 4.2;
-    const row = index < 10 ? 12 : 24.5;
-    await must(act("maptorch:add", { col, row, style: index % 3 === 0 ? "brazier" : "stick" }), "Tocha");
+  // Fontes de luz (docs/design/luzes.md): 18 nos cômodos e no caminho, em modelos e cores variados, e 2 arandelas
+  // nas paredes de cima do primeiro e do segundo cômodo (viradas para dentro).
+  const models: MapTorchStyle[] = ["stick", "iron", "brazier", "campfire", "lantern", "candles", "candelabra", "oilLamp", "orb"];
+  for (let index = 0; index < 18; index++) {
+    const col = 4.5 + (index % 9) * 4.2;
+    const row = index < 9 ? 12 : 24.5;
+    const color = MAP_TORCH_COLORS[index % MAP_TORCH_COLORS.length];
+    await must(act("maptorch:add", { col, row, style: models[index % models.length], ...(color !== "flame" && { color }) }), "Fonte de luz");
   }
+  for (const left of [2, 9]) await must(act("maptorch:add", { col: left + 2.5, row: 10.12, style: "sconce", facing: 90 }), "Arandela");
 
   // moldura da cena (docs/design/moldura.md): a mesa de fora e a moldura também entram na medição
   await must(act("battle:grid", { frame: { cols: 60, rows: 40, style: "bronze" } }), "Moldura");

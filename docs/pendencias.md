@@ -230,6 +230,20 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Rio com o pincel mínimo (0,5): água no meio, margem estreita. Rio largo, lago e água funda: margem mais rasa e suave, sem degrau estranho na borda.
 - [ ] Mexer na água (pintar, apagar, correnteza): sem engasgo novo (a meia largura é calculada no Worker).
 
+### Fontes de luz (bloco 6; [docs/design/luzes.md](design/luzes.md))
+
+- [ ] Os 10 modelos pelo painel *Tochas*, nas 5 cores: dia, entardecer, luar e noite; perto e longe nítidos; como na página aprovada ([luzes-teste.html](design/luzes-teste.html)).
+- [ ] Luz colorida no chão (azul, verde, roxa, branca) e alcance de cada modelo (vela perto, fogueira longe).
+- [ ] Arandela: prévia gruda na parede mais perto e vira para o lado do ponteiro; longe de parede, recusa com aviso; arrastar gruda de novo; apagar a parede (remover, borracha, limpar) tira a arandela; trocar de cena não.
+- [ ] Arandela ilumina só o lado de dentro (cômodo fechado com uma em cada parede).
+- [ ] Desfazer: pôr, arrastar (volta a direção) e borracha (volta com cor e direção).
+- [ ] Névoa cobre corpo e chama das fontes escondidas; jogador não recebe a fonte atrás da névoa.
+- [ ] *Reduzir efeitos*: chamas paradas. Sem WebGL 2: os desenhos de antes.
+- [ ] Mapas salvos antes abrem com as mesmas tochas (sem cor = chama).
+- [ ] Pendente conhecido: à noite a prévia da arandela aparece escurecida (fica na camada das tochas, abaixo da luz da cena).
+- [ ] Pendente conhecido: no painel escuro, os ícones de ferro ficam pouco visíveis; lanterna e lamparina pequenas.
+- [ ] Pendente conhecido: a fogueira branca sai bem estourada.
+
 ### Mar (bloco 5; [docs/design/mar.md](design/mar.md))
 
 - [ ] Praia: pintar areia e mar ao lado; a onda sobe e desce na areia molhada, espuma na beira, raso turquesa escurecendo até o azul fundo longe da costa.
