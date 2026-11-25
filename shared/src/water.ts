@@ -491,3 +491,22 @@ export function toHalfFloat(value: number): number {
   const rounded = ((exponent << 10) | (mantissa >>> 13)) + ((mantissa >>> 12) & 1);
   return sign | Math.min(rounded, 0x7bff);
 }
+
+/**
+ * O ponto (casas) cai no mar da borda aberta (docs/design/mar.md): sem pintura nenhuma e com mar pintado a até
+ * `SEA_OPEN_CELLS` casas (a mesma folga do campo da água). Para as plantas que o mar afoga fora da pintura.
+ */
+export function openSeaAt(chunks: TerrainChunks, col: number, row: number): boolean {
+  const read = fineReader(chunks);
+  const i = Math.round(col * TERRAIN_FINE);
+  const j = Math.round(row * TERRAIN_FINE);
+  if (read(i, j).painted) return false;
+  const reach = SEA_OPEN_CELLS * TERRAIN_FINE + 2;
+  for (let dj = -reach; dj <= reach; dj++) {
+    for (let di = -reach; di <= reach; di++) if (read(i + di, j + dj).sea > WATER_THRESHOLD) return true;
+  }
+  return false;
+}
+
+/** Folga (casas) em volta da pintura do mar em que ele ainda chega (borda aberta). */
+export const SEA_OPEN_REACH = SEA_OPEN_CELLS + 2 / TERRAIN_FINE;

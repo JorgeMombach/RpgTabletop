@@ -240,10 +240,10 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Névoa cobre corpo e chama das fontes escondidas; jogador não recebe a fonte atrás da névoa.
 - [ ] *Reduzir efeitos*: chamas paradas. Sem WebGL 2: os desenhos de antes.
 - [ ] Mapas salvos antes abrem com as mesmas tochas (sem cor = chama).
-- [ ] Pendente conhecido: à noite a prévia da arandela aparece escurecida (fica na camada das tochas, abaixo da luz da cena).
+- [ ] Prévia da arandela bem visível também à noite (fica acima da luz da cena).
 - [ ] Pendente conhecido: no painel escuro, os ícones de ferro ficam pouco visíveis; lanterna e lamparina pequenas.
 - [ ] Pendente conhecido: a fogueira branca sai bem estourada.
-- [ ] Pendente conhecido: desfazer a remoção de uma parede não traz de volta a arandela que saiu junto com ela.
+- [ ] Desfazer a remoção de uma parede (apagar, borracha, porta traçada por cima) traz de volta a arandela que saiu junto, com cor e direção.
 
 ### Mar (bloco 5; [docs/design/mar.md](design/mar.md))
 
@@ -255,7 +255,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Noite, *Reduzir efeitos* (parado) e com moldura ligada.
 - [ ] Lago e rio continuam iguais em cena sem mar; mar encostado num lago não ganha margem entre os dois.
 - [ ] Pendente conhecido: a areia pintada encostada no mar mostra uma linha fina mais escura na beira (a borda da aquarela do terreno por baixo).
-- [ ] Pendente conhecido: objetos de planta em chão sem pintura onde o mar da borda aberta avança não somem (só a água pintada afoga plantas).
+- [ ] Plantas em chão sem pintura a até 2 casas do mar pintado somem junto (o mar da borda aberta chega lá); em chão pintado ao lado do mar, ficam. Desfazer o mar as traz de volta.
 
 ### Moldura e terrenos novos (bloco 4; [docs/design/moldura.md](design/moldura.md))
 - [ ] Terra batida e neve no painel *Terreno*: pintar ao lado da água e da grama, de dia e à noite (a neve com montinhos e sombra azulada).

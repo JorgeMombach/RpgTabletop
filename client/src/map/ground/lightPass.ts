@@ -526,7 +526,6 @@ export class LightPass {
       const base = mesh.source.flame ?? { x: mesh.source.x, y: mesh.source.y };
       gl.uniform2f(uniformOf(gl, this.flame, "uFlame"), base.x, base.y);
       gl.uniform1f(uniformOf(gl, this.flame, "uSeed"), mesh.seed);
-      gl.uniform1f(uniformOf(gl, this.flame, "uFixed"), mesh.source.kind === "fixed" ? 1 : 0);
       useVertices(gl, mesh.flameBox);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }

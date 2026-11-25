@@ -33,3 +33,26 @@ describe("a água apaga as plantas", () => {
     assert.deepEqual(drownedPlants([prop("tree", 5, 5)], before, after), []);
   });
 });
+
+describe("o mar da borda aberta apaga as plantas", () => {
+  // mar pintado de col 10 a 20; nada pintado à esquerda dele (o mar continua até 2 casas ali)
+  const sea = (): TerrainChunks => {
+    const chunks: TerrainChunks = {};
+    paintTerrain(chunks, { terrain: "sea", radius: 1, strength: 1, points: [], rect: { from: { x: 10, y: 0 }, to: { x: 20, y: 10 } } });
+    return chunks;
+  };
+
+  it("planta em chão sem pintura a até 2 casas do mar some; mais longe, fica", () => {
+    const after = sea();
+    const props = [prop("tree", 9, 5), prop("bush", 6, 5)];
+    assert.deepEqual(drownedPlants(props, {}, after).map((plant) => plant.kind), ["tree"]);
+  });
+
+  it("planta em chão pintado ao lado do mar fica (ali é costa)", () => {
+    const before: TerrainChunks = {};
+    paintTerrain(before, { terrain: "grass", radius: 1, strength: 1, points: [], rect: { from: { x: 0, y: 0 }, to: { x: 10, y: 10 } } });
+    const after = { ...before };
+    paintTerrain(after, { terrain: "sea", radius: 1, strength: 1, points: [], rect: { from: { x: 10, y: 0 }, to: { x: 20, y: 10 } } });
+    assert.deepEqual(drownedPlants([prop("tree", 9, 5)], before, after), []);
+  });
+});

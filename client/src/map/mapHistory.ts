@@ -1,4 +1,4 @@
-import { cutUnder, isWaterTerrain, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchColor, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
+import { cutUnder, isWaterTerrain, paintFloor, sconceHasWall, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchColor, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -18,8 +18,8 @@ export type UndoScope = "walls" | "drawings" | "torches" | "chests" | "paint" | 
 
 type Step =
   | { scope: "walls"; kind: "added"; id: string }
-  | { scope: "walls"; kind: "removed"; wall: Wall }
-  | { scope: "walls"; kind: "erased"; removed: Wall[]; added: string[] }
+  | { scope: "walls"; kind: "removed"; wall: Wall; sconces: MapTorch[] }
+  | { scope: "walls"; kind: "erased"; removed: Wall[]; added: string[]; sconces: MapTorch[] }
   | { scope: "walls"; kind: "restyled"; before: { id: string; style?: WallStyle }[] }
   | { scope: "drawings"; kind: "added"; id: string }
   | { scope: "drawings"; kind: "erased"; removed: Drawing[]; added: string[] }
@@ -124,18 +124,33 @@ function diff<T extends { id: string }>(before: T[], after: T[]) {
 export async function addWall(from: GridPos, to: GridPos, opening: "door" | "window" | null, thickness: number, style?: WallStyle): Promise<ActionResult> {
   // As paredes que o servidor vai cortar (a mesma conta dele), para o desfazer pôr de volta.
   const walls = useApp.getState().state?.battle.walls ?? [];
-  const { cut } = opening ? cutUnder({ from, to }, walls) : { cut: [] };
+  const { cut, pieces } = opening ? cutUnder({ from, to }, walls) : { cut: [], pieces: [] };
+  // arandelas presas no trecho que vira vão saem junto (o servidor tira): o desfazer as põe de volta
+  const after = [...walls.filter((wall) => !cut.includes(wall)), ...pieces.map((piece) => ({ ...piece, id: "" }))];
+  const sconces = cut.length > 0 ? loosenedSconces(walls, after) : [];
   const res = await act("wall:add", { from, to, door: opening === "door", window: opening === "window", thickness, ...(style && { style }) });
   if (!res.ok || !res.ids?.[0]) return res;
-  if (cut.length > 0) push({ scope: "walls", kind: "erased", removed: cut.map(copyWall), added: res.ids });
+  if (cut.length > 0) push({ scope: "walls", kind: "erased", removed: cut.map(copyWall), added: res.ids, sconces });
   else push({ scope: "walls", kind: "added", id: res.ids[0] });
   return res;
 }
 
 export async function removeWall(w: Wall): Promise<ActionResult> {
+  const walls = useApp.getState().state?.battle.walls ?? [];
+  const sconces = loosenedSconces(walls, walls.filter((wall) => wall.id !== w.id));
   const res = await act("wall:remove", { id: w.id });
-  if (res.ok) push({ scope: "walls", kind: "removed", wall: copyWall(w) });
+  if (res.ok) push({ scope: "walls", kind: "removed", wall: copyWall(w), sconces });
   return res;
+}
+
+/**
+ * Arandelas que perdem a parede quando as paredes passam de `before` para `after` (o servidor tira essas,
+ * docs/design/luzes.md). Cópias, com as fontes de agora: para o desfazer pôr de volta depois da parede.
+ */
+function loosenedSconces(before: Wall[], after: Wall[], torches: MapTorch[] = useApp.getState().state?.battle.torches ?? []): MapTorch[] {
+  return torches
+    .filter((torch) => torch.style === "sconce" && sconceHasWall({ x: torch.col, y: torch.row }, before) && !sconceHasWall({ x: torch.col, y: torch.row }, after))
+    .map((torch) => ({ ...torch }));
 }
 
 const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to }, door: w.door && { ...w.door }, window: w.window && { ...w.window } });
@@ -144,9 +159,9 @@ const copyWall = (w: Wall): Wall => ({ ...w, from: { ...w.from }, to: { ...w.to 
  * Uma passada da borracha (do apertar ao soltar) é um passo só: compara as paredes de antes e de depois.
  * Desfazer tira os pedaços que sobraram e põe de volta as paredes inteiras.
  */
-export function recordWallErase(before: Wall[], after: Wall[]) {
+export function recordWallErase(before: Wall[], after: Wall[], torchesBefore: MapTorch[]) {
   const { removed, added } = diff(before, after);
-  if (removed.length > 0) push({ scope: "walls", kind: "erased", removed: removed.map(copyWall), added });
+  if (removed.length > 0) push({ scope: "walls", kind: "erased", removed: removed.map(copyWall), added, sconces: loosenedSconces(before, after, torchesBefore) });
 }
 
 /** Põe de volta uma parede apagada (com o estado da porta). */
@@ -561,6 +576,7 @@ export async function undo(scope?: UndoScope) {
       if (has(battle?.walls, step.id)) await act("wall:remove", { id: step.id });
     } else if (step.kind === "removed") {
       await restoreWall(step.wall);
+      for (const sconce of step.sconces) await restoreTorch(sconce);
     } else if (step.kind === "restyled") {
       // Agrupa por desenho de antes (um envio por desenho), só as paredes que ainda existem.
       const groups = new Map<WallStyle | null, string[]>();
@@ -569,6 +585,8 @@ export async function undo(scope?: UndoScope) {
     } else {
       for (const id of step.added) if (has(battle?.walls, id)) await act("wall:remove", { id });
       for (const w of step.removed) await restoreWall(w);
+      // as arandelas depois das paredes (precisam delas)
+      for (const sconce of step.sconces) await restoreTorch(sconce);
     }
   } else if (step.scope === "drawings") {
     if (step.kind === "added") {

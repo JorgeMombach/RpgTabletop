@@ -68,7 +68,7 @@ import { useImage } from "./useImage";
 import { LastSeenOverlay } from "./LastSeen";
 import { screenLights, tokenCenter, TorchGlowLayer } from "./Torch";
 import { tokenCaster, tokenGroundShadow } from "./ground/shadowCasters";
-import { MapTorchLayer, placeTorch, TORCH_DRAG_MIME } from "./MapTorches";
+import { MapTorchLayer, placeTorch, SconcePreview, TORCH_DRAG_MIME } from "./MapTorches";
 import { ChestEditor, MapChestLayer } from "./MapChests";
 import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
 import { ViewAsBanner } from "./ViewAsBanner";
@@ -421,7 +421,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const eraseMode = (tool === "draw" && drawMode === "erase") || (gm && tool === "walls" && wallMode === "erase") || (gm && tool === "torches" && torchErase);
   /** Raio da borracha (pixels do mapa): no desenho, pelo tamanho escolhido; nas paredes, um quarto de casa. */
   const eraserRadius = tool === "walls" || tool === "torches" ? grid.cellPx * WALL_ERASER : Math.max(4 / view.scale, grid.cellPx * (ERASER_CELLS[drawWidth] ?? 0.25));
-  const eraserRef = useRef<{ kind: "draw" | "walls" | "torches"; pending: number[]; sent: boolean; timer: number | null; before: { id: string }[]; acts: Promise<unknown>[] } | null>(null);
+  const eraserRef = useRef<{ kind: "draw" | "walls" | "torches"; pending: number[]; sent: boolean; timer: number | null; before: { id: string }[]; torches: MapTorch[]; acts: Promise<unknown>[] } | null>(null);
   const [eraserAt, setEraserAt] = useState<Point | null>(null);
   // Trocar desenho das paredes: mesmo círculo da borracha; as paredes tocadas na passada mudam ao soltar.
   const restyleMode = gm && tool === "walls" && wallMode === "restyle";
@@ -494,7 +494,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     void Promise.all(e.acts).then(() => {
       const battle = useApp.getState().state?.battle;
       if (!battle) return;
-      if (e.kind === "walls") recordWallErase(e.before as Wall[], battle.walls);
+      if (e.kind === "walls") recordWallErase(e.before as Wall[], battle.walls, e.torches);
       else if (e.kind === "torches") recordTorchErase(e.before as MapTorch[], battle.torches);
       else recordDrawingErase(e.before as Drawing[], battle.drawings);
     });
@@ -1175,7 +1175,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
       return;
     }
     if (eraseMode) {
-      eraserRef.current = { kind: tool === "walls" || tool === "torches" ? tool : "draw", pending: [], sent: false, timer: null, before: tool === "walls" ? state.battle.walls : tool === "torches" ? state.battle.torches : state.battle.drawings, acts: [] };
+      eraserRef.current = { kind: tool === "walls" || tool === "torches" ? tool : "draw", pending: [], sent: false, timer: null, before: tool === "walls" ? state.battle.walls : tool === "torches" ? state.battle.torches : state.battle.drawings, torches: state.battle.torches, acts: [] };
       setEraserAt(p);
       eraseTo(p);
       return;
@@ -2103,6 +2103,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
               <RulerShape key={pid} ruler={r.ruler} grid={grid} scale={view.scale} label={r.name} color="#5ba3e6" />
             ))}
             {myRuler && <RulerShape ruler={myRuler} grid={grid} scale={view.scale} color="#d8b47a" />}
+            {gm && tool === "torches" && !torchErase && torchStyle === "sconce" && <SconcePreview grid={grid} walls={state.battle.walls} />}
             {(eraseMode || restyleMode) && eraserAt && (
               <Circle
                 x={eraserAt.x}

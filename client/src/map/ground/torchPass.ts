@@ -27,6 +27,8 @@ const BOX = 1.4;
 export class TorchPass {
   private readonly programs: ProgramCache<MapTorchStyle>;
   private readonly boxes: WebGLBuffer;
+  /** Os quadrados já enviados (o mesmo quadro desenha o brilho e o corpo com eles). */
+  private sent = "";
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.programs = new ProgramCache(gl, GEOMETRY_VERTEX, "aCell");
@@ -55,8 +57,12 @@ export class TorchPass {
       const [left, top, right, bottom] = [torch.x - reach, torch.y - reach, torch.x + reach, torch.y + reach];
       corners.push(left, top, right, top, left, bottom, left, bottom, right, top, right, bottom);
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.boxes);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(corners), gl.DYNAMIC_DRAW);
+    const key = corners.join(",");
+    if (key !== this.sent) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.boxes);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(corners), gl.DYNAMIC_DRAW);
+      this.sent = key;
+    }
     useVertices(gl, this.boxes);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

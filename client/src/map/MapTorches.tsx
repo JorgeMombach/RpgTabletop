@@ -140,23 +140,21 @@ export function MapTorchLayer({ torches, grid, editing, fire = true, walls }: { 
     };
   }, [reduceFx, any, fire]);
 
-  const placingSconce = useApp((s) => s.tool === "torches" && !s.torchErase && s.torchStyle === "sconce");
-  if (!any && !(editing && placingSconce)) return null;
+  if (!any) return null;
   return (
     <Layer ref={layerRef} listening={editing}>
       {torches.map((t) => (
         <TorchShape key={t.id} t={t} grid={grid} time={time} draggable={editing} fire={fire} walls={walls} />
       ))}
-      {editing && placingSconce && <SconcePreview grid={grid} walls={walls} />}
     </Layer>
   );
 }
 
 /**
  * Prévia da arandela sob o ponteiro: grudada na parede mais perto, com um tracinho para onde ela vira; longe de
- * parede, um círculo vermelho no ponteiro (o clique não põe).
+ * parede, um círculo vermelho no ponteiro (o clique não põe). Fica numa camada acima da luz da cena (visível à noite).
  */
-function SconcePreview({ grid, walls }: { grid: MapConfig; walls: Wall[] }) {
+export function SconcePreview({ grid, walls }: { grid: MapConfig; walls: Wall[] }) {
   const ref = useRef<Konva.Group>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
