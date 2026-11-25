@@ -26,6 +26,9 @@ export const TERRAIN_ART: Record<TerrainId, TerrainArt> = {
   sand: { image: "dirt_02", filter: "sepia(1) saturate(0.55) brightness(1.75)", detail: "dirt" },
   water: { image: "water_01", filter: "saturate(0.7) brightness(0.8) contrast(1.1)", detail: "water" },
   waterDark: { image: "water_03", filter: "saturate(0.6) brightness(0.6) contrast(1.15)", detail: "water" },
+  // Terra batida e neve (docs/design/moldura.md): na placa de vídeo a cor é calculada; a aquarela é o desenho de antes.
+  packedEarth: { image: "dirt_02", filter: "sepia(0.6) saturate(0.6) brightness(1.9)", detail: "dirt" },
+  snow: { image: "stone_01", filter: "grayscale(1) brightness(2.4)", detail: "dirt" },
 };
 
 let loading: Promise<Record<string, HTMLImageElement>> | null = null;

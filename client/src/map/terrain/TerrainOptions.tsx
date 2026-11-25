@@ -19,6 +19,8 @@ const TERRAIN_LABEL: Record<TerrainId, MessageKey> = {
   sand: "terrain.sand",
   water: "terrain.water",
   waterDark: "terrain.waterDark",
+  packedEarth: "terrain.packedEarth",
+  snow: "terrain.snow",
 };
 
 /**

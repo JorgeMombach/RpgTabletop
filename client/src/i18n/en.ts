@@ -1095,6 +1095,8 @@ export const en: Partial<Messages> = {
   "terrain.sand": "Sand",
   "terrain.water": "Water",
   "terrain.waterDark": "Deep water",
+  "terrain.packedEarth": "Packed earth",
+  "terrain.snow": "Snow",
   "terrain.eraser": "Eraser",
   "terrain.size": "Size",
   "terrain.shape": "Brush shape",

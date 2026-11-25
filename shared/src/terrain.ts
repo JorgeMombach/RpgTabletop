@@ -8,7 +8,8 @@
  */
 
 /** Terrenos (ids estáveis, vão no arquivo de sessão); o nome mostrado vem da tradução. A ordem é a do desenho. */
-export const TERRAINS = ["grass", "grassDry", "dirt", "dirtDark", "stone", "stoneLight", "sand", "water", "waterDark"] as const;
+/** Os novos entram sempre no fim: a ordem é a dos pesos na placa de vídeo (12 canais, 3 texturas RGBA). */
+export const TERRAINS = ["grass", "grassDry", "dirt", "dirtDark", "stone", "stoneLight", "sand", "water", "waterDark", "packedEarth", "snow"] as const;
 export type TerrainId = (typeof TERRAINS)[number];
 
 /** Pontos da grade por casa (em cada eixo). */
