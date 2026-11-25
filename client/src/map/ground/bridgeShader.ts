@@ -174,19 +174,33 @@ vec4 ends(int k, vec3 l, vec2 c) {
       return vec4(wood(vec2(l.y * 0.7, endU * 4.0), 77.0, float(k)) * 0.8 * relativeShade(n), 1.0);
     }
   } else if (kind == 1) {
-    // muretas abrindo para dentro da margem; calçamento que vira terra batida
+    // Pilares (docs/design/estruturas-ajustes.md, teste em ponte-pedra-teste.html): as muretas seguem retas até a ponta
+    // e acabam num pilar quadrado de cada lado; um calçamento curto some logo na terra.
     float out_ = -endU;
-    if (out_ > -0.05 && out_ < 0.85) {
-      float inner = halfW - 0.3 + max(0.0, out_) * 0.75;
-      float a = abs(l.y);
-      if (a > inner && a < inner + 0.3) {
-        vec2 b = vec2((out_ + 1.0) / 0.42 + fract(floor((a - inner) / 0.15) * 0.5), (a - inner) / 0.15);
-        return vec4(stoneBlocks(b, c) * mix(1.0, 0.82, smoothstep(0.5, 0.85, out_)) * 1.06, 1.0);
+    float a = abs(l.y);
+    vec2 pillar = vec2(-0.02, halfW - 0.15);   // centro do pilar: fora da ponta (out_), na linha da mureta (a)
+    vec2 p = vec2(out_, a) - pillar;
+    if (abs(p.x) < 0.24 && abs(p.y) < 0.24) {
+      float rim = max(abs(p.x), abs(p.y)) / 0.24;
+      vec3 stone = mix(vec3(0.58, 0.55, 0.5), vec3(0.68, 0.65, 0.59), hash(floor(c * 6.0))) * (0.92 + 0.12 * fbm(c * 9.0));
+      // topo (capa) mais claro; a borda é a face de pé vista de cima, mais escura; junta entre as duas
+      vec3 cap = rim > 0.78 ? stone * 0.72 : stone * 1.12;
+      float groove = smoothstep(0.7, 0.74, rim) * (1.0 - smoothstep(0.76, 0.8, rim));
+      return vec4(cap * (1.0 - 0.35 * groove) * relativeShade(vec3(0.0, 0.0, 1.0)), 1.0);
+    }
+    // sombra curta do pilar no chão: o pixel está na sombra se, voltando na direção do sol, cai dentro do pilar
+    if (dot(uSunShift, uSunShift) > 0.0 && out_ > -0.3 && out_ < 0.7 && a < halfW + 0.35) {
+      vec2 dir = normalize(uBridgeEnds[k].zw - uBridgeEnds[k].xy);
+      // a sombra na base local (ao longo, através); na ponta de saída "fora" é contra o sentido da ponte
+      vec2 shift = normalize(vec2(dot(uSunShift, dir) * (atStart ? -1.0 : 1.0), dot(uSunShift, vec2(-dir.y, dir.x)) * sign(l.y)));
+      for (int s = 1; s <= 3; s++) {
+        vec2 back = p - shift * 0.12 * float(s);
+        if (abs(back.x) < 0.24 && abs(back.y) < 0.24) return vec4(vec3(0.0), 0.28 * (1.0 - float(s - 1) / 3.0));
       }
-      if (a <= inner && out_ > 0.0) {
-        float keep = 1.0 - smoothstep(0.15, 0.85, out_ + (fbm(c * 3.0) - 0.5) * 0.5);
-        if (keep > 0.02) return vec4(cobbles(l, c) * keep, keep);
-      }
+    }
+    if (a <= halfW - 0.3 && out_ > 0.0 && out_ < 0.45) {
+      float keep = 1.0 - smoothstep(0.1, 0.45, out_ + (fbm(c * 3.0) - 0.5) * 0.25);
+      if (keep > 0.02) return vec4(cobbles(l, c) * keep, keep);
     }
   } else {
     // postes de amarração e a corda até o tabuleiro
@@ -227,7 +241,8 @@ void main() {
     float approach = max(-l.x, l.x - l.z);
     if (approach > 0.0 && approach < 1.4 && abs(l.y) < halfW * 0.95 && water < 0.5) {
       float wear = (1.0 - smoothstep(0.2, 1.4, approach)) * smoothstep(halfW * 0.95, halfW * 0.5, abs(l.y)) * (0.6 + 0.5 * fbm(c * 4.0));
-      vec3 path = KIND == 1 ? mix(vec3(0.5, 0.47, 0.42), vec3(0.42, 0.36, 0.28), smoothstep(0.1, 0.9, approach)) : vec3(0.42, 0.33, 0.22);
+      // terra batida (a ponte de pedra também: a pedra clara no caminho virava uma mancha)
+      vec3 path = vec3(0.42, 0.33, 0.22);
       float a = clamp(wear, 0.0, 0.85);
       color = color * (1.0 - a) + path * (0.9 + 0.2 * noise(c * 14.0)) * a;
       alpha = alpha + a * (1.0 - alpha);

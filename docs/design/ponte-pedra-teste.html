@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ponte de pedra: cabeceira</title>
+<style>
+  :root { --ink: #e8dcc4; --dim: #a8987c; --panel: #1d1712; --edge: #5a4630; --accent: #c8a05a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #120e0a; color: var(--ink); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 10px; color: var(--dim); max-width: 1100px; }
+  .controls { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin: 10px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; }
+  label { display: flex; gap: 8px; align-items: center; }
+  output { color: var(--accent); min-width: 3em; }
+  canvas { display: block; border: 1px solid var(--edge); border-radius: 4px; cursor: grab; max-width: 100%; }
+  ul { margin: 6px 0 0 18px; padding: 0; color: var(--dim); }
+</style>
+</head>
+<body>
+<h1>Ponte de pedra: o final (teste)</h1>
+<p>Arraste para mover a vista; roda do mouse aproxima. A ponte de pedra é a de baixo, no rio. Troque a <b>cabeceira</b> para comparar o jeito de a ponte terminar na margem.</p>
+<div class="controls">
+  <label>Luz <select id="light"><option value="day">dia</option><option value="dusk">entardecer</option><option value="moon">luar</option></select></label>
+  <label>Zoom <input id="zoom" type="range" min="16" max="160" step="1" value="110"><output id="zoomOut">110 px/casa</output></label>
+  <label><input id="grid" type="checkbox" checked> grid</label>
+  <label>Cabeceira <select id="end"><option value="0">Hoje (muretas abrindo em V)</option><option value="1" selected>Pilares</option><option value="2">Rente ao chão</option></select></label>
+</div>
+<canvas id="view" width="1152" height="720"></canvas>
+<ul>
+  <li>Tábuas: tábuas atravessadas, vigas e corrimão de pau com postes; sombra baixa na água.</li>
+  <li>Pedra: calçamento no tabuleiro, muretas de blocos dos dois lados, cabeceiras nas margens; sombra do arco na água.</li>
+  <li>Corda: tábuas amarradas com folga entre elas (dá para ver o fundo), duas cordas com nós; a sombra cai lá embaixo, longe.</li>
+  <li>Píer: deck de tábuas no sentido do comprimento, estacas na borda com espuma em volta, sombra na água.</li>
+</ul>
+<script>
+const canvas = document.getElementById("view");
+const gl = canvas.getContext("webgl2", { preserveDrawingBuffer: true });
+const VERTEX = `#version 300 es
+in vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const FRAGMENT = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec2 uCanvas;
+uniform vec2 uPan;        // casa no canto de cima à esquerda
+uniform float uCellPx;
+uniform vec3 uSun;        // direção do sol (z para cima)
+uniform vec3 uTint;       // cor da luz
+uniform float uAmbient;
+uniform float uGrid;
+uniform int uEnd;          // cabeceira da ponte de pedra: 0 hoje, 1 pilares, 2 rente ao chão
+
+float hash(vec2 p) { uvec2 q = uvec2(ivec2(floor(p))) * uvec2(1597334673u, 3812015801u); uint n = (q.x ^ q.y) * 1597334673u; return float(n) / 4294967295.0; }
+float noise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y); }
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
+vec3 voronoi(vec2 p) { vec2 i = floor(p), f = fract(p); float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 o = vec2(x, y); vec2 r = o + 0.12 + 0.76 * vec2(hash(i + o), hash(i + o + 17.3)) - f; float d = dot(r, r);
+    if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d; }
+  return vec3(id.x + id.y * 57.0, sqrt(d1), sqrt(d2) - sqrt(d1)); }
+float px() { return 1.0 / uCellPx; }
+float lambert(vec3 n) { return max(dot(normalize(n), normalize(uSun)), 0.0); }
+vec3 light(vec3 col, vec3 n) { return col * (uAmbient + (1.0 - uAmbient) * lambert(n) / max(normalize(uSun).z, 0.35)) * uTint; }
+
+// ---------------- cena ----------------
+float riverCenter(float y) { return 6.5 + sin(y * 0.35) * 1.2; }
+float riverDist(vec2 c) { return abs(c.x - riverCenter(c.y)) - 1.7 + (fbm(c * 1.3) - 0.5) * 0.35; }   // < 0 = água
+float canyonDist(vec2 c) { return abs(c.x - 15.5 - sin(c.y * 0.3) * 0.5) - 2.0 + (fbm(c * 1.1 + 5.0) - 0.5) * 0.4; } // < 0 = abismo
+float lakeDist(vec2 c) { return length((c - vec2(23.0, 13.2)) / vec2(1.25, 1.0)) - 3.0 + (fbm(c * 1.2 + 9.0) - 0.5) * 0.4; }
+
+// Pontes: começo, fim, largura, altura sobre o chão de baixo (casas), tipo (0 tábuas, 1 pedra, 2 corda, 3 píer).
+const int COUNT = 5;
+vec2 bFrom(int k) { return k == 0 ? vec2(3.4, 3.5) : k == 1 ? vec2(3.0, 11.6) : k == 2 ? vec2(12.6, 7.0) : k == 3 ? vec2(18.9, 13.2) : vec2(22.6, 11.9); }
+vec2 bTo(int k)   { return k == 0 ? vec2(9.6, 3.5) : k == 1 ? vec2(10.4, 11.2) : k == 2 ? vec2(18.4, 7.4) : vec2(22.6, 13.2); }
+vec2 bTo2(int k)  { return k == 4 ? vec2(22.6, 14.5) : bTo(k); }
+float bWidth(int k) { return k == 0 ? 1.5 : k == 1 ? 2.2 : k == 2 ? 1.1 : k == 3 ? 1.3 : 2.4; }
+// altura do tabuleiro sobre a água (casas): nas margens a ponte pousa no chão (altura 0)
+float bHeight(int k) { return k == 0 ? 0.32 : k == 1 ? 0.55 : k == 2 ? 0.12 : 0.18; }
+int bKind(int k) { return k == 0 ? 0 : k == 1 ? 1 : k == 2 ? 2 : 3; }
+// 1 sobre a água ou o abismo, 0 em terra firme (a ponte só sobe onde há vão embaixo)
+float gapness(vec2 c) {
+  return max(max(smoothstep(0.3, -0.25, riverDist(c)), smoothstep(0.3, -0.25, lakeDist(c))), smoothstep(0.05, -0.35, canyonDist(c)));
+}
+// coordenadas da ponte k: u ao longo (0..L), v através (-w/2..w/2)
+vec3 bridgeLocal(int k, vec2 c) {
+  vec2 a = bFrom(k), b = bTo2(k);
+  vec2 dir = normalize(b - a); vec2 side = vec2(-dir.y, dir.x);
+  return vec3(dot(c - a, dir), dot(c - a, side), length(b - a));
+}
+// a corda faz barriga: no meio a ponte afina um pouco e desce (sombra mais longe)
+float sag(int k, float u, float L) { return bKind(k) == 2 ? sin(3.14159 * clamp(u / L, 0.0, 1.0)) : 0.0; }
+bool insideBridge(int k, vec2 c) {
+  vec3 l = bridgeLocal(k, c);
+  float w = bWidth(k) * (1.0 - 0.12 * sag(k, l.x, l.z));
+  return l.x > 0.0 && l.x < l.z && abs(l.y) < w * 0.5;
+}
+// o que da ponte projeta sombra (a corda tem folga entre as tábuas)
+float bridgeShadow(int k, vec2 c) {
+  if (!insideBridge(k, c)) return 0.0;
+  vec3 l = bridgeLocal(k, c);
+  if (bKind(k) == 2) { float plank = fract(l.x / 0.3); return plank < 0.62 ? 0.85 : (abs(abs(l.y) - bWidth(k) * 0.44) < 0.05 ? 0.6 : 0.0); }
+  return 1.0;
+}
+
+// ---------------- chão ----------------
+vec3 groundColor(vec2 c, out float depth) {
+  depth = 0.0;
+  vec3 grass = mix(vec3(0.28, 0.38, 0.17), vec3(0.36, 0.45, 0.2), fbm(c * 0.7)) * (0.9 + 0.2 * noise(c * 9.0));
+  vec3 col = grass;
+  vec3 n = vec3(0, 0, 1);
+  float r = riverDist(c);
+  if (r < 0.55) {
+    // barranco de terra descendo até a água
+    float bank = smoothstep(0.55, -0.1, r);
+    vec3 dirt = mix(vec3(0.42, 0.31, 0.2), vec3(0.32, 0.24, 0.16), fbm(c * 3.0));
+    col = mix(col, dirt, bank);
+    n = normalize(vec3(sign(c.x - riverCenter(c.y)) * bank * 0.8, 0.0, 1.0));
+    if (r < 0.0) { depth = clamp(-r / 1.7, 0.0, 1.0); }
+  }
+  float lk = lakeDist(c);
+  if (lk < 0.5) {
+    float bank = smoothstep(0.5, -0.1, lk);
+    col = mix(col, mix(vec3(0.48, 0.42, 0.3), vec3(0.4, 0.33, 0.22), fbm(c * 3.0)), bank);
+    if (lk < 0.0) depth = max(depth, clamp(-lk / 2.0, 0.0, 1.0));
+  }
+  float cy = canyonDist(c);
+  if (cy < 0.0) {
+    // abismo: face de rocha perto da borda, fundo escuro com pedras
+    float face = smoothstep(-0.9, 0.0, cy);
+    float side = sign(c.x - 15.5 - sin(c.y * 0.3) * 0.5);
+    vec3 rock = mix(vec3(0.33, 0.3, 0.28), vec3(0.45, 0.42, 0.38), fbm(vec2(c.x * 2.0, c.y * 9.0))) ;
+    vec3 floorCol = mix(vec3(0.12, 0.11, 0.1), vec3(0.2, 0.18, 0.16), fbm(c * 2.0)) * (0.8 + 0.3 * smoothstep(0.1, 0.0, voronoi(c * 2.0).z));
+    n = mix(vec3(0, 0, 1), normalize(vec3(-side * 1.4, 0.0, 0.6)), face);
+    col = mix(floorCol, rock, face);
+    depth = -1.0; // marca de abismo
+  } else if (cy < 0.12) {
+    col = mix(col, vec3(0.5, 0.47, 0.42), 0.6); // borda clara do penhasco
+  }
+  return light(col, n);
+}
+vec3 waterColor(vec2 c, float depth, vec3 bottom) {
+  vec3 deep = vec3(0.05, 0.22, 0.27), shallow = vec3(0.16, 0.42, 0.42);
+  vec3 col = mix(mix(bottom, shallow, 0.55), deep, smoothstep(0.0, 1.0, depth));
+  float ripple = fbm(c * 3.0 + vec2(0.0, c.x * 0.2)) - 0.5;
+  col += ripple * 0.05;
+  col += smoothstep(0.75, 0.95, noise(c * 6.0 + ripple * 2.0)) * 0.08;
+  return col * uTint * (uAmbient + (1.0 - uAmbient) * 0.85);
+}
+
+// ---------------- pontes ----------------
+// madeira: cor por tábua, veios, pregos; seam = borda da tábua (0 no meio, 1 na junta)
+vec3 wood(vec2 q, float plankId, float base) {
+  vec3 w = mix(vec3(0.42, 0.28, 0.16), vec3(0.55, 0.38, 0.22), hash(vec2(plankId, base)));
+  w *= 0.85 + 0.25 * fbm(vec2(q.x * 1.5 + plankId, q.y * 14.0));
+  w *= 0.92 + 0.12 * sin(q.y * 70.0 + fbm(q * 2.0 + plankId) * 8.0);
+  return w;
+}
+vec4 drawPlanks(int k, vec3 l, bool across, float gapRatio) {
+  // tábuas atravessadas (across) ou ao longo
+  float coord = across ? l.x : l.y + bWidth(k) * 0.5;
+  float size = across ? 0.28 : 0.22;
+  float id = floor(coord / size);
+  float t = fract(coord / size);
+  if (t > 1.0 - gapRatio) return vec4(0.0); // folga entre as tábuas
+  float seam = min(t, 1.0 - gapRatio - t) / size;
+  vec2 q = across ? vec2(l.y, l.x) : vec2(l.x, l.y);
+  vec3 col = wood(q, id, float(k));
+  float bevel = smoothstep(0.0, 0.035, seam);
+  vec3 n = normalize(vec3(across ? 0.0 : (t < 0.5 ? -1.0 : 1.0) * (1.0 - bevel), across ? (t < 0.5 ? -1.0 : 1.0) * (1.0 - bevel) : 0.0, 1.6));
+  col *= mix(0.55, 1.0, bevel);
+  // pregos nas pontas
+  vec2 nail = vec2(fract(coord / size) - 0.5, abs(across ? l.y : l.x - floor(l.x / 1.2) * 1.2 - 0.6) );
+  return vec4(light(col, n), 1.0);
+}
+vec4 drawBridge(int k, vec2 c) {
+  vec3 l = bridgeLocal(k, c);
+  float w = bWidth(k) * (1.0 - 0.12 * sag(k, l.x, l.z));
+  float half_ = w * 0.5;
+  float edge = half_ - abs(l.y);
+  int kind = bKind(k);
+  if (kind == 0) {
+    // tábuas: vigas laterais e corrimão com postes
+    if (edge < 0.16) {
+      bool post = fract((l.x + 0.25) / 1.25) < 0.14;
+      vec3 beam = wood(vec2(l.x, l.y * 3.0), 99.0, 3.0) * 0.85;
+      float h = post ? 1.0 : 0.6;
+      vec3 n = normalize(vec3(0.0, sign(l.y) * (edge < 0.08 ? 0.8 : -0.5), 1.0));
+      return vec4(light(beam * (post ? 1.15 : 1.0), n) * h + (post ? 0.03 : 0.0), 1.0);
+    }
+    return drawPlanks(k, l, true, 0.08);
+  }
+  if (kind == 1) {
+    // pedra: muretas de blocos e calçamento
+    if (edge < 0.3) {
+      vec2 b = vec2(l.x / 0.55 + (fract(floor(edge / 0.15) * 0.5) ), edge / 0.15);
+      vec2 cell = fract(b);
+      float joint = min(min(cell.x, 1.0 - cell.x) * 0.55, min(cell.y, 1.0 - cell.y) * 0.15);
+      vec3 stone = mix(vec3(0.55, 0.52, 0.47), vec3(0.66, 0.63, 0.57), hash(floor(b) + 3.0)) * (0.9 + 0.15 * fbm(c * 8.0));
+      stone *= mix(0.6, 1.0, smoothstep(0.0, 0.025, joint));
+      vec3 n = normalize(vec3(0.0, sign(l.y) * (edge < 0.15 ? 0.9 : -0.4), 1.0));
+      return vec4(light(stone, n) * 1.08, 1.0);
+    }
+    vec3 v = voronoi(vec2(l.x, l.y) * 3.2);
+    vec3 cob = mix(vec3(0.46, 0.43, 0.39), vec3(0.58, 0.55, 0.5), hash(vec2(v.x, 1.0))) * (0.9 + 0.12 * fbm(c * 10.0));
+    float gap = smoothstep(0.02, 0.09, v.z);
+    vec3 n = normalize(vec3((noise(c * 9.0) - 0.5) * 0.4, (noise(c * 9.0 + 4.0) - 0.5) * 0.4, 1.0));
+    return vec4(light(mix(vec3(0.25, 0.23, 0.2), cob, gap), n), 1.0);
+  }
+  if (kind == 2) {
+    // corda: duas cordas com nós e tábuas amarradas com folga
+    float ropeAt = half_ - 0.06;
+    if (abs(abs(l.y) - ropeAt) < 0.055) {
+      float twist = 0.75 + 0.25 * sin((l.x * 40.0 + l.y * 12.0));
+      vec3 rope = vec3(0.62, 0.52, 0.34) * twist;
+      float knot = smoothstep(0.08, 0.0, abs(fract(l.x / 0.3) - 0.3)) ;
+      return vec4(light(rope * (1.0 + knot * 0.2), vec3(0.0, sign(l.y) * 0.3, 1.0)), 1.0);
+    }
+    if (abs(l.y) > ropeAt) return vec4(0.0);
+    vec4 plank = drawPlanks(k, l, true, 0.38);
+    if (plank.a == 0.0) return vec4(0.0);
+    // tábuas velhas, irregulares nas pontas
+    float ragged = (hash(vec2(floor(l.x / 0.3), 7.0)) - 0.5) * 0.12;
+    if (abs(l.y) > ropeAt - 0.02 + ragged) return vec4(0.0);
+    return vec4(plank.rgb * 0.9, 1.0);
+  }
+  // píer: deck ao longo, estacas nas bordas
+  return drawPlanks(k, l, false, 0.06);
+}
+
+// Cabeceiras: o que segura a ponte no chão das margens (desenhado por cima do chão, nas pontas).
+vec4 drawEnds(int k, vec2 c) {
+  vec3 l = bridgeLocal(k, c);
+  float half_ = bWidth(k) * 0.5;
+  int kind = bKind(k);
+  float endU = l.x < l.z * 0.5 ? l.x : l.z - l.x;   // distância até a ponta mais perto (negativa = fora)
+  if (kind == 0) {
+    // travessa grossa assentada no chão em cada ponta
+    if (endU > -0.2 && endU < 0.1 && abs(l.y) < half_ + 0.16) {
+      float t = (endU + 0.2) / 0.3;
+      vec3 n = normalize(vec3(0.0, 0.0, 1.0) + vec3(normalize(bTo2(k) - bFrom(k)) * (l.x < l.z * 0.5 ? -1.0 : 1.0) * (t < 0.3 ? 1.0 : 0.0), 0.0));
+      return vec4(light(wood(vec2(l.y * 0.7, endU * 4.0), 77.0, float(k)) * 0.8, n), 1.0);
+    }
+  } else if (kind == 1 && uEnd == 1) {
+    // Pilares: as muretas seguem retas até a ponta e acabam num pilar quadrado de cada lado (mais alto, com o topo
+    // claro e a face do sol); um calçamento curto, da largura da ponte, some logo na terra.
+    float out_ = -endU;
+    float a = abs(l.y);
+    vec2 pillar = vec2(-0.02, half_ - 0.15);               // centro do pilar (fora da ponta, na linha da mureta)
+    vec2 p = vec2(out_, a) - pillar;
+    if (abs(p.x) < 0.24 && abs(p.y) < 0.24) {
+      vec2 q = p / 0.24;
+      float rim = max(abs(q.x), abs(q.y));
+      vec3 stone = mix(vec3(0.58, 0.55, 0.5), vec3(0.68, 0.65, 0.59), hash(floor(c * 6.0))) * (0.92 + 0.12 * fbm(c * 9.0));
+      // topo do pilar (capa) mais claro; a borda é a face de pé, vista de cima: mais escura
+      vec3 n = vec3(0.0, 0.0, 1.0);
+      vec3 cap = rim > 0.78 ? stone * 0.72 : stone * 1.12;
+      float groove = smoothstep(0.7, 0.74, rim) * (1.0 - smoothstep(0.76, 0.8, rim));
+      return vec4(light(cap * (1.0 - 0.35 * groove), n), 1.0);
+    }
+    // sombra curta do pilar no chão, para o lado oposto ao sol
+    if (out_ > -0.3 && out_ < 0.7 && a < half_ + 0.35) {
+      vec2 sun = normalize(uSun.xy + 1e-4);
+      vec2 local = vec2(out_, a) - pillar;
+      float along = dot(local, -sun);
+      float across = abs(dot(local, vec2(-sun.y, sun.x)));
+      if (along > 0.0 && along < 0.35 && across < 0.24) return vec4(vec3(0.0), 0.28 * (1.0 - along / 0.35));
+    }
+    if (a <= half_ - 0.3 && out_ > 0.0 && out_ < 0.45) {
+      vec3 v = voronoi(vec2(l.x, l.y) * 3.2);
+      vec3 cob = mix(vec3(0.42, 0.39, 0.35), vec3(0.52, 0.49, 0.44), hash(vec2(v.x, 1.0))) * (0.9 + 0.12 * fbm(c * 10.0));
+      vec3 paved = light(mix(vec3(0.23, 0.21, 0.18), cob, smoothstep(0.02, 0.09, v.z)), vec3(0, 0, 1));
+      float keep = 1.0 - smoothstep(0.1, 0.45, out_ + (fbm(c * 3.0) - 0.5) * 0.25);
+      if (keep > 0.02) return vec4(paved, keep);
+    }
+  } else if (kind == 1 && uEnd == 2) {
+    // Rente ao chão: as muretas seguem retas, baixam e afinam até sumir no chão; o calçamento vira pedras soltas no
+    // caminho, cada vez mais espaçadas.
+    float out_ = -endU;
+    float a = abs(l.y);
+    if (out_ > -0.05 && out_ < 0.6) {
+      float t = clamp(out_ / 0.6, 0.0, 1.0);
+      float wall = 0.3 * (1.0 - t * 0.7);
+      float inner = half_ - 0.3;
+      if (a > inner && a < inner + wall) {
+        vec2 b = vec2((out_ + 1.0) / 0.42 + fract(floor((a - inner) / 0.15) * 0.5), (a - inner) / 0.15);
+        vec2 cell = fract(b);
+        float joint = min(min(cell.x, 1.0 - cell.x) * 0.42, min(cell.y, 1.0 - cell.y) * 0.15);
+        vec3 stone = mix(vec3(0.55, 0.52, 0.47), vec3(0.66, 0.63, 0.57), hash(floor(b) + 3.0)) * (0.9 + 0.15 * fbm(c * 8.0));
+        stone *= mix(0.6, 1.0, smoothstep(0.0, 0.025, joint));
+        // mais baixa = mais escura e coberta de terra na ponta
+        stone = mix(stone, vec3(0.36, 0.3, 0.22), smoothstep(0.4, 1.0, t) * 0.6);
+        return vec4(light(stone, vec3(0.0, 0.0, 1.0)), 1.0 - smoothstep(0.75, 1.0, t));
+      }
+    }
+    if (a <= half_ - 0.25 && out_ > 0.0 && out_ < 1.6) {
+      vec3 v = voronoi(vec2(l.x, l.y) * 3.0);
+      // cada pedra fica com chance menor quanto mais longe da ponta
+      float chance = 1.0 - smoothstep(0.0, 1.5, out_);
+      if (hash(vec2(v.x * 7.0, 3.0)) < chance && v.z > 0.06) {
+        vec3 cob = mix(vec3(0.42, 0.39, 0.35), vec3(0.52, 0.49, 0.44), hash(vec2(v.x, 1.0))) * (0.9 + 0.12 * fbm(c * 10.0));
+        return vec4(light(cob, vec3(0, 0, 1)), smoothstep(0.06, 0.12, v.z));
+      }
+    }
+  } else if (kind == 1) {
+    // as muretas se abrem em diagonal para dentro da margem e o calçamento continua até virar o caminho
+    float out_ = -endU;                                   // quanto já saiu da ponta
+    if (out_ > -0.05 && out_ < 0.85) {
+      float inner = half_ - 0.3 + max(0.0, out_) * 0.75;  // a mureta abre a 37°
+      float a = abs(l.y);
+      if (a > inner && a < inner + 0.3) {
+        vec2 b = vec2((out_ + 1.0) / 0.42 + fract(floor((a - inner) / 0.15) * 0.5), (a - inner) / 0.15);
+        vec2 cell = fract(b);
+        float joint = min(min(cell.x, 1.0 - cell.x) * 0.42, min(cell.y, 1.0 - cell.y) * 0.15);
+        vec3 stone = mix(vec3(0.55, 0.52, 0.47), vec3(0.66, 0.63, 0.57), hash(floor(b) + 3.0)) * (0.9 + 0.15 * fbm(c * 8.0));
+        stone *= mix(0.6, 1.0, smoothstep(0.0, 0.025, joint));
+        // a mureta baixa até o chão no fim
+        stone *= mix(1.0, 0.82, smoothstep(0.5, 0.85, out_));
+        vec3 n = normalize(vec3(0.0, 0.0, 1.0));
+        return vec4(light(stone, n) * 1.06, 1.0);
+      }
+      if (a <= inner && out_ > 0.0) {
+        // calçamento que vira terra batida
+        vec3 v = voronoi(vec2(l.x, l.y) * 3.2);
+        vec3 cob = mix(vec3(0.46, 0.43, 0.39), vec3(0.58, 0.55, 0.5), hash(vec2(v.x, 1.0))) * (0.9 + 0.12 * fbm(c * 10.0));
+        vec3 paved = light(mix(vec3(0.25, 0.23, 0.2), cob, smoothstep(0.02, 0.09, v.z)), vec3(0, 0, 1));
+        float keep = 1.0 - smoothstep(0.15, 0.85, out_ + (fbm(c * 3.0) - 0.5) * 0.5);
+        if (keep > 0.02) return vec4(paved, keep);
+      }
+    }
+  } else if (kind == 2) {
+    // postes de amarração na borda do cânion
+    for (int s = -1; s <= 1; s += 2) {
+      vec2 post = vec2(l.x < l.z * 0.5 ? -0.18 : l.z + 0.18, float(s) * (half_ + 0.04));
+      float d = length(l.xy - post);
+      if (d < 0.14) {
+        vec3 top = mix(vec3(0.4, 0.28, 0.17), vec3(0.58, 0.43, 0.28), fract(d * 38.0)) * (0.85 + 0.2 * noise(c * 30.0));
+        return vec4(light(top, normalize(vec3((l.xy - post) * 4.0, 1.0))), 1.0);
+      }
+      // a corda do poste até a ponta do tabuleiro
+      vec2 from = post, to = vec2(l.x < l.z * 0.5 ? 0.05 : l.z - 0.05, float(s) * (half_ - 0.06));
+      vec2 pa = l.xy - from, ba = to - from;
+      float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+      if (length(pa - ba * h) < 0.045) return vec4(light(vec3(0.62, 0.52, 0.34) * (0.8 + 0.2 * sin(h * 60.0)), vec3(0, 0, 1)), 1.0);
+    }
+  }
+  return vec4(0.0);
+}
+
+void main() {
+  vec2 frag = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 c = uPan + frag / uCellPx;
+  float depth;
+  vec3 col = groundColor(c, depth);
+  bool abyss = depth < 0.0;
+  if (depth > 0.0) col = waterColor(c, depth, col);
+  vec2 sunXY = normalize(uSun).xy / max(normalize(uSun).z, 0.25);
+  float shade = 0.0, contact = 0.0;
+  for (int k = 0; k < COUNT; k++) {
+    // caminho gasto chegando nas pontas (terra batida, sem grama)
+    vec3 l0 = bridgeLocal(k, c);
+    float half0 = bWidth(k) * 0.5;
+    float approach = max(-l0.x, l0.x - l0.z);
+    if (approach > 0.0 && approach < 1.4 && abs(l0.y) < half0 * 0.95 && depth == 0.0) {
+      float wear = (1.0 - smoothstep(0.2, 1.4, approach)) * smoothstep(half0 * 0.95, half0 * 0.5, abs(l0.y)) * (0.6 + 0.5 * fbm(c * 4.0));
+      vec3 path = bKind(k) == 1 && uEnd == 0 ? mix(vec3(0.5, 0.47, 0.42), vec3(0.42, 0.36, 0.28), smoothstep(0.1, 0.9, approach)) : vec3(0.42, 0.33, 0.22);
+      col = mix(col, light(path * (0.9 + 0.2 * noise(c * 14.0)), vec3(0, 0, 1)), clamp(wear, 0.0, 0.85));
+    }
+    // a sombra: o ponto da ponte que tapa o sol está a uma altura que depende do vão embaixo dele (duas voltas)
+    float h = 0.0;
+    for (int it = 0; it < 2; it++) {
+      vec2 q = c + sunXY * h;
+      float extra = bKind(k) == 2 ? 2.4 * smoothstep(0.0, -0.4, canyonDist(c)) + 0.5 * sag(k, bridgeLocal(k, q).x, bridgeLocal(k, q).z) : 0.0;
+      h = bHeight(k) * gapness(q) + extra;
+    }
+    shade = max(shade, bridgeShadow(k, c + sunXY * h));
+    // contato: onde a ponte pousa (terra), o chão escurece rente às bordas dela
+    vec3 l = l0;
+    float outside = max(abs(l.y) - half0, max(-l.x, l.x - l.z));
+    float land = 1.0 - gapness(c);
+    if (outside > 0.0 && outside < 0.28) contact = max(contact, pow(1.0 - outside / 0.28, 2.0) * mix(0.25, 1.0, land));
+  }
+  // estacas do píer e espuma em volta
+  for (int k = 3; k < COUNT; k++) {
+    vec3 l = bridgeLocal(k, c);
+    float half_ = bWidth(k) * 0.5;
+    for (int s = -1; s <= 1; s += 2) {
+      float along = round(l.x / 1.1) * 1.1;
+      vec2 post = vec2(clamp(along, 0.1, l.z - 0.1), float(s) * (half_ + 0.03));
+      float d = length(vec2(l.x, l.y) - post);
+      if (depth > 0.0 && !insideBridge(k == 3 ? 4 : 3, c)) col = mix(col, vec3(0.85, 0.92, 0.9) * uTint, smoothstep(0.24, 0.17, d) * smoothstep(0.1, 0.16, d) * (0.5 + 0.5 * noise(c * 12.0)) * 0.7);
+    }
+  }
+  col *= (1.0 - 0.45 * shade) * (1.0 - 0.38 * contact);
+  // água logo embaixo do píer: mais escura (pouca luz entre as estacas)
+  if (depth > 0.0) for (int k = 3; k < COUNT; k++) { vec3 l = bridgeLocal(k, c); float o = max(abs(l.y) - bWidth(k) * 0.5, max(-l.x, l.x - l.z)); if (o < 0.15) col *= 1.0 - 0.3 * (1.0 - smoothstep(-0.05, 0.15, o)); }
+  // pontes por cima
+  for (int k = 0; k < COUNT; k++) {
+    if (!insideBridge(k, c)) continue;
+    vec4 b = drawBridge(k, c);
+    if (b.a > 0.0) {
+      vec3 l = bridgeLocal(k, c);
+      vec2 a = bFrom(k), e = bTo2(k);
+      vec2 dir = normalize(e - a), side = vec2(-dir.y, dir.x);
+      float half_ = bWidth(k) * 0.5 * (1.0 - 0.12 * sag(k, l.x, l.z));
+      float rim = 1.0 - smoothstep(0.0, 0.07, half_ - abs(l.y));
+      vec2 out2 = side * sign(l.y);
+      float lit = (uAmbient + (1.0 - uAmbient) * lambert(vec3(out2 * 1.6, 0.6))) / (uAmbient + (1.0 - uAmbient) * lambert(vec3(0, 0, 1)));
+      // a beirada mostra a espessura onde há vão embaixo
+      float gap = gapness(c);
+      col = b.rgb * mix(1.0, clamp(lit, 0.45, 1.35), rim * mix(0.35, 1.0, gap));
+    }
+  }
+  for (int k = 0; k < 3; k++) { vec4 e = drawEnds(k, c); if (e.a > 0.0) col = mix(col, e.rgb, e.a); }
+  // tops das estacas do píer (aparecem na borda do deck)
+  for (int k = 3; k < COUNT; k++) {
+    vec3 l = bridgeLocal(k, c);
+    float half_ = bWidth(k) * 0.5;
+    for (int s = -1; s <= 1; s += 2) {
+      float along = round(l.x / 1.1) * 1.1;
+      vec2 post = vec2(clamp(along, 0.1, l.z - 0.1), float(s) * (half_ + 0.03));
+      float d = length(vec2(l.x, l.y) - post);
+      if (d < 0.13 && !insideBridge(k == 3 ? 4 : 3, c)) {
+        float ring = fract(d * 40.0);
+        vec3 top = mix(vec3(0.45, 0.32, 0.2), vec3(0.6, 0.45, 0.3), ring) * (0.85 + 0.2 * noise(c * 30.0));
+        col = light(top, vec3(0, 0, 1)) * smoothstep(0.13, 0.11, d) + col * (1.0 - smoothstep(0.13, 0.11, d));
+      }
+    }
+  }
+  // grid
+  vec2 g = abs(fract(c) - 0.5);
+  float line = smoothstep(0.5 - px() * 1.0, 0.5, max(g.x, g.y));
+  col = mix(col, col * 0.7, line * uGrid * 0.6);
+  outColor = vec4(pow(col, vec3(0.95)), 1.0);
+}`;
+function compile(type, source) { const s = gl.createShader(type); gl.shaderSource(s, source); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { document.body.insertAdjacentHTML("beforeend", "<pre>" + gl.getShaderInfoLog(s) + "</pre>"); throw new Error(gl.getShaderInfoLog(s)); } return s; }
+const program = gl.createProgram();
+gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX)); gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+gl.bindAttribLocation(program, 0, "aPos"); gl.linkProgram(program);
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+gl.useProgram(program);
+const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+const u = (name) => gl.getUniformLocation(program, name);
+const LIGHTS = {
+  day: { sun: [-0.45, -0.55, 0.7], tint: [1.0, 0.98, 0.92], ambient: 0.45 },
+  dusk: { sun: [-0.85, -0.25, 0.32], tint: [1.05, 0.78, 0.56], ambient: 0.35 },
+  moon: { sun: [0.4, -0.5, 0.6], tint: [0.55, 0.65, 0.85], ambient: 0.3 },
+};
+let pan = [0.5, 9.2];
+function draw() {
+  const cellPx = Number(document.getElementById("zoom").value);
+  const light = LIGHTS[document.getElementById("light").value];
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(u("uCanvas"), canvas.width, canvas.height);
+  gl.uniform2f(u("uPan"), pan[0], pan[1]);
+  gl.uniform1f(u("uCellPx"), cellPx);
+  gl.uniform3f(u("uSun"), ...light.sun);
+  gl.uniform3f(u("uTint"), ...light.tint);
+  gl.uniform1f(u("uAmbient"), light.ambient);
+  gl.uniform1f(u("uGrid"), document.getElementById("grid").checked ? 1 : 0);
+  gl.uniform1i(u("uEnd"), Number(document.getElementById("end").value));
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  document.getElementById("zoomOut").textContent = cellPx + " px/casa";
+}
+for (const id of ["light", "zoom", "grid", "end"]) document.getElementById(id).addEventListener("input", draw);
+let dragging = null;
+canvas.addEventListener("pointerdown", (e) => { dragging = { x: e.clientX, y: e.clientY, pan: [...pan] }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener("pointermove", (e) => { if (!dragging) return; const cellPx = Number(document.getElementById("zoom").value) * (canvas.width / canvas.getBoundingClientRect().width); pan = [dragging.pan[0] - (e.clientX - dragging.x) / cellPx * (canvas.width / canvas.getBoundingClientRect().width), dragging.pan[1] - (e.clientY - dragging.y) / cellPx * (canvas.width / canvas.getBoundingClientRect().width)]; draw(); });
+canvas.addEventListener("pointerup", () => { dragging = null; });
+canvas.addEventListener("wheel", (e) => { e.preventDefault(); const zoom = document.getElementById("zoom"); const before = Number(zoom.value); const after = Math.min(160, Math.max(16, Math.round(before * (e.deltaY < 0 ? 1.15 : 1 / 1.15)))); const rect = canvas.getBoundingClientRect(); const mx = (e.clientX - rect.left) * canvas.width / rect.width, my = (e.clientY - rect.top) * canvas.height / rect.height; pan = [pan[0] + mx / before - mx / after, pan[1] + my / before - my / after]; zoom.value = after; draw(); }, { passive: false });
+window.__view = (x, y, cellPx, light) => { pan = [x, y]; document.getElementById("zoom").value = cellPx; if (light) document.getElementById("light").value = light; draw(); return canvas.toDataURL("image/jpeg", 0.92).length; };
+draw();
+</script>
+</body>
+</html>
