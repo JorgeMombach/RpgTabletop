@@ -31,6 +31,15 @@ O desenho e as metas estão em `docs/design/desempenho.md`.
 
 Se der erro, a mensagem diz qual ação foi recusada. A cena de teste se apaga sozinha; se sobrar uma chamada "Teste de desempenho", apague-a no painel de cenas.
 
+## Um cenário só, repetido
+
+O p95 de um cenário curto sai de poucos quadros e varia muito de uma rodada para outra (o `zoom` e o `relief` já deram 33 numa e 50 na outra). Para separar ruído de piora, ou para comparar duas versões do código na mesma sessão, repita só o cenário na mesma cena pesada:
+
+- `window.rpgBench.repeatZoom(6)`: o zoom 6 vezes (devolve uma lista, uma medida por vez). A primeira vez carrega o tranco do primeiro zoom da cena; compare as outras.
+- `window.rpgBench.repeatWater(10)`: os traços do `water50` 10 vezes (uma medida só).
+
+Rode como o teste inteiro (a promessa numa chamada, a espera em outra). Para achar de onde vem um quadro lento, observe os quadros longos do navegador antes de rodar: `new PerformanceObserver((list) => …).observe({ type: "long-animation-frame" })` mostra que scripts (arquivo e função) ocuparam cada quadro; quadro longo sem script é desenho do navegador.
+
 ## Metas
 
 | Cenário | Meta |

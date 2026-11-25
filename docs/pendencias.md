@@ -281,7 +281,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] A copa começa a 1,7 casa (`CANOPY_BOTTOM`, × o tamanho da árvore se maior que 1): a tocha de token grande (2,3) entra na copa e escurece em volta dela; a copa fica sem sombra própria da tocha baixa (ilumina como o chão embaixo); token embaixo da copa vira coluna da altura da copa para as tochas.
 
 ### Névoa de guerra na placa ([docs/design/nevoa.md](design/nevoa.md))
-- [ ] Na sombra diagonal de pilares e paredes, alguns trechos curtos da borda saem em degrau (a casa vista pela metade fica escondida: o servidor não a mandou).
+- [ ] Borda da visão lisa atrás da ponta de pilares e paredes (a casa vista em parte agora conta como vista: decisão do dono). Um mob numa casa da qual só um canto aparece passa a ser visto. A visão também ficou bem mais rápida de calcular (arrastar token com a visão dos personagens ligada).
 - [ ] Chão aceso por um mob com tocha fora da vista: o servidor manda as casas, mas o cliente não sabe da tocha; fica na névoa até o mob aparecer.
 - [ ] Parede que o jogador ainda não viu não chega a ele: ali, quem corta a visão são as casas do servidor.
 - [ ] Arrastar um objeto que bloqueia refaz os triângulos da névoa (pode pesar num mapa enorme).
@@ -298,7 +298,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
 - [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).
-- [ ] Sombra de um objeto baixo pode escurecer uma copa alta por cima dela (a máscara não sabe a altura de quem recebe); fica para a etapa 2 (sombra por objeto).
+- [ ] Barril embaixo de árvore, no entardecer: a sombra do barril não escurece a copa (a sombra usa a altura de quem recebe desde as sombras por objeto; conferido no código, não no app).
 - [ ] Árvore na beira do patamar faz a sombra curta lá embaixo (a base no relevo não alonga a sombra; ver `propPass.ts` `setProps`).
 - [ ] Cordas, cajado e outras peças finas a muitas casas de altura podem mostrar a sombra em degraus de perto (28 amostras; `PROP_SHADOW_FRAGMENT`).
 - [ ] Ícone do painel feito com `readPixels` (síncrono): 28 ícones na primeira abertura do painel; se travar, fazer aos poucos (`iconOf`).

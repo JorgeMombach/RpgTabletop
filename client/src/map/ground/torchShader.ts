@@ -22,6 +22,7 @@ uniform float uGlow;          // 0 = corpo, 1 = brilho
 uniform float uDevicePerCell; // pixels do aparelho por casa (contorno fino)
 uniform float uNight;         // quanto a luz das fontes pesa (de dia pouco)
 uniform vec2 uLightFrom;      // de que lado vem a luz da cena, no plano do mapa
+uniform float uBodyLift;      // clareia o corpo (1 no mapa; mais nos ícones do painel, sobre o fundo escuro)
 uniform float uDpr;           // pixels do aparelho por pixel CSS (largura do contorno)
 `;
 
@@ -46,9 +47,11 @@ vec3 flameTint(int c, float t) {
   else if (c == 1) { edge = vec3(0.07, 0.22, 0.9); mid = vec3(0.3, 0.64, 1.0); core = vec3(0.88, 0.97, 1.0); }
   else if (c == 2) { edge = vec3(0.04, 0.55, 0.16); mid = vec3(0.36, 1.0, 0.46); core = vec3(0.88, 1.0, 0.86); }
   else if (c == 3) { edge = vec3(0.38, 0.07, 0.76); mid = vec3(0.74, 0.4, 1.0); core = vec3(0.97, 0.89, 1.0); }
-  else { edge = vec3(0.5, 0.62, 0.88); mid = vec3(0.84, 0.91, 1.0); core = vec3(1.0); }
+  else { edge = vec3(0.36, 0.46, 0.76); mid = vec3(0.7, 0.8, 0.98); core = vec3(0.97, 0.98, 1.0); }
   return t < 0.5 ? mix(edge, mid, t * 2.0) : mix(mid, core, (t - 0.5) * 2.0);
 }
+// O branco frio soma rápido até estourar (vira só clarão): a chama e o halo dele pesam menos.
+float colorGain(int c) { return c == 4 ? 0.62 : 1.0; }
 vec3 lightRgb(int c) { return flameTint(c, 0.62); }
 
 // ---------- superfície das peças ----------
@@ -385,6 +388,7 @@ void main() {
     }
     // o que brilha vai pela outra passada: aqui, só o fundo escuro dele
     if (glowing) lit = alb * 0.5;
+    lit *= uBodyLift;
     float inkW = 1.15 * uDpr;
     float ink = max(1.0 - smoothstep(inkW * 0.55, inkW * 1.25, px), smoothstep(4.0, 9.0, steep) * 0.45);
     lit = mix(lit, lit * (glowing ? 0.55 : 0.18) + vec3(0.03, 0.025, 0.02), ink);
@@ -403,11 +407,11 @@ void main() {
     vec2 d = vCell - base;
     float size = f.z * uTorch.z;
     vec2 shape = flameShape(d, size, uSeed + float(k) * 7.3, f.w);
-    vec3 fire = flameTint(uColor, 0.25 + 0.75 * shape.y) * (1.2 + 1.4 * shape.y);
+    vec3 fire = flameTint(uColor, 0.25 + 0.75 * shape.y) * (1.2 + 1.4 * shape.y) * colorGain(uColor);
     glow = mix(glow, fire, shape.x * 0.92);
     cover = max(cover, shape.x);
     float r = length((d + vec2(0.0, size * 0.45)) / size);
-    glow += flameTint(uColor, 0.35) * exp(-r * r * 0.9) * (0.12 + 0.35 * uNight) * flick * min(1.0, f.z * 3.0);
+    glow += flameTint(uColor, 0.35) * exp(-r * r * 0.9) * (0.12 + 0.35 * uNight) * flick * min(1.0, f.z * 3.0) * colorGain(uColor);
   }
   if (MODEL == 9) {
     vec2 c = toWorldHere(vec2(0.0, -0.12));

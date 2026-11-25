@@ -7,6 +7,13 @@ import { torchColorIndex } from "./torchModels";
 
 /** Lado do ícone, em pixels (mostrado com metade, nítido em tela de densidade 2). */
 const ICON = 72;
+/**
+ * Enquadramento de cada modelo no ícone (1 = o desenho no tamanho dele): os pequenos (lanterna, lamparina, castiçal)
+ * aparecem maiores, para todos terem mais ou menos o mesmo peso no painel.
+ */
+const ICON_ZOOM: Record<MapTorchStyle, number> = { stick: 1.1, iron: 1.1, brazier: 1.05, sconce: 1.5, campfire: 1, lantern: 1.7, candles: 1.45, candelabra: 1.1, oilLamp: 1.6, orb: 1.35 };
+/** O corpo no ícone, mais claro que no mapa (ferro escuro sobre o painel escuro sumia). */
+const ICON_BODY_LIFT = 1.8;
 /** Ícones já feitos (modelo|cor); `null` = sem WebGL 2 (o painel usa o desenho de antes). */
 const icons = new Map<string, string | null>();
 
@@ -31,8 +38,8 @@ export function torchIconUrl(style: MapTorchStyle, color: MapTorchColor): string
     const program = linkProgram(gl, GEOMETRY_VERTEX, torchFragment(style), "aCell");
     const cells = TORCH_CELLS[style];
     // o desenho ocupa uns 80% do ícone, com a base um pouco abaixo do meio (as chamas sobem)
-    const cellPx = (ICON * 0.8) / cells;
-    const reach = cells * 1.4;
+    const cellPx = ((ICON * 0.8) / cells) * ICON_ZOOM[style];
+    const reach = (cells * 1.4) / ICON_ZOOM[style] + cells * 0.4;
     const buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-reach, -reach, reach, -reach, -reach, reach, -reach, reach, reach, -reach, reach, reach]), gl.STATIC_DRAW);
@@ -53,6 +60,7 @@ export function torchIconUrl(style: MapTorchStyle, color: MapTorchColor): string
     gl.uniform1f(uniformOf(gl, program, "uDpr"), 1.4);
     gl.uniform1f(uniformOf(gl, program, "uNight"), 0.5);
     gl.uniform2f(uniformOf(gl, program, "uLightFrom"), -0.55, -0.83);
+    gl.uniform1f(uniformOf(gl, program, "uBodyLift"), ICON_BODY_LIFT);
     gl.enable(gl.BLEND);
     // corpo por cima do vazio; brilho somado ("tela")
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

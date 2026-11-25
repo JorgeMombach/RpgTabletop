@@ -86,6 +86,7 @@ export class TorchPass {
       gl.uniform1f(uniformOf(gl, program, "uDpr"), view.pixelRatio);
       gl.uniform1f(uniformOf(gl, program, "uNight"), night);
       gl.uniform2f(uniformOf(gl, program, "uLightFrom"), lightFrom[0], lightFrom[1]);
+      gl.uniform1f(uniformOf(gl, program, "uBodyLift"), 1);
       gl.drawArrays(gl.TRIANGLES, index * 6, 6);
     });
     gl.disable(gl.BLEND);

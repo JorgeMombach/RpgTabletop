@@ -52,6 +52,9 @@ float lambert(vec3 n) { return max(dot(n, LIGHT), 0.0) / LIGHT.z; }
 // Mar (docs/design/mar.md): a parte de mar (canal A do campo) e o tipo de costa perto dele.
 float seaAt(vec2 px) { return texture(uSdfDeep, fieldUv(px)).a; }
 int shoreAt(vec2 px) { return int(texture(uShore, fieldUv(px)).r * 255.0 + 0.5); }
+// Costa do mar: dentro do mar ou na terra junto dele (a beira com ruído passa um pouco para o lado da terra, onde a
+// parte de mar é pequena: sem isto ali caía o barranco de terra do lago, uma faixa escura na areia da praia).
+bool seaCoast(vec2 px) { return seaAt(px) > 0.5 || shoreAt(px) > 0; }
 // Quanto de praia (x), pedra (y) e margem (z) há em volta (5 amostras a meia casa): a passagem de um tipo para o outro
 // fica suave em vez de um corte reto.
 vec3 shoreMix(vec2 px) {
@@ -126,11 +129,11 @@ float bankWidth(vec2 px) { return mix(10.0, 30.0, fbm(px / 140.0 + 3.0)); }
 float halfWidthAt(vec2 px) { return texture(uSdfDeep, fieldUv(px)).b; }
 float bankW(vec2 px) {
   // mar: praia larga e rasa (a areia molhada onde a onda sobe), costa de pedra curta e funda, margem rasa; aberto, nada
-  if (seaAt(px) > 0.5) return dot(shoreMix(px), vec3(UNIT, UNIT * 0.15, UNIT * 0.4));
+  if (seaCoast(px)) return dot(shoreMix(px), vec3(UNIT, UNIT * 0.15, UNIT * 0.4));
   return min(bankWidth(px), halfWidthAt(px) * UNIT * 0.4);
 }
 float bankH(vec2 px) {
-  if (seaAt(px) > 0.5) return dot(shoreMix(px), vec3(BANK * 0.25, BANK * 0.9, BANK * 0.4));
+  if (seaCoast(px)) return dot(shoreMix(px), vec3(BANK * 0.25, BANK * 0.9, BANK * 0.4));
   return BANK * clamp(halfWidthAt(px) / 1.5, 0.4, 1.0) * 0.65;
 }
 // Altura: 0 fora e na crista (borda pintada), barranco descendo até a água, fundo descendo até o meio.
@@ -192,7 +195,7 @@ vec3 earthMaterial(vec2 px, float h, float s, float bw) {
   float wet = smoothstep(bw - 7.0, bw, s) * step(s, bw + 1.0);
   earth = mix(earth, earth * vec3(0.62, 0.6, 0.58), wet);
   // praia do mar: a faixa é de areia, mais escura e lisa conforme chega na água (molhada)
-  vec3 kinds = seaAt(px) > 0.5 ? shoreMix(px) : vec3(0.0);
+  vec3 kinds = seaCoast(px) ? shoreMix(px) : vec3(0.0);
   // costa de pedra: a face é rocha cinza, com veios, não barranco de terra
   if (kinds.y > 0.0) earth = mix(earth, vec3(0.4, 0.39, 0.37) * (0.8 + 0.35 * fbm(px / vec2(14.0, 4.0))) * (0.92 + 0.16 * mix(0.5, noise(px / 1.5), detailPx(1.5))), kinds.y);
   float beach = kinds.x;
@@ -209,6 +212,9 @@ void main() {
   float s = sdfAt(px);
   float fringe = s + (fbm(px / 6.0) - 0.5) * 6.0 + (fbm(px / 23.0) - 0.5) * 5.0;
   float alpha = smoothstep(0.0, 4.0, fringe);
+  // Costa do mar: depois de pintado, o mar não é desenhado pelo terreno, e na borda irregular da areia (ou da pedra)
+  // aparecia a mesa por baixo, uma faixa escura. A beira avança sobre a terra com a areia seca (ou a pedra) daqui.
+  if (seaCoast(px)) alpha = max(alpha, smoothstep(-UNIT * 0.3, -UNIT * 0.12, fringe));
   // borda aberta do mar: some aos poucos nas últimas casas do campo (onde a pintura acabou sem nada do lado)
   if (seaAt(px) > 0.5) alpha *= smoothstep(0.0, UNIT * 1.5, fieldEdge(px));
   float bw = bankW(px);
@@ -295,7 +301,7 @@ void main() {
   vec4 data = texture(uBakedData, screenUv);
   vec3 color = baked.rgb;
   float w = data.b * ${WATER_RANGE} - ${WATER_OFFSET};
-  if (seaAt(px) > 0.5) {
+  if (seaCoast(px)) {
     // Mar: casas até a costa (do pé da margem), a costa por perto, e a onda que sobe na praia. A distância vem do campo
     // (meia precisão), não do "assado" (8 bits, de -8 a 128 px): a praia tem 1 casa e o azul fundo chega a 7.
     vec2 c = px / UNIT;
