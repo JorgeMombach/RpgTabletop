@@ -275,7 +275,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 
 ### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
 - [ ] Token voando faz sombra como se estivesse no chão (o mapa de alturas guarda só o topo).
-- [ ] O relevo não entra no mapa de alturas: o objeto em cima do patamar faz sombra pela altura dele, sem descer o penhasco.
+- [ ] Relevo no mapa de alturas (feito): objeto ou token em cima do patamar faz sombra a partir do alto dele (de dia, a sombra da árvore na borda desce o penhasco); no mesmo patamar, a sombra continua do mesmo tamanho. Tochas e efeitos sobem do chão onde estão. Conferir dia, entardecer e noite com tocha embaixo e em cima do patamar, e encostas suaves (sem manchas).
 - [ ] Bem de perto, a faixa do mapa de alturas é cortada em 3/4 da tela por lado: a sombra de algo muito longe da tela não entra (`heightPass.ts`).
 - [ ] Moldura de chefe mantém a sombra própria das peças de ouro (só a do anel comum saiu; `tokenArt.ts`).
 - [ ] A copa começa a 1,7 casa (`CANOPY_BOTTOM`, × o tamanho da árvore se maior que 1): a tocha de token grande (2,3) entra na copa e escurece em volta dela; a copa fica sem sombra própria da tocha baixa (ilumina como o chão embaixo); token embaixo da copa vira coluna da altura da copa para as tochas.
@@ -299,7 +299,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Objetos na placa de vídeo ([docs/design/objetos.md](design/objetos.md))
 - [ ] Atlas fixo de ~96 MB na placa (3 camadas de 2048² × 2 texturas), mesmo sem objetos na cena; se pesar no celular, criar só quando houver objeto (`propPass.ts`).
 - [ ] Barril embaixo de árvore, no entardecer: a sombra do barril não escurece a copa (a sombra usa a altura de quem recebe desde as sombras por objeto; conferido no código, não no app).
-- [ ] Árvore na beira do patamar faz a sombra curta lá embaixo (a base no relevo não alonga a sombra; ver `propPass.ts` `setProps`).
+- [ ] Árvore na beira do patamar: a sombra lá embaixo agora conta a altura do patamar (ver o item do relevo no mapa de alturas, acima).
 - [ ] Cordas, cajado e outras peças finas a muitas casas de altura podem mostrar a sombra em degraus de perto (28 amostras; `PROP_SHADOW_FRAGMENT`).
 - [ ] Ícone do painel feito com `readPixels` (síncrono): 28 ícones na primeira abertura do painel; se travar, fazer aos poucos (`iconOf`).
 - [ ] Com vento, planta em qualquer lugar da cena faz o chão pedir quadros (30 por segundo), mesmo fora da tela; dá para olhar só as da tela, como a água (`PropPass.swaying`).
@@ -339,7 +339,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Luz ([docs/design/luz.md](design/luz.md))
 - [ ] O corpo da tocha fixa é desenhado por cima da chama nova (a camada das chamas fica embaixo de `MapTorchLayer`): conferir de olho, principalmente a bacia do braseiro (`BattleMap.tsx`).
 - [ ] O texto do desenho diz que com névoa "nada aparece" depois de uma porta secreta, mas a camada da luz fica acima da névoa: a poça de luz aparece sobre a névoa (`docs/design/luz.md`; ajustar o texto).
-- [ ] O desenho diz que o mapa de luz já recebe a altura do chão; ainda não recebe (fica para o relevo).
+- [ ] A luz das tochas conta a altura do chão (de quem recebe e da própria tocha), mas o penhasco em si ainda não bloqueia a luz da tocha: a tocha embaixo ilumina o alto do patamar além da borda.
 - [ ] No primeiro instante com o chão em WebGL, a película e o brilho antigos já saíram e o mapa de luz ainda não chegou: um piscar claro à noite ao abrir o mapa (`BattleMap.tsx`, `groundLit`).
 - [ ] Se só o shader da luz falhar, o chão inteiro volta para o desenho antigo (terreno junto).
 

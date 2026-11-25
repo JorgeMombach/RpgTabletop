@@ -170,6 +170,8 @@ export class GroundRenderer {
     this.stairs = new StairPass(gl);
     this.props = new PropPass(gl);
     this.heights = new HeightPass(gl);
+    // tochas e efeitos sobem do chão do relevo (o mesmo que os objetos usam)
+    this.light.groundHeight = (x, y) => this.props.groundHeight(x, y);
     this.fog = new FogPass(gl);
     this.effects = new EffectPass(gl);
     this.weather = new WeatherPass(gl);
@@ -635,7 +637,7 @@ export class GroundRenderer {
     // Mapa de alturas na resolução da luz, com a folga da sombra mais comprida e do alcance das tochas.
     const shadowMargin = Math.max(5 * this.light.scene.shadowCells + 2, TORCH_MARGIN);
     // densidade da luz (meia resolução do canvas), em pixels por pixel CSS da tela
-    this.heights.draw(view, Math.max(1, Math.ceil(width / 2)) / view.width, this.props, time, shadowMargin);
+    this.heights.draw(view, Math.max(1, Math.ceil(width / 2)) / view.width, this.props, this.relief, time, shadowMargin);
     this.light.renderLight(view, time, width, height, (lightWidth, lightHeight) => this.relief.drawShadowMask(view, lightWidth, lightHeight), this.heights.output, this.effects.lights(), this.effects.darkness());
     this.copyTo(this.lightImage);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);

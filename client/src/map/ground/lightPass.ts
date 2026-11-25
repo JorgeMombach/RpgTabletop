@@ -323,7 +323,6 @@ export class LightPass {
     gl.uniform1f(uniformOf(gl, program, "uScene"), scene.torch);
     gl.uniform1i(uniformOf(gl, program, "uUseHeights"), heights ? 1 : 0);
     // a chama da área fica a 1 casa do chão, no meio; a própria área não faz sombra dela
-    gl.uniform1f(uniformOf(gl, program, "uTorchHeight"), 1);
     if (heights) gl.uniform4f(uniformOf(gl, program, "uHeightArea"), heights.area.x, heights.area.y, heights.area.cols, heights.area.rows);
     for (const area of areas) {
       const emit = area.look.emit;
@@ -331,6 +330,8 @@ export class LightPass {
       const center = { x: area.center.x + area.offset.x, y: area.center.y + area.offset.y };
       const reach = area.radius + emit.reach;
       gl.uniform2f(uniformOf(gl, program, "uCenter"), center.x, center.y);
+      // a chama da área fica a 1 casa do chão (do relevo, ali), no meio; a própria área não faz sombra dela
+      gl.uniform1f(uniformOf(gl, program, "uTorchHeight"), this.groundHeight(center.x, center.y) + 1);
       gl.uniform2f(uniformOf(gl, program, "uOffset"), area.offset.x, area.offset.y);
       gl.uniform4f(uniformOf(gl, program, "uBox"), ...area.box);
       gl.uniform1f(uniformOf(gl, program, "uRadius"), area.radius * 0.8);
@@ -481,7 +482,8 @@ export class LightPass {
     } else bindTextures(gl, this.torch, [["uHeights", this.blank]]);
     for (const mesh of this.torches) {
       gl.uniform2f(uniformOf(gl, this.torch, "uCenter"), mesh.source.x, mesh.source.y);
-      gl.uniform1f(uniformOf(gl, this.torch, "uTorchHeight"), mesh.source.height);
+      // a altura da chama conta do chão do relevo onde a luz está
+      gl.uniform1f(uniformOf(gl, this.torch, "uTorchHeight"), mesh.source.height + this.groundHeight(mesh.source.x, mesh.source.y));
       gl.uniform1f(uniformOf(gl, this.torch, "uTorchSkip"), mesh.source.skip);
       gl.uniform1f(uniformOf(gl, this.torch, "uReach"), mesh.source.reach);
       gl.uniform1f(uniformOf(gl, this.torch, "uSeed"), mesh.seed);
@@ -538,6 +540,9 @@ export class LightPass {
     for (const mesh of this.torches) if (mesh.source.model) models.push({ ...mesh.source.model, seed: mesh.seed });
     return models;
   }
+
+  /** Altura do chão do relevo (casas) num ponto, para a altura das luzes (o renderizador liga ao dos objetos). */
+  groundHeight: (x: number, y: number) => number = () => 0;
 
   /** Luz da cena agora (no meio de uma troca, a misturada). */
   get scene(): SceneLight {

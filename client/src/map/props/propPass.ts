@@ -144,6 +144,15 @@ export class PropPass {
     this.version++;
   }
 
+  /** Altura do chão do relevo (casas) no ponto: a base de tokens, tochas e efeitos no mapa de alturas. */
+  groundHeight(x: number, y: number): number {
+    const relief = this.lastSet?.relief;
+    if (!relief) return 0;
+    if (this.ground?.relief !== relief) this.ground = { relief, groundAt: this.reliefHeights.sampler(relief) };
+    const level = this.ground.groundAt(x, y);
+    return Number.isFinite(level) ? level * LEVEL_HEIGHT : 0;
+  }
+
   /** Alturas do relevo que o Worker entregou: os objetos assentam na altura nova (docs/design/desempenho.md). */
   acceptReliefHeights(windows: ReliefWindow[]) {
     for (const window of windows) this.reliefHeights.accept(window.key, window.heights);

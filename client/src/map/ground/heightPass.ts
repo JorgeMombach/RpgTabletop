@@ -1,13 +1,19 @@
-import { createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
+import { createTexture, linkProgram, NO_UNROLL, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import type { PropPass } from "../props/propPass";
 import type { TokenCaster } from "./shadowCasters";
+import { encodeHeight, HEIGHT_CODE } from "./heightCode";
+import type { ReliefPass } from "./reliefPass";
+import { RELIEF_SAMPLE, SCREEN } from "./reliefShader";
+import { FULLSCREEN_VERTEX } from "./terrainShader";
 
 /**
  * Mapa de alturas (docs/design/sombras.md): a altura de tudo o que faz sombra, na meia resolução da luz, refeito a
- * cada desenho da luz (os tokens andam). Em casas / 4: topo no R e onde começa a copa no G, pela maior; onde começa o
- * que bloqueia no A, pela menor (a copa começa no alto e a luz baixa passa por baixo dela; o resto, no chão; sem nada, 4). Os objetos vêm da forma guardada no atlas
- * (`PropPass.drawHeights`); os tokens, um disco no centro com a altura do tamanho. A luz anda nele até o sol, a lua
- * ou a tocha e vê se algo mais alto está no caminho.
+ * cada desenho da luz (os tokens andam). Alturas absolutas, com o chão do relevo (formato em `heightCode.ts`): topo
+ * no R e onde começa a copa no G, pela maior; o chão no B; onde começa o que bloqueia no A, pela menor (a copa começa
+ * no alto e a luz baixa passa por baixo dela; o resto, no pé; sem nada, o teto). Primeiro o chão do relevo (lido do
+ * atlas do relevo), depois os objetos (`PropPass.drawHeights`, cada um na base do relevo) e os tokens (um disco no
+ * centro com a altura do tamanho, no chão onde estão). A luz anda nele até o sol, a lua ou a tocha e vê se algo mais
+ * alto está no caminho. O chão sozinho não bloqueia aqui: a sombra do próprio relevo é a do passo do relevo.
  */
 
 const DISC_VERTEX = `#version 300 es
@@ -29,10 +35,28 @@ precision highp float;
 in vec2 vWorld;
 out vec4 outColor;
 uniform vec3 uDisc;
-uniform float uHeight;
+uniform float uHeight, uBase;
+${HEIGHT_CODE}
 void main() {
   if (distance(vWorld, uDisc.xy) > uDisc.z) discard;
-  outColor = vec4(uHeight / 4.0, 0.0, 0.0, 0.0);
+  outColor = vec4(encodeHeight(uBase + uHeight), 0.0, 0.0, encodeHeight(uBase));
+}`;
+
+/** Um nível do relevo tem 1,4 casa de altura (a mesma conta do relevo). */
+const LEVEL_HEIGHT = 1.4;
+
+/** O chão do relevo no mapa de alturas: topo e chão na altura dele, nada bloqueando. */
+const GROUND_FRAGMENT = `#version 300 es
+precision highp float;
+${NO_UNROLL}
+out vec4 outColor;
+${RELIEF_SAMPLE}
+${SCREEN}
+${HEIGHT_CODE}
+void main() {
+  vec2 texel;
+  float ground = reliefTexel(screenCell(), texel) ? reliefHeight(texel) * ${LEVEL_HEIGHT} : 0.0;
+  outColor = vec4(encodeHeight(ground), 0.0, encodeHeight(ground), 1.0);
 }`;
 
 /** Lado máximo do mapa de alturas (px). */
@@ -54,6 +78,9 @@ export interface HeightMap {
 
 export class HeightPass {
   private readonly disc: Program;
+  private readonly ground: Program;
+  /** Meia precisão (alturas de -3 a 9 sem degrau na sombra); sem a extensão, 8 bits. */
+  private readonly precise: boolean;
   private readonly square: WebGLBuffer;
   private readonly framebuffer: WebGLFramebuffer | null;
   private target: WebGLTexture | null = null;
@@ -62,6 +89,8 @@ export class HeightPass {
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.disc = linkProgram(gl, DISC_VERTEX, DISC_FRAGMENT, "aPos");
+    this.ground = linkProgram(gl, FULLSCREEN_VERTEX, GROUND_FRAGMENT, "aPos");
+    this.precise = gl.getExtension("EXT_color_buffer_float") !== null;
     this.square = vertexBuffer(gl, [-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
     this.framebuffer = gl.createFramebuffer();
   }
@@ -83,7 +112,7 @@ export class HeightPass {
    * Desenha o mapa de alturas: a tela mais `margin` casas em volta (de onde uma sombra ou a luz de uma tocha alcança a
    * tela), na densidade `ratio` (pixels do mapa por pixel CSS da tela: a da luz), com teto de tamanho.
    */
-  draw(view: GroundView, ratio: number, props: PropPass, time: number, margin: number) {
+  draw(view: GroundView, ratio: number, props: PropPass, relief: ReliefPass, time: number, margin: number) {
     const { gl } = this;
     // folga em pixels CSS, no máximo 3/4 da tela de cada lado (bem de perto, a sombra de longe fica de fora)
     const extra = Math.min(margin * view.cellPx * view.scale, Math.max(view.width, view.height) * 0.75);
@@ -99,14 +128,18 @@ export class HeightPass {
     };
     if (!this.target || this.size.width !== width || this.size.height !== height) {
       if (this.target) gl.deleteTexture(this.target);
-      this.target = createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.LINEAR, gl.CLAMP_TO_EDGE);
+      this.target = this.precise
+        ? createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.HALF_FLOAT, null), gl.LINEAR, gl.CLAMP_TO_EDGE)
+        : createTexture(gl, () => gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null), gl.LINEAR, gl.CLAMP_TO_EDGE);
       this.size = { width, height };
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.target, 0);
     gl.viewport(0, 0, width, height);
-    gl.clearColor(0, 0, 0, 1);
+    // sem relevo: chão na altura 0, nada bloqueando; com ele, o chão de cada ponto
+    gl.clearColor(encodeHeight(0), 0, encodeHeight(0), 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
+    if (relief.bindSample(this.ground, wide, width, height, [])) gl.drawArrays(gl.TRIANGLES, 0, 3);
     props.drawHeights(wide, width, height, time, margin);
     if (this.casters.length > 0) {
       gl.useProgram(this.disc.program);
@@ -119,6 +152,7 @@ export class HeightPass {
       for (const caster of this.casters) {
         gl.uniform3f(uniformOf(gl, this.disc, "uDisc"), caster.x, caster.y, caster.radius);
         gl.uniform1f(uniformOf(gl, this.disc, "uHeight"), caster.height);
+        gl.uniform1f(uniformOf(gl, this.disc, "uBase"), props.groundHeight(caster.x, caster.y));
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
       gl.blendEquation(gl.FUNC_ADD);
@@ -130,6 +164,7 @@ export class HeightPass {
   dispose() {
     const { gl } = this;
     gl.deleteProgram(this.disc.program);
+    gl.deleteProgram(this.ground.program);
     gl.deleteBuffer(this.square);
     gl.deleteFramebuffer(this.framebuffer);
     if (this.target) gl.deleteTexture(this.target);

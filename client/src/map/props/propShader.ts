@@ -1,5 +1,6 @@
 import { PROP_KINDS, type PropKind } from "@rpg/shared";
 import { NO_UNROLL } from "../ground/glKit";
+import { HEIGHT_CODE } from "../ground/heightCode";
 import { PROP_EXTENT } from "./propLayout";
 import { PROP_MATERIAL_GLSL, PROP_SHAPE_LIBRARY } from "./propShapes";
 
@@ -460,6 +461,7 @@ uniform float uAtlas, uPoints;
 uniform float uTime, uWind;
 uniform vec2 uWindDir;
 uniform float uCanopyBottom;
+${HEIGHT_CODE}
 vec3 atlasAt(vec2 q) {
   float reach = vSlot.w / (2.0 * uPoints);
   vec2 inside = clamp((q / reach * 0.5 + 0.5) * vSlot.w, vec2(0.5), vec2(vSlot.w - 0.5));
@@ -478,7 +480,11 @@ void main() {
 ${PLANT_SWAY}
   vec4 shape = textureLod(uShape, atlasAt(q), 0.0);
   if (shape.r < 0.5) discard;
-  float canopy = min(uCanopyBottom * max(vPlace.z, 1.0) / 4.0, 1.0);
-  outColor = vec4(shape.g * vPlace.z, canopy, 0.0, length(vLocal) > 0.12 ? canopy : 0.0);
+  // alturas absolutas: a base é o chão do relevo embaixo do objeto (vKind.z); a forma guarda a altura em quartos de casa
+  float base = vKind.z;
+  float tall = shape.g * 4.0 * vPlace.z;
+  bool canopy = uCanopyBottom > 0.0;
+  float canopyStart = base + uCanopyBottom * max(vPlace.z, 1.0);
+  outColor = vec4(encodeHeight(base + tall), canopy ? encodeHeight(canopyStart) : 0.0, 0.0, encodeHeight(canopy && length(vLocal) > 0.12 ? canopyStart : base));
 }
 `;

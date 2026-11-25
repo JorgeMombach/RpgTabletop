@@ -1,4 +1,5 @@
 import { NO_UNROLL } from "./glKit";
+import { HEIGHT_CODE } from "./heightCode";
 /**
  * Shaders da luz (docs/design/luz.md), do teste aprovado (`docs/design/luz-teste.html`). Em vez de testar cada parede
  * em cada pixel (o teste), o recorte de cada tocha e a sombra de cada parede são polígonos (contas de
@@ -70,12 +71,16 @@ void main() {
 export const HEIGHT_SAMPLE = `
 uniform sampler2D uHeights;
 uniform vec4 uHeightArea;   // canto e tamanho, em casas
+${HEIGHT_CODE}
+// Alturas absolutas no ponto (casas): topo, começo da copa, chão do relevo, começo do que bloqueia (heightCode.ts).
 vec4 heightsAt(vec2 cell) {
   vec2 uv = (cell - uHeightArea.xy) / uHeightArea.zw;
-  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(0.0, 0.0, 0.0, 4.0);
-  return textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0) * 4.0;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return vec4(0.0, HEIGHT_FLOOR, 0.0, 99.0);
+  vec4 v = textureLod(uHeights, vec2(uv.x, 1.0 - uv.y), 0.0);
+  return vec4(decodeHeight(v.r), decodeHeight(v.g), decodeHeight(v.b), decodeHeight(v.a));
 }
-float heightAt(vec2 cell) { return heightsAt(cell).x; }
+// Topo do que bloqueia no ponto (objeto ou token); só chão: nada (o relevo faz a própria sombra no passo dele).
+float blockerTop(vec4 span) { return span.w < span.x - 0.005 ? span.x : -99.0; }
 float stepJitter() { return fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); }
 `;
 
@@ -96,7 +101,7 @@ float heightShade() {
   vec4 here = heightsAt(vCell);
   // embaixo da copa, com a tocha abaixo dela: o ponto recebe como chão (no tronco, sem a sombra dele mesmo)
   bool under = uTorchHeight < here.y;
-  float h0 = under ? 0.0 : here.x;
+  float h0 = under ? here.z : here.x;
   vec2 to = uCenter - vCell;
   float dist = length(to);
   float jitter = stepJitter();
@@ -107,7 +112,8 @@ float heightShade() {
     vec4 span = heightsAt(at);
     float ray = mix(h0, uTorchHeight, k);
     // dentro do objeto: abaixo do topo e, na copa, acima do começo (no chão, o começo não conta: a sombra no pé fica)
-    float inside = span.w > 0.001 ? min(span.x - ray, ray - span.w) : span.x - ray;
+    // começa no pé (no chão do relevo): só o topo conta; copa ou nada (só chão, começo no teto): entre o começo e o topo
+    float inside = span.w <= span.z + 0.01 ? span.x - ray : min(span.x - ray, ray - span.w);
     float above = distance(at, uCenter) < uTorchSkip || (under && distance(at, vCell) < 0.2) ? -1.0 : inside;
     shade = max(shade, smoothstep(0.02, 0.06 + dist * (1.0 - k) * 0.04, above));
   }
@@ -194,13 +200,13 @@ ${HEIGHT_SAMPLE}
 void main() {
   vec2 screen = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y) * (uScreen / uCanvas);
   vec2 p = ((screen - uStage.xy) / uStage.z - uMapGrid.xy) / uMapGrid.z;
-  float h0 = heightAt(p);
+  float h0 = heightsAt(p).x;
   float jitter = stepJitter();
   float reach = 2.6 * uShadowCells;
   float shade = 0.0;
   for (int i = 0; i < 32 + uNoUnroll; i++) {
     float d = (float(i) + jitter) / 32.0 * reach;
-    float above = heightAt(p - uSunDir * d) - (h0 + d / uShadowCells);
+    float above = blockerTop(heightsAt(p - uSunDir * d)) - (h0 + d / uShadowCells);
     shade = max(shade, smoothstep(0.02, 0.06 + d * 0.05, above));
   }
   outColor = vec4(shade * 0.85, 0.0, 0.0, 1.0);
