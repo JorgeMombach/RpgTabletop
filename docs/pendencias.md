@@ -215,7 +215,22 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Espalhar floresta cruzando uma parede: nenhuma árvore em cima dela.
 - [ ] Floresta + passada de água no meio: as plantas dentro da água somem ao soltar, pedras ficam. Ctrl+Z: a água sai e as plantas voltam.
 
+### Desempenho e estabilidade (bloco 2; [docs/design/desempenho.md](design/desempenho.md), medições em [docs/desempenho/](desempenho/README.md))
+- [ ] Zoom num mapa cheio (floresta, relevo, tochas, chuva à noite): a 60 quadros, sem travar. Afastando rápido, o mapa cobre a tela inteira (sem retângulo com a mesa em volta). Ao parar, fica nítido.
+- [ ] Zoom e logo depois clicar num token, arrastar o mapa, pôr uma tocha: tudo no lugar certo.
+- [ ] Ferramenta Objetos aberta: clicar, arrastar e as alças dos objetos funcionam como antes.
+- [ ] Deixar o fps cair (zoom rápido muitas vezes, relevo grande): a água e o vento continuam, ou voltam sozinhos em segundos.
+- [ ] Relevo e dunas perto de uma floresta: sem travar; as árvores sobem com o relevo logo depois do traço.
+- [ ] App instalado: mexer na água e no terreno por bastante tempo; acompanhar a memória no Gerenciador de Tarefas (não pode subir sem parar). Se o app fechar, mandar o `falhas.log` (pasta do app).
+- [ ] **No app empacotado:** o zoom e a memória como no navegador (a medição do agente foi no navegador do app de desenvolvimento).
+
 ## Pendências pequenas
+
+### Desempenho e estabilidade ([docs/design/desempenho.md](design/desempenho.md))
+- [ ] **Primeiro zoom depois de abrir a cena:** 2 ou 3 quadros de ~350–450 ms (só na primeira vez; os zooms seguintes saem lisos). Não é o desenho da placa (medido com espera da placa: nenhuma etapa passa de 30 ms) nem compilação; parece a composição das telas 2D do navegador na primeira escala nova. Investigar no perfil do navegador.
+- [ ] **Zoom: piores 5% em ~33 ms (meta era 25):** cada passo da rodinha ainda refaz o mapa no React (~20–30 ms). Caminho: no gesto, mexer só na escala do palco do Konva e passar a visão ao React ao parar.
+- [ ] **Pintar água várias vezes seguidas:** cada traço de água dá quadros de ~100 ms (a forma da água recalculada). Uma vez só (primeira água) está dentro da meta.
+- [ ] **Teste de desempenho:** editar arquivos de `client/src/bench/` ou de `shared/` no meio de uma medição recarrega a página ou reinicia o servidor de dev e a cena de teste fica para trás (apagar no painel de cenas).
 
 ### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
 - [ ] Token voando faz sombra como se estivesse no chão (o mapa de alturas guarda só o topo).

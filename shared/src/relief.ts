@@ -518,14 +518,14 @@ export function duneMask(chunks: ReliefChunks): DuneMask | null {
 /**
  * Altura do relevo (níveis) em qualquer ponto do mapa (casas): a bilinear do mesmo campo de `reliefHeights`, com os
  * pedaços guardados (cada um calculado na primeira leitura). Fora do alcance do relevo, 0. Para quem precisa da altura
- * no processador (o perfil das escadas).
+ * no processador (o perfil das escadas, o pé dos objetos). `cache`: alturas já calculadas para estes mesmos pedaços
+ * (`ReliefHeights` guarda entre traços).
  */
-export function reliefSampler(chunks: ReliefChunks): (x: number, y: number) => number {
+export function reliefSampler(chunks: ReliefChunks, cache = new Map<string, Float32Array | null>()): (x: number, y: number) => number {
   const cells = TERRAIN_CHUNK_SIDE / TERRAIN_FINE;
   const side = (cells + 2 * RELIEF_MARGIN) * RELIEF_PER_CELL + 1;
   const reach = Math.ceil(RELIEF_MARGIN / cells);
   const present = new Set(Object.keys(chunks));
-  const cache = new Map<string, Float32Array | null>();
   const heightsOf = (cx: number, cy: number): Float32Array | null => {
     const key = chunkKey(cx, cy);
     const known = cache.get(key);
@@ -555,3 +555,29 @@ export function reliefSampler(chunks: ReliefChunks): (x: number, y: number) => n
     return top + (bottom - top) * fy;
   };
 }
+
+/**
+ * Alturas do relevo guardadas entre traços (docs/design/desempenho.md): a altura de um pedaço leva de 7 a ~35 ms, e
+ * quem lê a altura a cada mudança do relevo (o pé dos objetos, as escadas) refazia todas no processador, travando o
+ * mapa. Aqui um traço não recalcula nada: fica a altura de antes até o Worker do relevo entregar a dos pedaços
+ * afetados (`accept`, o mesmo cálculo e o mesmo alcance de `reliefAffected`). Só pedaço nunca lido é calculado na hora.
+ */
+export class ReliefHeights {
+  private readonly cache = new Map<string, Float32Array | null>();
+
+  /** A altura em qualquer ponto para `chunks`, com as alturas guardadas. */
+  sampler(chunks: ReliefChunks): (x: number, y: number) => number {
+    return reliefSampler(chunks, this.cache);
+  }
+
+  /** A altura de um pedaço calculada pelo Worker do relevo. */
+  accept(key: string, heights: Float32Array) {
+    this.cache.set(key, heights);
+  }
+
+  /** Esquece tudo (troca de cena, relevo apagado): o próximo pedaço lido é calculado do zero. */
+  clear() {
+    this.cache.clear();
+  }
+}
+

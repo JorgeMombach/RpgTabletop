@@ -119,10 +119,9 @@ async function zoomScenario() {
 async function panScenario() {
   const content = stageContent();
   const start = centerOf(content);
+  // só eventos de ponteiro, como o navegador manda: com os de mouse juntos, o Konva arrastava duas vezes por passo
   const fire = (target: EventTarget, type: string, x: number, y: number) => {
-    const init = { clientX: x, clientY: y, bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", button: 0, buttons: type.endsWith("up") ? 0 : 1 };
-    target.dispatchEvent(new PointerEvent(type, init));
-    target.dispatchEvent(new MouseEvent(type.replace("pointer", "mouse"), init));
+    target.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", isPrimary: true, button: 0, buttons: type.endsWith("up") ? 0 : 1 }));
   };
   fire(content, "pointerdown", start.x, start.y);
   for (let step = 1; step <= 60; step++) {

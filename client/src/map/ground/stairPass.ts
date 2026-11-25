@@ -1,8 +1,9 @@
-import { reliefSampler, STAIR_LOOSE_BELOW, STAIR_SHAPES, stairLoose, stairPath, stairProfile, type ReliefChunks, type Stair, type StairShape } from "@rpg/shared";
+import { ReliefHeights, STAIR_LOOSE_BELOW, STAIR_SHAPES, stairLoose, stairPath, stairProfile, type ReliefChunks, type Stair, type StairShape } from "@rpg/shared";
 import { bindTextures, createTexture, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { faceLight, type SceneLight } from "./sceneLight";
 import { MAX_STAIR_PRIMS, MAX_STAIR_SEGMENTS, MAX_STAIRS, STAIR_PRIMS_AT, STAIR_ROW, STAIR_SEGMENTS_AT, stairFragment } from "./stairShader";
 import { FULLSCREEN_VERTEX } from "./terrainShader";
+import type { ReliefWindow } from "./reliefTypes";
 
 /** Sombra de um nível de relevo, em casas, por casa de sombra da cena (a mesma conta do relevo e das pontes). */
 const LEVEL_SHADOW = 1.6;
@@ -78,6 +79,10 @@ export class StairPass {
   private present = new Set<StairShape>();
   /** Alturas do relevo já calculadas: mudar só as escadas não refaz a conta (cara) do relevo. */
   private ground: { relief: ReliefChunks; groundAt: (x: number, y: number) => number } | null = null;
+  /** Alturas do relevo guardadas entre traços: só os pedaços perto do que mudou são refeitos (docs/design/desempenho.md). */
+  private readonly reliefHeights = new ReliefHeights();
+  /** As últimas escadas e relevo recebidos (para refazer o perfil quando as alturas do Worker chegam). */
+  private lastSet: { stairs: Stair[]; relief: ReliefChunks } | null = null;
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.triangle = vertexBuffer(gl, [-1, -1, 3, -1, -1, 3]);
@@ -99,11 +104,25 @@ export class StairPass {
     this.programs.warm(shape, () => stairFragment(shape));
   }
 
+  /** Alturas do relevo que o Worker entregou: o perfil das escadas segue a altura nova (docs/design/desempenho.md). */
+  acceptReliefHeights(windows: ReliefWindow[]) {
+    for (const window of windows) this.reliefHeights.accept(window.key, window.heights);
+    this.ground = null;
+    if (this.lastSet) this.setStairs(this.lastSet.stairs, this.lastSet.relief);
+  }
+
+  /** Relevo inteiro novo (troca de cena, relevo apagado): as alturas guardadas não valem mais. */
+  forgetReliefHeights() {
+    this.reliefHeights.clear();
+    this.ground = null;
+  }
+
   /** Escadas da cena e o relevo (o perfil segue a altura do chão ao longo da linha). */
   setStairs(stairs: Stair[], relief: ReliefChunks) {
     const { gl } = this;
+    this.lastSet = { stairs, relief };
     const list = stairs.slice(0, MAX_STAIRS);
-    if (this.ground?.relief !== relief) this.ground = { relief, groundAt: reliefSampler(relief) };
+    if (this.ground?.relief !== relief) this.ground = { relief, groundAt: this.reliefHeights.sampler(relief) };
     const { groundAt } = this.ground;
     const rows = Math.max(1, list.length);
     const pixels = new Float32Array(STAIR_ROW * 4 * rows);

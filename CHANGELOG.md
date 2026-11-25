@@ -22,6 +22,10 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 - **Pincel do terreno:** o círculo do pincel não aparece mais no modo retângulo e some quando o mouse sai do mapa (também no Relevo e no Piso).
 - **Água sem retângulo:** com água ou água profunda, só o pincel.
 - **Aba Construir:** ícone e texto dos botões centralizados.
+- **Zoom bem mais leve:** com muitos objetos no mapa, cada passo da rodinha travava (até meio segundo); agora o zoom anda a 60 quadros por segundo. Durante o gesto o mapa só estica, e o desenho nítido vem ao parar.
+- **Animações que paravam e não voltavam:** depois de uma queda de quadros (zoom, arrasto, relevo calculando), a água, o vento e as tochas paravam até recarregar a página. Agora trabalho pontual não conta, e se o aparelho estiver mesmo lento a animação tenta de novo sozinha depois de alguns segundos.
+- **Relevo perto de objetos:** pintar relevo ou dunas perto de uma floresta travava o mapa por um quarto de segundo a cada traço.
+- **App do mestre que fecha sozinho:** se a janela cair, ela volta sozinha e o jogo continua; o app anota a falha em `falhas.log` (na pasta dele) para diagnóstico.
 
 ## [2.14.0] - 2026-11-21
 

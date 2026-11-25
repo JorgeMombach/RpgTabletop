@@ -10,7 +10,7 @@ import { useWindStalled, watchFrame } from "../windStall";
 import { usePropDrag } from "../props/propDrag";
 import { useTokenDrag } from "../dragFollow";
 import type { TokenCaster } from "./shadowCasters";
-import { notifyEffectsDrawn, notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, notifyWeatherDrawn, setDrawnView, useDrawnBox, useGroundOutputs } from "./groundOutputs";
+import { notifyEffectsDrawn, notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, notifyWeatherDrawn, setDrawnView, useDrawnBox, useGroundOutputs, type DrawnView } from "./groundOutputs";
 import type { WeatherInput } from "../weather/weatherPass";
 import type { MapEffect } from "@rpg/shared";
 import type { FogInput } from "./fogPass";
@@ -35,6 +35,31 @@ const FRAME_MS = 33;
  * completo, na escala nova, sai este tempo depois do último passo.
  */
 export const ZOOM_SETTLE_MS = 150;
+/** Folga do desenho no meio do afastamento: cobre 1,4× a tela (uns três passos da rodinha). */
+const ZOOM_OUT_MARGIN = 1.4;
+
+/** As imagens desenhadas na visão `drawn` cobrem a tela inteira na visão atual. */
+function coversView(drawn: DrawnView, view: { x: number; y: number; scale: number }, size: { width: number; height: number }): boolean {
+  const drawnLeft = -drawn.x / drawn.scale;
+  const drawnTop = -drawn.y / drawn.scale;
+  const left = -view.x / view.scale;
+  const top = -view.y / view.scale;
+  const slack = 0.5 / view.scale;
+  return (
+    drawnLeft <= left + slack &&
+    drawnTop <= top + slack &&
+    drawnLeft + drawn.width / drawn.scale >= left + size.width / view.scale - slack &&
+    drawnTop + drawn.height / drawn.scale >= top + size.height / view.scale - slack
+  );
+}
+
+/** A mesma tela numa escala `ZOOM_OUT_MARGIN` vezes menor, com o mesmo centro: a área desenhada fica maior. */
+function widerView(view: GroundView): GroundView {
+  const scale = view.scale / ZOOM_OUT_MARGIN;
+  const centerX = (view.width / 2 - view.stageX) / view.scale;
+  const centerY = (view.height / 2 - view.stageY) / view.scale;
+  return { ...view, scale, stageX: view.width / 2 - centerX * scale, stageY: view.height / 2 - centerY * scale };
+}
 /** Espera depois da última mudança antes de recalcular a água (o mestre pintando em sequência). */
 const SETTLE_MS = 150;
 
@@ -598,12 +623,15 @@ export const GroundLayer = memo(function GroundLayer({
   }, []);
 
   // Quadro na hora: quando a visão, o tamanho, o terreno ou a água mudam (com a água parada, é o único desenho).
-  // Zoom (escala diferente da do último desenho): não desenha agora; um desenho completo ZOOM_SETTLE_MS depois do
-  // último passo. Arrasto e o resto: na hora.
+  // Zoom (escala diferente da do último desenho): as imagens prontas esticam e um desenho completo sai ZOOM_SETTLE_MS
+  // depois do último passo. Afastando, quando elas já não cobrem a tela, um desenho com folga (escala menor, área
+  // maior) cobre os próximos passos. Arrasto e o resto: na hora.
   useEffect(() => {
     if (!renderer) return;
     window.clearTimeout(zoomTimerRef.current);
     if (paintedScaleRef.current !== null && view.scale !== paintedScaleRef.current) {
+      const drawn = useGroundOutputs.getState().drawnView;
+      if (drawn && !coversView(drawn, view, size)) paint(renderer, widerView(groundView), timeRef.current, waterDraft);
       zoomingRef.current = true;
       zoomTimerRef.current = window.setTimeout(() => {
         zoomingRef.current = false;

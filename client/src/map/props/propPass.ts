@@ -1,7 +1,8 @@
-import { reliefSampler, type MapProp, type PropKind, type ReliefChunks } from "@rpg/shared";
+import { ReliefHeights, type MapProp, type PropKind, type ReliefChunks } from "@rpg/shared";
 import { bindTextures, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "../ground/glKit";
 import { faceLight, SCENE_LIGHT, type SceneLight } from "../ground/sceneLight";
 import { FULLSCREEN_VERTEX } from "../ground/terrainShader";
+import type { ReliefWindow } from "../ground/reliefTypes";
 import { CANOPY_BOTTOM } from "../ground/shadowCasters";
 import { PROP_EXTENT, PROP_TIERS, PropAtlas, propBounds, propRow, PROP_ROW_FLOATS, slotClassOf, type PropDrag, type PropSlot } from "./propLayout";
 import { PROP_DRAW_FRAGMENT, PROP_DRAW_VERTEX, PROP_EXTENTS, PROP_HEIGHT_FRAGMENT, propBakeFragment, SHAPED_KINDS } from "./propShader";
@@ -58,6 +59,10 @@ export class PropPass {
   private wind: { strength: number; direction: [number, number] } | null = null;
   /** Relevo já amostrado: mudar só os objetos não refaz a conta do relevo. */
   private ground: { relief: ReliefChunks; groundAt: (x: number, y: number) => number } | null = null;
+  /** Alturas do relevo guardadas entre traços: só os pedaços perto do que mudou são refeitos (docs/design/desempenho.md). */
+  private readonly reliefHeights = new ReliefHeights();
+  /** Os últimos objetos e relevo recebidos (para reassentar quando as alturas do Worker chegam). */
+  private lastSet: { props: MapProp[]; relief: ReliefChunks } | null = null;
   private frame = 0;
   /** Ícones do painel já desenhados (tipo|lado). */
   private readonly icons = new Map<string, HTMLCanvasElement>();
@@ -127,7 +132,8 @@ export class PropPass {
 
   /** Objetos da cena (só os tipos da placa) e o relevo (a base de cada um). */
   setProps(props: MapProp[], relief: ReliefChunks) {
-    if (this.ground?.relief !== relief) this.ground = { relief, groundAt: reliefSampler(relief) };
+    this.lastSet = { props, relief };
+    if (this.ground?.relief !== relief) this.ground = { relief, groundAt: this.reliefHeights.sampler(relief) };
     const { groundAt } = this.ground;
     this.placed = props
       .filter((prop) => GPU_PROP_KINDS.has(prop.kind))
@@ -136,6 +142,19 @@ export class PropPass {
         return { prop, base: Number.isFinite(level) ? level * LEVEL_HEIGHT : 0 };
       });
     this.version++;
+  }
+
+  /** Alturas do relevo que o Worker entregou: os objetos assentam na altura nova (docs/design/desempenho.md). */
+  acceptReliefHeights(windows: ReliefWindow[]) {
+    for (const window of windows) this.reliefHeights.accept(window.key, window.heights);
+    this.ground = null;
+    if (this.lastSet) this.setProps(this.lastSet.props, this.lastSet.relief);
+  }
+
+  /** Relevo inteiro novo (troca de cena, relevo apagado): as alturas guardadas não valem mais. */
+  forgetReliefHeights() {
+    this.reliefHeights.clear();
+    this.ground = null;
   }
 
   /** Copas com token embaixo: meio transparentes e paradas. */

@@ -325,6 +325,9 @@ export class GroundRenderer {
   setReliefWindows(windows: ReliefWindow[]) {
     if (this.gl.isContextLost()) return;
     this.relief.setWindows(windows);
+    // objetos e escadas assentam na altura nova sem refazer a conta no processador (docs/design/desempenho.md)
+    this.props.acceptReliefHeights(windows);
+    this.stairs.acceptReliefHeights(windows);
     this.terrainDirty = true;
   }
 
@@ -332,6 +335,10 @@ export class GroundRenderer {
   forgetRelief(keys: string[] | "all") {
     if (this.gl.isContextLost()) return;
     this.relief.forget(keys);
+    if (keys === "all") {
+      this.props.forgetReliefHeights();
+      this.stairs.forgetReliefHeights();
+    }
     this.terrainDirty = true;
   }
 
