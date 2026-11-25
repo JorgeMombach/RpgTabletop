@@ -26,9 +26,11 @@ const RELOAD_WINDOW_MS = 60_000;
  * versão, motivo e a memória do app, na pasta do app. Nada da partida vai para o disco nem sai do computador.
  */
 function logCrash(what: string) {
-  const memoryMb = Math.round(app.getAppMetrics().reduce((sum, metric) => sum + metric.memory.workingSetSize, 0) / 1024);
-  const line = `${new Date().toISOString()} v${APP_VERSION} ${what} (memória do app: ${memoryMb} MB)\n`;
   try {
+    // tudo aqui dentro: o registro é chamado também pelo vigia de erros do processo principal, e um erro dele mesmo
+    // (app ainda abrindo, sem disco) não pode voltar para lá
+    const memoryMb = Math.round(app.getAppMetrics().reduce((sum, metric) => sum + metric.memory.workingSetSize, 0) / 1024);
+    const line = `${new Date().toISOString()} v${APP_VERSION} ${what} (memória do app: ${memoryMb} MB)\n`;
     fs.mkdirSync(app.getPath("userData"), { recursive: true });
     fs.appendFileSync(path.join(app.getPath("userData"), "falhas.log"), line, "utf8");
   } catch {
