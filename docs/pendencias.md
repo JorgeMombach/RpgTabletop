@@ -243,6 +243,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Pendente conhecido: à noite a prévia da arandela aparece escurecida (fica na camada das tochas, abaixo da luz da cena).
 - [ ] Pendente conhecido: no painel escuro, os ícones de ferro ficam pouco visíveis; lanterna e lamparina pequenas.
 - [ ] Pendente conhecido: a fogueira branca sai bem estourada.
+- [ ] Pendente conhecido: desfazer a remoção de uma parede não traz de volta a arandela que saiu junto com ela.
 
 ### Mar (bloco 5; [docs/design/mar.md](design/mar.md))
 
