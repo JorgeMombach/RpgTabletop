@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fontes de luz</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #16130f; color: #e8dcc4; font: 14px "Segoe UI", sans-serif; }
+  header { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+  .group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .group b { margin-right: 6px; color: #c9a36a; }
+  button { background: #2a241c; color: #e8dcc4; border: 1px solid #5a4a33; border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  button.on { background: #8a6a3a; border-color: #c9a36a; color: #fff; }
+  #wrap { position: relative; margin: 0 16px 16px; border: 1px solid #3a3025; cursor: grab; }
+  #wrap canvas { display: block; width: 100%; }
+  #labels { position: absolute; inset: 0; pointer-events: none; }
+  #labels span { position: absolute; transform: translate(-50%, 0); font-size: 11px; color: #e8dcc4; text-shadow: 0 1px 2px #000, 0 0 4px #000; white-space: nowrap; }
+  p { margin: 0 16px 8px; color: #a8987c; }
+  #ms { color: #a8987c; }
+</style>
+</head>
+<body>
+<header>
+  <div class="group" id="light"><b>Luz</b><button data-v="day">Dia</button><button data-v="dusk">Entardecer</button><button data-v="night" class="on">Noite</button></div>
+  <div class="group" id="color"><b>Cor</b><button data-v="0" class="on">Chama</button><button data-v="1">Azul</button><button data-v="2">Verde</button><button data-v="3">Roxo</button><button data-v="4">Branco</button><button data-v="all">Todas</button></div>
+  <div class="group" id="zoom"><b>Zoom</b><button data-v="1" class="on">Normal</button><button data-v="2.5">Perto</button><button data-v="6">Bem de perto</button></div>
+  <div class="group" id="reduce"><b>Efeitos</b><button data-v="0" class="on">Animado</button><button data-v="1">Reduzir efeitos</button></div>
+  <span id="ms"></span>
+</header>
+<p>Os dez modelos sobre um piso de lajes, desenhados ponto a ponto (madeira, ferro, latão, cera, vidro, cristal, brasa), com a luz da cena de um lado, contorno fino e a chama animada na cor escolhida. A luz no chão tem o alcance de cada modelo (vela 20 ft, fogueira 60 ft). À direita, uma sala com uma arandela em cada parede: a luz fica do lado de dentro. Arraste para andar; o grid é de 5 ft.</p>
+<div id="wrap"><canvas id="view"></canvas><div id="labels"></div></div>
+<script>
+const FRAGMENT = `#version 300 es
+precision highp float;
+out vec4 outColor;
+uniform vec2 uOrigin;      // casa no canto de cima à esquerda
+uniform float uPx;         // pixels por casa
+uniform float uDpr, uHeight, uTime, uReduce;
+uniform vec3 uSun, uSunCol, uAmb;
+uniform float uLightWeight; // quanto a luz das fontes pesa (dia pouco, noite tudo)
+uniform int uCount;
+uniform vec4 uA[64];       // col, row, tamanho, direção (arandela, radianos)
+uniform vec4 uB[64];       // modelo, cor, semente, alcance (casas)
+uniform int uWallCount;
+uniform vec4 uW[8];        // paredes: x1, y1, x2, y2
+
+const float TAU = 6.2831853;
+float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec2 hash22(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }
+float vnoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash12(i), hash12(i + vec2(1, 0)), u.x), mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), u.x), u.y);
+}
+float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + 17.1; a *= 0.5; } return s / 0.9375; }
+float sdBox(vec2 p, vec2 b) { vec2 d = abs(p) - b; return -(length(max(d, 0.0)) + min(max(d.x, d.y), 0.0)); }
+float sdSegment(vec2 p, vec2 a, vec2 b, float w) { vec2 pa = p - a, ba = b - a; float t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return w - length(pa - ba * t); }
+float sdEllipse(vec2 p, vec2 r) { return (1.0 - length(p / r)) * min(r.x, r.y); }
+float roundness(float sd, float r) { return sqrt(clamp(sd / r, 0.0, 1.0)); }
+float clock() { return uTime * (1.0 - uReduce); }
+
+// ---------- cores da luz (chama, azul, verde, roxo, branco): borda, meio e miolo da chama ----------
+vec3 flameTint(int c, float t) {
+  vec3 edge, mid, core;
+  if (c == 0) { edge = vec3(0.86, 0.24, 0.04); mid = vec3(1.0, 0.6, 0.17); core = vec3(1.0, 0.95, 0.78); }
+  else if (c == 1) { edge = vec3(0.07, 0.22, 0.9); mid = vec3(0.3, 0.64, 1.0); core = vec3(0.88, 0.97, 1.0); }
+  else if (c == 2) { edge = vec3(0.04, 0.55, 0.16); mid = vec3(0.36, 1.0, 0.46); core = vec3(0.88, 1.0, 0.86); }
+  else if (c == 3) { edge = vec3(0.38, 0.07, 0.76); mid = vec3(0.74, 0.4, 1.0); core = vec3(0.97, 0.89, 1.0); }
+  else { edge = vec3(0.5, 0.62, 0.88); mid = vec3(0.84, 0.91, 1.0); core = vec3(1.0); }
+  return t < 0.5 ? mix(edge, mid, t * 2.0) : mix(mid, core, (t - 0.5) * 2.0);
+}
+vec3 lightRgb(int c) { return flameTint(c, 0.62); }
+
+// ---------- superfície das peças ----------
+// sd > 0 = dentro (unidades do objeto); h = altura (no desenho em 3/4, mais alto = mais para cima na tela).
+struct Hit { float sd; float h; int mat; vec2 uv; float tone; };
+Hit none() { return Hit(-1e3, 0.0, 0, vec2(0.0), 0.0); }
+void take(inout Hit o, float sd, float h, int mat, vec2 uv, float tone) {
+  bool inside = sd > 0.0, was = o.sd > 0.0;
+  if ((inside && (!was || h > o.h)) || (!inside && !was && sd > o.sd)) { o.h = h; o.mat = mat; o.uv = uv; o.tone = tone; }
+  o.sd = max(o.sd, sd);
+}
+// materiais
+const int WOOD = 0, IRON = 1, STONE = 2, BRASS = 3, WAX = 4, GLASS = 5, CRYSTAL = 6, EMBER = 7, CLOTH = 8, CLAY = 9;
+
+Hit modelStick(vec2 q, float seed) {
+  Hit o = none();
+  take(o, sdEllipse(q - vec2(0.0, 0.4), vec2(0.11, 0.05)), 0.04, STONE, q * 9.0, 0.25);
+  float shaft = sdSegment(q, vec2(0.0, 0.4), vec2(0.0, -0.15), 0.036 + 0.005 * sin(q.y * 37.0 + seed));
+  take(o, shaft, 0.25 + (0.4 - q.y) * 1.25 + 0.08 * roundness(shaft, 0.04), WOOD, vec2(q.x * 26.0, q.y * 2.5 + seed), 0.5);
+  vec2 w = q - vec2(0.0, -0.19);
+  float wrap = sdEllipse(w, vec2(0.072, 0.085));
+  take(o, wrap, 1.05 + 0.12 * roundness(wrap, 0.07), CLOTH, w * 15.0, fract(seed * 0.37));
+  return o;
+}
+Hit modelIron(vec2 q, float seed) {
+  Hit o = none();
+  for (int i = 0; i < 3; i++) {
+    float a = float(i) * 2.094 + 0.6;
+    vec2 foot = vec2(0.0, 0.4) + vec2(cos(a) * 0.17, sin(a) * 0.06);
+    float leg = sdSegment(q, vec2(0.0, 0.33), foot, 0.017);
+    take(o, leg, 0.1 + 0.05 * roundness(leg, 0.017), IRON, q * 12.0, 0.35);
+  }
+  float rod = sdSegment(q, vec2(0.0, 0.35), vec2(0.0, -0.12), 0.024);
+  take(o, rod, 0.2 + (0.35 - q.y) * 1.6 + 0.06 * roundness(rod, 0.024), IRON, vec2(q.x * 30.0, q.y * 4.0), 0.45);
+  vec2 b = q - vec2(0.0, -0.17);
+  float bowl = sdEllipse(b, vec2(0.12, 0.07));
+  float bars = smoothstep(0.55, 0.9, abs(sin(atan(b.y, b.x * 1.7) * 5.0)));
+  take(o, bowl, 1.0 + 0.1 * roundness(bowl, 0.06), IRON, b * 10.0, 0.4 + 0.4 * bars);
+  take(o, sdEllipse(b + vec2(0.0, 0.01), vec2(0.085, 0.04)), 1.14, EMBER, b * 34.0 + seed, 0.0);
+  return o;
+}
+Hit modelBrazier(vec2 q, float seed) {
+  Hit o = none();
+  for (int i = 0; i < 3; i++) {
+    float x = float(i - 1) * 0.27;
+    float leg = sdSegment(q, vec2(x * 0.85, 0.1), vec2(x * 1.12, 0.34 - abs(x) * 0.1), 0.03);
+    take(o, leg, 0.12 + 0.05 * roundness(leg, 0.03), IRON, q * 10.0, 0.35);
+  }
+  float bowl = sdEllipse(q, vec2(0.41, 0.26));
+  take(o, bowl, 0.48 + 0.1 * roundness(bowl, 0.08), IRON, q * 7.0, 0.45 + 0.4 * (1.0 - smoothstep(0.0, 0.045, bowl)));
+  take(o, sdEllipse(q + vec2(0.0, 0.015), vec2(0.33, 0.19)) + (vnoise(q * 30.0 + seed) - 0.5) * 0.02, 0.6, EMBER, q * 26.0 + seed, 0.0);
+  return o;
+}
+// arandela: a parede fica atrás (y negativo), o braço sai para +y
+Hit modelSconce(vec2 q, float seed) {
+  Hit o = none();
+  float plate = sdBox(q - vec2(0.0, -0.05), vec2(0.1, 0.035));
+  take(o, plate, 1.45 + 0.05 * roundness(plate, 0.03), IRON, q * 14.0, 0.4 + 0.3 * step(0.03, abs(abs(q.x) - 0.06)));
+  float arm = sdSegment(q, vec2(0.0, -0.03), vec2(0.0, 0.15), 0.02);
+  take(o, arm, 1.5 + 0.05 * roundness(arm, 0.02), IRON, q * 20.0, 0.5);
+  vec2 c = q - vec2(0.0, 0.19);
+  float cup = 0.066 - length(c);
+  take(o, cup, 1.6 + 0.06 * roundness(cup, 0.06), IRON, c * 18.0, 0.55);
+  float wrap = 0.046 - length(c);
+  take(o, wrap, 1.72 + 0.06 * roundness(wrap, 0.045), CLOTH, c * 22.0, fract(seed * 0.71));
+  return o;
+}
+Hit modelCampfire(vec2 q, float seed) {
+  Hit o = none();
+  // brasa no meio, mais baixa que as toras
+  take(o, (0.21 - length(q * vec2(1.0, 1.15))) + (vnoise(q * 18.0 + seed) - 0.5) * 0.03, 0.08, EMBER, q * 20.0 + seed, 0.0);
+  // pedras em volta
+  for (int i = 0; i < 10; i++) {
+    float fi = float(i);
+    vec2 r = hash22(vec2(seed, fi * 3.7));
+    float a = fi * TAU / 10.0 + r.x * 0.3;
+    vec2 c = vec2(cos(a), sin(a)) * vec2(0.36, 0.3);
+    vec2 d = q - c;
+    float rad = 0.075 + 0.03 * r.y;
+    float stone = rad - length(d * vec2(1.0, 1.25)) + (vnoise(d * 30.0 + fi) - 0.5) * 0.02;
+    take(o, stone, 0.12 + 0.1 * roundness(stone, rad), STONE, d * 12.0 + fi, r.y);
+  }
+  // toras cruzadas, chamuscadas no meio
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float a = 0.35 + fi * 1.05 + (hash12(vec2(seed, fi)) - 0.5) * 0.3;
+    vec2 dir = vec2(cos(a), sin(a) * 0.82);
+    float log = sdSegment(q, -dir * 0.26, dir * 0.26, 0.048);
+    float along = dot(q, dir) / 0.26;
+    take(o, log, 0.18 + fi * 0.04 + 0.07 * roundness(log, 0.048), WOOD, vec2(along * 3.0 + fi, dot(q, vec2(-dir.y, dir.x)) * 40.0), 0.35 + 0.5 * smoothstep(0.15, 0.6, abs(along)));
+  }
+  return o;
+}
+Hit modelLantern(vec2 q, float seed) {
+  Hit o = none();
+  float base = sdBox(q - vec2(0.0, 0.16), vec2(0.115, 0.03));
+  take(o, base, 0.15 + 0.04 * roundness(base, 0.03), IRON, q * 14.0, 0.4);
+  float glass = sdBox(q - vec2(0.0, -0.01), vec2(0.085, 0.145));
+  take(o, glass, 0.45 + 0.05 * roundness(glass, 0.06), GLASS, q, 0.0);
+  for (int i = 0; i < 2; i++) {
+    float x = i == 0 ? -0.088 : 0.088;
+    float post = sdBox(q - vec2(x, -0.01), vec2(0.016, 0.155));
+    take(o, post, 0.6 + 0.04 * roundness(post, 0.016), IRON, q * 20.0, 0.5);
+  }
+  float band = sdBox(q - vec2(0.0, 0.05), vec2(0.09, 0.008));
+  take(o, band, 0.58, IRON, q * 20.0, 0.45);
+  float cap = sdBox(q - vec2(0.0, -0.18), vec2(0.115, 0.03));
+  take(o, cap, 0.85 + 0.04 * roundness(cap, 0.03), IRON, q * 14.0, 0.5);
+  float roof = sdBox(q - vec2(0.0, -0.225), vec2(0.06 - (-0.205 - q.y) * 0.5, 0.025));
+  take(o, roof, 0.95, IRON, q * 14.0, 0.55);
+  float handle = 0.011 - abs(length((q - vec2(0.0, -0.26)) * vec2(1.0, 1.3)) - 0.055);
+  take(o, q.y < -0.255 ? handle : -1.0, 1.0, IRON, q * 20.0, 0.6);
+  return o;
+}
+Hit modelCandles(vec2 q, float seed) {
+  Hit o = none();
+  float dish = sdEllipse(q - vec2(0.0, 0.15), vec2(0.3, 0.12));
+  take(o, dish, 0.06 + 0.06 * roundness(dish, 0.06), BRASS, q * 9.0, 0.5 + 0.4 * (1.0 - smoothstep(0.0, 0.03, dish)));
+  for (int i = 0; i < 3; i++) {
+    float fi = float(i);
+    float x = (fi - 1.0) * 0.14 + (hash12(vec2(seed, fi)) - 0.5) * 0.03;
+    float tall = 0.14 + 0.14 * hash12(vec2(fi * 2.3, seed + 1.0));
+    float bottom = 0.15 - abs(fi - 1.0) * 0.02;
+    vec2 c = q - vec2(x, bottom - tall * 0.5);
+    float body = sdBox(c, vec2(0.04, tall * 0.5));
+    take(o, body, 0.2 + (bottom - q.y) * 2.2 + 0.05 * roundness(body, 0.04), WAX, vec2(c.x * 25.0, c.y * 8.0), fi * 0.3);
+    float top = sdEllipse(q - vec2(x, bottom - tall), vec2(0.04, 0.015));
+    take(o, top, 0.21 + tall * 2.2 + 0.02, WAX, q * 30.0, 0.95);
+  }
+  return o;
+}
+Hit modelCandelabra(vec2 q, float seed) {
+  Hit o = none();
+  float base = sdEllipse(q - vec2(0.0, 0.41), vec2(0.17, 0.06));
+  take(o, base, 0.08 + 0.06 * roundness(base, 0.05), BRASS, q * 9.0, 0.5);
+  float stem = sdSegment(q, vec2(0.0, 0.41), vec2(0.0, -0.18), 0.022 + 0.01 * smoothstep(0.02, 0.0, abs(q.y - 0.12)));
+  take(o, stem, 0.2 + (0.41 - q.y) * 2.2 + 0.05 * roundness(stem, 0.022), BRASS, vec2(q.x * 30.0, q.y * 4.0), 0.55);
+  for (int i = 0; i < 2; i++) {
+    float s = i == 0 ? -1.0 : 1.0;
+    float arm = sdSegment(q, vec2(0.0, -0.06), vec2(s * 0.25, -0.17), 0.015);
+    take(o, arm, 1.45 + 0.03 * roundness(arm, 0.015), BRASS, q * 20.0, 0.55);
+    float inner = sdSegment(q, vec2(0.0, -0.1), vec2(s * 0.125, -0.18), 0.013);
+    take(o, inner, 1.5 + 0.03 * roundness(inner, 0.013), BRASS, q * 20.0, 0.55);
+  }
+  for (int i = 0; i < 5; i++) {
+    float x = (float(i) - 2.0) * 0.125;
+    float y = -0.18 - (i == 2 ? 0.05 : 0.0);
+    vec2 c = q - vec2(x, y);
+    float cup = sdEllipse(c, vec2(0.036, 0.018));
+    take(o, cup, 1.6 + 0.03 * roundness(cup, 0.015), BRASS, c * 30.0, 0.7);
+    float candle = sdBox(c - vec2(0.0, -0.05), vec2(0.018, 0.045));
+    take(o, candle, 1.65 + (-c.y) * 2.0 + 0.03 * roundness(candle, 0.018), WAX, vec2(c.x * 40.0, c.y * 10.0), 0.4);
+  }
+  return o;
+}
+Hit modelOilLamp(vec2 q, float seed) {
+  Hit o = none();
+  float handle = 0.016 - abs(length((q - vec2(-0.22, 0.02)) * vec2(1.0, 1.2)) - 0.05);
+  take(o, q.x < -0.2 ? handle : -1.0, 0.25 + 0.05 * roundness(handle, 0.016), CLAY, q * 12.0, 0.4);
+  float body = sdEllipse(q - vec2(-0.03, 0.02), vec2(0.19, 0.11));
+  take(o, body, 0.2 + 0.18 * roundness(body, 0.1), CLAY, q * 8.0, 0.55);
+  float spout = sdSegment(q, vec2(0.08, 0.01), vec2(0.23, -0.02), 0.045 - (q.x - 0.08) * 0.08);
+  take(o, spout, 0.28 + 0.06 * roundness(spout, 0.04), CLAY, q * 8.0, 0.6);
+  float hole = sdEllipse(q - vec2(-0.03, 0.0), vec2(0.04, 0.025));
+  take(o, hole, 0.39, CLAY, q * 8.0, 0.05);
+  return o;
+}
+Hit modelOrb(vec2 q, float seed) {
+  Hit o = none();
+  float base = sdBox(q - vec2(0.0, 0.33), vec2(0.14, 0.04));
+  take(o, base, 0.1 + 0.05 * roundness(base, 0.04), STONE, q * 10.0, 0.45);
+  float column = sdBox(q - vec2(0.0, 0.16), vec2(0.065 - (0.3 - q.y) * 0.03, 0.15));
+  take(o, column, 0.3 + (0.31 - q.y) * 1.6 + 0.08 * roundness(column, 0.06), STONE, vec2(q.x * 12.0, q.y * 3.0), 0.55);
+  float cradle = sdEllipse(q - vec2(0.0, 0.01), vec2(0.13, 0.045));
+  take(o, cradle, 0.85 + 0.05 * roundness(cradle, 0.04), BRASS, q * 14.0, 0.6);
+  float orb = 0.15 - length(q - vec2(0.0, -0.12));
+  take(o, orb, 1.0 + 0.2 * roundness(orb, 0.15), CRYSTAL, q - vec2(0.0, -0.12), 0.0);
+  return o;
+}
+
+Hit modelAt(int kind, vec2 q, float seed) {
+  if (kind == 0) return modelStick(q, seed);
+  if (kind == 1) return modelIron(q, seed);
+  if (kind == 2) return modelBrazier(q, seed);
+  if (kind == 3) return modelSconce(q, seed);
+  if (kind == 4) return modelCampfire(q, seed);
+  if (kind == 5) return modelLantern(q, seed);
+  if (kind == 6) return modelCandles(q, seed);
+  if (kind == 7) return modelCandelabra(q, seed);
+  if (kind == 8) return modelOilLamp(q, seed);
+  return modelOrb(q, seed);
+}
+
+// Chamas de cada modelo (base da chama, unidades do objeto): x, y, tamanho, tremor. Até 5.
+int flameCount(int kind) { return kind == 2 ? 3 : kind == 4 ? 4 : kind == 6 ? 3 : kind == 7 ? 5 : kind == 9 ? 0 : 1; }
+vec4 flameOf(int kind, int i, float seed) {
+  if (kind == 0) return vec4(0.0, -0.22, 0.34, 1.0);
+  if (kind == 1) return vec4(0.0, -0.2, 0.34, 1.0);
+  if (kind == 2) return i == 0 ? vec4(-0.14, -0.02, 0.26, 1.0) : i == 1 ? vec4(0.12, 0.01, 0.24, 1.0) : vec4(0.0, -0.07, 0.32, 1.0);
+  if (kind == 3) return vec4(0.0, 0.17, 0.32, 1.0);
+  if (kind == 4) return i == 0 ? vec4(0.0, 0.02, 0.5, 1.3) : i == 1 ? vec4(-0.11, 0.06, 0.34, 1.2) : i == 2 ? vec4(0.11, 0.05, 0.36, 1.2) : vec4(0.03, -0.05, 0.3, 1.1);
+  if (kind == 5) return vec4(0.0, 0.05, 0.13, 0.4);
+  if (kind == 6) {
+    float fi = float(i);
+    float x = (fi - 1.0) * 0.14 + (hash12(vec2(seed, fi)) - 0.5) * 0.03;
+    float tall = 0.14 + 0.14 * hash12(vec2(fi * 2.3, seed + 1.0));
+    float bottom = 0.15 - abs(fi - 1.0) * 0.02;
+    return vec4(x, bottom - tall - 0.01, 0.13, 0.6);
+  }
+  if (kind == 7) { float x = (float(i) - 2.0) * 0.125; return vec4(x, -0.18 - (i == 2 ? 0.05 : 0.0) - 0.095, 0.12, 0.6); }
+  return vec4(0.25, -0.03, 0.28, 0.8);
+}
+// De onde sai a luz (unidades do objeto) e a altura dela (casas): mesma tabela do design.
+vec3 lightOf(int kind) {
+  if (kind == 9) return vec3(0.0, -0.12, 1.0);
+  vec4 f = flameOf(kind, 0, 0.0);
+  float h = kind == 0 ? 1.2 : kind == 1 ? 1.6 : kind == 2 ? 0.6 : kind == 3 ? 1.8 : kind == 4 ? 0.4 : kind == 5 ? 1.0 : kind == 6 ? 0.8 : kind == 7 ? 1.7 : 0.7;
+  return vec3(f.x, kind == 6 || kind == 7 ? 0.0 : f.y, h);
+}
+// tremor: 0 chama, 1 pouco (lanterna, lamparina), 2 pulso (orbe)
+float flickerOf(int kind, float seed) {
+  float t = clock();
+  if (kind == 9) return 0.82 + 0.18 * sin(t * 1.7 + seed);
+  if (kind == 5 || kind == 8) return 0.95 + 0.05 * vnoise(vec2(t * 5.0, seed));
+  float strong = kind == 4 ? 0.2 : kind == 6 || kind == 7 ? 0.1 : 0.15;
+  return 1.0 - strong + strong * (vnoise(vec2(t * 7.0, seed)) * 0.7 + vnoise(vec2(t * 17.0, seed * 1.3)) * 0.3);
+}
+
+// Base local → mundo (a arandela gira; os outros, não).
+vec2 toWorld(vec4 A, int kind, vec2 local) {
+  if (kind != 3) return A.xy + local * A.z;
+  vec2 out_ = vec2(cos(A.w), sin(A.w)), side = vec2(-out_.y, out_.x);
+  return A.xy + (local.x * side + local.y * out_) * A.z;
+}
+vec2 toLocal(vec4 A, int kind, vec2 p) {
+  vec2 d = (p - A.xy) / A.z;
+  if (kind != 3) return d;
+  vec2 out_ = vec2(cos(A.w), sin(A.w)), side = vec2(-out_.y, out_.x);
+  return vec2(dot(d, side), dot(d, out_));
+}
+
+// Chama vista de cima em 3/4: gota que sobe na tela, com línguas e balanço. Devolve (corpo, miolo).
+vec2 flameShape(vec2 d, float size, float seed, float wobble) {
+  float t = clock();
+  vec2 u = d / size;
+  float y = -u.y;                       // 0 na base, 1 na ponta
+  u.x -= (vnoise(vec2(seed * 3.1, t * 2.6)) - 0.5) * 0.4 * wobble * max(y, 0.0) * max(y, 0.0);
+  float tip = 1.0 + 0.14 * wobble * (vnoise(vec2(t * 8.0, seed * 7.0)) - 0.5);
+  float width = 0.3 * pow(clamp(1.0 - y / tip, 0.0, 1.0), 0.75) * smoothstep(-0.32, 0.12, y);
+  float body = y < 0.08 ? 0.25 - length(vec2(u.x, (y - 0.08) * 1.25)) : width - abs(u.x);
+  body += (vnoise(vec2(u.x * 7.0 + seed, y * 5.0 - t * 7.0)) - 0.5) * 0.1 * clamp(y, 0.0, 1.0) * wobble;
+  // acima da ponta não há chama (sem isso o tremor da borda acendia pontinhos soltos numa coluna acima dela)
+  body = min(body, (tip - y) * 0.6);
+  float inside = smoothstep(0.0, 0.05, body);
+  float core = smoothstep(0.03, 0.17, body) * (1.0 - smoothstep(0.35, 0.85, y));
+  return vec2(inside, core);
+}
+
+// ---------- chão: lajes de pedra e as paredes da sala ----------
+vec3 flagstone(vec2 p, out float grout) {
+  vec2 cell = p * 1.6;
+  vec2 i = floor(cell), f = fract(cell);
+  float d1 = 9.0, d2 = 9.0; vec2 id = vec2(0.0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 o = vec2(x, y), r = o + 0.2 + 0.6 * hash22(i + o) - f;
+    float d = dot(r, r);
+    if (d < d1) { d2 = d1; d1 = d; id = i + o; } else if (d < d2) d2 = d;
+  }
+  float edge = sqrt(d2) - sqrt(d1);
+  grout = 1.0 - smoothstep(0.02, 0.06, edge + (vnoise(p * 14.0) - 0.5) * 0.03);
+  float tone = hash12(id);
+  vec3 c = mix(vec3(0.42, 0.39, 0.35), vec3(0.52, 0.48, 0.42), tone) * (0.82 + 0.3 * fbm(p * 2.2 + tone * 9.0));
+  c *= 0.92 + 0.12 * vnoise(p * 23.0);
+  return mix(c, vec3(0.2, 0.18, 0.16), grout * 0.7);
+}
+float wallSd(vec2 p) {
+  float sd = -1e3;
+  for (int i = 0; i < 8; i++) { if (i >= uWallCount) break; sd = max(sd, sdSegment(p, uW[i].xy, uW[i].zw, 0.11)); }
+  return sd;
+}
+bool crossesWall(vec2 a, vec2 b) {
+  for (int i = 0; i < 8; i++) {
+    if (i >= uWallCount) break;
+    vec2 c = uW[i].xy, d = uW[i].zw;
+    vec2 r = b - a, s = d - c;
+    float den = r.x * s.y - r.y * s.x;
+    if (abs(den) < 1e-6) continue;
+    vec2 ac = c - a;
+    float t = (ac.x * s.y - ac.y * s.x) / den, u = (ac.x * r.y - ac.y * r.x) / den;
+    if (t > 0.02 && t < 0.98 && u >= 0.0 && u <= 1.0) return true;
+  }
+  return false;
+}
+
+// Luz das fontes num ponto (pos em casas, z = altura; n = normal).
+vec3 sourcesLight(vec3 pos, vec3 n) {
+  vec3 sum = vec3(0.0);
+  for (int i = 0; i < 64; i++) {
+    if (i >= uCount) break;
+    vec4 A = uA[i], B = uB[i];
+    int kind = int(B.x);
+    vec3 at = lightOf(kind);
+    vec2 origin = toWorld(A, kind, at.xy);
+    vec2 delta = pos.xy - origin;
+    float dist = length(delta);
+    float reach = B.w;
+    if (dist > reach) continue;
+    // arandela: só o lado de dentro
+    if (kind == 3) {
+      vec2 out_ = vec2(cos(A.w), sin(A.w));
+      if (dot(pos.xy - A.xy, out_) < -0.05) continue;
+    }
+    if (uWallCount > 0 && crossesWall(origin + normalize(delta + 1e-5) * 0.05, pos.xy)) continue;
+    vec3 l = vec3(origin, at.z) - pos;
+    float lambert = max(dot(n, normalize(l)), 0.0);
+    // forte até a metade do alcance, meia-luz até o fim (como a tocha do app)
+    float fall = mix(1.0, 0.45, smoothstep(0.35, 0.55, dist / reach)) * (1.0 - smoothstep(0.75, 1.0, dist / reach));
+    float near = exp(-dist * dist * 0.14);
+    sum += lightRgb(int(B.y)) * flickerOf(kind, B.z) * (fall * 0.6 + near * 1.0) * (0.35 + 0.65 * lambert);
+  }
+  // muitas luzes juntas não estouram
+  return sum / (1.0 + 0.35 * length(sum)) * uLightWeight;
+}
+
+vec3 albedo(Hit o, int color, float seed) {
+  if (o.mat == WOOD) {
+    float grain = vnoise(vec2(o.uv.x * 0.6, o.uv.y * 14.0)) * 0.6 + vnoise(vec2(o.uv.x * 1.5, o.uv.y * 40.0)) * 0.4;
+    vec3 c = vec3(0.45, 0.3, 0.17) * (0.72 + 0.4 * grain);
+    return mix(c, vec3(0.08, 0.06, 0.05), smoothstep(0.55, 0.85, o.tone) * 0.85);
+  }
+  if (o.mat == IRON) return vec3(0.2, 0.2, 0.22) * (0.75 + 0.5 * o.tone) * (0.85 + 0.3 * vnoise(o.uv * 6.0));
+  if (o.mat == STONE) return vec3(0.5, 0.48, 0.44) * (0.75 + 0.35 * o.tone) * (0.8 + 0.35 * fbm(o.uv * 0.8));
+  if (o.mat == BRASS) return vec3(0.66, 0.47, 0.2) * (0.75 + 0.4 * o.tone) * (0.88 + 0.2 * vnoise(o.uv * 4.0));
+  if (o.mat == WAX) return vec3(0.9, 0.84, 0.68) * (0.85 + 0.15 * o.tone) * (0.92 + 0.1 * vnoise(o.uv * 3.0));
+  if (o.mat == CLOTH) {
+    float bands = abs(sin(o.uv.y * 2.2 + o.uv.x * 0.8 + o.tone * 6.0));
+    return mix(vec3(0.32, 0.25, 0.18), vec3(0.12, 0.09, 0.07), 0.5 + 0.4 * bands * vnoise(o.uv * 2.0));
+  }
+  if (o.mat == CLAY) return vec3(0.6, 0.36, 0.22) * (0.7 + 0.45 * o.tone) * (0.86 + 0.25 * fbm(o.uv * 1.5));
+  return vec3(0.1, 0.08, 0.07);
+}
+// Brilho próprio: brasa, vidro da lanterna, cristal.
+vec3 glowOf(Hit o, int color, float seed, float flick) {
+  float t = clock();
+  if (o.mat == EMBER) {
+    float cracks = smoothstep(0.45, 0.8, vnoise(o.uv * 0.5 + t * 0.3) * 0.6 + vnoise(o.uv * 1.3 - t * 0.2) * 0.4);
+    return flameTint(color, 0.2 + 0.4 * cracks) * (0.25 + 1.3 * cracks) * flick;
+  }
+  if (o.mat == GLASS) {
+    float center = 1.0 - smoothstep(0.0, 0.16, length(o.uv - vec2(0.0, 0.03)));
+    return flameTint(color, 0.35 + 0.4 * center) * (0.55 + 0.9 * center) * flick;
+  }
+  if (o.mat == CRYSTAL) {
+    vec2 u = o.uv / 0.15;
+    float swirl = vnoise(vec2(atan(u.y, u.x) * 1.5 + t * 0.6, length(u) * 3.0 - t * 0.4));
+    float core = 1.0 - smoothstep(0.0, 0.9, length(u - vec2(-0.15, -0.2)));
+    return flameTint(color, 0.3 + 0.5 * core + 0.2 * swirl) * (0.6 + 1.1 * core + 0.3 * swirl) * flick;
+  }
+  return vec3(0.0);
+}
+
+void main() {
+  vec2 frag = vec2(gl_FragCoord.x, uHeight - gl_FragCoord.y);
+  vec2 p = uOrigin + frag / uPx;
+  float inkW = 1.15 * uDpr;
+
+  // chão e paredes
+  float grout;
+  vec3 col = flagstone(p, grout);
+  vec2 g = min(fract(p), 1.0 - fract(p)) * uPx;
+  col *= 1.0 - 0.22 * (1.0 - smoothstep(0.4 * uDpr, 1.2 * uDpr, min(g.x, g.y)));
+  vec3 n = vec3(0.0, 0.0, 1.0);
+  float wall = uWallCount > 0 ? wallSd(p) : -1.0;
+  float ao = 1.0;
+  if (wall > 0.0) {
+    vec3 stone = vec3(0.36, 0.34, 0.31) * (0.8 + 0.35 * fbm(p * 4.0));
+    float course = smoothstep(0.85, 1.0, abs(sin(p.x * 6.0 + p.y * 6.0)));
+    col = stone * (1.0 - 0.3 * course);
+  } else if (uWallCount > 0) ao *= 1.0 - 0.35 * exp(-max(-wall, 0.0) * 14.0);
+  vec3 ground = col * ao;
+  col = ground * (uAmb + uSunCol * uSun.z) + ground * sourcesLight(vec3(p, wall > 0.0 ? 2.0 : 0.0), n);
+  // topo da parede: sempre um pouco visível (no app quem desenha é o passo das paredes)
+  if (wall > 0.0) col = max(col, ground * 0.32) + vec3(0.04) * smoothstep(0.0, 0.03, wall);
+
+  // as peças (em ordem: as de baixo na tela por cima)
+  for (int i = 0; i < 64; i++) {
+    if (i >= uCount) break;
+    vec4 A = uA[i], B = uB[i];
+    int kind = int(B.x);
+    vec2 q = toLocal(A, kind, p);
+    if (length(q) > 0.62) continue;
+    Hit o = modelAt(kind, q, B.z);
+    float px = o.sd * A.z * uPx;
+    // sombra de contato no chão em volta do pé
+    if (px < -1.0) { col *= 1.0 - 0.18 * exp(-max(-o.sd, 0.0) * 22.0); continue; }
+    float e = 1.0 / (uPx * A.z);
+    float hx = modelAt(kind, q + vec2(e, 0.0), B.z).h;
+    float hy = modelAt(kind, q + vec2(0.0, e), B.z).h;
+    vec2 grad = vec2(hx - o.h, hy - o.h) / e;
+    float steep = length(grad);
+    vec2 gw = grad;
+    if (kind == 3) { vec2 out_ = vec2(cos(A.w), sin(A.w)), side = vec2(-out_.y, out_.x); gw = grad.x * side + grad.y * out_; }
+    vec3 on = normalize(vec3(-gw * min(1.0, 2.2 / max(steep, 1e-4)) * 0.5, 1.0));
+    int color = int(B.y);
+    vec3 alb = albedo(o, color, B.z);
+    float flick = flickerOf(kind, B.z);
+    vec3 worldPos = vec3(p, o.h * A.z);
+    vec3 lit = alb * (uAmb + uSunCol * max(dot(on, uSun), 0.0)) + alb * sourcesLight(worldPos, on) * 1.3;
+    // brilho de metal (ferro, latão) com o sol e com a chama
+    if (o.mat == IRON || o.mat == BRASS) {
+      float spec = pow(max(dot(on, normalize(uSun + vec3(0.0, 0.0, 1.0))), 0.0), 40.0);
+      lit += (o.mat == BRASS ? vec3(1.0, 0.85, 0.55) : vec3(0.7)) * spec * length(uSunCol) * 0.6;
+      lit += lightRgb(color) * pow(max(on.z, 0.0), 30.0) * 0.25 * uLightWeight;
+    }
+    // cera translúcida: perto da chama, acesa por dentro
+    if (o.mat == WAX) lit += flameTint(color, 0.3) * 0.25 * flick * (0.5 + 0.5 * uLightWeight);
+    lit += glowOf(o, color, B.z, flick);
+    float ink = max(1.0 - smoothstep(inkW * 0.55, inkW * 1.25, px), smoothstep(4.0, 9.0, steep) * 0.45);
+    bool glowing = o.mat == EMBER || o.mat == GLASS || o.mat == CRYSTAL;
+    lit = mix(lit, lit * (glowing ? 0.55 : 0.18) + vec3(0.03, 0.025, 0.02), ink);
+    col = mix(col, lit, clamp(px + 0.5, 0.0, 1.0));
+  }
+
+  // chamas e o halo em volta (somados por cima)
+  for (int i = 0; i < 64; i++) {
+    if (i >= uCount) break;
+    vec4 A = uA[i], B = uB[i];
+    int kind = int(B.x), color = int(B.y);
+    float flick = flickerOf(kind, B.z);
+    int count = flameCount(kind);
+    for (int k = 0; k < 5; k++) {
+      if (k >= count) break;
+      vec4 f = flameOf(kind, k, B.z);
+      vec2 base = toWorld(A, kind, f.xy);
+      vec2 d = p - base;
+      float size = f.z * A.z;
+      if (length(d + vec2(0.0, size * 0.5)) > size * 3.0 + 1.0) continue;
+      vec2 shape = flameShape(d, size, B.z + float(k) * 7.3, f.w);
+      vec3 fire = flameTint(color, 0.25 + 0.75 * shape.y) * (1.2 + 1.4 * shape.y);
+      col = mix(col, fire, shape.x * 0.92);
+      // halo: mais forte à noite
+      float r = length((d + vec2(0.0, size * 0.45)) / size);
+      col += flameTint(color, 0.35) * exp(-r * r * 0.9) * (0.12 + 0.35 * uLightWeight) * flick * min(1.0, f.z * 3.0);
+    }
+    if (kind == 9) {
+      vec2 c = toWorld(A, kind, vec2(0.0, -0.12));
+      float r = length(p - c) / A.z;
+      col += flameTint(color, 0.45) * exp(-r * r * 9.0) * (0.15 + 0.45 * uLightWeight) * flick;
+    }
+  }
+  col = col / (1.0 + 0.14 * col);
+  outColor = vec4(col, 1.0);
+}`;
+
+const VERTEX = `#version 300 es
+in vec2 aCorner;
+void main() { gl_Position = vec4(aCorner, 0.0, 1.0); }`;
+
+const canvas = document.getElementById("view");
+const wrap = document.getElementById("wrap");
+const labels = document.getElementById("labels");
+const gl = canvas.getContext("webgl2", { antialias: false });
+
+// Tabela do design (docs/design/luzes.md): tamanho (casa) e alcance (ft).
+const MODELS = [
+  { id: "stick", name: "Fincada", cells: 0.7, feet: 40 },
+  { id: "iron", name: "De ferro", cells: 0.7, feet: 40 },
+  { id: "brazier", name: "Braseiro", cells: 0.8, feet: 50 },
+  { id: "sconce", name: "Arandela", cells: 0.6, feet: 40 },
+  { id: "campfire", name: "Fogueira", cells: 1.0, feet: 60 },
+  { id: "lantern", name: "Lanterna", cells: 0.5, feet: 40 },
+  { id: "candles", name: "Castiçal com velas", cells: 0.5, feet: 20 },
+  { id: "candelabra", name: "Candelabro de pé", cells: 0.8, feet: 30 },
+  { id: "oilLamp", name: "Lamparina a óleo", cells: 0.55, feet: 25 },
+  { id: "orb", name: "Orbe mágico", cells: 0.6, feet: 30 },
+];
+const COLORS = ["Chama", "Azul", "Verde", "Roxo", "Branco"];
+const FEET_PER_CELL = 5;
+const LIGHTS = {
+  day: { sun: [-0.5, -0.6, 0.75], color: [0.5, 0.48, 0.42], ambient: [0.55, 0.57, 0.63], weight: 0.15 },
+  dusk: { sun: [-0.92, -0.25, 0.45], color: [0.58, 0.42, 0.27], ambient: [0.3, 0.26, 0.3], weight: 0.6 },
+  night: { sun: [0.4, -0.6, 0.6], color: [0.05, 0.06, 0.1], ambient: [0.035, 0.04, 0.07], weight: 1 },
+};
+const state = { light: "night", zoom: 1, color: "0", reduce: 0, focus: [17, 7] };
+const ROOM = { left: 24, top: 1, right: 33, bottom: 11 };
+
+function scene() {
+  const items = [];
+  const walls = [];
+  if (state.color === "all") {
+    MODELS.forEach((model, column) => COLORS.forEach((_, row) => items.push({ kind: column, color: row, col: 3 + column * 4.5, row: 3 + row * 4.5, facing: -Math.PI / 2 })));
+  } else {
+    const color = Number(state.color);
+    MODELS.forEach((model, index) => items.push({ kind: index, color, col: 3 + (index % 5) * 4.2, row: index < 5 ? 3.5 : 9.5, facing: -Math.PI / 2 }));
+    // sala: uma arandela no meio de cada parede, virada para dentro
+    const { left, top, right, bottom } = ROOM;
+    walls.push([left, top, right, top], [right, top, right, bottom], [right, bottom, left, bottom], [left, bottom, left, top]);
+    const mid = [(left + right) / 2, (top + bottom) / 2];
+    const inset = 0.11 + 0.06;
+    items.push({ kind: 3, color, col: mid[0], row: top + inset, facing: Math.PI / 2 });
+    items.push({ kind: 3, color, col: right - inset, row: mid[1], facing: Math.PI });
+    items.push({ kind: 3, color, col: mid[0], row: bottom - inset, facing: -Math.PI / 2 });
+    items.push({ kind: 3, color, col: left + inset, row: mid[1], facing: 0 });
+    // no meio da sala: um candelabro e uma lamparina sobre o piso
+    items.push({ kind: 7, color, col: mid[0] - 1.6, row: mid[1] + 0.4, facing: 0 });
+    items.push({ kind: 8, color, col: mid[0] + 1.8, row: mid[1] + 1.2, facing: 0 });
+  }
+  // arandelas soltas da grade: um pedaço de parede atrás de cada uma
+  for (const item of items) if (item.kind === 3 && item.col < ROOM.left - 1) walls.push([item.col - 1, item.row + 0.17, item.col + 1, item.row + 0.17]);
+  // as de baixo na tela por cima
+  items.sort((a, b) => a.row - b.row);
+  return { items, walls };
+}
+
+function compile(type, src) { const shader = gl.createShader(type); gl.shaderSource(shader, src); gl.compileShader(shader); if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader)); return shader; }
+const program = gl.createProgram();
+gl.attachShader(program, compile(gl.VERTEX_SHADER, VERTEX));
+gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAGMENT));
+gl.linkProgram(program);
+if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+gl.useProgram(program);
+const buffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+const corner = gl.getAttribLocation(program, "aCorner");
+gl.enableVertexAttribArray(corner);
+gl.vertexAttribPointer(corner, 2, gl.FLOAT, false, 0, 0);
+const uniforms = {};
+const U = (name) => (uniforms[name] ??= gl.getUniformLocation(program, name));
+
+let cssWidth = 0, dpr = 1;
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  cssWidth = wrap.clientWidth;
+  const cssHeight = Math.round(Math.max(cssWidth * 0.56, window.innerHeight * 0.72));
+  canvas.width = Math.round(cssWidth * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+  canvas.style.height = cssHeight + "px";
+}
+function viewCols() { return state.color === "all" ? 46 : 36; }
+function pxPerCell() { return (cssWidth / viewCols()) * state.zoom * dpr; }
+function origin() { const px = pxPerCell(); return [state.focus[0] - canvas.width / px / 2, state.focus[1] - canvas.height / px / 2]; }
+
+const started = performance.now();
+let frames = 0, frameStart = performance.now();
+function draw(now) {
+  const { items, walls } = scene();
+  const px = pxPerCell();
+  const [ox, oy] = origin();
+  const light = LIGHTS[state.light];
+  const sun = light.sun; const len = Math.hypot(...sun); const sunDir = sun.map((value) => value / len);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.uniform2f(U("uOrigin"), ox, oy);
+  gl.uniform1f(U("uPx"), px);
+  gl.uniform1f(U("uDpr"), dpr);
+  gl.uniform1f(U("uHeight"), canvas.height);
+  gl.uniform1f(U("uTime"), (now - started) / 1000);
+  gl.uniform1f(U("uReduce"), state.reduce);
+  gl.uniform3fv(U("uSun"), sunDir);
+  gl.uniform3fv(U("uSunCol"), light.color.map((value) => value / Math.max(0.3, sunDir[2])));
+  gl.uniform3fv(U("uAmb"), light.ambient);
+  gl.uniform1f(U("uLightWeight"), light.weight);
+  const A = new Float32Array(64 * 4), B = new Float32Array(64 * 4);
+  items.forEach((item, index) => {
+    const model = MODELS[item.kind];
+    A.set([item.col, item.row, model.cells, item.facing], index * 4);
+    B.set([item.kind, item.color, 3 + index * 17.31, model.feet / FEET_PER_CELL], index * 4);
+  });
+  gl.uniform1i(U("uCount"), items.length);
+  gl.uniform4fv(U("uA"), A);
+  gl.uniform4fv(U("uB"), B);
+  const W = new Float32Array(8 * 4);
+  walls.forEach((wall, index) => W.set(wall, index * 4));
+  gl.uniform1i(U("uWallCount"), walls.length);
+  gl.uniform4fv(U("uW"), W);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  placeLabels(items, ox, oy, px);
+  frames++;
+  if (now - frameStart > 1000) { document.getElementById("ms").textContent = `${((now - frameStart) / frames).toFixed(1)} ms/quadro`; frames = 0; frameStart = now; }
+}
+function placeLabels(items, ox, oy, px) {
+  const shown = state.color === "all" ? items.filter((item) => item.color === 0) : items.filter((item) => item.col < ROOM.left - 1);
+  labels.innerHTML = "";
+  for (const item of shown) {
+    const span = document.createElement("span");
+    span.textContent = MODELS[item.kind].name;
+    span.style.left = ((item.col - ox) * px) / dpr + "px";
+    span.style.top = ((item.row + 0.6 - oy) * px) / dpr + "px";
+    labels.appendChild(span);
+  }
+  if (state.color !== "all") {
+    const span = document.createElement("span");
+    span.textContent = "Sala com arandelas";
+    span.style.left = (((ROOM.left + ROOM.right) / 2 - ox) * px) / dpr + "px";
+    span.style.top = ((ROOM.bottom + 0.3 - oy) * px) / dpr + "px";
+    labels.appendChild(span);
+  }
+}
+function loop(now) { draw(now); requestAnimationFrame(loop); }
+
+function wire(id, apply) {
+  const group = document.getElementById(id);
+  group.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    group.querySelectorAll("button").forEach((other) => other.classList.toggle("on", other === button));
+    apply(button.dataset.v);
+  });
+}
+wire("light", (value) => (state.light = value));
+wire("color", (value) => { state.color = value; state.focus = value === "all" ? [23, 12] : [17, 7]; });
+wire("zoom", (value) => (state.zoom = Number(value)));
+wire("reduce", (value) => (state.reduce = Number(value)));
+
+let dragFrom = null;
+wrap.addEventListener("pointerdown", (event) => { dragFrom = { x: event.clientX, y: event.clientY, focus: [...state.focus] }; wrap.setPointerCapture(event.pointerId); });
+wrap.addEventListener("pointermove", (event) => {
+  if (!dragFrom) return;
+  const cssPerCell = pxPerCell() / dpr;
+  state.focus = [dragFrom.focus[0] - (event.clientX - dragFrom.x) / cssPerCell, dragFrom.focus[1] - (event.clientY - dragFrom.y) / cssPerCell];
+});
+wrap.addEventListener("pointerup", () => (dragFrom = null));
+window.addEventListener("resize", resize);
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
