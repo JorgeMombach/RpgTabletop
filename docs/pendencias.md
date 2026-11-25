@@ -233,7 +233,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ### Mar (bloco 5; [docs/design/mar.md](design/mar.md))
 
 - [ ] Praia: pintar areia e mar ao lado; a onda sobe e desce na areia molhada, espuma na beira, raso turquesa escurecendo até o azul fundo longe da costa.
-- [ ] Porto: mar com um píer de *Piso* (tábuas) por cima; as estacas e a espuma em volta aparecem.
+- [ ] Porto: mar com um píer de *Piso* (tábuas) saindo da areia; a entrada fica na areia e as estacas com espuma começam no mar. Saindo de chão sem pintura, a entrada também fica fora d'água (o mar da borda aberta não ganha estacas). Ponte sobre o mar pousa nas margens.
 - [ ] Alto-mar: só mar; nenhuma margem nem espuma de arrebentação nas bordas, o mar some aos poucos onde a pintura acaba.
 - [ ] Penhasco: mar junto a pedra e junto a um morro do *Relevo* (nível 1 ou mais); face cinza, onda batendo na base. Pintar relevo perto do mar: a costa muda uns instantes depois de soltar o pincel.
 - [ ] Passagem de praia para pedra na mesma costa sem corte reto.

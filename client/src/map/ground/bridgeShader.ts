@@ -68,7 +68,7 @@ float waterAt(vec2 c) {
   if (uHasWater < 0.5) return 0.0;
   vec2 uv = (c * 4.0 - uWeightsOrigin + 0.5) / uWeightsSize;
   // textureLod (sem derivada da tela): lida dentro do laço das pontes, "texture" faria o Direct3D desenrolá-lo inteiro
-  return smoothstep(0.35, 0.65, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r);
+  return smoothstep(0.35, 0.65, textureLod(uWaterA, uv, 0.0).a + textureLod(uWaterB, uv, 0.0).r + textureLod(uWaterB, uv, 0.0).a);
 }
 float waterLift(int kind) { return kind == 0 ? ${lift("plank")} : kind == 1 ? ${lift("stone")} : ${lift("rope")}; }
 
