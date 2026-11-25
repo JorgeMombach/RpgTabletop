@@ -230,6 +230,17 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Rio com o pincel mínimo (0,5): água no meio, margem estreita. Rio largo, lago e água funda: margem mais rasa e suave, sem degrau estranho na borda.
 - [ ] Mexer na água (pintar, apagar, correnteza): sem engasgo novo (a meia largura é calculada no Worker).
 
+### Mar (bloco 5; [docs/design/mar.md](design/mar.md))
+
+- [ ] Praia: pintar areia e mar ao lado; a onda sobe e desce na areia molhada, espuma na beira, raso turquesa escurecendo até o azul fundo longe da costa.
+- [ ] Porto: mar com um píer de *Piso* (tábuas) por cima; as estacas e a espuma em volta aparecem.
+- [ ] Alto-mar: só mar; nenhuma margem nem espuma de arrebentação nas bordas, o mar some aos poucos onde a pintura acaba.
+- [ ] Penhasco: mar junto a pedra e junto a um morro do *Relevo* (nível 1 ou mais); face cinza, onda batendo na base. Pintar relevo perto do mar: a costa muda uns instantes depois de soltar o pincel.
+- [ ] Passagem de praia para pedra na mesma costa sem corte reto.
+- [ ] Noite, *Reduzir efeitos* (parado) e com moldura ligada.
+- [ ] Lago e rio continuam iguais em cena sem mar; mar encostado num lago não ganha margem entre os dois.
+- [ ] Pendente conhecido: a areia pintada encostada no mar mostra uma linha fina mais escura na beira (a borda da aquarela do terreno por baixo).
+
 ### Moldura e terrenos novos (bloco 4; [docs/design/moldura.md](design/moldura.md))
 - [ ] Terra batida e neve no painel *Terreno*: pintar ao lado da água e da grama, de dia e à noite (a neve com montinhos e sombra azulada).
 - [ ] Moldura: ligar no painel *Mapa*, mudar largura e altura (ao sair do campo ou Enter), trocar os quatro desenhos, *Ajustar à imagem* com uma imagem de mapa, desligar.

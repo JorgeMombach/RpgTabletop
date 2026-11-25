@@ -190,6 +190,13 @@ describe("mar: campo da água", () => {
     assert.ok(field.shore.every((kind) => kind === SHORE_NONE), "sem costa nenhuma");
   });
 
+  it("borda aberta: o mar vai até a beira do campo (sem terra falsa na folga, que faria costa e espuma)", () => {
+    const chunks = paint({}, "sea", (col, row) => col >= 4 && col < 12 && row >= 4 && row < 12, 20, 20);
+    const { field } = fieldOf(chunks);
+    const middle = Math.floor(field.height / 2) * field.width;
+    for (let x = 0; x < field.width; x++) assert.ok(field.sdf[middle + x] > 0, `água no pixel ${x} de ${field.width}`);
+  });
+
   it("costa: areia dá praia, pedra e relevo dão pedra, grama plana dá margem", () => {
     const chunks: TerrainChunks = {};
     paint(chunks, "sea", (col) => col >= 10, 20, 24);
@@ -205,6 +212,10 @@ describe("mar: campo da água", () => {
     assert.equal(kindAt(9, 11), SHORE_ROCK);
     assert.equal(kindAt(9, 18), SHORE_BANK, "grama plana");
     assert.equal(kindAt(9, 22), SHORE_ROCK, "grama com relevo: penhasco");
+    // dentro do mar, perto da costa: o tipo da costa ao lado (onde a onda quebra)
+    assert.equal(kindAt(10, 3), SHORE_BEACH, "mar junto à praia");
+    assert.equal(kindAt(10, 11), SHORE_ROCK, "mar junto à pedra");
+    assert.equal(kindAt(15, 3), SHORE_NONE, "mar longe da costa");
   });
 
   it("mar encostando em lago: água dos dois lados, sem costa entre eles", () => {

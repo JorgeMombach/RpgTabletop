@@ -304,7 +304,8 @@ export function waterField(chunks: TerrainChunks, rect: CellRect, perCell: numbe
     }
   }
   // Borda aberta (docs/design/mar.md): perto do mar, o que não tem pintura nenhuma também é mar (sem margem).
-  const nearSea = waterHalfWidth(seaMask, fineCols, fineRows, SEA_OPEN_CELLS * TERRAIN_FINE);
+  // (+2 pontos finos: o mar chega até a beira do campo, sem um anel de "terra" na folga que viraria costa)
+  const nearSea = waterHalfWidth(seaMask, fineCols, fineRows, SEA_OPEN_CELLS * TERRAIN_FINE + 2);
   for (let index = 0; index < open.length; index++) {
     if (open[index] === 1 && nearSea[index] > 0) {
       amount[index] = 1;
@@ -340,6 +341,21 @@ export function waterField(chunks: TerrainChunks, rect: CellRect, perCell: numbe
         if (nearSea[nearest] > 0) shore[index] = landKind[nearest];
       }
     }
+  }
+  // Dentro do mar, perto da costa (2 casas), o tipo da costa mais perto: é ali que a onda quebra e sobe na areia.
+  // Se mais de um tipo chega, pedra ganha de praia, e praia de margem.
+  const reachPx = SEA_OPEN_CELLS * perCell;
+  const spread = (kind: number) => {
+    const mask = new Float32Array(width * height);
+    for (let index = 0; index < mask.length; index++) mask[index] = shore[index] === kind ? 1 : 0;
+    return waterHalfWidth(mask, width, height, reachPx);
+  };
+  const rockNear = spread(SHORE_ROCK);
+  const beachNear = spread(SHORE_BEACH);
+  const bankNear = spread(SHORE_BANK);
+  for (let index = 0; index < shore.length; index++) {
+    if (inside[index] === 0 || sea[index] <= 0.5) continue;
+    shore[index] = rockNear[index] > 0 ? SHORE_ROCK : beachNear[index] > 0 ? SHORE_BEACH : bankNear[index] > 0 ? SHORE_BANK : SHORE_NONE;
   }
   return { rect, perCell, width, height, sdf: signedDistance(inside, width, height), deep, sea, shore };
 }

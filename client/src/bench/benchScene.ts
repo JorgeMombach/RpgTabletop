@@ -6,7 +6,7 @@ import { useApp } from "../store";
 
 /**
  * A cena pesada do teste de desempenho (docs/design/desempenho.md): 60 × 40 casas com terreno variado, rio, relevo e
- * dunas, 300 objetos de floresta, 20 tochas, 6 cômodos, névoa e chuva à noite. Montada pelas ações do jogo numa cena
+ * dunas, mar na borda direita, 300 objetos de floresta, 20 tochas, 6 cômodos, névoa e chuva à noite. Montada pelas ações do jogo numa cena
  * nova e apagada no fim. A água do lago fica para o cenário "primeira água".
  */
 
@@ -74,6 +74,8 @@ async function fillBenchScene() {
   await must(paintTerrainStroke({ terrain: "sand", radius: 1, strength: 1, points: [], rect: { from: { x: 44, y: 28 }, to: { x: 60, y: 40 } } }), "Areia");
   await must(paintTerrainStroke({ terrain: "stone", radius: 3, strength: 1, points: [8, 8, 12, 6] }), "Pedra");
   await must(paintTerrainStroke({ terrain: "water", radius: 1, strength: 1, points: [0, 4, 10, 6, 20, 3, 30, 7, 42, 4, 60, 8] }), "Rio");
+  // mar na borda direita (docs/design/mar.md): praia na areia, margem na grama, borda aberta fora da pintura
+  await must(paintTerrainStroke({ terrain: "sea", radius: 1, strength: 1, points: [], rect: { from: { x: 52, y: 0 }, to: { x: 60, y: 40 } } }), "Mar");
 
   // Relevo: morros e dunas na areia.
   await must(paintReliefStroke({ level: 2, soft: true, radius: 4, points: [20, 30, 26, 32] }), "Morro");

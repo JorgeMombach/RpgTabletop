@@ -38,6 +38,8 @@ const FRAME_MS = 33;
 export const ZOOM_SETTLE_MS = 150;
 /** Relevo vazio (a água sem mar não depende do relevo). */
 const NO_RELIEF: ReliefChunks = {};
+/** Espera depois do último traço de relevo antes de refazer a costa do mar (pintar relevo não refaz a água a cada traço). */
+const SEA_RELIEF_SETTLE_MS = 600;
 /** Folga do desenho no meio do afastamento: cobre 1,4× a tela (uns três passos da rodinha). */
 const ZOOM_OUT_MARGIN = 1.4;
 
@@ -445,9 +447,14 @@ export const GroundLayer = memo(function GroundLayer({
   }, [renderer, dunes, dust.level, dust.direction, reduceDust]);
 
   // O relevo só vai para a água com mar na cena (a costa junto a relevo mais alto vira penhasco); sem mar, pintar
-  // relevo não refaz as contas da água.
+  // relevo não refaz as contas da água. Com mar, a costa acompanha o relevo só quando o pincel para.
   const hasSea = useMemo(() => Object.values(committed).some((chunk) => chunk.sea !== undefined), [committed]);
-  const seaRelief = hasSea ? relief : NO_RELIEF;
+  const [seaRelief, setSeaRelief] = useState<ReliefChunks>(() => (hasSea ? relief : NO_RELIEF));
+  useEffect(() => {
+    if (!hasSea) return void setSeaRelief(NO_RELIEF);
+    const timer = setTimeout(() => setSeaRelief(relief), SEA_RELIEF_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [hasSea, relief]);
 
   // Água: as contas no Worker, só com o terreno confirmado (a prévia do pincel não conta).
   const lastCommitted = useRef<TerrainChunks | null>(null);
