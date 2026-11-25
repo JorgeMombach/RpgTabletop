@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EFFECT_PRESETS, geometryOf, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
+import { cellsInsideFrame, EFFECT_PRESETS, geometryOf, LIMITS, isColor, type Combatant, type EffectPreset, type EffectState, type GridPos, type MapEffect } from "@rpg/shared";
 import { allCombatants, byId, removeFromOrder } from "../combat";
 import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString, validArea } from "../validate";
@@ -217,7 +217,10 @@ export const effectHandlers: HandlerMap = {
 
   "effect:paint": (store, player, payload) => {
     if (player.role !== "gm") fail("Só o mestre pinta efeitos.");
-    const cells = paintCells(payload?.cells);
+    // moldura da cena (docs/design/moldura.md): as casas de fora ficam de fora
+    const { frame } = store.game.battle.map;
+    const cells = paintCells(payload?.cells).filter(([col, row]) => cellsInsideFrame(frame, [{ col, row }]));
+    if (cells.length === 0) return [];
     const { battle } = store.game;
     const preset = payload.preset === undefined && payload.erase === true ? undefined : effectFields(store, player, { preset: payload.preset }).preset;
     const color = preset && (isColor(payload.color) ? payload.color : EFFECT_PRESETS[preset].color);

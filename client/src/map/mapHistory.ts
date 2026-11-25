@@ -4,6 +4,9 @@ import { act } from "../actions";
 import { useApp } from "../store";
 import { drownedPlants } from "./terrain/drownedPlants";
 
+/** A moldura da cena: a conta do Desfazer recorta como o servidor (docs/design/moldura.md). */
+const sceneFrame = () => useApp.getState().state?.battle.map.frame;
+
 /**
  * Desfazer do mapa (L5, ampliado depois da 2.11): paredes e portas, desenhos (livre, seta, círculo…), tochas
  * fixas e baús. Volta o que esta pessoa colocou, apagou com a borracha ou arrastou (tocha), pelo botão de cada
@@ -427,7 +430,7 @@ async function paintFloorNow(stroke: FloorStroke): Promise<ActionResult> {
   for (const slice of slices) {
     result = await act("floor:paint", slice);
     if (!result.ok) break;
-    for (const key of paintFloor(applied, slice, walls, sceneStyle) ?? []) touched.add(key);
+    for (const key of paintFloor(applied, slice, walls, sceneStyle, sceneFrame()) ?? []) touched.add(key);
   }
   if (touched.size > 0) {
     const before: Record<string, string | null> = {};
@@ -460,7 +463,7 @@ async function paintReliefNow(stroke: ReliefStroke): Promise<ActionResult> {
     const slice: ReliefStroke = { ...stroke, points: stroke.points.slice(start, start + LIMITS.terrainStrokePoints * 2) };
     result = await act("relief:paint", slice);
     if (!result.ok) break;
-    for (const key of paintRelief(applied, slice)) touched.add(key);
+    for (const key of paintRelief(applied, slice, sceneFrame())) touched.add(key);
   }
   if (touched.size > 0) {
     const before: Record<string, string | null> = {};
@@ -495,7 +498,7 @@ async function paintTerrainNow(stroke: TerrainStroke): Promise<ActionResult> {
   for (const slice of slices) {
     result = await act("terrain:paint", slice);
     if (!result.ok) break;
-    for (const key of paintTerrain(applied, slice)) touched.add(key);
+    for (const key of paintTerrain(applied, slice, undefined, sceneFrame())) touched.add(key);
   }
   if (touched.size > 0) {
     const before: Record<string, TerrainChunk | null> = {};

@@ -1,5 +1,6 @@
 import { chunkKey, decodeLayer, encodeLayer, TERRAIN_CHUNK_SIDE, TERRAIN_FINE } from "./terrain";
 import type { WeatherState } from "./types";
+import { fineInsideFrame, type FrameClip } from "./frame";
 
 /**
  * Relevo (docs/design/relevo.md): na mesma grade fina do terreno (4 pontos por casa, pedaços de 8 × 8 casas), cada
@@ -72,7 +73,7 @@ export function reliefAt(chunks: ReliefChunks, fineX: number, fineY: number): Re
  * Aplica a passada em `chunks` (muda o objeto) e devolve as chaves dos pedaços que mudaram: todo ponto da grade
  * dentro do raio de algum ponto do traço fica com o nível e o tipo pintados (pincel duro: o patamar tem borda).
  */
-export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke): string[] {
+export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke, clip?: FrameClip): string[] {
   const dunes = stroke.dune !== undefined;
   // O que a passada troca no byte: só a duna, ou só o nível e o tipo (o resto fica).
   const value = dunes ? (stroke.dune ?? 0) << DUNE_SHIFT : encodeReliefPoint({ level: stroke.level, soft: stroke.soft, dune: 0 });
@@ -84,6 +85,8 @@ export function paintRelief(chunks: ReliefChunks, stroke: ReliefStroke): string[
     for (let j = Math.ceil((y - stroke.radius) * TERRAIN_FINE); j <= Math.floor((y + stroke.radius) * TERRAIN_FINE); j++) {
       for (let i = Math.ceil((x - stroke.radius) * TERRAIN_FINE); i <= Math.floor((x + stroke.radius) * TERRAIN_FINE); i++) {
         if (Math.hypot(i / TERRAIN_FINE - x, j / TERRAIN_FINE - y) >= stroke.radius) continue;
+        // moldura da cena: o pincel não pinta fora
+        if (!fineInsideFrame(clip, i, j, TERRAIN_FINE)) continue;
         const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
         const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
         const key = chunkKey(cx, cy);

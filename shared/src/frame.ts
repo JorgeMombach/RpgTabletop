@@ -6,6 +6,15 @@ import type { GridPos, SceneFrame } from "./types";
  * Sem moldura, tudo vale.
  */
 
+/** O que os pincéis precisam da moldura: só o tamanho. */
+export type FrameClip = Pick<SceneFrame, "cols" | "rows">;
+
+/** Ponto da grade fina do terreno (`TERRAIN_FINE` por casa) dentro do recorte; sem recorte, sim. */
+export function fineInsideFrame(clip: FrameClip | undefined, i: number, j: number, perCell: number): boolean {
+  if (!clip) return true;
+  return i >= 0 && j >= 0 && i <= clip.cols * perCell && j <= clip.rows * perCell;
+}
+
 /** O ponto (casas) está dentro da moldura (na borda conta como dentro). */
 export function pointInsideFrame(frame: SceneFrame | undefined, x: number, y: number): boolean {
   if (!frame) return true;

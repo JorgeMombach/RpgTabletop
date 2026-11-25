@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ActionResult } from "@rpg/shared";
+import { floorAt, reliefAt, TERRAIN_FINE, terrainAt, type ActionResult } from "@rpg/shared";
 import { exportSession, importSession } from "../src/session-file";
 import { act, join, useServer, type Client } from "./helpers";
 
@@ -121,5 +121,28 @@ describe("moldura da cena", () => {
     delete file.game.battle.map.frame;
     importSession(ctx.server.store, master, file);
     assert.equal(game().battle.map.frame, undefined);
+  });
+
+  it("pincéis param na borda: terreno, relevo, piso e efeitos pintados só dentro", async () => {
+    const gm = await freshGm();
+    await withFrame(gm);
+    // traço de raio 3 com o centro na borda da direita (x = 10)
+    ok(await act(gm, "terrain:paint", { terrain: "grass", radius: 3, strength: 1, points: [10, 4] }));
+    const terrain = game().battle.terrain ?? {};
+    assert.ok((terrainAt(terrain, 9, 4).grass ?? 0) > 0, "dentro: pintado");
+    assert.equal(terrainAt(terrain, 11, 4).grass, undefined, "fora: vazio");
+    ok(await act(gm, "relief:paint", { level: 2, soft: true, radius: 3, points: [10, 4] }));
+    const relief = game().battle.relief ?? {};
+    assert.equal(reliefAt(relief, 9 * TERRAIN_FINE, 4 * TERRAIN_FINE).level, 2, "relevo dentro");
+    assert.equal(reliefAt(relief, 11 * TERRAIN_FINE, 4 * TERRAIN_FINE).level, 0, "relevo fora");
+    ok(await act(gm, "floor:paint", { material: "plank", vertical: false, shape: { kind: "brush", radius: 3, points: [10, 4] } }));
+    const floors = game().battle.floors ?? {};
+    assert.notEqual(floorAt(floors, 9 * TERRAIN_FINE, 4 * TERRAIN_FINE).material, null, "piso dentro");
+    assert.equal(floorAt(floors, 11 * TERRAIN_FINE, 4 * TERRAIN_FINE).material, null, "piso fora");
+    ok(await act(gm, "effect:paint", { cells: [9, 4, 10, 4, 11, 4], preset: "fire" }));
+    const painted = game().battle.effects.find((effect) => effect.cells);
+    assert.deepEqual(painted?.cells, [9, 4], "só a casa de dentro");
+    // tudo fora: nada pintado, sem erro
+    ok(await act(gm, "effect:paint", { cells: [20, 20], preset: "ice" }));
   });
 });

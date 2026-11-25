@@ -73,7 +73,7 @@ export const reliefHandlers: HandlerMap = {
     const stroke = parseStroke(payload);
     // Numa cópia: o relevo da cena só muda se tudo der certo.
     const next: ReliefChunks = { ...store.game.battle.relief };
-    commit(store, next, paintRelief(next, stroke));
+    commit(store, next, paintRelief(next, stroke, store.game.battle.map.frame));
   },
 
   // Desfazer do mestre: repõe os pedaços como estavam (`null` = o pedaço não existia).

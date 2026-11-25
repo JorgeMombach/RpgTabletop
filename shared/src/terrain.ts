@@ -1,3 +1,4 @@
+import { fineInsideFrame, type FrameClip } from "./frame";
 /**
  * Terreno pintado (criação de mapa, entrega 1): o chão é uma grade fina com 4 pontos por casa, a partir do canto do
  * grid, em unidades de casa (acompanha o grid, como paredes e objetos). Cada ponto guarda, para cada terreno, um
@@ -124,10 +125,12 @@ function mixPoint(layers: Map<TerrainId, Uint8Array>, index: number, terrain: Te
  * ponto a ponto com o mesmo resultado da passada inteira. Terreno que ficou todo zero sai do pedaço; pedaço que ficou
  * vazio sai de `chunks`.
  */
-export function paintTerrain(chunks: TerrainChunks, stroke: TerrainStroke, memory: TerrainStrokeMemory = new Map()): string[] {
+export function paintTerrain(chunks: TerrainChunks, stroke: TerrainStroke, memory: TerrainStrokeMemory = new Map(), clip?: FrameClip): string[] {
   const working: Working = new Map();
   const { radius, strength, terrain } = stroke;
   const touch = (i: number, j: number, amount: number) => {
+    // moldura da cena (docs/design/moldura.md): o pincel não pinta fora
+    if (!fineInsideFrame(clip, i, j, TERRAIN_FINE)) return;
     const cx = Math.floor(i / TERRAIN_CHUNK_SIDE);
     const cy = Math.floor(j / TERRAIN_CHUNK_SIDE);
     const key = chunkKey(cx, cy);

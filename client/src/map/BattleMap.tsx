@@ -589,7 +589,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { terrain: brushTerrain, ...brushSize } = useApp.getState().terrainBrush;
     if (brushTerrain === "current" || brushTerrain === "currentErase") return;
     const local = { ...terrainRect.base };
-    paintTerrain(local, { ...brushSize, terrain: brushTerrain, points: [], rect: { from: terrainRect.from, to } });
+    // a prévia com o mesmo recorte da moldura que o servidor usa (docs/design/moldura.md)
+    paintTerrain(local, { ...brushSize, terrain: brushTerrain, points: [], rect: { from: terrainRect.from, to } }, undefined, state.battle.map.frame);
     setTerrainPreview(local);
   }
   function finishTerrainRect() {
@@ -633,7 +634,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     // Ponto novo só depois de andar um pedaço do raio: a força da passada não depende da velocidade do mouse.
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintTerrain(draft.local, { ...brush, points: [x, y] }, draft.memory);
+    paintTerrain(draft.local, { ...brush, points: [x, y] }, draft.memory, state.battle.map.frame);
     setTerrainPreview({ ...draft.local });
   }
   function finishTerrain() {
@@ -667,7 +668,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { points } = draft;
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.15, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintRelief(draft.local, reliefStrokeOf(brush, [x, y]));
+    paintRelief(draft.local, reliefStrokeOf(brush, [x, y]), state.battle.map.frame);
     useApp.setState({ reliefPreview: { ...draft.local } });
   }
   function finishRelief() {
@@ -857,7 +858,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const { points } = draft;
     if (points.length > 0 && Math.hypot(x - points[points.length - 2], y - points[points.length - 1]) < Math.max(0.1, brush.radius * 0.3)) return;
     points.push(x, y);
-    paintFloor(draft.local, floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: [x, y] }), [], "stone");
+    paintFloor(draft.local, floorStrokeOf(brush, { kind: "brush", radius: brush.radius, points: [x, y] }), [], "stone", state.battle.map.frame);
     useApp.setState({ floorPreview: { ...draft.local } });
   }
   /** Contorno do lugar fechado sob o mouse (refeito só quando o mouse anda meia casa). */
