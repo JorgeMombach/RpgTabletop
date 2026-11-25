@@ -209,11 +209,15 @@ export const MapPropLayer = memo(function MapPropLayer({
   return (
     <Layer ref={layerRef} listening={editing}>
       {list.map((p) => {
+        // Desenhado pela placa: o nó só serve para clicar e arrastar com a ferramenta Objetos. Fora dela, nem existe
+        // (com centenas de objetos, refazer os nós a cada passo do zoom travava o mapa; docs/design/desempenho.md).
+        if (onGpu(p) && !editing) return null;
         const faded = under(p);
         // Copa transparente (token embaixo) fica parada: as duas copas meio transparentes, uma sobre a outra, somariam.
         const layers = windOn && !faded && !onGpu(p) ? plantLayers(p.kind, p.seed, grid.cellPx * p.size * scale * (window.devicePixelRatio || 1)) : null;
         if (layers) return <PlantNode key={p.id} p={p} grid={grid} layers={layers} registry={registry} time={windTime} />;
-        return <PropNode key={p.id} p={p} grid={grid} scale={scale} editing={editing} faded={faded} drawnByGpu={onGpu(p)} />;
+        // o nó da placa não usa a escala (não tem imagem): fica fora da conta do memo e não se refaz no zoom
+        return <PropNode key={p.id} p={p} grid={grid} scale={onGpu(p) ? 1 : scale} editing={editing} faded={faded} drawnByGpu={onGpu(p)} />;
       })}
       {editing && (
         <Transformer

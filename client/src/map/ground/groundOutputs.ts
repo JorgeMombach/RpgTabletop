@@ -7,6 +7,32 @@ import { create } from "zustand";
  * névoa). O chão publica as imagens aqui e avisa a cada desenho; as camadas só redesenham quando avisadas. As paredes
  * (docs/design/relevo.md, etapa 2) têm aviso próprio: só quando a imagem delas muda.
  */
+/** Visão do palco (canto e escala) e tamanho da tela de um desenho do chão. */
+export interface DrawnView {
+  x: number;
+  y: number;
+  scale: number;
+  width: number;
+  height: number;
+}
+
+/** Guarda a visão do último desenho (só avisa as camadas quando mudou). */
+export function setDrawnView(drawn: DrawnView) {
+  const current = useGroundOutputs.getState().drawnView;
+  if (current && current.x === drawn.x && current.y === drawn.y && current.scale === drawn.scale && current.width === drawn.width && current.height === drawn.height) return;
+  useGroundOutputs.setState({ drawnView: drawn });
+}
+
+/**
+ * O retângulo (em coordenadas do mapa) em que as imagens do chão ficam: o da visão com que foram desenhadas; antes do
+ * primeiro desenho, o da visão atual.
+ */
+export function useDrawnBox(view: { x: number; y: number; scale: number }, size: { width: number; height: number }) {
+  const drawn = useGroundOutputs((state) => state.drawnView);
+  const from = drawn ?? { ...view, ...size };
+  return { x: -from.x / from.scale, y: -from.y / from.scale, width: from.width / from.scale, height: from.height / from.scale };
+}
+
 export const useGroundOutputs = create<{
   light: HTMLCanvasElement | null;
   flame: HTMLCanvasElement | null;
@@ -23,9 +49,14 @@ export const useGroundOutputs = create<{
   weatherGround: HTMLCanvasElement | null;
   weatherAir: HTMLCanvasElement | null;
   weatherGlow: HTMLCanvasElement | null;
+  /**
+   * A visão com que as imagens foram desenhadas (docs/design/desempenho.md): elas ficam presas ao mapa nessa visão.
+   * No zoom provisório, o palco já está na escala nova e as imagens esticam junto até o desenho completo.
+   */
+  drawnView: DrawnView | null;
   /** Ícone de um tipo de objeto feito pela placa de vídeo (`null` = ainda não dá; sem motor, a função é `null`). */
   propIcon: ((kind: PropKind, side: number) => HTMLCanvasElement | null) | null;
-}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, propIcon: null }));
+}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, drawnView: null, propIcon: null }));
 
 const drawnListeners = new Set<() => void>();
 

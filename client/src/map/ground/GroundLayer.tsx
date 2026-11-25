@@ -10,7 +10,7 @@ import { useWindStalled, watchFrame } from "../windStall";
 import { usePropDrag } from "../props/propDrag";
 import { useTokenDrag } from "../dragFollow";
 import type { TokenCaster } from "./shadowCasters";
-import { notifyEffectsDrawn, notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, notifyWeatherDrawn, useGroundOutputs } from "./groundOutputs";
+import { notifyEffectsDrawn, notifyFogDrawn, notifyGroundDrawn, notifyPropsDrawn, notifyWallsDrawn, notifyWeatherDrawn, setDrawnView, useDrawnBox, useGroundOutputs } from "./groundOutputs";
 import type { WeatherInput } from "../weather/weatherPass";
 import type { MapEffect } from "@rpg/shared";
 import type { FogInput } from "./fogPass";
@@ -30,6 +30,11 @@ import type { WaterJob, WaterResult, WaterRock } from "./waterTypes";
 const PER_CELL = 20;
 /** Quadros da água: no máximo 30 por segundo. */
 const FRAME_MS = 33;
+/**
+ * Zoom provisório (docs/design/desempenho.md): durante o gesto as imagens prontas só esticam com o palco; o desenho
+ * completo, na escala nova, sai este tempo depois do último passo.
+ */
+export const ZOOM_SETTLE_MS = 150;
 /** Espera depois da última mudança antes de recalcular a água (o mestre pintando em sequência). */
 const SETTLE_MS = 150;
 
@@ -229,7 +234,7 @@ export const GroundLayer = memo(function GroundLayer({
       createdWorker.terminate();
       createdReliefWorker.terminate();
       created.dispose();
-      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, propIcon: null });
+      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, drawnView: null, propIcon: null });
       setEngine(null);
     };
   }, [generation]);
@@ -438,6 +443,11 @@ export const GroundLayer = memo(function GroundLayer({
   };
   const viewRef = useRef(groundView);
   viewRef.current = groundView;
+  // Zoom provisório: a escala do último desenho completo, o gesto em andamento e o desenho agendado para depois dele.
+  const paintedScaleRef = useRef<number | null>(null);
+  const zoomingRef = useRef(false);
+  const zoomTimerRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(zoomTimerRef.current), []);
   // Terreno confirmado novo que o efeito da água ainda não viu: já é pendente (no quadro logo depois de soltar o pincel,
   // nem a prévia nem o pendente estariam ligados, e a água sumiria até o Worker responder).
   const waterDraft = draft || waterPending || lastCommitted.current !== committed;
@@ -460,6 +470,8 @@ export const GroundLayer = memo(function GroundLayer({
       useApp.setState({ groundFailed: true });
       return;
     }
+    // as imagens ficam presas ao mapa na visão deste desenho
+    setDrawnView({ x: frameView.stageX, y: frameView.stageY, scale: frameView.scale, width: frameView.width, height: frameView.height });
     imageRef.current?.getLayer()?.batchDraw();
     notifyGroundDrawn();
     if (target.wallsFresh) notifyWallsDrawn();
@@ -523,6 +535,8 @@ export const GroundLayer = memo(function GroundLayer({
       frame = requestAnimationFrame(tick);
       // o vigia de aparelho lento (o mesmo do vento); relevo calculando e água chegando não contam
       if (!watchFrame(renderer.busy || waterPendingRef.current)) return;
+      // no meio do gesto de zoom nada é redesenhado (as imagens esticam); o desenho completo vem ao parar
+      if (zoomingRef.current) return;
       // Anima com água, tocha tremulando ou poeira na tela, ou com a luz da cena ainda trocando.
       // os efeitos que mexem na luz pedem o desenho inteiro (a luz tremula com eles)
       const ground = renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.swaying || renderer.busy || renderer.dusting(viewRef.current) || (renderer.effecting && renderer.effectsLit);
@@ -558,6 +572,10 @@ export const GroundLayer = memo(function GroundLayer({
     let frame = 0;
     const tick = () => {
       if (!renderer.busy) return;
+      if (zoomingRef.current) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
       paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);
       frame = requestAnimationFrame(tick);
     };
@@ -580,16 +598,31 @@ export const GroundLayer = memo(function GroundLayer({
   }, []);
 
   // Quadro na hora: quando a visão, o tamanho, o terreno ou a água mudam (com a água parada, é o único desenho).
+  // Zoom (escala diferente da do último desenho): não desenha agora; um desenho completo ZOOM_SETTLE_MS depois do
+  // último passo. Arrasto e o resto: na hora.
   useEffect(() => {
     if (!renderer) return;
+    window.clearTimeout(zoomTimerRef.current);
+    if (paintedScaleRef.current !== null && view.scale !== paintedScaleRef.current) {
+      zoomingRef.current = true;
+      zoomTimerRef.current = window.setTimeout(() => {
+        zoomingRef.current = false;
+        paintedScaleRef.current = viewRef.current.scale;
+        paintRef.current(renderer, viewRef.current, timeRef.current, waterDraftRef.current);
+      }, ZOOM_SETTLE_MS);
+      return;
+    }
+    zoomingRef.current = false;
+    paintedScaleRef.current = view.scale;
     paint(renderer, groundView, timeRef.current, waterDraft);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- groundView é refeito a cada render a partir destes valores
   }, [renderer, version, waterDraft, view.x, view.y, view.scale, size.width, size.height, grid.cellPx, grid.offsetX, grid.offsetY]);
 
+  const drawnBox = useDrawnBox(view, size);
   if (!renderer || renderer.empty || groundFailed) return null;
   return (
     <Layer listening={false}>
-      <KImage ref={imageRef} image={renderer.groundImage} x={-view.x / view.scale} y={-view.y / view.scale} width={size.width / view.scale} height={size.height / view.scale} />
+      <KImage ref={imageRef} image={renderer.groundImage} {...drawnBox} />
     </Layer>
   );
 });
