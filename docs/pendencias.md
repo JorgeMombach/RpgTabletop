@@ -240,6 +240,7 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 - [ ] Noite, *Reduzir efeitos* (parado) e com moldura ligada.
 - [ ] Lago e rio continuam iguais em cena sem mar; mar encostado num lago não ganha margem entre os dois.
 - [ ] Pendente conhecido: a areia pintada encostada no mar mostra uma linha fina mais escura na beira (a borda da aquarela do terreno por baixo).
+- [ ] Pendente conhecido: objetos de planta em chão sem pintura onde o mar da borda aberta avança não somem (só a água pintada afoga plantas).
 
 ### Moldura e terrenos novos (bloco 4; [docs/design/moldura.md](design/moldura.md))
 - [ ] Terra batida e neve no painel *Terreno*: pintar ao lado da água e da grama, de dia e à noite (a neve com montinhos e sombra azulada).
