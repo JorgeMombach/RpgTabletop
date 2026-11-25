@@ -7,7 +7,7 @@ import { CANOPY_BOTTOM, HELD_TORCH_ABOVE, tokenCaster, tokenGroundShadow, TOKEN_
 describe("alturas da sombra por objeto", () => {
   it("token pelo tamanho e tocha pelo desenho", () => {
     assert.deepEqual(TOKEN_HEIGHT, { tiny: 0.5, small: 0.9, medium: 1.2, large: 2, huge: 3, gargantuan: 4 });
-    assert.deepEqual(TORCH_HEIGHT, { stick: 1.2, iron: 1.6, brazier: 0.6 });
+    assert.deepEqual(TORCH_HEIGHT, { stick: 1.2, iron: 1.6, brazier: 0.6, sconce: 1.6, campfire: 0.4, lantern: 1, candles: 0.8, candelabra: 1.5, oilLamp: 0.7, orb: 1 });
     assert.equal(HELD_TORCH_ABOVE, 0.3);
   });
 

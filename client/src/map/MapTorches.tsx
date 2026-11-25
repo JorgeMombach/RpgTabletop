@@ -16,9 +16,20 @@ import { drawMapTorch } from "./mapTorchArt";
 export const TORCH_DRAG_MIME = "application/x-map-torch";
 
 /** Tamanho do desenho, em casas: as tochas, meia casa e pouco (objeto, não token); o braseiro, uma casa. A luz não muda. */
-export const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.5, iron: 0.5, brazier: 0.7 };
+export const TORCH_CELLS: Record<MapTorchStyle, number> = { stick: 0.7, iron: 0.7, brazier: 0.8, sconce: 0.6, campfire: 1, lantern: 0.5, candles: 0.5, candelabra: 0.8, oilLamp: 0.55, orb: 0.6 };
 
-const LABEL: Record<MapTorchStyle, MessageKey> = { stick: "torches.stick", iron: "torches.iron", brazier: "torches.brazier" };
+const LABEL: Record<MapTorchStyle, MessageKey> = {
+  stick: "torches.stick",
+  iron: "torches.iron",
+  brazier: "torches.brazier",
+  sconce: "torches.sconce",
+  campfire: "torches.campfire",
+  lantern: "torches.lantern",
+  candles: "torches.candles",
+  candelabra: "torches.candelabra",
+  oilLamp: "torches.oilLamp",
+  orb: "torches.orb",
+};
 
 /** Fase da tremulação de cada tocha. */
 export function torchSeed(id: string): number {

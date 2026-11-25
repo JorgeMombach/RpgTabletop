@@ -225,7 +225,8 @@ function brazier(ctx: Ctx, x: number, y: number, s: number, t: number, seed: num
   sparks(ctx, x, cy - s * 0.15, s, t, seed);
 }
 
-const DRAW: Record<MapTorchStyle, typeof stick> = { stick, iron, brazier };
+// Sem WebGL 2, os modelos novos usam o desenho mais parecido de antes (a chama sobre a base).
+const DRAW: Record<MapTorchStyle, typeof stick> = { stick, iron, brazier, sconce: iron, campfire: brazier, lantern: stick, candles: stick, candelabra: iron, oilLamp: stick, orb: stick };
 
 /** `fire` falso: só o corpo (com o chão em WebGL, a chama nova vem da placa de vídeo, docs/design/luz.md). */
 export function drawMapTorch(ctx: Ctx, style: MapTorchStyle, x: number, y: number, s: number, t: number, seed: number, fire = true) {

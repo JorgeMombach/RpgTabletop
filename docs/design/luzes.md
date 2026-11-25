@@ -98,7 +98,7 @@ templo), **mais cores** de luz, a **tocha presa na parede** e as tochas de hoje 
   - cada fonte vira uma luz com cor (`MAP_TORCH_COLORS` → RGB), alcance por modelo e jeito de tremer;
   - a chama treme, a lanterna treme pouco e o orbe pulsa devagar.
   - Altura da chama por modelo (para as sombras de objetos e tokens), como o `TORCH_HEIGHT` de hoje.
-  - A arandela fica alta (1,8) e a luz sai do lado do `facing`.
+  - A arandela fica alta (1,6) e a luz sai do lado do `facing`. Nenhuma fonte passa de 1,7 (onde começa a copa das árvores): a sombra da copa apagaria a luz embaixo dela.
 - **Tabela por modelo** (aprovada na página de teste [luzes-teste.html](luzes-teste.html), 2026-11-25):
 
 | Modelo | Tamanho (casa) | Alcance (ft) | Altura | Tremor |
@@ -106,11 +106,11 @@ templo), **mais cores** de luz, a **tocha presa na parede** e as tochas de hoje 
 | fincada | 0,7 | 40 | 1,2 | chama |
 | de ferro | 0,7 | 40 | 1,6 | chama |
 | braseiro | 0,8 | 50 | 0,6 | chama |
-| arandela | 0,6 | 40 | 1,8 | chama |
+| arandela | 0,6 | 40 | 1,6 | chama |
 | fogueira | 1,0 | 60 | 0,4 | chama forte |
 | lanterna | 0,5 | 40 | 1,0 | pouco |
 | castiçal com velas | 0,5 | 20 | 0,8 | chama fraca |
-| candelabro de pé | 0,8 | 30 | 1,7 | chama fraca |
+| candelabro de pé | 0,8 | 30 | 1,5 | chama fraca |
 | lamparina a óleo | 0,55 | 25 | 0,7 | pouco |
 | orbe/cristal | 0,6 | 30 | 1,0 | pulso |
 

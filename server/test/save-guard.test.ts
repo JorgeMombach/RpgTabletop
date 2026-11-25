@@ -133,7 +133,7 @@ function fullGame(playerId: string, gmId: string): GameState {
     rolls: { request: null, reactions: [], outside: "locked" },
     effects: [effect],
     drawings: [{ id: "d1", kind: "arrow", points: [10, 20.5, 300, 140], color: "#c94a52", width: 4, hidden: true, authorId: playerId } satisfies Required<Drawing>],
-    torches: [{ id: "t1", col: 4.25, row: 6.5, style: "iron" } satisfies Required<MapTorch>],
+    torches: [{ id: "t1", col: 4.25, row: 6.2, style: "sconce", color: "blue", facing: 90 } satisfies Required<MapTorch>],
     chests: [
       {
         id: "b1",

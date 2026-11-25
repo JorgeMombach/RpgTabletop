@@ -25,6 +25,7 @@ import { hostInfo, roleOf, type RoleRules } from "./net";
 import { exportSession, importSession } from "./session-file";
 import { checkSheets } from "./actions/sheetFiles";
 import { rollLootFor } from "./actions/tables";
+import { dropLooseSconces } from "./actions/mapTorches";
 import { CATALOG, catalogDetails } from "./catalog/srd51";
 import { Store, toPublic, type ServerPlayer } from "./store";
 import { validArea } from "./validate";
@@ -283,7 +284,11 @@ export function createApp(opts: AppOptions) {
     if (!handler) return { ok: false, error: "Ação desconhecida." };
 
     try {
+      const battleBefore = store.game.battle;
+      const wallsBefore = battleBefore.walls;
       const ids = handler(store, player, payload as never);
+      // paredes mudaram na mesma cena: a arandela que ficou solta sai (docs/design/luzes.md)
+      if (store.game.battle === battleBefore && battleBefore.walls !== wallsBefore) dropLooseSconces(battleBefore);
       broadcast();
       return ids ? { ok: true, ids } : { ok: true };
     } catch (err) {

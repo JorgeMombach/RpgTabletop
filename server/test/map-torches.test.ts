@@ -102,3 +102,81 @@ describe("tochas fixas no mapa", () => {
     assert.deepEqual(game().battle.torches, []);
   });
 });
+
+// Fontes de luz (docs/design/luzes.md): modelos, cor e a arandela presa à parede.
+describe("fontes de luz: modelos, cor e arandela", () => {
+  /** Mestre numa batalha limpa, com uma parede horizontal de (2, 5) a (8, 5). */
+  async function gmWithWall() {
+    const g = await client();
+    await join(g, "Mestre");
+    await act(g, "battle:clear", { keepTemplates: false });
+    idsOf(await act(g, "wall:add", { from: { col: 2, row: 5 }, to: { col: 8, row: 5 } }));
+    return g;
+  }
+
+  it("a arandela precisa de parede e guarda a direção", async () => {
+    const g = await gmWithWall();
+    const far = await act(g, "maptorch:add", { col: 5, row: 8, style: "sconce", facing: 90 });
+    assert.equal(far.ok ? "" : far.error, "A arandela precisa de uma parede.");
+    const [id] = idsOf(await act(g, "maptorch:add", { col: 5, row: 5.2, style: "sconce", facing: 90 }));
+    assert.deepEqual(game().battle.torches[0], { id, col: 5, row: 5.2, style: "sconce", facing: 90 });
+  });
+
+  it("os outros modelos continuam longe da parede", async () => {
+    const g = await gmWithWall();
+    const near = await act(g, "maptorch:add", { col: 5, row: 5.1, style: "lantern" });
+    assert.equal(near.ok ? "" : near.error, "Aí tem uma parede.");
+    assert.ok((await act(g, "maptorch:add", { col: 5, row: 7, style: "campfire" })).ok);
+  });
+
+  it("cor da luz e direção são conferidas", async () => {
+    const g = await gmWithWall();
+    const [id] = idsOf(await act(g, "maptorch:add", { col: 3, row: 8, style: "orb", color: "blue" }));
+    assert.deepEqual(game().battle.torches.find((torch) => torch.id === id), { id, col: 3, row: 8, style: "orb", color: "blue" });
+    const pink = await act(g, "maptorch:add", { col: 3, row: 9, style: "orb", color: "pink" as "blue" });
+    assert.equal(pink.ok ? "" : pink.error, "Cor da luz inválida.");
+    const turned = await act(g, "maptorch:add", { col: 5, row: 5.2, style: "sconce", facing: 400 });
+    assert.equal(turned.ok ? "" : turned.error, "Direção da arandela inválida.");
+  });
+
+  it("arandela sem parede sai junto; borracha longe dela não", async () => {
+    const g = await gmWithWall();
+    const [wallId] = game().battle.walls.map((wall) => wall.id);
+    idsOf(await act(g, "maptorch:add", { col: 5, row: 5.2, style: "sconce", facing: 90 }));
+    // a borracha corta a parede longe da arandela: o pedaço dela fica
+    assert.ok((await act(g, "wall:erase", { points: [2.5, 5], radius: 0.3 })).ok);
+    assert.equal(game().battle.torches.length, 1);
+    // sem parede nenhuma perto, ela sai
+    for (const wall of [...game().battle.walls]) assert.ok((await act(g, "wall:remove", { id: wall.id })).ok);
+    assert.equal(game().battle.torches.length, 0);
+    assert.ok(wallId);
+  });
+
+  it("arandela arrastada para longe da parede é recusada", async () => {
+    const g = await gmWithWall();
+    const [id] = idsOf(await act(g, "maptorch:add", { col: 5, row: 5.2, style: "sconce", facing: 90 }));
+    const moved = await act(g, "maptorch:move", { id, col: 5, row: 9, facing: 90 });
+    assert.equal(moved.ok ? "" : moved.error, "A arandela precisa de uma parede.");
+    assert.deepEqual(game().battle.torches[0], { id, col: 5, row: 5.2, style: "sconce", facing: 90 });
+    assert.ok((await act(g, "maptorch:move", { id, col: 3, row: 4.8, facing: 270 })).ok);
+    assert.deepEqual(game().battle.torches[0], { id, col: 3, row: 4.8, style: "sconce", facing: 270 });
+  });
+
+  it("trocar de cena não apaga a arandela; cor e direção vão no arquivo de sessão", async () => {
+    const g = await gmWithWall();
+    idsOf(await act(g, "maptorch:add", { col: 5, row: 5.2, style: "sconce", facing: 90, color: "green" }));
+    const first = game().sceneId;
+    const [other] = idsOf(await act(g, "scene:add", { name: "Outra" }));
+    assert.ok((await act(g, "scene:switch", { id: other })).ok);
+    assert.ok((await act(g, "scene:switch", { id: first })).ok);
+    assert.equal(game().battle.torches.length, 1);
+    const gm = [...ctx.server.store.players.values()].find((p) => p.role === "gm")!;
+    const file = JSON.parse(JSON.stringify(exportSession(ctx.server.store)));
+    await act(g, "battle:clear", { keepTemplates: false });
+    importSession(ctx.server.store, gm, file);
+    const torch = game().battle.torches[0];
+    assert.equal(torch.color, "green");
+    assert.equal(torch.facing, 90);
+    assert.ok((await act(g, "scene:remove", { id: other })).ok);
+  });
+});

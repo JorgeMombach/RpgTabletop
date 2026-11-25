@@ -9,7 +9,7 @@ import type { MapTorchStyle, Size } from "@rpg/shared";
 export const TOKEN_HEIGHT: Record<Size, number> = { tiny: 0.5, small: 0.9, medium: 1.2, large: 2, huge: 3, gargantuan: 4 };
 
 /** Altura da chama de cada desenho de tocha fixa: fincada, de ferro (na parede) e braseiro (baixo). */
-export const TORCH_HEIGHT: Record<MapTorchStyle, number> = { stick: 1.2, iron: 1.6, brazier: 0.6 };
+export const TORCH_HEIGHT: Record<MapTorchStyle, number> = { stick: 1.2, iron: 1.6, brazier: 0.6, sconce: 1.6, campfire: 0.4, lantern: 1, candles: 0.8, candelabra: 1.5, oilLamp: 0.7, orb: 1 };
 
 /** A tocha do token fica acima da cabeça dele (no centro). */
 export const HELD_TORCH_ABOVE = 0.3;
