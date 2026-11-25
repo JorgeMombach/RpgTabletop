@@ -41,6 +41,10 @@ import { CURRENT_CONTINUE, CURRENT_ERASER, CURRENT_STEP, currentsNear, simplifyC
 
 /** O navegador desenha a água animada (WebGL 2): conferido uma vez. */
 const WEBGL_GROUND = GroundRenderer.supported();
+/** Quanto tempo sem rodinha encerra o gesto de zoom (a visão vai para o React). */
+const ZOOM_GESTURE_MS = 120;
+/** Afastando no gesto, a visão vai para o React a cada vez que a escala cai isso (2 passos; cabe na folga de 1,4× do chão). */
+const ZOOM_OUT_SYNC = 1.25;
 /** Nenhuma peça que dá luz sendo arrastada (o mesmo objeto sempre: não redesenha à toa). */
 const NO_DRAG: Dragging = { id: null, dx: 0, dy: 0 };
 import { useSmallScreen } from "../layout";
@@ -122,8 +126,24 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [view, setView] = useState<View>({ x: 40, y: 40, scale: 1 });
+  const [view, setViewState] = useState<View>({ x: 40, y: 40, scale: 1 });
   const [mapLeft, setMapLeft] = useState(0);
+  // Zoom no gesto (docs/design/desempenho.md): cada passo da rodinha mexe só no palco do Konva (sem redesenhar o
+  // mapa no React); a visão vai para o React quando a rodinha para. Qualquer outra mudança de visão aplica antes o
+  // zoom pendente (nada pula).
+  const pendingZoom = useRef<View | null>(null);
+  const zoomTimer = useRef<number | null>(null);
+  const setView = useCallback((update: View | ((current: View) => View)) => {
+    const pending = pendingZoom.current;
+    if (zoomTimer.current !== null) window.clearTimeout(zoomTimer.current);
+    zoomTimer.current = null;
+    pendingZoom.current = null;
+    if (!pending) return setViewState(update);
+    setViewState(typeof update === "function" ? update(pending) : update);
+  }, []);
+  useEffect(() => () => {
+    if (zoomTimer.current !== null) window.clearTimeout(zoomTimer.current);
+  }, []);
   // O que o canvas enxerga: a área visível mais o pedaço embaixo da coluna da esquerda.
   const stageX = view.x + mapLeft;
   const stageView = useMemo(() => ({ x: stageX, y: view.y, scale: view.scale }), [stageX, view.y, view.scale]);
@@ -381,11 +401,27 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   function zoomAt(point: Point, factor: number) {
     // trabalho pontual: os quadros lentos do zoom não contam como aparelho lento
     markMapBusy();
-    setView((v) => {
-      const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, v.scale * factor));
-      const world = { x: (point.x - v.x) / v.scale, y: (point.y - v.y) / v.scale };
-      return { scale, x: point.x - world.x * scale, y: point.y - world.y * scale };
-    });
+    const v = pendingZoom.current ?? viewRef.current;
+    const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, v.scale * factor));
+    const world = { x: (point.x - v.x) / v.scale, y: (point.y - v.y) / v.scale };
+    const next = { scale, x: point.x - world.x * scale, y: point.y - world.y * scale };
+    const stage = stageRef.current;
+    if (!stage) return setView(next);
+    // só o palco agora (as imagens do chão esticam junto, como no zoom provisório); o React, quando a rodinha parar
+    stage.scale({ x: next.scale, y: next.scale });
+    stage.position({ x: next.x + mapLeft, y: next.y });
+    stage.batchDraw();
+    // Afastando, o que entra pelas bordas ainda não foi desenhado: a visão vai para o React quando a tela passa da
+    // folga que o chão pinta ao afastar (1,4×). Aproximando, nada falta (só amplia) e fica tudo no palco.
+    if (next.scale < viewRef.current.scale / ZOOM_OUT_SYNC) return setView(next);
+    pendingZoom.current = next;
+    if (zoomTimer.current !== null) window.clearTimeout(zoomTimer.current);
+    zoomTimer.current = window.setTimeout(() => {
+      zoomTimer.current = null;
+      const settled = pendingZoom.current;
+      pendingZoom.current = null;
+      if (settled) setViewState(settled);
+    }, ZOOM_GESTURE_MS);
   }
 
   function worldPointer(): Point | null {

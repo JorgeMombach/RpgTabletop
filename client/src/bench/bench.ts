@@ -33,7 +33,7 @@ export interface BenchReport {
 declare global {
   interface Window {
     /** O teste de desempenho (só em desenvolvimento, com `?bench`). */
-    rpgBench?: { run: () => Promise<BenchReport> };
+    rpgBench?: { run: () => Promise<BenchReport>; repeatZoom: (times: number) => Promise<ScenarioResult[]>; repeatWater: (times: number) => Promise<ScenarioResult> };
   }
 }
 
@@ -174,6 +174,46 @@ export async function run(): Promise<BenchReport> {
       scenarios: { idle, zoom, pan, firstWater, water50, relief, forestWind },
       water50Before,
     };
+  } finally {
+    await removeBenchScene(scene);
+  }
+}
+
+/**
+ * Só o zoom, `times` vezes na mesma cena pesada (para separar ruído de piora: o p95 de um zoom sai de poucos quadros).
+ * Cada vez enquadra o mapa e espera assentar antes.
+ */
+export async function repeatZoom(times: number): Promise<ScenarioResult[]> {
+  const scene = await buildBenchScene();
+  try {
+    const results: ScenarioResult[] = [];
+    for (let index = 0; index < times; index++) {
+      fitMap();
+      await settle();
+      results.push(await measure(zoomScenario));
+    }
+    return results;
+  } finally {
+    await removeBenchScene(scene);
+  }
+}
+
+/** Só os traços de água do "água 50×", `times` vezes, na cena pesada (para achar de onde vêm os quadros lentos). */
+export async function repeatWater(times: number): Promise<ScenarioResult> {
+  const scene = await buildBenchScene();
+  try {
+    fitMap();
+    await settle();
+    return await measure(async () => {
+      for (let index = 0; index < times; index++) {
+        const col = 4 + (index % 10) * 5;
+        await paintTerrainStroke({ terrain: "water", radius: 1, strength: 1, points: [col, 38, col + 2, 38] });
+        await addCurrent([col, 37, col + 3, 37]);
+        await undo("terrain");
+        await undo("terrain");
+      }
+      await settle(8000);
+    }, 0);
   } finally {
     await removeBenchScene(scene);
   }

@@ -268,9 +268,9 @@ Ao corrigir ou testar um item, marque `[x]` (ou apague a linha) no mesmo PR.
 ## Pendências pequenas
 
 ### Desempenho e estabilidade ([docs/design/desempenho.md](design/desempenho.md))
-- [ ] **Primeiro zoom depois de abrir a cena:** 2 ou 3 quadros de ~350–450 ms (só na primeira vez; os zooms seguintes saem lisos). Não é o desenho da placa (medido com espera da placa: nenhuma etapa passa de 30 ms) nem compilação; parece a composição das telas 2D do navegador na primeira escala nova. Investigar no perfil do navegador.
-- [ ] **Zoom: piores 5% em ~33 ms (meta era 25):** cada passo da rodinha ainda refaz o mapa no React (~20–30 ms). Caminho: no gesto, mexer só na escala do palco do Konva e passar a visão ao React ao parar.
-- [ ] **Pintar água várias vezes seguidas:** cada traço de água dá quadros de ~100 ms (a forma da água recalculada). Uma vez só (primeira água) está dentro da meta.
+- [ ] **Primeiro zoom depois de abrir a cena:** agora um quadro de ~130–150 ms (era 350–450), só na primeira vez. Medido com os quadros longos do navegador: cai uns 400 ms depois da última rodinha (o desenho completo na escala nova) e não tem script nenhum acima de 5 ms; é o navegador compondo as telas. Sobra para um perfil do navegador no app instalado.
+- [ ] **Zoom mais leve (feito):** no gesto, aproximar mexe só no palco do Konva (a visão vai ao React 120 ms depois da última rodinha); afastar vai ao React a cada 2 passos (cabe na folga de 1,4× que o chão pinta). Repetido na cena pesada: piores 5% em 17–33 ms (antes 50 na mesma sessão). Conferir: aproximar e afastar rápido e devagar, com a rodinha e com os botões, sem pedaço preto nas bordas; WASD e arrastar logo depois do zoom sem pulo.
+- [ ] **Pintar água várias vezes seguidas (melhorado):** a causa era outra: riscar ou desfazer a correnteza redesenhava todos os painéis laterais (as correntezas não estavam na lista do que é só do mapa). Agora os 50 traços dão piores 5% em 50 ms (eram 117). O que sobra é o redesenho do mapa no React, que em desenvolvimento roda duas vezes; conferir no app instalado.
 - [ ] **Teste de desempenho:** editar arquivos de `client/src/bench/` ou de `shared/` no meio de uma medição recarrega a página ou reinicia o servidor de dev e a cena de teste fica para trás (apagar no painel de cenas).
 
 ### Sombras de tochas, tokens e objetos ([docs/design/sombras.md](design/sombras.md))
