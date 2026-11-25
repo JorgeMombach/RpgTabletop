@@ -6,6 +6,8 @@ A seção da versão vira o texto da GitHub Release. Antes de criar a tag `vX.Y.
 
 ## [Não lançado]
 
+## [2.15.0] - 2026-11-25
+
 ### Adicionado
 
 - **Moldura da cena:** no painel *Mapa*, o mestre pode ligar uma moldura (madeira entalhada, bronze dourado, ferro com rebites ou pedra) do tamanho que quiser, em casas, ou ajustada à imagem do mapa. A cena acontece dentro dela: fora fica a mesa, e nada pode ser posto ou pintado lá (tokens, objetos, tochas, baús, paredes, pontes, escadas, efeitos, desenhos e pincéis). O que já estava fora não é apagado: fica escondido sob a mesa.
@@ -457,7 +459,8 @@ Primeira versão jogável (E1–E7), rodando pelo código-fonte com Node.
 - Slots de magia e lista de magias de referência, com "recuperar slots" e "restaurar tudo".
 - Limpar o campo de batalha mantendo jogadores e personagens.
 
-[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.14.0...HEAD
+[Não lançado]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/JorgeMombach/RpgTabletop/compare/v2.11.0...v2.12.0
