@@ -54,7 +54,7 @@ import { paintColorOf } from "./PaintOptions";
 import { MapPropLayer, propSpot, propUnderToken, tokenSpots } from "./MapProps";
 import { scatter } from "./scatter";
 import { toast } from "../notify";
-import { addBridge, addStair, removeStairs, updateStair, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, addTorch, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
+import { addBridge, addStair, removeStairs, updateStair, addChest, addCurrent, removeBridges, removeCurrents, updateCurrent, addDrawing, addProp, addProps, removeProps, addWall, erasePaint, paintCells, paintFloorStroke, paintReliefStroke, paintTerrainStroke, restyleWalls, recordDrawingErase, recordTorchErase, recordWallErase, undo, type UndoScope } from "./mapHistory";
 import { reliefStrokeOf } from "./terrain/reliefStroke";
 import { FloorLayer } from "./floor/FloorLayer";
 import { floorStrokeOf } from "./floor/FloorOptions";
@@ -68,7 +68,7 @@ import { useImage } from "./useImage";
 import { LastSeenOverlay } from "./LastSeen";
 import { screenLights, tokenCenter, TorchGlowLayer } from "./Torch";
 import { tokenCaster, tokenGroundShadow } from "./ground/shadowCasters";
-import { MapTorchLayer, TORCH_DRAG_MIME } from "./MapTorches";
+import { MapTorchLayer, placeTorch, TORCH_DRAG_MIME } from "./MapTorches";
 import { ChestEditor, MapChestLayer } from "./MapChests";
 import { PauseButton, PauseOverlay, PingOptions } from "./PauseOverlay";
 import { ViewAsBanner } from "./ViewAsBanner";
@@ -1205,7 +1205,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     if (tool === "torches") {
       // Clicou numa tocha: é para arrastar, não para pôr outra em cima.
       if (e.target.name() === "map-torch") return;
-      void addTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torchStyle);
+      void placeTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torchStyle, state.battle.walls);
       return;
     }
     if (restyleMode) {
@@ -1443,7 +1443,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
     const p = stage.getRelativePointerPosition();
     if (!p) return;
     // Desenho de tocha arrastado do seletor: fica exatamente onde foi solto.
-    if (torch) return void addTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torch as MapTorchStyle);
+    if (torch) return void placeTorch((p.x - grid.offsetX) / grid.cellPx, (p.y - grid.offsetY) / grid.cellPx, torch as MapTorchStyle, state.battle.walls);
     // Soltar da lista é "colocar": se a casa estiver ocupada, vai para a livre mais perto.
     const all = allCombatants(state);
     const c = all.find((o) => o.id === id);
@@ -2029,7 +2029,7 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           ) : (
             <TorchGlowLayer tokens={tokens} torches={state.battle.torches} grid={grid} light={state.battle.weather.light} />
           )}
-          <MapTorchLayer torches={state.battle.torches} grid={grid} editing={gm && tool === "torches" && !torchErase} fire={!groundLit} />
+          <MapTorchLayer torches={state.battle.torches} grid={grid} editing={gm && tool === "torches" && !torchErase} fire={!groundLit} walls={state.battle.walls} />
           <MapChestLayer chests={state.battle.chests} grid={grid} editing={gm && tool === "chests"} clickable={tool === "move" && !placing && !gathering} />
 
           {/* Névoa de guerra (G): cobre mapa, efeitos, desenhos, paredes e brilho das tochas; os tokens ficam por cima. */}

@@ -1,4 +1,4 @@
-import { cutUnder, isWaterTerrain, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
+import { cutUnder, isWaterTerrain, paintFloor, type FloorChunks, type FloorStroke, paintRelief, paintTerrain, type ReliefChunks, type ReliefStroke, PROP_DEFAULTS, TERRAINS, type TerrainChunk, type TerrainChunks, type TerrainStroke, LIMITS, type ActionResult, type ChestStyle, type Drawing, type EffectPreset, type GridPos, type LootEntry, type MapProp, type WallStyle, type LootInput, type MapChest, type MapTorch, type MapTorchColor, type MapTorchStyle, type Wall, type WaterCurrent, type Bridge, type Stair } from "@rpg/shared";
 import { create } from "zustand";
 import { act } from "../actions";
 import { useApp } from "../store";
@@ -24,7 +24,7 @@ type Step =
   | { scope: "drawings"; kind: "added"; id: string }
   | { scope: "drawings"; kind: "erased"; removed: Drawing[]; added: string[] }
   | { scope: "torches"; kind: "added"; id: string }
-  | { scope: "torches"; kind: "moved"; id: string; col: number; row: number }
+  | { scope: "torches"; kind: "moved"; id: string; col: number; row: number; facing?: number }
   | { scope: "torches"; kind: "erased"; removed: MapTorch[] }
   | { scope: "chests"; kind: "added"; id: string }
   | { scope: "chests"; kind: "moved"; id: string; col: number; row: number }
@@ -184,16 +184,17 @@ async function restoreDrawing(d: Drawing) {
 
 // ---------- Tochas ----------
 
-export async function addTorch(col: number, row: number, style: MapTorchStyle): Promise<ActionResult> {
-  const res = await act("maptorch:add", { col, row, style });
+/** Põe uma fonte de luz; a arandela leva a direção (`snapSconce`). */
+export async function addTorch(col: number, row: number, style: MapTorchStyle, color: MapTorchColor = "flame", facing?: number): Promise<ActionResult> {
+  const res = await act("maptorch:add", { col, row, style, ...(color !== "flame" && { color }), ...(facing !== undefined && { facing }) });
   if (res.ok && res.ids?.[0]) push({ scope: "torches", kind: "added", id: res.ids[0] });
   return res;
 }
 
 /** Tocha arrastada: desfazer volta para onde estava. */
-export async function moveTorch(t: MapTorch, col: number, row: number): Promise<ActionResult> {
-  const res = await act("maptorch:move", { id: t.id, col, row });
-  if (res.ok) push({ scope: "torches", kind: "moved", id: t.id, col: t.col, row: t.row });
+export async function moveTorch(t: MapTorch, col: number, row: number, facing?: number): Promise<ActionResult> {
+  const res = await act("maptorch:move", { id: t.id, col, row, ...(facing !== undefined && { facing }) });
+  if (res.ok) push({ scope: "torches", kind: "moved", id: t.id, col: t.col, row: t.row, ...(t.facing !== undefined && { facing: t.facing }) });
   return res;
 }
 
@@ -203,7 +204,7 @@ export function recordTorchErase(before: MapTorch[], after: MapTorch[]) {
 }
 
 async function restoreTorch(t: MapTorch) {
-  const res = await act("maptorch:add", { col: t.col, row: t.row, style: t.style });
+  const res = await act("maptorch:add", { col: t.col, row: t.row, style: t.style, ...(t.color && { color: t.color }), ...(t.facing !== undefined && { facing: t.facing }) });
   const id = res.ok ? res.ids?.[0] : undefined;
   if (id) renamed("torches", t.id, id);
 }
@@ -648,7 +649,7 @@ export async function undo(scope?: UndoScope) {
   } else if (step.kind === "added") {
     if (has(battle?.torches, step.id)) await act("maptorch:remove", { id: step.id });
   } else if (step.kind === "moved") {
-    if (has(battle?.torches, step.id)) await act("maptorch:move", { id: step.id, col: step.col, row: step.row });
+    if (has(battle?.torches, step.id)) await act("maptorch:move", { id: step.id, col: step.col, row: step.row, ...(step.facing !== undefined && { facing: step.facing }) });
   } else {
     for (const t of step.removed) await restoreTorch(t);
   }

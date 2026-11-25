@@ -4,7 +4,7 @@ import type { DrawMode } from "./map/DrawingShape";
 import type { WallMode } from "./map/WallShape";
 import type { ScatterSet } from "./map/scatter";
 import type { FogShape } from "./map/Fog";
-import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle, type BridgeKind, type BridgeWidth, type StairExit, type StairMaterial, type StairShape } from "@rpg/shared";
+import { WALL_THICKNESS, type Area, type AreaKind, type ClientState, type Handout, type JournalEntry, type FloorChunks, type FloorMaterial, type ReliefChunks, type TerrainChunks, type TerrainId, type JoinError, type MapImagePayload, type MapPoint, type ChestStyle, type EffectPreset, type MapTorchColor, type MapTorchStyle, type PropKind, type Role, type Ruler, type WallStyle, type BridgeKind, type BridgeWidth, type StairExit, type StairMaterial, type StairShape } from "@rpg/shared";
 
 /** Quanto tempo um ping fica no mapa. */
 export const PING_MS = 2600;
@@ -111,6 +111,8 @@ export interface AppStore extends DicePrefs {
   /** Ferramenta Tochas: desenho que o próximo clique coloca, ou a borracha. */
   torchStyle: MapTorchStyle;
   torchErase: boolean;
+  /** Cor da luz da próxima fonte (docs/design/luzes.md). */
+  torchColor: MapTorchColor;
   /** Ferramenta Baús: desenho do próximo baú; baú aberto no editor (mestre). */
   chestStyle: ChestStyle;
   editingChestId: string | null;
@@ -222,6 +224,7 @@ export const useApp = create<AppStore>(() => ({
   rolling: [],
   torchStyle: "stick",
   torchErase: false,
+  torchColor: "flame",
   chestStyle: "wood",
   editingChestId: null,
   newChestId: null,
