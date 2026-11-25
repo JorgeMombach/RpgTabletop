@@ -172,6 +172,11 @@ float rampAt(int s, float u) {
 }
 
 /** A escada no ponto (opaca). */
+// Escadas legíveis (docs/design/estruturas-ajustes.md, teste em escadas-relevo-teste.html, "Legível"): espelho escuro,
+// nariz claro, mais claras conforme sobem e contorno escuro na mureta.
+const float LEGIBLE = 0.6;
+/** Mais escuro no pé, mais claro no alto (rel = altura desde o pé, em níveis). */
+float climbTone(float rel) { return mix(1.0 - 0.2 * LEGIBLE, 1.0 + 0.12 * LEGIBLE, clamp(rel / 2.0, 0.0, 1.0)); }
 vec3 drawPathStair(int s, Local L, vec2 c) {
   vec4 A = data(s, 0); float w = A.x; bool isWood = A.y > 0.5; int mode = int(A.z + 0.5); float len = A.w;
   float base = data(s, 1).w;
@@ -211,6 +216,7 @@ vec3 drawPathStair(int s, Local L, vec2 c) {
       col *= joint(min(fract(bx), 1.0 - fract(bx)) * 0.42, 0.025);
       n = vec3(sideOut * (edge < railW * 0.5 ? 0.8 : -0.4), 1.0);
     }
+    col *= (1.0 - 0.22 * LEGIBLE) * mix(1.0 - 0.6 * LEGIBLE, 1.0, smoothstep(0.0, 0.035, edge));
     return col * relativeShade(n) * (1.0 + 0.1 * rel * (mode == 1 ? 1.0 : 0.0)) * dark;
   }
   if (tl <= 0.0) {
@@ -226,7 +232,7 @@ vec3 drawPathStair(int s, Local L, vec2 c) {
       col *= joint(min(min(fract(b.x), 1.0 - fract(b.x)) * 0.55, min(fract(b.y), 1.0 - fract(b.y)) * 0.5), 0.03);
     }
     n = vec3((noise(c * 9.0) - 0.5) * 0.25, (noise(c * 9.0 + 4.0) - 0.5) * 0.25, 1.0);
-    return col * relativeShade(n) * dark;
+    return col * relativeShade(n) * (1.0 - 0.16 * LEGIBLE) * climbTone(rel) * dark;
   }
   // degrau: piso, espelho do lado de baixo (largura de face), nariz claro e sombra na base do espelho
   bool rising = dh > 0.0;
@@ -252,6 +258,8 @@ vec3 drawPathStair(int s, Local L, vec2 c) {
   float nose = rising ? 1.0 - smoothstep(0.0, nw, f) : smoothstep(1.0 - nw, 1.0, f);
   float baseShade = rising ? smoothstep(1.0 - rw - 0.03 / tl, 1.0 - rw, f) * (1.0 - riser) : (1.0 - smoothstep(rw, rw + 0.03 / tl, f)) * (1.0 - riser);
   col *= (1.0 + 0.16 * nose) * (1.0 - 0.18 * baseShade);
+  col = mix(col, col * 0.42, riser * LEGIBLE);
+  col *= (1.0 - 0.4 * baseShade * LEGIBLE) * (1.0 + 0.3 * nose * LEGIBLE) * climbTone(rel);
   if (mode == 1) col *= 1.0 + 0.18 * rel;
   if (mode == 2) col *= dark;
   if (mode == 1 && L.u > len - 0.4) {
