@@ -1,0 +1,111 @@
+{
+  "when": "2026-11-25T00:21:38.435Z",
+  "version": "2.14.0",
+  "screen": {
+    "width": 1600,
+    "height": 900,
+    "dpr": 1.25
+  },
+  "scenarios": {
+    "idle": {
+      "frames": 179,
+      "medianMs": 16.7,
+      "p95Ms": 16.9,
+      "worstMs": 33.4,
+      "heapMb": 115.1,
+      "gl": {
+        "textures": 58,
+        "buffers": 83,
+        "programs": 63,
+        "framebuffers": 26
+      }
+    },
+    "zoom": {
+      "frames": 83,
+      "medianMs": 33.4,
+      "p95Ms": 133.2,
+      "worstMs": 516.6,
+      "heapMb": 118.7,
+      "gl": {
+        "textures": 58,
+        "buffers": 83,
+        "programs": 70,
+        "framebuffers": 26
+      }
+    },
+    "pan": {
+      "frames": 26,
+      "medianMs": 83.4,
+      "p95Ms": 300,
+      "worstMs": 300,
+      "heapMb": 128.2,
+      "gl": {
+        "textures": 58,
+        "buffers": 83,
+        "programs": 72,
+        "framebuffers": 26
+      }
+    },
+    "firstWater": {
+      "frames": 74,
+      "medianMs": 16.7,
+      "p95Ms": 50.1,
+      "worstMs": 83.3,
+      "heapMb": 126.6,
+      "gl": {
+        "textures": 60,
+        "buffers": 83,
+        "programs": 73,
+        "framebuffers": 26
+      }
+    },
+    "water50": {
+      "frames": 692,
+      "medianMs": 16.7,
+      "p95Ms": 133.4,
+      "worstMs": 166.8,
+      "heapMb": 143.8,
+      "gl": {
+        "textures": 60,
+        "buffers": 83,
+        "programs": 73,
+        "framebuffers": 26
+      }
+    },
+    "relief": {
+      "frames": 123,
+      "medianMs": 16.7,
+      "p95Ms": 66.6,
+      "worstMs": 283.4,
+      "heapMb": 182.3,
+      "gl": {
+        "textures": 60,
+        "buffers": 83,
+        "programs": 73,
+        "framebuffers": 26
+      }
+    },
+    "forestWind": {
+      "frames": 252,
+      "medianMs": 16.7,
+      "p95Ms": 33.6,
+      "worstMs": 50.2,
+      "heapMb": 181.4,
+      "gl": {
+        "textures": 60,
+        "buffers": 83,
+        "programs": 73,
+        "framebuffers": 26
+      }
+    }
+  },
+  "water50Before": {
+    "heapMb": 126.6,
+    "gl": {
+      "textures": 60,
+      "buffers": 83,
+      "programs": 73,
+      "framebuffers": 26
+    }
+  }
+}
