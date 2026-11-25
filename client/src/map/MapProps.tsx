@@ -8,6 +8,7 @@ import { useT, type MessageKey } from "../i18n";
 import { useApp } from "../store";
 import { cellCenter } from "./geometry";
 import { removeProps, undo, updateProp, useMapUndo } from "./mapHistory";
+import { useWindStalled } from "./windStall";
 import { drawProp, plantLayers, PROP_EXTENT, propImage, SWAYING } from "./propArt";
 import { PlantNode, useWindClock, type PlantRegistry } from "./PlantWind";
 import { SCATTER_SETS, type ScatterSet } from "./scatter";
@@ -190,7 +191,7 @@ export const MapPropLayer = memo(function MapPropLayer({
   const registry = useRef<PlantRegistry>(new Map()).current;
   const windTime = useRef(0);
   const reduceFx = useApp((s) => s.reduceFx);
-  const windStalled = useApp((s) => s.windStalled);
+  const windStalled = useWindStalled();
   const windOn = !editing && !reduceFx && !windStalled;
   const onGpu = (p: MapProp) => gpu && GPU_PROP_KINDS.has(p.kind);
   const swaying = windOn && list.some((p) => SWAYING[p.kind] && !onGpu(p));

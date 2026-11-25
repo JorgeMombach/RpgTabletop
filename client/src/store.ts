@@ -175,7 +175,8 @@ export interface AppStore extends DicePrefs {
   /** Sobe a cada terreno inteiro recebido (entrar, trocar de cena, carregar arquivo, apagar tudo, Limpar campo). */
   terrainEpoch: number;
   /** Este aparelho não aguentou as plantas balançando (vento nas plantas): ficam paradas até recarregar a página. */
-  windStalled: boolean;
+  /** Até quando (`performance.now()`) a animação fica parada pelo vigia de aparelho lento; 0 = não está. */
+  windStalledUntil: number;
   /** O chão em WebGL (terreno e água) falhou ou perdeu o contexto: o mapa volta ao desenho de antes. */
   groundFailed: boolean;
   /** Combatente com o mouse em cima no mapa: fica por cima dos vizinhos, com o nome visível (E26). */
@@ -257,7 +258,7 @@ export const useApp = create<AppStore>(() => ({
   floors: {},
   floorEpoch: 0,
   floorPreview: null,
-  windStalled: false,
+  windStalledUntil: 0,
   groundFailed: false,
   ...readPrefs(),
 }));

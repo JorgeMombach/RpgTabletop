@@ -38,25 +38,44 @@ const SLOW_FRAME_MS = 50;
 /** Quadro maior que isso é a aba voltando do segundo plano, não o aparelho engasgando. */
 const IGNORE_FRAME_MS = 1000;
 
+/** Esperas antes de tentar de novo, na ordem das paradas (a última se repete). */
+export const STALL_WAITS_MS = [5_000, 15_000, 45_000, 135_000, 300_000];
+/** Animando bem por este tempo seguido, a próxima parada volta à primeira espera. */
+const CALM_RESET_MS = 60_000;
+
 /**
- * Detector de aparelho que não aguenta: numa janela de 3 s de quadros, mais da metade lentos desliga o vento
- * de vez (até recarregar a página). Só decide com a janela quase cheia, para um começo pesado não contar.
+ * Detector de aparelho que não aguenta (docs/design/desempenho.md): numa janela de 3 s de quadros, mais da metade
+ * lentos para a animação por um tempo (5 s, depois 15 s, 45 s… até 5 min) e tenta de novo. Quadros com o mapa
+ * ocupado (zoom, arrasto, relevo calculando, água chegando) não contam: o engasgo é do trabalho, não do aparelho. Só
+ * decide com a janela quase cheia, para um começo pesado não contar.
  */
 export class FrameWatch {
   private frames: number[] = [];
   private total = 0;
-  private stalled = false;
+  private stalls = 0;
+  private calmSince: number | null = null;
+  /** Hora (ms, a mesma de `now`) em que a animação tenta de novo; 0 = não está parada. */
+  resumeAt = 0;
 
-  /** Registra a duração de um quadro; `false` = o vento deve parar (e continua parado). */
-  tick(frameMs: number): boolean {
-    if (this.stalled) return false;
-    if (frameMs > IGNORE_FRAME_MS || frameMs <= 0) return true;
+  /** Registra um quadro de `frameMs` terminado em `now`; `false` = a animação fica parada por enquanto. */
+  tick(frameMs: number, now: number, busy: boolean): boolean {
+    if (now < this.resumeAt) return false;
+    if (frameMs > IGNORE_FRAME_MS || frameMs <= 0 || busy) return true;
     this.frames.push(frameMs);
     this.total += frameMs;
     while (this.total > WATCH_WINDOW_MS && this.frames.length > 1) this.total -= this.frames.shift() ?? 0;
     if (this.total < WATCH_DECIDE_MS) return true;
     const slow = this.frames.filter((duration) => duration > SLOW_FRAME_MS).length;
-    if (slow * 2 > this.frames.length) this.stalled = true;
-    return !this.stalled;
+    if (slow * 2 > this.frames.length) {
+      this.resumeAt = now + STALL_WAITS_MS[Math.min(this.stalls, STALL_WAITS_MS.length - 1)];
+      this.stalls++;
+      this.frames = [];
+      this.total = 0;
+      this.calmSince = null;
+      return false;
+    }
+    this.calmSince ??= now;
+    if (now - this.calmSince >= CALM_RESET_MS) this.stalls = 0;
+    return true;
   }
 }

@@ -1,11 +1,12 @@
 import type Konva from "konva";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image as KImage, Layer } from "react-konva";
-import { duneMask, FrameWatch, type Bridge, type Stair, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent, type WeatherState, windOf } from "@rpg/shared";
+import { duneMask, type Bridge, type Stair, type FloorChunks, reliefAffected, ReliefQueue, TERRAINS, wallPieces, type MapConfig, type MapProp, type ReliefChunks, type TerrainChunks, type Wall, type WallStyle, type WaterCurrent, type WeatherState, windOf } from "@rpg/shared";
 import { useApp } from "../../store";
 import { filteredWatercolor, loadTerrainImages, TERRAIN_ART } from "../terrain/terrainArt";
 import type { GroundView } from "./glKit";
 import { GroundRenderer, TerrainTooLarge } from "./GroundRenderer";
+import { useWindStalled, watchFrame } from "../windStall";
 import { usePropDrag } from "../props/propDrag";
 import { useTokenDrag } from "../dragFollow";
 import type { TokenCaster } from "./shadowCasters";
@@ -150,6 +151,8 @@ export const GroundLayer = memo(function GroundLayer({
   const uploaded = useRef<{ chunks: TerrainChunks; epoch: number } | null>(null);
   // Água pedida ao Worker e ainda não chegou: o terreno mostra a aquarela da água (sem buraco ao soltar o pincel).
   const [waterPending, setWaterPending] = useState(true);
+  const waterPendingRef = useRef(waterPending);
+  waterPendingRef.current = waterPending;
   // O chão desligou por terreno grande demais (não por falha do WebGL): volta sozinho se o terreno passar a caber.
   const tooLarge = useRef(false);
 
@@ -378,7 +381,8 @@ export const GroundLayer = memo(function GroundLayer({
   }, [renderer, tokenCasters, tokenDrag, grid.cellPx]);
 
   // Vento nas plantas: parado com a ferramenta Objetos, com Reduzir efeitos e no aparelho que não aguenta.
-  const propWindOff = useApp((state) => state.tool === "props" || state.reduceFx || state.windStalled);
+  const windStalled = useWindStalled();
+  const propWindOff = useApp((state) => state.tool === "props" || state.reduceFx) || windStalled;
   useEffect(() => {
     if (!renderer) return;
     const wind = windOf(weather);
@@ -394,7 +398,7 @@ export const GroundLayer = memo(function GroundLayer({
   }, [renderer, floors]);
 
   // Poeira das dunas: onde há duna (do relevo, com a prévia) e o vento do clima; parada com a animação desligada.
-  const reduceDust = useApp((state) => state.reduceFx || state.windStalled);
+  const reduceDust = useApp((state) => state.reduceFx) || windStalled;
   // sem vento (ou com a animação desligada) não há poeira: a máscara nem é montada (o pincel do relevo muda a toda hora)
   const blowing = dust.level > 0 && !reduceDust;
   const dunes = useMemo(() => (blowing ? duneMask(relief) : null), [relief, blowing]);
@@ -442,7 +446,6 @@ export const GroundLayer = memo(function GroundLayer({
   // Tempo da água: contínuo (não volta a zero quando algo muda); parada, fica no último instante.
   const timeRef = useRef(performance.now() / 1000);
   const reduceFx = useApp((state) => state.reduceFx);
-  const windStalled = useApp((state) => state.windStalled);
   const groundFailed = useApp((state) => state.groundFailed);
   const animate = !reduceFx && !windStalled;
 
@@ -514,20 +517,12 @@ export const GroundLayer = memo(function GroundLayer({
   useEffect(() => {
     // chão desligado (o mapa voltou ao desenho de antes): nada a animar nem a medir
     if (!renderer || !animate || groundFailed) return;
-    const watch = new FrameWatch();
     let frame = 0;
-    let previous = performance.now();
     let lastDraw = 0;
     const tick = (now: number) => {
       frame = requestAnimationFrame(tick);
-      const elapsed = now - previous;
-      previous = now;
-      // Só conta quadros com a página à vista e em foco: janela de trás ou minimizada fica lenta sem o aparelho estar.
-      const watching = document.visibilityState === "visible" && document.hasFocus();
-      if (watching && !watch.tick(elapsed)) {
-        useApp.setState({ windStalled: true });
-        return;
-      }
+      // o vigia de aparelho lento (o mesmo do vento); relevo calculando e água chegando não contam
+      if (!watchFrame(renderer.busy || waterPendingRef.current)) return;
       // Anima com água, tocha tremulando ou poeira na tela, ou com a luz da cena ainda trocando.
       // os efeitos que mexem na luz pedem o desenho inteiro (a luz tremula com eles)
       const ground = renderer.visibleWater(viewRef.current) || renderer.flickering(viewRef.current) || renderer.swaying || renderer.busy || renderer.dusting(viewRef.current) || (renderer.effecting && renderer.effectsLit);

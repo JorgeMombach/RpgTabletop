@@ -20,6 +20,7 @@ import { LootWindow } from "../components/LootWindow";
 import { TipTitle } from "../components/TipTitle";
 import { CALIBRATE_HINT } from "../components/MapPanel";
 import { rectAllowed } from "./terrain/TerrainOptions";
+import { markMapBusy } from "./windStall";
 import { TerrainLayer } from "./terrain/TerrainLayer";
 import { GroundLayer } from "./ground/GroundLayer";
 import { GroundRenderer } from "./ground/GroundRenderer";
@@ -377,6 +378,8 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
   const zoomFromToolbar = useCallback((factor: number) => zoomCenter.current(factor), []);
 
   function zoomAt(point: Point, factor: number) {
+    // trabalho pontual: os quadros lentos do zoom não contam como aparelho lento
+    markMapBusy();
     setView((v) => {
       const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, v.scale * factor));
       const world = { x: (point.x - v.x) / v.scale, y: (point.y - v.y) / v.scale };
@@ -1721,7 +1724,9 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           scaleY={view.scale}
           draggable={tool === "move" && !shiftHeld && !placing}
           onDragMove={(e) => {
-            if (e.target === e.target.getStage()) setView((v) => ({ ...v, x: e.target.x() - mapLeft, y: e.target.y() }));
+            if (e.target !== e.target.getStage()) return;
+            markMapBusy();
+            setView((v) => ({ ...v, x: e.target.x() - mapLeft, y: e.target.y() }));
           }}
           onWheel={(e) => {
             e.evt.preventDefault();
