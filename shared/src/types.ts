@@ -288,6 +288,19 @@ export interface MapConfig {
   gridColor?: string;
   /** Grade da cena (Passo 16). Ausente = quadrado (arquivos antigos abrem iguais). */
   grid?: GridKind;
+  /** Moldura da cena (docs/design/moldura.md): a área de jogo; fora é a mesa e nada é posto lá. Ausente = sem moldura. */
+  frame?: SceneFrame;
+}
+
+/** Desenhos de moldura: madeira entalhada, bronze dourado, ferro com rebites e pedra. */
+export const FRAME_STYLES = ["wood", "bronze", "iron", "stone"] as const;
+export type FrameStyle = (typeof FRAME_STYLES)[number];
+
+/** Moldura da cena: da casa 0, 0 até `cols` × `rows` casas. */
+export interface SceneFrame {
+  cols: number;
+  rows: number;
+  style: FrameStyle;
 }
 
 /** Mesa em volta do mapa: madeira escura, tapete de couro (padrão de jogo novo) ou ardósia. */

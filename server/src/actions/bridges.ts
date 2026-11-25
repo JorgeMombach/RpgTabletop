@@ -3,6 +3,7 @@ import { BRIDGE_KINDS, bridgeLength, LIMITS, type Bridge, type BridgeKind, type 
 import { fail } from "../validate";
 import { requireGm } from "./combatants";
 import type { HandlerMap } from "./types";
+import { requirePointsInFrame } from "./frameRule";
 
 /** Id curto (8 caracteres), como os objetos: o estado vai inteiro a cada ação. */
 const newId = () => randomBytes(6).toString("base64url");
@@ -44,6 +45,7 @@ export const bridgeHandlers: HandlerMap = {
     requireGm(player);
     const { battle } = store.game;
     const bridge: Bridge = { id: newId(), ...parseBridge(payload) };
+    requirePointsInFrame(store, [bridge.from, bridge.to]);
     if (battle.bridges.length >= LIMITS.bridges) fail("Limite de pontes da cena atingido.");
     battle.bridges.push(bridge);
     return [bridge.id];
@@ -59,6 +61,7 @@ export const bridgeHandlers: HandlerMap = {
       width: payload.width ?? bridge.width,
       kind: payload.kind ?? bridge.kind,
     });
+    requirePointsInFrame(store, [next.from, next.to]);
     Object.assign(bridge, next);
   },
 

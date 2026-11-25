@@ -6,6 +6,7 @@ import type { ServerPlayer, Store } from "../store";
 import { fail, requireInt, requireString } from "../validate";
 import { chestsFor } from "../view";
 import { requireGm } from "./combatants";
+import { requireTokenInFrame } from "./frameRule";
 import { logSystem, whoIs } from "./dice";
 import { attackFields } from "./sheet";
 import type { HandlerMap } from "./types";
@@ -77,6 +78,7 @@ function findChest(store: Store, id: unknown): MapChest {
 function requireFree(store: Store, cell: { col: number; row: number }, except?: string) {
   const { battle } = store.game;
   if (battle.chests.some((c) => c.id !== except && c.col === cell.col && c.row === cell.row)) fail("Já tem um baú nessa casa.");
+  requireTokenInFrame(store, cell, undefined);
   // nada em cima de parede (portas e janelas não contam), pelo centro da casa
   if (touchesWall(geometryOf(battle.map.grid).center(cell), WALL_CLEARANCE.chest, battle.walls)) fail("Aí tem uma parede.");
 }

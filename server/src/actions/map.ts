@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { areaAnchor, emptyFog, freeSpotNear, geometryOf, GRID_KINDS, inRows, isColor, isRevealed, LIMITS, occupiedCells, shapesOverlap, sharesCell, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type GridKind, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
+import { areaAnchor, cellsInsideFrame, emptyFog, freeSpotNear, geometryOf, GRID_KINDS, inRows, isColor, isRevealed, FRAME_STYLES, LIMITS, occupiedCells, shapesOverlap, sharesCell, TABLE_STYLES, WALL_STYLES, seeThrough, type Combatant, type FrameStyle, type GridKind, type SceneFrame, type GridPos, type MapTorch, type TableStyle, type Wall, type WallStyle } from "@rpg/shared";
 import { allCombatants, resetCombat } from "../combat";
 import type { Store } from "../store";
 import { currentSight, forgetSight } from "../sight";
@@ -10,6 +10,7 @@ import { moveFollowers } from "./effects";
 import { requireTurnFor } from "./rules";
 import { parseMapTorch } from "./mapTorches";
 import { markFloors } from "./floor";
+import { requireTokenInFrame } from "./frameRule";
 import { markRelief } from "./relief";
 import { markTerrain } from "./terrain";
 import type { HandlerMap } from "./types";
@@ -37,6 +38,18 @@ function rotationOf(raw: unknown): number {
 export function tableStyleOf(raw: unknown): TableStyle | undefined {
   if (!TABLE_STYLES.includes(raw as TableStyle)) fail("Estilo de mesa inválido.");
   return raw === "wood" ? undefined : (raw as TableStyle);
+}
+
+/** Moldura da cena (docs/design/moldura.md): largura e altura inteiras em casas e um dos desenhos. */
+export function frameOf(raw: unknown): SceneFrame {
+  const frame = (raw ?? {}) as Record<string, unknown>;
+  const { min, max } = LIMITS.frameCells;
+  // casas inteiras: meia casa de moldura não bate com o grid
+  if (!Number.isInteger(frame.cols) || !Number.isInteger(frame.rows)) fail("A moldura vai em casas inteiras.");
+  const cols = requireInt(frame.cols, "Largura da moldura", min, max);
+  const rows = requireInt(frame.rows, "Altura da moldura", min, max);
+  if (!FRAME_STYLES.includes(frame.style as FrameStyle)) fail("Desenho de moldura inválido.");
+  return { cols, rows, style: frame.style as FrameStyle };
 }
 
 /** Cor do grid da cena; preto fica sem campo. */
@@ -145,6 +158,7 @@ export const mapHandlers: HandlerMap = {
     const wallStyle = input.wallStyle !== undefined ? wallStyleOf(input.wallStyle) : map.wallStyle;
     const tableStyle = input.tableStyle !== undefined ? tableStyleOf(input.tableStyle) : map.tableStyle;
     const gridColor = input.gridColor !== undefined ? gridColorOf(input.gridColor) : map.gridColor;
+    const frame = input.frame === undefined ? map.frame : input.frame === null ? undefined : frameOf(input.frame);
 
     // Validado tudo: aplica. Offset normalizado para um período do desenho do grid (no quadrado, [0, cellPx);
     // no hex o padrão só se repete a cada duas linhas ou colunas): mesmo grid, números mais previsíveis.
@@ -165,6 +179,8 @@ export const mapHandlers: HandlerMap = {
     else delete map.tableStyle;
     if (gridColor) map.gridColor = gridColor;
     else delete map.gridColor;
+    if (frame) map.frame = frame;
+    else delete map.frame;
   },
 
   "battle:clear": (store, player, payload) => {
@@ -214,6 +230,7 @@ export const mapHandlers: HandlerMap = {
   "allies:gather": (store, player, payload) => {
     requireGm(player);
     const at = gridPosOf(payload?.at) ?? fail("Posição inválida.");
+    requireTokenInFrame(store, at, undefined);
     const { allies } = store.game;
     if (allies.length === 0) fail("Nenhum aliado na mesa.");
     // Personagens primeiro, perto do ponto; conjurados depois, por fora. Ninguém em cima de mob, NPC ou outro aliado.
@@ -223,6 +240,9 @@ export const mapHandlers: HandlerMap = {
     const geometry = geometryOf(grid);
     for (const a of order) {
       const pos = freeSpotNear(geometry.centeredOn(at, a.size), occupiedCells(placed, grid), a.size, grid);
+      // com moldura, quem não cabe dentro dela fica onde estava
+      const { frame } = store.game.battle.map;
+      if (frame && !cellsInsideFrame(frame, geometry.footprint(pos, a.size))) continue;
       moveFollowers(store, a, a.pos, pos);
       a.pos = pos;
       placed.push(a);
@@ -261,6 +281,8 @@ export const mapHandlers: HandlerMap = {
     if (store.pause && player.role !== "gm") fail("O jogo está pausado: espere o mestre retomar.");
     requireTurnFor(store, player, "moveOnTurn", "Em combate, cada um move na sua vez.");
     const pos = gridPosOf(payload.pos);
+    // com a moldura ligada, o token inteiro tem que caber dentro (tirar do mapa continua valendo)
+    if (pos) requireTokenInFrame(store, pos, c.size);
     // Dois corpos não ocupam o mesmo espaço; criaturas grandes ocupam várias casas e miúdas dividem a casa.
     // Para o jogador, um oculto não conta: a recusa entregaria que há alguém ali (E21). O mestre separa os dois quando revelar.
     const { fog, map } = store.game.battle;

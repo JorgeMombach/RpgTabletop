@@ -3,6 +3,7 @@ import { LIMITS, MAP_TORCH_STYLES, touchesWall, WALL_CLEARANCE, type MapTorch, t
 import { eraseMapTorch, pathOf } from "../erase";
 import { fail, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
+import { requirePointsInFrame } from "./frameRule";
 import type { HandlerMap } from "./types";
 
 /** Ponto do mapa, em casas (qualquer lugar, como as pontas das paredes livres), em centésimos. */
@@ -31,6 +32,7 @@ export const mapTorchHandlers: HandlerMap = {
     requireGm(player);
     const { battle } = store.game;
     const torch: MapTorch = { id: randomUUID(), ...parseMapTorch(payload) };
+    requirePointsInFrame(store, [{ x: torch.col, y: torch.row }]);
     requireOffWall(torch, battle.walls);
     if (battle.torches.length >= LIMITS.mapTorches) fail("Limite de {n} tochas no mapa: apague algumas.", { n: LIMITS.mapTorches });
     battle.torches.push(torch);
@@ -41,6 +43,7 @@ export const mapTorchHandlers: HandlerMap = {
     requireGm(player);
     const torch = store.game.battle.torches.find((t) => t.id === payload?.id) ?? fail("Tocha não encontrada.");
     const next = spot(payload as unknown as Record<string, unknown>);
+    requirePointsInFrame(store, [{ x: next.col, y: next.row }]);
     requireOffWall(next, store.game.battle.walls);
     Object.assign(torch, next);
   },

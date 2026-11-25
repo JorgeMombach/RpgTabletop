@@ -6,6 +6,7 @@ import { fail, requireInt, requireString, validArea } from "../validate";
 import { logSystem, whoIs } from "./dice";
 import { requireTurnFor } from "./rules";
 import type { HandlerMap } from "./types";
+import { requirePointsInFrame } from "./frameRule";
 
 export const CONCENTRATION = "Concentração";
 
@@ -195,6 +196,7 @@ export const effectHandlers: HandlerMap = {
     if (battle.effects.length >= LIMITS.effects) fail("Limite de {n} efeitos no mapa.", { n: LIMITS.effects });
     const fields = effectFields(store, player, payload);
     const area = validArea(payload.area, store.game.battle.map.grid) ?? fail("Área inválida.");
+    requirePointsInFrame(store, [{ x: area.origin.col, y: area.origin.row }]);
     const { casterId, concentration } = fields;
     if (payload.follow === true && !casterId) fail("Para o efeito andar junto, escolha quem conjurou.");
 

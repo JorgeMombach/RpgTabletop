@@ -3,6 +3,7 @@ import { cutUnder, LIMITS, WALL_STYLES, WALL_THICKNESS, type GridPos, type Wall,
 import { eraseWall, pathOf } from "../erase";
 import { fail, isRecord, requireNumber } from "../validate";
 import { requireGm } from "./combatants";
+import { requirePointsInFrame } from "./frameRule";
 import type { HandlerMap } from "./types";
 
 /**
@@ -65,6 +66,7 @@ export const wallHandlers: HandlerMap = {
     const { battle } = store.game;
     if (payload?.door === true && payload.window === true) fail("Escolha porta ou janela, não as duas.");
     const wall: Wall = { id: randomUUID(), ...parseWall({ from: payload?.from, to: payload?.to, thickness: payload?.thickness, style: payload?.style }) };
+    requirePointsInFrame(store, [{ x: wall.from.col, y: wall.from.row }, { x: wall.to.col, y: wall.to.row }]);
     if (payload.door === true) wall.door = { open: false };
     if (payload.window === true) wall.window = {};
     // Porta e janela por cima de paredes alinhadas cortam essas paredes (docs/design/paredes.md).
