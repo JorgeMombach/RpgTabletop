@@ -1,3 +1,5 @@
+import type { TorchFlicker } from "../torchModels";
+import type { TorchDraw } from "./torchPass";
 import { blockersNear, lightPolygon, stopAtWall, sunShadows, triangulate, windowSunPatches, type LightId, type Segment } from "@rpg/shared";
 import { bindTextures, cellRectOnScreen, createTexture, linkProgram, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { AMBIENT_FRAGMENT, AREA_DARK_FRAGMENT, AREA_LIGHT_FRAGMENT, FLAME_FRAGMENT, GEOMETRY_VERTEX, HEIGHT_SUN_FRAGMENT, LIGHT_OUT_FRAGMENT, SHADOW_FRAGMENT, TORCH_FRAGMENT } from "./lightShader";
@@ -25,6 +27,11 @@ export interface LightSource {
   height: number;
   /** Raio do portador (casas): a tocha do token não faz sombra dele mesmo. Fixa: 0. */
   skip: number;
+  /** Cor da luz (docs/design/luzes.md); `null` = a chama de sempre, entre laranja e amarelo. */
+  color: [number, number, number] | null;
+  flicker: TorchFlicker;
+  /** Fonte fixa: o desenho dela (o passo das fontes de luz desenha corpo e chama; aqui sai só a luz). */
+  model?: Omit<TorchDraw, "seed">;
 }
 
 export interface LightingInput {
@@ -50,6 +57,8 @@ const SOFT_ORIGINS: [number, number][] = [
 const SUN_SAMPLES = 5;
 /** Raio do quadrado em volta da chama (casas): chama, brilho e faíscas cabem. */
 const FLAME_BOX = 1.1;
+/** Tremor da luz no shader: chama, pouco, pulso. */
+const FLICKER_CODE: Record<TorchFlicker, number> = { fire: 0, soft: 1, pulse: 2 };
 
 interface TorchMesh {
   source: LightSource;
@@ -477,6 +486,10 @@ export class LightPass {
       gl.uniform1f(uniformOf(gl, this.torch, "uReach"), mesh.source.reach);
       gl.uniform1f(uniformOf(gl, this.torch, "uSeed"), mesh.seed);
       gl.uniform1f(uniformOf(gl, this.torch, "uStrength"), scene.torch);
+      const color = mesh.source.color;
+      gl.uniform1f(uniformOf(gl, this.torch, "uTinted"), color ? 1 : 0);
+      gl.uniform3f(uniformOf(gl, this.torch, "uColor"), ...(color ?? [1, 1, 1]));
+      gl.uniform1i(uniformOf(gl, this.torch, "uFlicker"), FLICKER_CODE[mesh.source.flicker]);
       useVertices(gl, mesh.buffer);
       for (const part of mesh.fans) gl.drawArrays(gl.TRIANGLES, part.first, part.count);
     }
@@ -508,6 +521,8 @@ export class LightPass {
     gl.uniform1f(uniformOf(gl, this.flame, "uTime"), time);
     gl.uniform1f(uniformOf(gl, this.flame, "uTorch"), this.current.torch);
     for (const mesh of this.torches) {
+      // a fonte fixa com desenho tem chama e brilho próprios (passo das fontes de luz)
+      if (mesh.source.model) continue;
       const base = mesh.source.flame ?? { x: mesh.source.x, y: mesh.source.y };
       gl.uniform2f(uniformOf(gl, this.flame, "uFlame"), base.x, base.y);
       gl.uniform1f(uniformOf(gl, this.flame, "uSeed"), mesh.seed);
@@ -516,6 +531,13 @@ export class LightPass {
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
     gl.disable(gl.BLEND);
+  }
+
+  /** As fontes fixas com desenho, com a semente de tremor de cada uma (a mesma da luz no chão). */
+  fixedModels(): TorchDraw[] {
+    const models: TorchDraw[] = [];
+    for (const mesh of this.torches) if (mesh.source.model) models.push({ ...mesh.source.model, seed: mesh.seed });
+    return models;
   }
 
   /** Luz da cena agora (no meio de uma troca, a misturada). */

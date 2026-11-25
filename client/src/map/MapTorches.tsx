@@ -76,18 +76,20 @@ function TorchShape({ t, grid, time, draggable, fire }: { t: MapTorch; grid: Map
       }}
       hitFunc={(k, shape) => {
         k.beginPath();
-        k.rect(-s * 0.32, -s * 1.1, s * 0.64, s * 1.15);
+        k.rect(-s * 0.45, -s * 0.6, s * 0.9, s * 1.05);
         k.closePath();
         k.fillStrokeShape(shape);
       }}
-      sceneFunc={(k) => drawMapTorch(k._context as CanvasRenderingContext2D, t.style, 0, 0, s, time.current ?? 0, seed, fire)}
+      sceneFunc={(k) => {
+        if (fire) drawMapTorch(k._context as CanvasRenderingContext2D, t.style, 0, 0, s, time.current ?? 0, seed, fire);
+      }}
     />
   );
 }
 
 /**
  * Desenhos das tochas fixas: abaixo da névoa (coberta, ninguém vê), animados como a tocha dos tokens. `fire` falso
- * (chão em WebGL): só o corpo, parado; a chama nova vem da placa de vídeo (docs/design/luz.md).
+ * (chão em WebGL): só o alvo de clique e arrasto; corpo e chama vêm da placa de vídeo (docs/design/luzes.md).
  */
 export function MapTorchLayer({ torches, grid, editing, fire = true }: { torches: MapTorch[]; grid: MapConfig; editing: boolean; fire?: boolean }) {
   const layerRef = useRef<Konva.Layer>(null);

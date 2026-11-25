@@ -256,7 +256,7 @@ export const GroundLayer = memo(function GroundLayer({
     canvas.addEventListener("webglcontextlost", lost);
     canvas.addEventListener("webglcontextrestored", restored);
     uploaded.current = null;
-    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, fog: created.fogImage, fogTint: created.fogTintImage, effects: created.effectsImage, weatherGround: created.weatherGroundImage, weatherAir: created.weatherAirImage, weatherGlow: created.weatherGlowImage, frame: created.frameImage, propIcon: (kind, side) => created.propIcon(kind, side) });
+    useGroundOutputs.setState({ light: created.lightImage, flame: created.flameImage, torches: created.torchImage, walls: created.wallImage, propsBelow: created.propsBelowImage, propsAbove: created.propsAboveImage, fog: created.fogImage, fogTint: created.fogTintImage, effects: created.effectsImage, weatherGround: created.weatherGroundImage, weatherAir: created.weatherAirImage, weatherGlow: created.weatherGlowImage, frame: created.frameImage, propIcon: (kind, side) => created.propIcon(kind, side) });
     // Motor novo, sem água: a próxima conta deixa a água pendente de novo (aquarela até chegar).
     lastCommitted.current = null;
     useApp.setState({ groundFailed: false });
@@ -267,7 +267,7 @@ export const GroundLayer = memo(function GroundLayer({
       createdWorker.terminate();
       createdReliefWorker.terminate();
       created.dispose();
-      useGroundOutputs.setState({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, frame: null, drawnView: null, propIcon: null });
+      useGroundOutputs.setState({ light: null, flame: null, torches: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, frame: null, drawnView: null, propIcon: null });
       setEngine(null);
     };
   }, [generation]);

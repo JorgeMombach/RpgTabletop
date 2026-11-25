@@ -2022,7 +2022,10 @@ export function BattleMap({ state, compact = false, readOnly = false }: { state:
           {/* Tochas: brilho quente em volta de quem tem tocha acesa. Abaixo da névoa: a luz só aparece
               onde se vê (não "vaza" pela parede para dentro de um cômodo coberto). */}
           {groundLit ? (
-            <GroundOutputLayer which="flame" view={stageView} size={stageSize} />
+            <>
+              <GroundOutputLayer which="torches" view={stageView} size={stageSize} />
+              <GroundOutputLayer which="flame" view={stageView} size={stageSize} />
+            </>
           ) : (
             <TorchGlowLayer tokens={tokens} torches={state.battle.torches} grid={grid} light={state.battle.weather.light} />
           )}

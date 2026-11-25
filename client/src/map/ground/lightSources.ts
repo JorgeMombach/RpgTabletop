@@ -1,6 +1,6 @@
 import { stopAtWall, TORCH_FEET, type CombatantView, type MapConfig, type MapTorch, type Segment } from "@rpg/shared";
-import { torchFlameAnchor } from "../mapTorchArt";
 import { TORCH_CELLS } from "../MapTorches";
+import { TORCH_MODELS, TORCH_RGB, torchColorIndex, torchFacing, torchOffset } from "../torchModels";
 import { tokenCenter } from "../Torch";
 import type { LightSource } from "./lightPass";
 import { HELD_TORCH_ABOVE, TOKEN_HEIGHT, TORCH_HEIGHT } from "./shadowCasters";
@@ -21,14 +21,27 @@ export function lightSources(tokens: CombatantView[], torches: MapTorch[], grid:
   const shift = (id: string) => (dragging.id === id ? { x: dragging.dx / grid.cellPx, y: dragging.dy / grid.cellPx } : { x: 0, y: 0 });
   const fixed = torches.map((torch): LightSource => {
     const offset = shift(torch.id);
-    const size = TORCH_CELLS[torch.style];
-    const anchor = torchFlameAnchor(torch.style, size);
+    const cells = TORCH_CELLS[torch.style];
+    const model = TORCH_MODELS[torch.style];
+    const anchor = torchOffset(torch, cells, model.light);
     const x = torch.col + offset.x;
     const y = torch.row + offset.y;
     const flame = { x: x + anchor.x, y: y + anchor.y };
     // A chama fica acima da base no desenho: encostada numa parede, a luz sai do lado da base, não do outro cômodo.
     const origin = stopAtWall({ x, y }, flame, blockers);
-    return { id: torch.id, x: origin.x, y: origin.y, reach, kind: "fixed", flame, height: TORCH_HEIGHT[torch.style], skip: 0 };
+    return {
+      id: torch.id,
+      x: origin.x,
+      y: origin.y,
+      reach: model.feet / grid.feetPerCell,
+      kind: "fixed",
+      flame,
+      height: TORCH_HEIGHT[torch.style],
+      skip: 0,
+      color: torch.color && torch.color !== "flame" ? TORCH_RGB[torch.color] : null,
+      flicker: model.flicker,
+      model: { style: torch.style, color: torchColorIndex(torch.color), x, y, cells, facing: torchFacing(torch) },
+    };
   });
   const held = tokens
     .filter((token) => token.torch && token.pos)
@@ -44,6 +57,8 @@ export function lightSources(tokens: CombatantView[], torches: MapTorch[], grid:
         // acima da cabeça, no centro: o token não faz sombra da própria tocha
         height: TOKEN_HEIGHT[token.size ?? "medium"] + HELD_TORCH_ABOVE,
         skip: center.span / 2,
+        color: null,
+        flicker: "fire",
       };
     });
   return [...fixed, ...held];

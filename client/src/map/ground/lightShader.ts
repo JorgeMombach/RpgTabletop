@@ -125,6 +125,9 @@ uniform vec2 uCenter;
 uniform float uReach, uSeed, uStrength, uWeight, uTime;
 uniform float uTorchHeight, uTorchSkip;
 uniform int uUseHeights;
+uniform float uTinted;   // 1 = luz colorida (docs/design/luzes.md), com a cor uColor; 0 = a chama de sempre
+uniform vec3 uColor;
+uniform int uFlicker;    // 0 chama, 1 pouco (lanterna), 2 pulso (orbe)
 ${NOISE}
 ${HEIGHT_SAMPLE}
 ${HEIGHT_SHADE}
@@ -132,8 +135,9 @@ void main() {
   float d = distance(vCell, uCenter);
   float wobble = 1.0 + 0.04 * (noise(vec2(uTime * 3.0, uSeed * 7.0)) - 0.5);
   float fall = pow(max(1.0 - d / (uReach * wobble), 0.0), 1.7);
-  vec3 warm = mix(vec3(1.0, 0.6, 0.3), vec3(1.0, 0.78, 0.45), flameShift(uSeed));
-  outColor = vec4(warm * fall * uStrength * flicker(uSeed) * 1.6 * uWeight * 0.5 * (1.0 - heightShade()), 1.0);
+  vec3 warm = uTinted > 0.5 ? uColor * mix(0.92, 1.05, flameShift(uSeed)) : mix(vec3(1.0, 0.6, 0.3), vec3(1.0, 0.78, 0.45), flameShift(uSeed));
+  float shake = uFlicker == 2 ? 0.82 + 0.18 * sin(uTime * 1.7 + uSeed) : uFlicker == 1 ? 0.95 + 0.05 * noise(vec2(uTime * 5.0, uSeed)) : flicker(uSeed);
+  outColor = vec4(warm * fall * uStrength * shake * 1.6 * uWeight * 0.5 * (1.0 - heightShade()), 1.0);
 }`;
 
 /** Mapa de luz para a tela: dobra de volta e aplica o brilho mínimo (o do mestre). */

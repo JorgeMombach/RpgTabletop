@@ -2,6 +2,7 @@ import { isWaterTerrain, terrainBounds, terrainWeights, TERRAINS, type ChunkRect
 import { bindTextures, createTexture, imageTexture, linkProgram, ProgramCache, uniformOf, useVertices, vertexBuffer, type GroundView, type Program } from "./glKit";
 import { BLIT_FRAGMENT, FULLSCREEN_VERTEX, terrainLayerFragment } from "./terrainShader";
 import { LightPass, type LightingInput } from "./lightPass";
+import { TorchPass } from "./torchPass";
 import { ReliefPass } from "./reliefPass";
 import type { ReliefWindow } from "./reliefTypes";
 import { faceLight, SCENE_LIGHT, type SceneLight } from "./sceneLight";
@@ -48,6 +49,9 @@ export class GroundRenderer {
   private readonly triangle: WebGLBuffer;
   private readonly water: WaterPass;
   private readonly light: LightPass;
+  /** Fontes de luz fixas (docs/design/luzes.md): corpo e chama de cada modelo. */
+  private readonly torchPass: TorchPass;
+  private torchesPending = false;
   /** Paredes, portas e janelas (docs/design/relevo.md, etapa 2). */
   private readonly walls: WallPass;
   /** Poeira das dunas com vento (etapa 3). */
@@ -87,6 +91,8 @@ export class GroundRenderer {
    */
   readonly groundImage = document.createElement("canvas");
   readonly lightImage = document.createElement("canvas");
+  /** O corpo das fontes de luz fixas (mistura normal, abaixo das chamas). */
+  readonly torchImage = document.createElement("canvas");
   readonly flameImage = document.createElement("canvas");
   /** As paredes, portas e janelas: copiadas só quando a camada muda (visão, paredes, luz da cena). */
   readonly wallImage = document.createElement("canvas");
@@ -154,6 +160,7 @@ export class GroundRenderer {
     this.terrainFramebuffer = gl.createFramebuffer();
     this.water = new WaterPass(gl);
     this.light = new LightPass(gl);
+    this.torchPass = new TorchPass(gl);
     this.relief = new ReliefPass(gl, smallScreen);
     this.walls = new WallPass(gl);
     this.dust = new DustPass(gl);
@@ -361,7 +368,7 @@ export class GroundRenderer {
 
   /** Ainda há relevo a calcular ou programa das paredes compilando (precisa de mais quadros). */
   get busy(): boolean {
-    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending || this.stairs.pending || this.props.pending || this.effects.pending;
+    return this.relief.pending || this.walls.pending || this.terrain.pending || this.dust.pending || this.floor.pending || this.water.pending || this.bridges.pending || this.stairs.pending || this.props.pending || this.effects.pending || this.torchesPending;
   }
 
   /** Aquarelas (na ordem de `TERRAINS`, já com o ajuste de cor) e a terra do barranco da água. */
@@ -636,7 +643,16 @@ export class GroundRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.light.renderFlames(view, time);
+    // fontes de luz fixas: o brilho (chama, brasa, vidro, cristal) junto das chamas; o corpo na imagem dele
+    const scene = this.light.scene;
+    const lightFrom: [number, number] = [-scene.sunDirection[0], -scene.sunDirection[1]];
+    const models = this.light.fixedModels();
+    const glowPending = this.torchPass.render(view, time, true, scene.torch, lightFrom, models);
     this.copyTo(this.flameImage);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    const bodyPending = this.torchPass.render(view, time, false, scene.torch, lightFrom, models);
+    this.copyTo(this.torchImage);
+    this.torchesPending = glowPending || bodyPending;
   }
 
   /** Copia o que está no canvas WebGL agora para uma das saídas (do mesmo tamanho). */
@@ -822,6 +838,7 @@ export class GroundRenderer {
     const { gl } = this;
     this.water.dispose();
     this.light.dispose();
+    this.torchPass.dispose();
     this.relief.dispose();
     this.walls.dispose();
     this.dust.dispose();

@@ -36,6 +36,8 @@ export function useDrawnBox(view: { x: number; y: number; scale: number }, size:
 export const useGroundOutputs = create<{
   light: HTMLCanvasElement | null;
   flame: HTMLCanvasElement | null;
+  /** Corpo das fontes de luz fixas (docs/design/luzes.md), cor pré-multiplicada. */
+  torches: HTMLCanvasElement | null;
   walls: HTMLCanvasElement | null;
   /** Objetos da placa de vídeo (docs/design/objetos.md): os de baixo e os de cima dos tokens. */
   propsBelow: HTMLCanvasElement | null;
@@ -58,7 +60,7 @@ export const useGroundOutputs = create<{
   drawnView: DrawnView | null;
   /** Ícone de um tipo de objeto feito pela placa de vídeo (`null` = ainda não dá; sem motor, a função é `null`). */
   propIcon: ((kind: PropKind, side: number) => HTMLCanvasElement | null) | null;
-}>(() => ({ light: null, flame: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, frame: null, drawnView: null, propIcon: null }));
+}>(() => ({ light: null, flame: null, torches: null, walls: null, propsBelow: null, propsAbove: null, fog: null, fogTint: null, effects: null, weatherGround: null, weatherAir: null, weatherGlow: null, frame: null, drawnView: null, propIcon: null }));
 
 const drawnListeners = new Set<() => void>();
 

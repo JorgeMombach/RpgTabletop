@@ -5,9 +5,10 @@ import { onEffectsDrawn, onFogDrawn, onGroundDrawn, onPropsDrawn, onWallsDrawn, 
 
 /**
  * Uma saída do chão numa camada do mapa (docs/design/luz.md): `light` multiplica tudo o que está embaixo (a luz da
- * cena, as sombras, as tochas); `flame` soma (chamas, faíscas, brilho). A imagem fica presa à tela, como a do chão.
+ * cena, as sombras, as tochas); `flame` soma (chamas, faíscas, brilho); `torches` é o corpo das fontes de luz fixas
+ * (docs/design/luzes.md), com mistura normal. A imagem fica presa à tela, como a do chão.
  */
-export function GroundOutputLayer({ which, view, size }: { which: "light" | "flame"; view: { x: number; y: number; scale: number }; size: { width: number; height: number } }) {
+export function GroundOutputLayer({ which, view, size }: { which: "light" | "flame" | "torches"; view: { x: number; y: number; scale: number }; size: { width: number; height: number } }) {
   const box = useDrawnBox(view, size);
   const image = useGroundOutputs((state) => state[which]);
   const layerRef = useRef<Konva.Layer>(null);
@@ -16,7 +17,7 @@ export function GroundOutputLayer({ which, view, size }: { which: "light" | "fla
     const layer = layerRef.current;
     if (!layer) return;
     // A mistura é a do canvas da camada inteira com as camadas de baixo.
-    layer.getNativeCanvasElement().style.mixBlendMode = which === "light" ? "multiply" : "screen";
+    layer.getNativeCanvasElement().style.mixBlendMode = which === "light" ? "multiply" : which === "flame" ? "screen" : "normal";
     return onGroundDrawn(() => layer.batchDraw());
   }, [which, image]);
 
