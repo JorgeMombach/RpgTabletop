@@ -130,6 +130,7 @@ Com o [`docker-compose.yml`](docker-compose.yml) do repositório (edite `GM_KEY`
 | Página do jogador **fica carregando para sempre** (Tailscale) | Duas causas comuns: (1) o jogador não está na rede do mestre — no painel do Tailscale do mestre, o computador dele precisa aparecer em **Machines** (veja *Jogadores: conectando*, passo 2); (2) o Firewall do Windows do mestre liberou o app só em *Redes públicas*, mas o Tailscale é *Privada*. Para (2), no PowerShell como administrador: `New-NetFirewallRule -DisplayName "Jamal's Tabletop (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 3000-3010 -Profile Private -Action Allow` |
 | Jogador não conecta pela LAN | Confira se estão na mesma rede e se o Firewall do Windows permitiu o app no tipo da sua rede (Privada ou Pública). Se negou sem querer, libere a porta (PowerShell como administrador): `New-NetFirewallRule -DisplayName "Jamal's Tabletop" -Direction Inbound -Protocol TCP -LocalPort 3000-3010 -Action Allow` |
 | Mestre entrou como "Jogador" | Use o app na máquina do mestre (ou `http://localhost:3000`), ou o link de mestre (`?gm=`) do painel *Convidar jogadores*. |
+| A janela do app **fechou ou ficou branca** | Se só a janela cair, ela volta sozinha e o jogo continua. O app anota cada falha em `falhas.log`, na pasta dele (no Windows: `%APPDATA%\Jamal's Tabletop`). Mande esse arquivo junto com o aviso do problema. Ele só tem data, versão, motivo e memória, nada da partida. |
 | "Sala cheia" | Limite de 6 jogadores; aumente com `--max-players`. |
 
 ## Desenvolvimento

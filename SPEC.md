@@ -185,6 +185,7 @@ Servidor → cliente:
 ### ADR-04 — Estado em memória, sem persistência
 - **Decisão:** um objeto `State` em memória no servidor.
 - **Consequências:** simples e rápido; reiniciar o servidor zera tudo (comportamento esperado). Export/import JSON fica como extensão futura, se quiserem.
+- **Exceção (diagnóstico, 2026-11-24, [docs/design/desempenho.md](docs/design/desempenho.md)):** o app do mestre grava um registro local de falhas (`falhas.log` e os relatórios do Electron, na pasta do app): data, versão, motivo e a memória do app. Nada da partida, e nada é enviado. Se a janela cair, ela recarrega sozinha (o jogo continua no servidor).
 
 ### ADR-05 — Sincronização por estado completo filtrado por papel
 - **Decisão:** após cada ação, o servidor envia `state:full` para cada cliente, **filtrado por papel** (jogador não recebe HP de mob). Imagens grandes (mapa) vão em evento separado só quando mudam; avatares são reduzidos a ~128px no cliente.

@@ -1,6 +1,6 @@
 // App do mestre (ADR-18): o servidor da sessão roda aqui dentro e a janela mostra a mesa em localhost.
 // Jogadores continuam entrando pelo navegador. `--server-only` sobe sem janela (teste de fumaça da CI).
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { APP_VERSION } from "@rpg/shared";
@@ -15,6 +15,26 @@ let win: BrowserWindow | null = null;
 /** A mesa (não a tela de abertura) registrou quem decide o fechamento: ver `close` abaixo. */
 let rendererGuardsClose = false;
 let allowClose = false;
+/** Quando a janela caiu e foi recarregada (para não recarregar em ciclo se ela cair de novo logo ao abrir). */
+const recentReloads: number[] = [];
+/** Até 3 recargas por minuto; passou disso, a tela de abertura mostra o erro. */
+const RELOAD_LIMIT = 3;
+const RELOAD_WINDOW_MS = 60_000;
+
+/**
+ * Registro local de falhas (docs/design/desempenho.md; exceção anotada na ADR-04): uma linha por falha, com data,
+ * versão, motivo e a memória do app, na pasta do app. Nada da partida vai para o disco nem sai do computador.
+ */
+function logCrash(what: string) {
+  const memoryMb = Math.round(app.getAppMetrics().reduce((sum, metric) => sum + metric.memory.workingSetSize, 0) / 1024);
+  const line = `${new Date().toISOString()} v${APP_VERSION} ${what} (memória do app: ${memoryMb} MB)\n`;
+  try {
+    fs.mkdirSync(app.getPath("userData"), { recursive: true });
+    fs.appendFileSync(path.join(app.getPath("userData"), "falhas.log"), line, "utf8");
+  } catch {
+    // sem disco ou sem permissão: o registro não derruba nada
+  }
+}
 
 /** O front compilado: dentro do pacote fica em `app.asar/public` (ver scripts/package.mjs); em dev, em `dist/public` da raiz. */
 function clientDir(): string {
@@ -85,6 +105,20 @@ function createWindow() {
   });
   win.webContents.on("will-navigate", (event, url) => {
     if (server && !url.startsWith(server.local)) event.preventDefault();
+  });
+  // A janela caiu (memória, placa de vídeo…): o jogo continua no servidor, aqui no processo principal, então
+  // recarregar a mesa devolve tudo (o mestre segue mestre pelo localhost).
+  win.webContents.on("render-process-gone", (_event, details) => {
+    logCrash(`a janela caiu: ${details.reason} (código ${details.exitCode})`);
+    if (details.reason === "clean-exit") return;
+    const now = Date.now();
+    while (recentReloads.length > 0 && now - recentReloads[0] > RELOAD_WINDOW_MS) recentReloads.shift();
+    if (recentReloads.length >= RELOAD_LIMIT) {
+      splash("A mesa caiu várias vezes seguidas. O jogo continua aberto: clique em Tentar de novo. O registro está em falhas.log, na pasta do app.");
+      return;
+    }
+    recentReloads.push(now);
+    void openTable();
   });
   win.webContents.on("did-start-navigation", (_e, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) rendererGuardsClose = false;
@@ -161,6 +195,11 @@ if (!serverOnly && !app.requestSingleInstanceLock()) {
   });
 
   app.setName("Jamal's Tabletop");
+  // Relatórios de falha do Electron só neste computador (nada é enviado), na pasta do app.
+  crashReporter.start({ uploadToServer: false });
+  // Outros processos do app (placa de vídeo, rede…) e erros no processo principal: só o registro.
+  app.on("child-process-gone", (_event, details) => logCrash(`o processo ${details.type} caiu: ${details.reason} (código ${details.exitCode})`));
+  process.on("uncaughtExceptionMonitor", (error) => logCrash(`erro no processo principal: ${error.message}`));
   void app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
     if (serverOnly) return void runServerOnly();
